@@ -4,7 +4,7 @@
          改这里不会改到桌面端，两边要一起改。 -->
     <string name="app_name">吾爱Nova浏览器</string>
     <!-- 版本号单点。原先散在若干个字符串字面量里，改版本要改四处，漏一处就对不上。 -->
-    <string name="app_version">1.1.0</string>
+    <string name="app_version">1.2.0</string>
 
     <!-- 底栏。顺序与桌面端 shell.html 的 mobilebar 一致。
          「内核」那一格换成了「下载」：移动版只有系统 WebView 真内置，
@@ -53,4 +53,8 @@
     <string name="bookmark_empty">还没有书签。打开网页后点工具栏的星标即可收藏。</string>
     <string name="bookmark_added">已收藏</string>
     <string name="bookmark_removed">已取消收藏</string>
+
+    <string name="sheet_history">历史</string>
+    <string name="history_empty">还没有浏览记录。只记录 http/https 网页，无痕模式下不记。</string>
+    <string name="history_visits">%1$d 次</string>
 </resources>

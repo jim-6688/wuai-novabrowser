@@ -19,6 +19,7 @@
 
     <include layout="@layout/item_menu" android:id="@+id/menuHome" />
     <include layout="@layout/item_menu" android:id="@+id/menuBookmarks" />
+    <include layout="@layout/item_menu" android:id="@+id/menuHistory" />
     <include layout="@layout/item_menu" android:id="@+id/menuAdblock" />
 
     <TextView

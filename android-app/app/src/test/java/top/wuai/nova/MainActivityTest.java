@@ -156,4 +156,50 @@ public class MainActivityTest {
         assertEquals("", MainActivity.nameFromUrl(null));
         assertEquals("", MainActivity.nameFromUrl(""));
     }
+
+    // ------------------------------------------------------ 历史条目上的时间
+
+    private static final long DAY_MS = 24L * 3600 * 1000;
+
+    @Test
+    public void 今天和昨天显示成相对说法() {
+        // 人是靠「我上午看的那个」来找历史的，一串日期没有这个信息
+        long now = MainActivity.startOfDay(System.currentTimeMillis()) + 15 * 3600_000L;
+        assertTrue(MainActivity.historyTime(now, now).startsWith("今天"));
+        assertTrue(MainActivity.historyTime(now - DAY_MS, now).startsWith("昨天"));
+    }
+
+    @Test
+    public void 一周内显示几天前() {
+        long now = MainActivity.startOfDay(System.currentTimeMillis()) + 15 * 3600_000L;
+        assertEquals("3 天前", MainActivity.historyTime(now - 3 * DAY_MS, now));
+        assertEquals("6 天前", MainActivity.historyTime(now - 6 * DAY_MS, now));
+    }
+
+    @Test
+    public void 更早的落到具体日期() {
+        // 超过一周再显示「几天前」就没意义了，人会开始数不过来
+        long now = MainActivity.startOfDay(System.currentTimeMillis()) + 15 * 3600_000L;
+        String got = MainActivity.historyTime(now - 30 * DAY_MS, now);
+        assertFalse(got.startsWith("今天"));
+        assertFalse(got.contains("天前"));
+        assertFalse(got.isEmpty());
+    }
+
+    @Test
+    public void 跨零点才算前一天() {
+        // 直接拿毫秒差算天数的话，23:50 记下的一条 00:10 再看会被算成同一天
+        long midnight = MainActivity.startOfDay(System.currentTimeMillis());
+        long lateNight = midnight + 23 * 3600_000L + 50 * 60_000L; // 23:50
+        long afterMidnight = midnight + DAY_MS + 10 * 60_000L;     // 次日 00:10
+        // 只差 20 分钟，但跨了零点，就该算昨天
+        assertTrue(MainActivity.historyTime(lateNight, afterMidnight).startsWith("昨天"));
+    }
+
+    @Test
+    public void 时间戳为零时不显示时间() {
+        // 老数据或解析失败的记录没有时间戳，显示 "今天 00:00" 是在骗人
+        assertEquals("", MainActivity.historyTime(0, System.currentTimeMillis()));
+        assertEquals("", MainActivity.historyTime(-1, System.currentTimeMillis()));
+    }
 }

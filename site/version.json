@@ -1,31 +1,31 @@
 {
-  "version": "1.1.0",
-  "versionCode": 2,
+  "version": "1.2.0",
+  "versionCode": 3,
   "channel": "release",
   "updatedAt": "2026-10-13",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复并行分片下载失效：探测请求未带 Range，判定恒为不支持，实际永远单线程",
-    "修复每次开关弹层泄漏一个 WebView（WebView 持有 native 内存，反复开关会 OOM）",
-    "修复 http 明文站点无法加载（缺少 usesCleartextTraffic 配置）",
-    "修复规则订阅更新成功后面板数字不刷新",
-    "修复 id 相同的多个脚本只有一个会被注入",
-    "切标签时恢复上次的滚动位置",
-    "新增自动更新：启动时拉取官网版本清单"
+    "新增浏览历史：记录访问过的网页，支持搜索、单条删除与清空，上限 500 条",
+    "修复无痕模式形同虚设：会话在 onPageFinished、onReceivedTitle、closeTab 三处被无条件写盘，只有 onPause 做了判断",
+    "修复「自动下载」「恢复上次会话」两个设置只存不用，切换后毫无变化",
+    "修复分享链接进来会顶掉刚恢复的页面，且白加载一次",
+    "修复新标签页绕过「强制 HTTPS」，开关显得时灵时不灵",
+    "修复官网下载按钮完全依赖 JS，脚本没跑起来时只剩一片空白",
+    "历史与会话都不再记录 about:blank、file:// 等本机地址"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.1.0.apk",
-      "size": 324114,
-      "sha256": "78f45aacaffcd780bbd8f3773740fde47e2f752da99be21c599505ed81d84d77"
+      "url": "download/nova-1.2.0.apk",
+      "size": 329734,
+      "sha256": "c67b6243eaf1a1cb1fb30d70cbf2209d8ab41321742b2f1a98c449fc12646267"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.1.0/nova-1.1.0.apk",
-      "size": 324114,
-      "sha256": "78f45aacaffcd780bbd8f3773740fde47e2f752da99be21c599505ed81d84d77"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.0/nova-1.2.0.apk",
+      "size": 329734,
+      "sha256": "c67b6243eaf1a1cb1fb30d70cbf2209d8ab41321742b2f1a98c449fc12646267"
     }
   ]
 }

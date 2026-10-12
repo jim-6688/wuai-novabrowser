@@ -92,14 +92,25 @@ EdgeOne 一旦把根目录当作项目根，就会执行 `npm install` 去拉 El
    # 或
    cd android-app && ./gradlew assembleRelease
    ```
-3. 把 APK 覆盖到 `site/download/nova-<版本>.apk`
+3. 把 APK 放到 `site/download/nova-<版本>.apk`
+   （旧版本的 APK 顺手删掉：官网只链接最新版，留着既占仓库也没人能下到）
 4. 更新 `site/version.json`：
    - `version` / `versionCode`
    - `updatedAt`
    - `sha256`（`sha256sum site/download/nova-<版本>.apk`）
    - `size`（字节数）
-   - `changelog`
-5. 推送到 Gitee：
+   - `changelog`（只写相对上一版的变化，用户关心的是「这次给我带来了什么」）
+   - `downloads[]` 两条的 `url` / `size` / `sha256` 都要跟着改，
+     尤其是 Gitee 那条链接里带着版本号
+5. **同步改 `index.html` 里的静态链接**（第 44、109、116、117 行附近的
+   版本号与 `download/nova-<版本>.apk`）。
+   官网的下载按钮是静态 HTML 写的、不依赖 JS（原因见后），所以发版时
+   这里必须手动跟着改，JS 读到的清单只会覆盖它、不会替你填。
+6. 去 Gitee 创建 Release 并上传 APK —— **这一步没法自动化**：
+   `version.json` 里的 Gitee 链接指向 `releases/download/v<版本>/`，
+   而 Release 不会凭空出现。不上传的话，用户点第二个按钮是 404。
+   标签名填 `v<版本>`，附件名与清单里的一致（`nova-<版本>.apk`）。
+7. 推送到 Gitee：
 
    ```bash
    git add -A

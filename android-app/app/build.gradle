@@ -62,7 +62,7 @@ android {
         minSdk 24
         targetSdk 35
         // 本轮新增下载、插件、规则订阅，接口有变化
-        versionCode 2
+        versionCode 3
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用

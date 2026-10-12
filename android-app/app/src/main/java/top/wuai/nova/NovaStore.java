@@ -35,11 +35,13 @@ public final class NovaStore {
     private final Context ctx;
     private final SharedPreferences prefs;
     private final BookmarkStore bookmarkStore;
+    private final HistoryStore historyStore;
 
     public NovaStore(Context ctx) {
         this.ctx = ctx.getApplicationContext();
         this.prefs = this.ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         this.bookmarkStore = new BookmarkStore(this.ctx.getFilesDir());
+        this.historyStore = new HistoryStore(this.ctx.getFilesDir());
     }
 
     // ---------------------------------------------------------------- 设置
@@ -468,6 +470,7 @@ public final class NovaStore {
         java.io.File f = new java.io.File(ctx.getFilesDir(), RULES_FILE);
         if (f.exists()) f.delete();
         bookmarkStore.clear();
+        historyStore.clear();
         java.io.File sd = scriptsDir();
         java.io.File[] kids = sd.listFiles();
         if (kids != null) {
@@ -504,5 +507,38 @@ public final class NovaStore {
     /** 清空全部书签。 */
     public void clearBookmarks() {
         bookmarkStore.clear();
+    }
+
+    // ------------------------------------------------------------ 浏览历史
+
+    /** 历史同样委托给纯存储类。按最近访问倒序。 */
+    public List<HistoryStore.Entry> history() {
+        return historyStore.list();
+    }
+
+    /** 按关键字搜历史（标题或网址命中），空关键字等于列出全部。 */
+    public List<HistoryStore.Entry> searchHistory(String keyword) {
+        return historyStore.search(keyword);
+    }
+
+    /**
+     * 记一次访问。
+     *
+     * <p>该不该记由调用方决定（无痕模式不该记），这里只管落盘。
+     * 返回是否真的记下了 —— {@code about:blank}、{@code file://}
+     * 这些不入历史，见 {@link HistoryStore#recordable}。
+     */
+    public boolean recordHistory(String url, String title) {
+        return historyStore.record(url, title);
+    }
+
+    /** 删掉历史里的某一条。 */
+    public void removeHistory(String url) {
+        historyStore.remove(url);
+    }
+
+    /** 清空全部历史。 */
+    public void clearHistory() {
+        historyStore.clear();
     }
 }

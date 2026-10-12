@@ -39,7 +39,9 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
@@ -489,7 +491,13 @@ public final class MainActivity extends Activity {
                 Tab t = current();
                 if (t != null) {
                     t.url = url;
-                    store.saveSession(sessionUrls(), active);
+                    saveSessionNow();
+                    // 历史也在这里记：onPageFinished 是「这个页面确实打开了」的
+                    // 可靠信号，标题也已经有了。放在 shouldOverrideUrlLoading 里
+                    // 会记下一堆被拦截、被重定向掉的中间地址。
+                    if (!settings.incognito) {
+                        store.recordHistory(url, t.title);
+                    }
                     if (restoreScrollOnFinish) {
                         restoreScrollOnFinish = false;
                         final int y = t.scrollY;
@@ -563,7 +571,7 @@ public final class MainActivity extends Activity {
                     t.title = title;
                     // 标题一拿到就存。用户随时可能切走或杀进程，
                     // 那时不该再指望 onPageFinished 一定跑过。
-                    store.saveSession(sessionUrls(), active);
+                    saveSessionNow();
                 }
                 engineLabel.setContentDescription(title);
             }
@@ -875,7 +883,7 @@ public final class MainActivity extends Activity {
             active = Math.min(active, tabs.size() - 1);
             web.loadUrl(tabs.get(active).url);
         }
-        store.saveSession(sessionUrls(), active);
+        saveSessionNow();
         syncChrome();
     }
 
@@ -913,6 +921,19 @@ public final class MainActivity extends Activity {
             // 页面还没画出内容时 draw 会抛。抓不到缩略图只是总览里少一张图，
             // 不该因此打断用户切标签。
         }
+    }
+
+    /**
+     * 存一次当前会话。无痕模式下直接不写盘。
+     *
+     * <p>判断集中在这里，而不是散在各个调用点：会话保存散落在
+     * onPageFinished、onReceivedTitle、closeTab、onPause 四处，
+     * 漏掉任何一处，无痕就形同虚设 —— 只要写过一次盘，
+     * 「去过哪些页」这份清单就已经留在机器上了，后面不写也没用。
+     */
+    private void saveSessionNow() {
+        if (settings.incognito) return;
+        store.saveSession(sessionUrls(), active);
     }
 
     private List<String> sessionUrls() {
@@ -1385,6 +1406,15 @@ public final class MainActivity extends Activity {
             mountMain();
             showBookmarksSheet();
         }, true);
+        // 无痕模式下副标题直接说明「不记录」。不写的话，用户开了无痕、
+        // 进来发现历史停在几天前，只会以为这个功能坏了。
+        menuRow(sheet, R.id.menuHistory, getString(R.string.sheet_history),
+            settings.incognito ? "无痕模式不记录"
+                : (store.history().isEmpty() ? "无记录"
+                    : "最近 " + store.history().size() + " 条"), () -> {
+            mountMain();
+            showHistorySheet();
+        }, true);
         menuRow(sheet, R.id.menuAdblock, "广告拦截",
             registry.hasUserRules()
                 ? "已订阅 · " + registry.totalHosts() + " 个域名"
@@ -1607,6 +1637,92 @@ public final class MainActivity extends Activity {
             showBookmarksSheet();
         });
         return row;
+    }
+
+    // ---------------------------------------------------------- 浏览历史
+
+    private void showHistorySheet() {
+        View sheet = openSheet(getString(R.string.sheet_history), R.layout.sheet_history);
+
+        LinearLayout list = sheet.findViewById(R.id.hiList);
+        List<HistoryStore.Entry> items = store.history();
+        sheet.findViewById(R.id.hiEmpty)
+            .setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+
+        // now 只算一次：几十条记录各调一次 System.currentTimeMillis()
+        // 既浪费，也可能在跨零点的瞬间让相邻两条一个算今天、一个算昨天。
+        final long now = System.currentTimeMillis();
+        for (HistoryStore.Entry e : items) list.addView(historyRow(list, e, now));
+
+        sheet.findViewById(R.id.hiClear).setOnClickListener(v -> {
+            final int n = store.history().size();
+            if (n == 0) return;
+            new NovaAlert(this, "清空历史",
+                "会删除全部 " + n + " 条浏览记录，无法撤销。")
+                .positive("清空", () -> {
+                    store.clearHistory();
+                    showHistorySheet();
+                })
+                .negative("取消", null)
+                .show();
+        });
+    }
+
+    private View historyRow(LinearLayout parent, final HistoryStore.Entry e, long now) {
+        View row = LayoutInflater.from(this).inflate(R.layout.item_history, parent, false);
+        ((TextView) row.findViewById(R.id.hiTitle)).setText(e.title);
+        ((TextView) row.findViewById(R.id.hiUrl)).setText(e.url);
+
+        TextView meta = row.findViewById(R.id.hiMeta);
+        String when = historyTime(e.visitedAt, now);
+        // 去过多次才标次数：几乎所有条目都是 1 次，挂个「1 次」只是白占一行
+        meta.setText(e.visits > 1
+            ? when + " · " + getString(R.string.history_visits, e.visits)
+            : when);
+
+        row.setOnClickListener(v -> {
+            mountMain();
+            go(e.url);
+        });
+        row.findViewById(R.id.hiRemove).setOnClickListener(v -> {
+            store.removeHistory(e.url);
+            showHistorySheet();
+        });
+        return row;
+    }
+
+    /**
+     * 历史条目上的时间怎么显示。
+     *
+     * <p>「今天 14:30」比「2026-10-12 14:30」有用得多 ——
+     * 人是靠「我上午看的那个」来找的，不是靠一串日期。
+     * minSdk 24 用不了 java.time，所以走 Calendar + SimpleDateFormat。
+     */
+    static String historyTime(long at, long now) {
+        if (at <= 0) return "";
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(at);
+        String hm = String.format(Locale.ROOT, "%02d:%02d",
+            c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE));
+        long days = (startOfDay(now) - startOfDay(at)) / 86400000L;
+        if (days <= 0) return "今天 " + hm;
+        if (days == 1) return "昨天 " + hm;
+        if (days < 7) return days + " 天前";
+        return new SimpleDateFormat("M月d日", Locale.CHINA).format(new java.util.Date(at));
+    }
+
+    /**
+     * 当天零点。要以「日历日」为单位比，直接拿毫秒差算天数的话，
+     * 23:50 记下的一条，00:10 再看会被算成同一天。
+     */
+    static long startOfDay(long ms) {
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(ms);
+        c.set(Calendar.HOUR_OF_DAY, 0);
+        c.set(Calendar.MINUTE, 0);
+        c.set(Calendar.SECOND, 0);
+        c.set(Calendar.MILLISECOND, 0);
+        return c.getTimeInMillis();
     }
 
     // ---------------------------------------------------------- 插件面板
@@ -2844,11 +2960,11 @@ public final class MainActivity extends Activity {
         stopPolling();
         captureScroll();
         captureSnapshot(active);
-        // 无痕模式不留会话。这是它唯一比普通模式多做的事 ——
-        // 真要「什么都不留」得清 Cookie 与缓存，那会让用户自己都察觉不到。
-        if (!settings.incognito) {
-            store.saveSession(sessionUrls(), active);
-        }
+        // 无痕模式不留会话、也不记历史 —— 判断都在 saveSessionNow() 里。
+        // 它「不做」什么比「做」什么更值得说清：真要什么都不留，
+        // 还得清 Cookie 与缓存，但那样连用户自己都察觉不到代价 ——
+        // 下次打开登录态、深色模式偏好全没了，这跟人们对无痕的预期并不一致。
+        saveSessionNow();
     }
 
     @Override
