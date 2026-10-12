@@ -17,16 +17,60 @@ site/
 
 ## 一、首次接入 EdgeOne Pages
 
-1. 打开 **腾讯云 EdgeOne 控制台** → **Pages**（边缘函数与 Pages）
+### ⚠️ 最重要的一条：根目录必须填 `site`
+
+仓库**根目录**下有一份 `package.json`（桌面端 Electron 用的），
+它的 `devDependencies` 里挂着 `electron ^30.0.0`——一个约 100MB 的二进制。
+EdgeOne 一旦把根目录当作项目根，就会执行 `npm install` 去拉 Electron，
+结果不是超时就是失败。**这就是部署失败的典型根因。**
+
+根目录填 `site` 之后，EdgeOne 只会看到这个目录里的 6 个静态文件，
+既没有 `package.json` 也没有任何依赖，构建必然秒过。
+
+### 方案 A：Git 集成（推荐，推送即发布）
+
+1. 打开 **腾讯云 EdgeOne 控制台** → **Pages**
 2. 新建项目 → 代码来源选 **Gitee**
-3. 首次会跳转到 Gitee 授权页，确认授权后回到控制台
+3. 首次会跳到 Gitee 授权页，确认授权后回到控制台
 4. 选择仓库：`jinghe-net / i-adore-the-nova-browser`
-5. 构建配置：
-   - **根目录**：`site`
-   - **构建命令**：留空（纯静态，无需构建）
-   - **输出目录**：`.`（点号，表示根目录本身）
-   - **Node 版本**：任意（不参与构建）
+5. 构建部署配置：
+   - **根目录**：`site` ← 必填，不能留空、不能填 `/`
+   - **框架预设**：`Other`
+   - 其余（构建命令 / 输出目录 / Node 版本）**留空即可**
 6. 保存并部署
+
+> 为什么其余可以留空：目录下放了 `edgeone.json`，它已经把构建行为声明清楚了——
+> 不装依赖，把 `assets/`、`download/`、`index.html`、`version.json` 复制进 `dist`，
+> 输出目录就是 `./dist`。控制台留空时 EdgeOne 会读这个文件。
+
+`edgeone.json` 里另外声明了两条缓存规则，都是必要的：
+
+| 规则 | 原因 |
+| --- | --- |
+| `/version.json` → `no-store` | 这个文件是自动更新的依据。若被 CDN 缓存，用户会一直读到旧版本号，更新功能形同失效 |
+| `/download/*.apk` → 强制 `application/vnd.android.package-archive` | 个别节点可能识别错 MIME，导致 Android 收到后不认作安装包 |
+
+### 方案 B：直接上传（最省事，绕开一切构建）
+
+若 Git 集成反复失败，可完全跳过构建：
+
+1. EdgeOne Pages → 新建项目 → 代码来源选**直接上传**
+2. 上传 `site` 目录**里面的内容**（即 `assets/`、`download/`、`index.html`、`version.json`）
+3. 上传完即可访问
+
+> 注意：上传的是 `site` **目录内的内容**，不是 `site` 目录本身。
+> 若把 `site` 整个传上去，线上会变成 `xxx.edgeone.app/site/index.html`，
+> 而根路径 `/` 因找不到 `index.html` 而 404。
+
+### 部署失败怎么排查
+
+| 报错 / 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `Output directory xxx does not exist!` | 输出目录没配或配错 | 根目录确认是 `site`；或改用方案 B |
+| 构建日志卡在 `npm install` 不动 | 根目录填成了仓库根，正在拉 Electron | 根目录改成 `site` |
+| 部署成功但访问 `/` 是 404 | 上传/输出的根里没有 `index.html` | 确认 `index.html` 在输出目录顶层 |
+| `File size limit exceeded (25 MiB)` | 单文件超限 | 当前 APK 仅 300KB 左右，正常不会触发 |
+| `File count exceeds project limit` | 文件数超 20000 | 当前仅 5 个文件，正常不会触发 |
 
 部署完成后会得到一个默认域名，形如 `xxx.edgeone.app`，此时官网已可访问。
 

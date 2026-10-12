@@ -1,0 +1,30 @@
+{
+  "installCommand": "echo skip-install",
+  "buildCommand": "rm -rf dist && mkdir -p dist && cp -R assets download index.html version.json dist/",
+  "outputDirectory": "./dist",
+  "nodeVersion": "20.18.0",
+  "headers": [
+    {
+      "source": "/version.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/download/*.apk",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
