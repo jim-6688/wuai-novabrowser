@@ -39,8 +39,10 @@
             <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
         </div>
         <div class="hero-meta">
-            <span id="verLatest">版本加载中…</span>
-            <span id="verDate"></span>
+            <!-- 同理写死一份，JS 读到清单后覆盖。空着或写「加载中」都不合适：
+                 脚本没跑起来时，用户看到的就是一个永远在转的半成品。 -->
+            <span id="verLatest">最新版本 1.1.0（2）</span>
+            <span id="verDate">更新于 2026-10-13</span>
             <span>Android 7.0 及以上</span>
         </div>
     </section>
@@ -95,11 +97,31 @@
 
         <div class="dl-box">
             <div class="dl-version">
-                <strong id="dlVer">版本加载中…</strong>
-                <span id="dlStamp"></span>
+                <!--
+                  这里默认写死一份版本号，JS 读到清单后会覆盖成清单里的值。
+
+                  写死不是偷懒：这个页面唯一的目的就是让人下到 APK，
+                  把「版本号」和「下载按钮」全押在 JS 上，
+                  一旦脚本没跑起来（网络慢、被拦截、浏览器禁用 JS），
+                  用户就只看到一片空白 —— 官网等于失效。
+                  所以静态 HTML 本身就必须能独立完成「下载」这件事。
+                -->
+                <strong id="dlVer">v1.1.0</strong>
+                <span id="dlStamp">更新于 2026-10-13</span>
             </div>
-            <p class="dl-note" id="dlNote">正在读取最新版本信息…</p>
-            <div class="dl-list" id="dlBtns"></div>
+            <p class="dl-note" id="dlNote">安装包约 316 KB。安装前请在系统设置中允许来自此来源的应用。</p>
+
+            <!-- 静态兜底按钮：不依赖 JS 也能下载。JS 成功后会用清单里的地址替换（见 app.js）。 -->
+            <div class="dl-list" id="dlBtns">
+                <a class="btn btn-primary" href="download/nova-1.1.0.apk" download>
+                    官网直链 · v1.1.0
+                </a>
+                <a class="btn btn-ghost"
+                   href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases"
+                   target="_blank" rel="noopener">
+                    Gitee Releases
+                </a>
+            </div>
             <ul class="dl-facts" id="dlFacts" hidden></ul>
         </div>
     </section>
