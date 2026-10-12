@@ -780,9 +780,10 @@ public final class MainActivity extends Activity {
             String[] p = host.split("\\.");
             if (p.length == 4) {
                 try {
-                    int second = Integer.parseInt(p);
+                    int second = Integer.parseInt(p[1]);
                     if (second >= 16 && second <= 31) return true;
-            } catch (NumberFormatException ignored) {
+                } catch (NumberFormatException ignored) {
+                    // 第二段不是数字，那就不是内网保留段
                 }
             }
         }

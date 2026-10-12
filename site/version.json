@@ -18,14 +18,14 @@
     {
       "label": "官网直链",
       "url": "download/nova-1.1.0.apk",
-      "size": 319106,
-      "sha256": "f47e8da6579d2b6879a0483951fcde94a777de116ddd1e30b58c4b74301f9ddf"
+      "size": 324114,
+      "sha256": "78f45aacaffcd780bbd8f3773740fde47e2f752da99be21c599505ed81d84d77"
     },
     {
       "label": "Gitee Releases",
       "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.1.0/nova-1.1.0.apk",
-      "size": 319106,
-      "sha256": "f47e8da6579d2b6879a0483951fcde94a777de116ddd1e30b58c4b74301f9ddf"
+      "size": 324114,
+      "sha256": "78f45aacaffcd780bbd8f3773740fde47e2f752da99be21c599505ed81d84d77"
     }
   ]
 }

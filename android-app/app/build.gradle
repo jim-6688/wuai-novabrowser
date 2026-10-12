@@ -1,11 +1,30 @@
 plugins { id 'com.android.application' }
 
-// 开发签名。
+// 签名配置。口令一律从 local.properties 读，不写进版本控制。
 //
-// 仓库里带一份明文口令的开发密钥，是为了让任何人都能一条命令构建出可直接安装的包，
-// 不必先问「密钥怎么配」。它只用来签开发包，不要拿它分发正式版本 ——
-// 正式分发必须用你自己的密钥，而且那份密钥永远不要进仓库。
-def devKeystore = rootProject.file('keystore/nova-dev.jks')
+// 为什么不能写死在本文件里：口令随仓库公开后，拿到代码的人就能用同一把密钥
+// 签出同名 APK —— Android 只校验「签名是否一致」，不问是谁签的，
+// 于是那个包可以静默覆盖用户手机上已安装的版本。
+// 密钥文件本身也已在 .gitignore 中（**/keystore/*.jks）。
+//
+// local.properties 是本机文件（AGP 也会往里写 sdk.dir），同样不进仓库。
+// 填法见同目录的 local.properties.example。
+def signProps = new Properties()
+def signPropsFile = rootProject.file('local.properties')
+if (signPropsFile.exists()) {
+    signPropsFile.withInputStream { signProps.load(it) }
+}
+def signStoreFile = signProps.getProperty('nova.storeFile', 'keystore/nova-dev.jks')
+def signStorePwd = signProps.getProperty('nova.storePassword', '')
+def signKeyAlias = signProps.getProperty('nova.keyAlias', 'nova')
+def signKeyPwd = signProps.getProperty('nova.keyPassword', '')
+
+// 四项齐全才启用签名。
+//
+// 缺任何一项就退回「不签名」而不是让构建崩掉：未签名的包装不上，
+// 但至少能构出来让人看清问题；反过来若因口令缺失直接失败，
+// 新人第一次拉代码就跑不起来，反而更难排查。
+def canSign = signStorePwd && signKeyPwd && rootProject.file(signStoreFile).exists()
 
 // 版本号只有一个来源：res/values/strings.xml 的 app_version。
 // 原来这里硬编码 1.0.0、而界面显示的是 strings.xml 里的另一个值，
@@ -31,10 +50,10 @@ android {
     compileSdk 35
     signingConfigs {
         dev {
-            storeFile devKeystore
-            storePassword 'nova123456'
-            keyAlias 'nova'
-            keyPassword 'nova123456'
+            storeFile rootProject.file(signStoreFile)
+            storePassword signStorePwd
+            keyAlias signKeyAlias
+            keyPassword signKeyPwd
         }
     }
 
@@ -58,13 +77,14 @@ android {
     }
     buildTypes {
         debug {
-            signingConfig signingConfigs.dev
+            // 口令齐备才用开发密钥，否则 AGP 会退回它自带的 debug 密钥
+            if (canSign) signingConfig signingConfigs.dev
         }
         release {
             minifyEnabled false
-            // 也签上开发密钥，理由同上：产出即装。
-            // 换成正式密钥时，只要改这一行。
-            signingConfig signingConfigs.dev
+            // 同上。正式分发要换成你自己的密钥时，只改 local.properties，
+            // 本文件不用动 —— 口令也就不可能随本文件进仓库。
+            if (canSign) signingConfig signingConfigs.dev
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
         }

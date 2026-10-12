@@ -1,0 +1,17 @@
+# 复制成本目录下的 local.properties，再按需填写。
+#
+# 本文件是模板，可以提交；而 local.properties 本身已在 .gitignore 中，
+# 不会进仓库 —— 签名口令绝不能随代码公开：
+# 口令一旦泄露，拿到代码的人就能用同一把密钥签出同名 APK
+# 覆盖安装到用户手机上（Android 只校验签名是否一致，不问是谁签的）。
+
+# Android SDK 路径。AGP 通常会自动写入，一般不用手动填。
+sdk.dir=/path/to/Android/sdk
+
+# ---- 签名 ----
+# 四项齐备才会启用签名；缺任何一项则产出未签名的包（构建不报错，但装不上）。
+# 正式分发请替换成你自己的密钥，密钥文件本身也不要进仓库。
+nova.storeFile=keystore/nova-dev.jks
+nova.storePassword=
+nova.keyAlias=nova
+nova.keyPassword=
