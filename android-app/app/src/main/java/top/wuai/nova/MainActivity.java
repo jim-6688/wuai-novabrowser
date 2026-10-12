@@ -536,8 +536,16 @@ public final class MainActivity extends Activity {
             // （`filename="report.zip"` 或 RFC 5987 的 `filename*=UTF-8''...`）。
             // 只从 URL 末段取名会拿到 `download.php` 这种没信息量的名字，
             // 所以这里先把头部里的名字解出来传给下载器；取不到再回落到 URL。
-            String name = filenameFromDisposition(contentDisposition);
-            main.post(() -> enqueueDownload(url, name));
+            final String name = filenameFromDisposition(contentDisposition);
+            main.post(() -> {
+                // 「自动下载」开关在这里生效：开着就直接下，
+                // 关着则先问一句（见 NovaSettings.autoDownload 的注释）。
+                if (settings.autoDownload) {
+                    enqueueDownload(url, name);
+                } else {
+                    confirmDownload(url, name, contentLength);
+                }
+            });
         });
 
         web.setWebChromeClient(new WebChromeClient() {
@@ -817,7 +825,11 @@ public final class MainActivity extends Activity {
         return active >= 0 && active < tabs.size() ? tabs.get(active) : null;
     }
 
-    private void newTab(String url) {
+    private void newTab(String raw) {
+        if (TextUtils.isEmpty(raw)) return;
+        // 和 go() 一样走一遍明文升级：开了「强制 HTTPS」却让新标签页漏掉，
+        // 用户只会觉得这个开关时灵时不灵。
+        String url = applyHttps(raw);
         if (tabs.size() >= MAX_TABS) {
             // 上限的理由写在 Tab 的类注释里：一个标签一个 WebView 的做法在 Android 上
             // 活不过二十个。这里复用 WebView，理论上能开更多，但标签数据本身
@@ -910,8 +922,12 @@ public final class MainActivity extends Activity {
     }
 
     private void restoreSession() {
-        List<String> urls = store.loadSession();
-        if (urls.isEmpty()) {
+        // 开关关掉时不去读上次存的会话，只开一个主页。
+        // 存下来的数据不清，用户哪天把开关打开还能接着用——
+        // 「关掉」说的是这次别恢复，不是把历史抹了。
+        List<String> urls = null;
+        if (settings.restoreSession) urls = store.loadSession();
+        if (urls == null || urls.isEmpty()) {
             tabs.add(new Tab(settings.homepage));
             active = 0;
             web.loadUrl(tabs.get(0).url);
@@ -1844,6 +1860,38 @@ public final class MainActivity extends Activity {
             .show();
     }
 
+    /**
+     * 没开「自动下载」时，嗅探到下载链接先问一句再动手。
+     *
+     * <p>判定器只能看出「这个链接像是媒体」，看不出用户想不想要它。
+     * 不问就下，等于替用户决定要不要花这份流量 —— 移动网络下尤其不合适。
+     * 开关开着的意思正是「我信得过判定器，别问我了」。
+     */
+    private void confirmDownload(String url, String name, long contentLength) {
+        String shown = TextUtils.isEmpty(name) ? nameFromUrl(url) : name;
+        String size = contentLength > 0 ? DownloadTask.human(contentLength) : "大小未知";
+        new NovaAlert(this, "要下载这个文件吗？", shown + "\n" + size)
+            .positive("下载", () -> enqueueDownload(url, name))
+            .negative("取消", null)
+            .show();
+    }
+
+    /**
+     * 从 URL 末段取个能给人看的名字。
+     *
+     * <p>末尾是斜杠（如 {@code example.com/dir/}）时末段为空，那就退回整串；
+     * 名字过长则截断，否则对话框会被一串网址撑到看不见按钮。
+     */
+    static String nameFromUrl(String url) {
+        if (url == null || url.isEmpty()) return "";
+        int q = url.indexOf('?');
+        String s = q > 0 ? url.substring(0, q) : url;
+        int slash = s.lastIndexOf('/');
+        String last = slash >= 0 ? s.substring(slash + 1) : s;
+        if (last.isEmpty()) last = s;
+        return last.length() > 64 ? last.substring(0, 64) + "…" : last;
+    }
+
     private void enqueueDownload(String url, String name) {
         if (downloader == null) {
             showDownloadSheet();
@@ -2270,7 +2318,7 @@ public final class MainActivity extends Activity {
             });
 
         setRow(sheet, R.id.setAutoDownload, "自动下载媒体",
-            "关：只按下载名单拦。开着会让嗅探到的音视频直接进队列，可能不是你想要的",
+            "开着：嗅探到的音视频直接进队列，不再询问。关着：每次先问一句再下",
             null, settings.autoDownload, false, () -> {
                 settings.autoDownload = !settings.autoDownload;
                 store.save(settings);
@@ -2328,7 +2376,8 @@ public final class MainActivity extends Activity {
                 mountMain();
                 showSettings();
             });
-        setRow(sheet, R.id.setRestore, "恢复上次会话", null,
+        setRow(sheet, R.id.setRestore, "恢复上次会话",
+            "关着：每次启动只开主页。已存的会话不清，重新打开还能接着用",
             null, settings.restoreSession, false, () -> {
                 settings.restoreSession = !settings.restoreSession;
                 store.save(settings);
@@ -2726,22 +2775,33 @@ public final class MainActivity extends Activity {
     // ------------------------------------------------------------ 杂项
 
     private void handleShare(Intent intent) {
-        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) {
-            restoreSession();
-            return;
+        // 先把分享的网址挑出来，再去恢复会话。
+        // 顺序反过来会白加载一次页面：恢复完立刻被 go() 覆盖掉。
+        String shared = null;
+        if (intent != null && Intent.ACTION_SEND.equals(intent.getAction())) {
+            shared = urlFromShare(intent);
         }
         restoreSession();
+        // 分享进来的内容开一个新标签，而不是顶掉刚恢复出来的那个 ——
+        // 顶掉的话，用户上次没看完的页面就少了一个。
+        if (shared != null) newTab(shared);
+    }
+
+    /**
+     * 从分享来的文本里挑出网址。
+     *
+     * <p>挑不出来（比如分享的只是一句话）就交给输入解析变成一次搜索，
+     * 这样和在地址栏里敲同样一段文字的结果是一致的。
+     */
+    private String urlFromShare(Intent intent) {
         String text = intent.getStringExtra(Intent.EXTRA_TEXT);
-        if (TextUtils.isEmpty(text)) return;
+        if (TextUtils.isEmpty(text)) return null;
         // 分享文本常常是「标题 网址」两段，把第一个像网址的片段挑出来
         String[] parts = text.trim().split("\\s+");
         for (String part : parts) {
-            if (part.startsWith("http://") || part.startsWith("https://")) {
-                go(part);
-                return;
-            }
+            if (part.startsWith("http://") || part.startsWith("https://")) return part;
         }
-        go(settings.resolveInput(text.trim()));
+        return settings.resolveInput(text.trim());
     }
 
     private void hideKeyboard() {

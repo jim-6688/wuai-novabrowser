@@ -115,4 +115,45 @@ public class MainActivityTest {
         // 只剩目录、没有真实名字时也算没有
         assertNull(MainActivity.filenameFromDisposition("attachment; filename=\"/\""));
     }
+
+    // ---------------------------------------------------------- URL 末段取名
+
+    @Test
+    public void 取URL末段当文件名() {
+        assertEquals("a.apk", MainActivity.nameFromUrl("https://x.com/dir/a.apk"));
+    }
+
+    @Test
+    public void 查询串不进文件名() {
+        // 带 ?token=... 的下载链接很常见，不砍掉的话文件名会变成一长串签名，
+        // 用户根本看不出自己要下的是什么。
+        assertEquals("a.apk", MainActivity.nameFromUrl("https://x.com/a.apk?token=abc&e=1"));
+    }
+
+    @Test
+    public void 末尾是斜杠时退回整串() {
+        // example.com/dir/ 的末段是空的，这时不能再返回空名字 ——
+        // 确认框会显示一片空白，用户不知道要下什么。
+        assertEquals("https://x.com/dir/", MainActivity.nameFromUrl("https://x.com/dir/"));
+    }
+
+    @Test
+    public void 没有路径时就是主机名之后那一段() {
+        assertEquals("x.com", MainActivity.nameFromUrl("https://x.com"));
+    }
+
+    @Test
+    public void 超长名字会被截断() {
+        // 不截断的话，一串长网址能把确认框撑到看不见「下载」按钮
+        String got = MainActivity.nameFromUrl("https://x.com/" + "a".repeat(100));
+        assertTrue("应截断到 65 以内，实际 " + got.length(), got.length() <= 65);
+        assertTrue("截断处应有省略号：" + got, got.endsWith("…"));
+    }
+
+    @Test
+    public void 空URL返回空串而不是崩() {
+        // 确认框拿它拼提示语，返回 null 会让显示变成 "null" 四个字母
+        assertEquals("", MainActivity.nameFromUrl(null));
+        assertEquals("", MainActivity.nameFromUrl(""));
+    }
 }
