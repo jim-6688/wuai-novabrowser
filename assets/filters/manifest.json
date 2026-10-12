@@ -1,0 +1,153 @@
+{
+  "generatedAt": "2026-10-11T13:10:15.992Z",
+  "platform": "win32",
+  "node": "v22.22.2",
+  "engine": {
+    "filterDir": "assets/filters"
+  },
+  "totals": {
+    "network": 133904,
+    "cosmetic": 46599,
+    "exceptions": 3474,
+    "skipped": 767
+  },
+  "index": {
+    "domainKeys": 116851,
+    "tokenKeys": 5566,
+    "generic": 14
+  },
+  "universalCssBytes": 233067,
+  "sources": [
+    {
+      "id": "adtchrome",
+      "name": "广告终结者",
+      "vendor": "ChinaList + EasyList 修正",
+      "homepage": "http://sub.adtchrome.com/",
+      "kind": "remote",
+      "enabled": true,
+      "counts": {
+        "network": 11761,
+        "cosmetic": 6906,
+        "exceptions": 898,
+        "skipped": 118
+      },
+      "lists": [
+        {
+          "file": "adt-chinalist-easylist.txt",
+          "title": "ChinaListV2.0[20200217000]",
+          "version": "20200217000",
+          "modified": "2020/02/17 19:20:27 +0800",
+          "url": "https://cdn.jsdelivr.net/gh/Zsy-2014/ChinaList2.0@master/ChinaList2.0.txt",
+          "bytes": 515628,
+          "lines": 17846,
+          "rules": 16843,
+          "network": 11031,
+          "cosmetic": 5812,
+          "skipped": 106,
+          "sha256": "cfc4f38a331469d9704f897d88e4e45737635e8b6b1f4d7bb26104719a4ff509"
+        },
+        {
+          "file": "adt-annoyance.txt",
+          "title": "CJX's Annoyance List",
+          "version": "202610011010",
+          "modified": "2026/10/01 10:10 +0800",
+          "url": "https://cdn.jsdelivr.net/gh/cjx82630/cjxlist@master/cjx-annoyance.txt",
+          "bytes": 57229,
+          "lines": 1863,
+          "rules": 1824,
+          "network": 730,
+          "cosmetic": 1094,
+          "skipped": 12,
+          "sha256": "f5afcf694eb62c42bdaa1294915f10a78577d1005c8d7a13b61a4808ccddb528"
+        }
+      ]
+    },
+    {
+      "id": "abp",
+      "name": "Adblock Plus",
+      "vendor": "EasyList 官方规则",
+      "homepage": "https://easylist.to/",
+      "kind": "remote",
+      "enabled": true,
+      "counts": {
+        "network": 121936,
+        "cosmetic": 30574,
+        "exceptions": 2576,
+        "skipped": 649
+      },
+      "lists": [
+        {
+          "file": "easylist.txt",
+          "title": "EasyList",
+          "version": "2.1.76.30",
+          "modified": "10 Oct 2026 20:32 UTC",
+          "url": "https://filters.adtidy.org/extension/chromium/filters/101.txt",
+          "bytes": 2207094,
+          "lines": 81137,
+          "rules": 79654,
+          "network": 55528,
+          "cosmetic": 24126,
+          "skipped": 486,
+          "sha256": "e000672950c72d9b98096ca2de7448ac6c68fd5c7a65904892773ea07cd0ce3a"
+        },
+        {
+          "file": "easylist-china.txt",
+          "title": "EasyList China",
+          "version": "2.1.68.98",
+          "modified": "%timestamp%",
+          "url": "https://filters.adtidy.org/extension/chromium/filters/104.txt",
+          "bytes": 534652,
+          "lines": 18664,
+          "rules": 17447,
+          "network": 11031,
+          "cosmetic": 6416,
+          "skipped": 130,
+          "sha256": "0d1234911a3d2ffe5b8bb62d8d651362ac2a7f55a8f76c9f2757f85452c7f739"
+        },
+        {
+          "file": "easyprivacy.txt",
+          "title": "EasyPrivacy",
+          "version": "2.1.72.99",
+          "modified": "10 Oct 2026 20:39 UTC",
+          "url": "https://filters.adtidy.org/extension/chromium/filters/118.txt",
+          "bytes": 1566614,
+          "lines": 57078,
+          "rules": 55409,
+          "network": 55377,
+          "cosmetic": 32,
+          "skipped": 33,
+          "sha256": "a6ff5716285fe9e4b1f2a709d735c1934776bca303d308f387a65d746330eb3f"
+        }
+      ]
+    },
+    {
+      "id": "builtin",
+      "name": "系统内置拦截器",
+      "vendor": "Nova 自带清单",
+      "homepage": "",
+      "kind": "builtin",
+      "enabled": true,
+      "counts": {
+        "network": 207,
+        "cosmetic": 89,
+        "exceptions": 0,
+        "skipped": 0
+      },
+      "lists": [
+        {
+          "file": "src/main/adblock-lists.js",
+          "title": "Nova 内置清单",
+          "url": "",
+          "network": 207,
+          "cosmetic": 89,
+          "rules": 296,
+          "bytes": null,
+          "updatedAt": null,
+          "builtin": true,
+          "lines": null,
+          "sha256": null
+        }
+      ]
+    }
+  ]
+}

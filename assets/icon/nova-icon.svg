@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="吾爱Nova浏览器">
+  <title>吾爱Nova浏览器</title>
+  <defs>
+    <!-- 品牌底色：与 src/renderer/shell.css 里的 brand / accent 两个色变量同源。
+         注意：XML 注释里**不能出现连续两个 ASCII 连字符**（这里原本写了 CSS 变量名
+         「减号减号 brand」，SVG 当场变成非法 XML，Chromium 只报含糊的
+         “The source image cannot be decoded”）。以后写变量名请用中文括号括起来。
+         45° 渐变，起点略提亮，避免深色端在小尺寸下发闷。 -->
+    <linearGradient id="nova-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5B84FF"/>
+      <stop offset="0.46" stop-color="#3D6BFF"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+
+    <!-- 星核的柔光：让星芒看起来是「发光的」而不是贴上去的白色图形 -->
+    <radialGradient id="nova-glow" cx="32" cy="32" r="19" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- 星芒本体：上暗下亮，模拟上方的光源 -->
+    <linearGradient id="nova-star" x1="32" y1="14" x2="32" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EEF3FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 1) 圆角方底 -->
+  <rect x="0" y="0" width="64" height="64" rx="15" fill="url(#nova-bg)"/>
+
+  <!-- 2) 星核柔光 -->
+  <circle cx="32" cy="32" r="19" fill="url(#nova-glow)"/>
+
+  <!-- 3) 轨道环：绕星核倾斜 -24°，右端截止在 51.05 处（离边 12.95，约 20% 留白）。
+         环压在柔光之上、星芒之下，于是星芒尖端会「穿过」环内侧，形成前后层次。 -->
+  <g transform="rotate(-24 32 32)">
+    <ellipse cx="32" cy="32" rx="20.5" ry="8.6" fill="none"
+             stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="1.6"/>
+  </g>
+
+  <!-- 4) 轨道上的星体（一粒珠子，说明「有东西在绕行」） -->
+  <circle cx="45.6" cy="22.4" r="2.5" fill="#FFFFFF" fill-opacity="0.92"/>
+
+  <!-- 5) 星芒：四角星，边用二次贝塞尔向内心收，得到凹边的经典 sparkle 轮廓。
+         外径 17 / 腰 3.4 —— 越小越锐利，但低于 3 会在 48px 处断开。 -->
+  <path d="M32 15 Q34.4 29.6 49 32 Q34.4 34.4 32 49 Q29.6 34.4 15 32 Q29.6 29.6 32 15 Z"
+        fill="url(#nova-star)"/>
+</svg>

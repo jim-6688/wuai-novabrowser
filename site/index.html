@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>吾爱Nova浏览器 · 多内核浏览器</title>
+<meta name="description" content="吾爱Nova浏览器：多内核切换、内置广告拦截、无图模式、自动拼页、多线程下载、篡改猴用户脚本。PC 与移动双端。">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="nav">
+    <div class="nav-in">
+        <a class="logo" href="index.html">
+            <span class="logo-mark">N</span>
+            吾爱Nova浏览器
+        </a>
+        <nav class="nav-links">
+            <a href="#features">功能</a>
+            <a href="#download">下载</a>
+            <a href="#about">关于</a>
+            <a href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">源码</a>
+        </nav>
+    </div>
+</header>
+
+<main class="wrap">
+
+    <!-- ============ Hero ============ -->
+    <section class="hero">
+        <span class="eyebrow">PC 与移动双端 · 内置广告拦截</span>
+        <h1>把浏览器的控制权<br>拿回自己手里</h1>
+        <p class="lede">
+            多内核切换、按域名拦截广告、无图模式省流量、自动拼接下一页、
+            多线程下载，以及兼容 Tampermonkey 的用户脚本。
+        </p>
+        <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="#download">下载 Android 版</a>
+            <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
+        </div>
+        <div class="hero-meta">
+            <span id="verLatest">版本加载中…</span>
+            <span id="verDate"></span>
+            <span>Android 7.0 及以上</span>
+        </div>
+    </section>
+
+    <!-- ============ 功能 ============ -->
+    <section id="features">
+        <div class="sec-head">
+            <h2>功能</h2>
+            <p>以下是移动版当前实际具备的能力，不含规划中的部分。</p>
+        </div>
+        <div class="grid">
+
+            <div class="card">
+                <h3><span class="dot" style="background:var(--brand)"></span>广告拦截</h3>
+                <p>随包内置域名名单，也支持订阅外部规则。按域名匹配，命中即不发起请求。</p>
+            </div>
+
+            <div class="card">
+                <h3><span class="dot" style="background:var(--ok)"></span>无图模式</h3>
+                <p>三档可调，按网址后缀识别图片与音视频，尽量不下载。另有「加载图片」总开关。</p>
+            </div>
+
+            <div class="card">
+                <h3><span class="dot" style="background:var(--accent)"></span>自动拼页</h3>
+                <p>滑到页尾自动接上下一页并就地展开，可设 5 / 10 / 20 页上限，支持撤销。</p>
+            </div>
+
+            <div class="card">
+                <h3><span class="dot" style="background:var(--warn)"></span>多线程下载</h3>
+                <p>支持分片并行，暂停后可从断点续传；服务器不支持分片时自动退回单线程。</p>
+            </div>
+
+            <div class="card">
+                <h3><span class="dot" style="background:var(--engine-gecko)"></span>篡改猴脚本</h3>
+                <p>安装 .user.js，按 @match 声明的地址注入。不支持 @grant 特权。</p>
+            </div>
+
+            <div class="card">
+                <h3><span class="dot" style="background:var(--engine-trident)"></span>多标签</h3>
+                <p>最多 40 个标签，带缩略图总览，可单独关闭，切回时恢复滚动位置。</p>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ============ 下载 ============ -->
+    <section id="download">
+        <div class="sec-head">
+            <h2>下载</h2>
+            <p>Android 安装包。安装前需要在系统设置里允许来自此来源的应用。</p>
+        </div>
+
+        <div class="dl-box">
+            <div class="dl-version">
+                <strong id="dlVer">版本加载中…</strong>
+                <span id="dlStamp"></span>
+            </div>
+            <p class="dl-note" id="dlNote">正在读取最新版本信息…</p>
+            <div class="dl-list" id="dlBtns"></div>
+            <ul class="dl-facts" id="dlFacts" hidden></ul>
+        </div>
+    </section>
+
+    <!-- ============ 关于 ============ -->
+    <section id="about">
+        <div class="sec-head">
+            <h2>关于</h2>
+        </div>
+        <div class="grid">
+            <div class="card">
+                <h3>它是什么</h3>
+                <p>一个把「多内核、广告拦截、脚本扩展」做成可切换开关的浏览器原型，
+                   同时提供 PC（Electron）与移动（Android）两端实现。</p>
+            </div>
+            <div class="card">
+                <h3>它不是什么</h3>
+                <p>移动版<b>不内置浏览器内核</b>，渲染由系统自带的 Chromium 内核提供，
+                   它会随系统或 Chrome 自动更新。</p>
+            </div>
+            <div class="card">
+                <h3>能力边界</h3>
+                <p>Android 的请求拦截拿不到资源类型，因此移动版只支持按域名匹配：
+                   元素隐藏规则与带路径的规则会被跳过，并在界面上显示跳过了多少条。</p>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<footer class="foot">
+    <div class="wrap">
+        吾爱Nova浏览器 · 开源项目 ·
+        <a href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">Gitee 仓库</a>
+    </div>
+</footer>
+
+<script src="assets/js/app.js"></script>
+</body>
+</html>

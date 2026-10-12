@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  标签卡片右上角的关闭小圆标。深色半透明，是为了压在任意缩略图（可能很亮）上
+  都看得清；配白色 ×（在 item_tab.xml 里用 android:tint 强制）。
+  不复用 bg_primary_btn（品牌渐变圆角）：那个是给底栏主按钮的，颜色太跳，
+  而且缩略图一亮就看不清 ×。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#CC1A1F2B" />
+</shape>

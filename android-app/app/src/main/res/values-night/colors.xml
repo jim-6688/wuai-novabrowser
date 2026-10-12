@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  深色主题的中性色。
+
+  这份文件本来就是设计里的一环 —— values/colors.xml 里那套 surface_dark /
+  text_dark 令牌写着「对应 shell.css 的深色主题块」，但一直没有任何地方引用它们，
+  于是移动版的「深色」只剩 values-night/themes.xml 那层窗口背景，
+  界面里的卡片、输入框、文字全是浅色。主题设置因此是个假开关。
+
+  这里把中性令牌别名到深色值，深色模式才真正落到每个界面上。
+  品牌色（brand / accent）和语义色（ok / warn / danger）两边共用，不覆盖 ——
+  它们在深浅底上都够看，而覆盖了就等于维护两份品牌色。
+-->
+<resources>
+    <color name="bg">@color/bg_dark</color>
+    <color name="surface">@color/surface_dark</color>
+    <color name="surface_2">@color/surface_2_dark</color>
+    <color name="surface_3">@color/surface_3_dark</color>
+    <color name="border">@color/border_dark</color>
+    <color name="border_strong">@color/border_strong_dark</color>
+    <color name="text">@color/text_dark</color>
+    <color name="text_2">@color/text_2_dark</color>
+    <color name="text_3">@color/text_3_dark</color>
+    <color name="text_4">@color/text_4_dark</color>
+</resources>

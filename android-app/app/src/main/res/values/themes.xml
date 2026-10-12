@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  主题。用平台自带的 @android:style/Theme.Material.Light.NoActionBar 与它的
+  深色兄弟，而不是 AppCompat / Material Components 那一套。
+
+  为什么不用那些库：整个应用只需要一个 WebView 加原生控件，引一整套 support 库
+  换不来任何能力，却让 APK 大一圈、还得跟着它们的版本走。
+  @android:style/Theme.DeviceDefault.Light.DayNight 更省事，它自带深浅色切换，
+  但值/值-night 两份都得写 —— 写死成两份反而能保证色值跟 shell.css 一一对上，
+  那才是这个主题真正要保证的事。
+-->
+<resources>
+    <style name="Theme.Nova" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/brand</item>
+        <item name="android:colorPrimaryDark">@color/brand_strong</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <!-- 浅色底上用深色图标，这是两套里最容易漏的一条：漏了状态栏会变成
+             白底白字，在部分机型上整条都看不见。 -->
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  主菜单。按「浏览 / 工具 / 应用」三组分，每组只放真正属于它的高频动作。
+  下载与阅读增强从「浏览」挪到了「工具」：它们更像「对网页的加工能力」，
+  而不是「去哪」的导航；首页 / 书签 / 广告拦截才是导航与拦截。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="16dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <TextView
+        style="@style/SectionHead"
+        android:paddingTop="2dp"
+        android:text="浏览" />
+
+    <include layout="@layout/item_menu" android:id="@+id/menuHome" />
+    <include layout="@layout/item_menu" android:id="@+id/menuBookmarks" />
+    <include layout="@layout/item_menu" android:id="@+id/menuAdblock" />
+
+    <TextView
+        style="@style/SectionHead"
+        android:text="工具" />
+
+    <include layout="@layout/item_menu" android:id="@+id/menuRead" />
+    <include layout="@layout/item_menu" android:id="@+id/menuDownloads" />
+    <include layout="@layout/item_menu" android:id="@+id/menuPlugins" />
+
+    <TextView
+        style="@style/SectionHead"
+        android:text="应用" />
+
+    <include layout="@layout/item_menu" android:id="@+id/menuUpdate" />
+    <include layout="@layout/item_menu" android:id="@+id/menuSettings" />
+    <include layout="@layout/item_menu" android:id="@+id/menuAbout" />
+    <include layout="@layout/item_menu" android:id="@+id/menuExit" />
+
+    <TextView
+        android:id="@+id/aboutVer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_4"
+        android:textSize="11.5sp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp" />
+</LinearLayout>

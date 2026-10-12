@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108" role="img" aria-label="吾爱Nova浏览器 自适应图标前景">
+  <title>吾爱Nova浏览器 · 自适应图标前景</title>
+  <defs>
+    <radialGradient id="nova-glow-a" cx="32" cy="32" r="19" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="nova-star-a" cx="32" cy="24" r="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E9EFFF"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Android 自适应图标：108 × 108 画布，其中 66 × 66 是**保证可见**的安全区，
+       圆/方/水滴等蒙版都可能把外面裁掉。所以前景内容按 1.7 倍放大后居中：
+       主图标内容跨 38 单位 → 38 × 1.7 ≈ 64.6 单位，正好落在 66 安全区内。 -->
+  <g transform="translate(54 54) scale(1.7) translate(-32 -32)">
+    <circle cx="32" cy="32" r="19" fill="url(#nova-glow-a)"/>
+    <g transform="rotate(-24 32 32)">
+      <ellipse cx="32" cy="32" rx="20.5" ry="8.6" fill="none"
+               stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="1.6"/>
+    </g>
+    <circle cx="45.6" cy="22.4" r="2.5" fill="#FFFFFF" fill-opacity="0.92"/>
+    <path d="M32 15 Q34.4 29.6 49 32 Q34.4 34.4 32 49 Q29.6 34.4 15 32 Q29.6 29.6 32 15 Z"
+          fill="url(#nova-star-a)"/>
+  </g>
+</svg>

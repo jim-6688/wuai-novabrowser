@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  收藏（书签）。描边五角星，未收藏时显示。
+
+  放在工具栏地址栏左侧、首页按钮旁边：和首页键共用一段空间，
+  两个都是「一抬拇指就够到」的位置，不占底栏六格的触控预算。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <path android:strokeColor="#000" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M10,1.5 L12.0,7.25 L18.08,7.37 L13.23,11.05 L15.0,16.88 L6.6,10 L5.0,16.88 L6.77,11.05 L1.92,7.37 L8.0,7.25 Z" />
+</vector>

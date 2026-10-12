@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  深色主题。色值对应 shell.css 的深色主题块，逐条对齐。
+  父主题也换成平台的 Material 深色版 —— 浅色那份引的 @android:style/Theme.Material.Light
+  不带深色变体，用它做深色模式会得到「深色背景 + 浅色弹窗」这种割裂结果。
+-->
+<resources>
+    <style name="Theme.Nova" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorPrimary">@color/brand</item>
+        <item name="android:colorPrimaryDark">@color/brand_strong</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:windowBackground">@color/bg_dark</item>
+        <item name="android:navigationBarColor">@color/surface_dark</item>
+        <item name="android:statusBarColor">@color/surface_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

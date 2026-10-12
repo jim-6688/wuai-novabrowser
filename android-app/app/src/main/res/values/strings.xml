@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 应用名。与 package.json 的 productName、桌面端 shell.html 的 title 同源。
+         改这里不会改到桌面端，两边要一起改。 -->
+    <string name="app_name">吾爱Nova浏览器</string>
+    <!-- 版本号单点。原先散在若干个字符串字面量里，改版本要改四处，漏一处就对不上。 -->
+    <string name="app_version">1.1.0</string>
+
+    <!-- 底栏。顺序与桌面端 shell.html 的 mobilebar 一致。
+         「内核」那一格换成了「下载」：移动版只有系统 WebView 真内置，
+         给一个只有一个选项的按钮叫「内核选择」等于用假选择骗用户。 -->
+    <string name="mb_back">后退</string>
+    <string name="mb_forward">前进</string>
+    <string name="mb_tabs">标签</string>
+    <string name="mb_engine">内核</string>
+    <string name="mb_read">阅读</string>
+    <string name="mb_menu">菜单</string>
+    <string name="mb_download">下载</string>
+
+    <!-- 状态条 -->
+    <string name="status_idle">就绪</string>
+    <string name="status_noimage">无图模式</string>
+    <string name="status_adblock">已拦截广告</string>
+
+    <!-- 无障碍朗读。工具栏上两个图标按钮各有一条 ——
+         ImageButton 不写 contentDescription 的话，读屏软件会念包名。 -->
+    <string name="content_desc_home">回到首页</string>
+    <string name="content_desc_reload">刷新 / 停止加载</string>
+    <string name="content_desc_star">收藏当前页面 / 取消收藏</string>
+    <string name="content_desc_ai">AI 助手</string>
+
+    <!-- 弹层标题 -->
+    <string name="sheet_tabs">标签页</string>
+    <string name="sheet_engine">浏览器内核</string>
+    <string name="sheet_read">阅读增强</string>
+    <string name="sheet_menu">菜单</string>
+    <string name="sheet_settings">设置</string>
+    <string name="sheet_about">关于</string>
+    <string name="sheet_search">搜索引擎</string>
+    <string name="sheet_ai">AI 助手</string>
+    <string name="sheet_downloads">下载</string>
+    <string name="sheet_rules">广告拦截规则</string>
+    <string name="sheet_plugins">篡改猴</string>
+    <string name="sheet_bookmarks">书签</string>
+
+    <string name="action_new_tab">+ 新建标签页</string>
+    <string name="action_close_tab">关闭</string>
+    <string name="action_close_all">全部关闭</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_exit">退出</string>
+
+    <string name="bookmark_empty">还没有书签。打开网页后点工具栏的星标即可收藏。</string>
+    <string name="bookmark_added">已收藏</string>
+    <string name="bookmark_removed">已取消收藏</string>
+</resources>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  弹层头。四种弹层共用：标题 + 一条拖柄 + 关闭键。
+  拖柄不是装饰 —— 它明确告诉用户「往下拉/往下划可以关掉」，底部弹层没有这个提示
+  会让人以为只能点右上角那个 ×。
+-->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="8dp"
+    android:paddingBottom="4dp"
+    android:paddingStart="16dp"
+    android:paddingEnd="12dp">
+
+    <View
+        android:id="@+id/sheetGrip"
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:background="@drawable/seg_track" />
+
+    <TextView
+        android:id="@+id/sheetTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/sheetGrip"
+        android:layout_marginTop="10dp"
+        android:textColor="@color/text"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <ImageView
+        android:id="@+id/sheetClose"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="8dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/action_close_tab"
+        android:padding="7dp"
+        android:src="@drawable/ic_close" />
+</RelativeLayout>

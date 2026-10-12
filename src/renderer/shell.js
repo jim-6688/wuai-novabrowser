@@ -1,0 +1,3090 @@
+'use strict';
+
+/**
+ * Nova 浏览器 · 外壳逻辑
+ * ---------------------------------------------------------------------------
+ * 单一渲染层同时承载 PC 与移动端：布局由 [data-layout] 决定（desktop | mobile），
+ * 由视口宽度 × 用户设置推导。内核切换是每个标签页的属性，切内核即按新内核
+ * 重建该标签页的 <webview>（换 partition / UA / 垫片），URL 保持不变。
+ */
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => [...document.querySelectorAll(sel)];
+const bridge = window.nova;
+
+/* ------------------------------------------------------------------ *
+ * 状态
+ * ------------------------------------------------------------------ */
+
+const state = {
+  engines: [],
+  engineMap: new Map(),
+  settings: {},
+  /** 出厂默认值，由主进程随 bootstrap 下发，供「恢复默认设置」使用 */
+  defaults: null,
+  extensions: [],
+  bookmarks: [],
+  adblock: { blocked: 0, rules: {}, top: [], enabled: true },
+  allowlist: [],
+  tabs: [],
+  activeId: null,
+  seq: 0,
+  layout: 'desktop',
+  panel: null,
+  /** 设置页当前分区 */
+  settingsSection: 'general',
+  userDataPath: '',
+  hitCounter: 0,
+  downloads: [],
+  /** { active, done, error, queued, speed, total } —— 由主进程聚合 */
+  downloadStats: null,
+  /** 当前下载目录（空字符串表示系统默认） */
+  downloadsDir: '',
+  /** 新建下载输入框的草稿 —— 重渲染时不能把用户正在敲的地址弄丢 */
+  dlDraft: '',
+  /**
+   * 嗅探到的媒体资源，按 webContentsId 分组。
+   * 注意这里的分组键是主进程的 webContents.id，不是 state.tabs 里那个自增 id ——
+   * 两者毫无关系，靠 <webview>.getWebContentsId() 建立映射（见 mountTab）。
+   */
+  sniffByWc: new Map(),
+  /** 格式注册表规模，由主进程下发 */
+  sniffFormats: null,
+  /** 嗅探统计（主进程聚合） */
+  sniffStats: null,
+  /** 已展开内联预览的资源 id */
+  sniffPreview: null,
+  /** 展开/收起分片列表 */
+  sniffShowSegments: false,
+  /** 无图模式快照：档位、类型、全局拦截数、当前标签页拦截数 */
+  noMedia: null,
+  /** 无图占位样式与作用域类注入脚本，由主进程下发 —— 一处定义，两边不各写一份 */
+  noImageCss: '',
+  noImageJs: '',
+  /** 当前页自动拼页状态（由页面内脚本回读，见 readAutoPageStatus） */
+  autoPageStatus: null,
+  isPreview: !!bridge.isPreview
+};
+
+const MOBILE_BREAKPOINT = 640;
+
+/* ------------------------------------------------------------------ *
+ * 工具
+ * ------------------------------------------------------------------ */
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function toast(msg, ms = 2200) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.hidden = false;
+  requestAnimationFrame(() => el.classList.add('is-show'));
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => {
+    el.classList.remove('is-show');
+    setTimeout(() => { el.hidden = true; }, 220);
+  }, ms);
+}
+
+/** 千分位数字 —— 规则数以十万计时可读性很重要 */
+function fmtNum(n) {
+  return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function hostOf(url) {
+  try { return new URL(url).hostname; } catch { return ''; }
+}
+
+function prettyUrl(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    if (u.pathname === '/' && !u.search && !u.hash) return u.hostname;
+    return u.hostname + u.pathname + u.search + u.hash;
+  } catch { return url; }
+}
+
+function timeAgo(ts) {
+  const d = Date.now() - ts;
+  if (d < 60000) return '刚刚';
+  if (d < 3600000) return `${Math.floor(d / 60000)} 分钟前`;
+  if (d < 86400000) return `${Math.floor(d / 3600000)} 小时前`;
+  return `${Math.floor(d / 86400000)} 天前`;
+}
+
+function searchUrl(q) {
+  const tpl = state.settings.searchTemplate || 'https://www.baidu.com/s?wd=%s';
+  return tpl.replace('%s', encodeURIComponent(q));
+}
+
+/** 新建标签页打开的地址：优先 newTabPage，未设置时退回主页 */
+function newTabUrl() {
+  return state.settings.newTabPage || state.settings.homepage;
+}
+
+/** 输入框内容 → 真实 URL：像域名的当地址，否则当搜索词 */
+function resolveInput(raw) {
+  const q = raw.trim();
+  if (!q) return null;
+  if (/^(https?|file|about|chrome|edge):/i.test(q)) return q;
+  if (/^[\w-]+(\.[\w-]+)+(:\d+)?(\/.*)?$/i.test(q) || /^localhost(:\d+)?/i.test(q)) {
+    return 'https://' + q;
+  }
+  return searchUrl(q);
+}
+
+/* ------------------------------------------------------------------ *
+ * 内核
+ * ------------------------------------------------------------------ */
+
+function engine(id) {
+  return state.engineMap.get(id) || state.engineMap.get('chromium') || state.engines[0];
+}
+
+/** 内核下拉里的一项 */
+function engineMenuItem(e, activeId) {
+  const on = e.id === activeId;
+  return `
+    <button class="em-item ${on ? 'is-active' : ''}" data-engine="${e.id}"
+            style="--engine-color:${e.accent}" role="menuitemradio" aria-checked="${on}"
+            title="${esc(e.label)} · ${esc(e.modeLabel)}&#10;${esc(e.notes)}">
+      <span class="em-dot"></span>
+      <span class="em-main">
+        <span class="em-name">
+          ${esc(e.label)}
+          <span class="mode-pill mode-${e.mode}">${esc(e.modeLabel)}</span>
+        </span>
+        <span class="em-sub">${esc(e.vendor)} · ${esc(e.short)} · ${esc(e.partition)}</span>
+      </span>
+      <span class="em-check">
+        <svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-6.5" /></svg>
+      </span>
+    </button>`;
+}
+
+function renderEngineSwitch() {
+  const tab = activeTab();
+  const activeId = (tab && tab.engineId) || state.settings.defaultEngine;
+
+  // 地址栏右侧的下拉菜单
+  const list = $('#engine-menu-list');
+  list.innerHTML = state.engines.map((e) => engineMenuItem(e, activeId)).join('');
+  list.querySelectorAll('.em-item').forEach((b) => {
+    b.addEventListener('click', () => {
+      switchEngine(state.activeId, b.dataset.engine);
+      closeEngineMenu();
+    });
+  });
+
+  // 移动端底部弹层
+  const cards = $('#engine-cards');
+  cards.innerHTML = state.engines.map((e) => `
+    <button class="engine-card" data-engine="${e.id}" style="--engine-color:${e.accent}">
+      <span class="engine-card-dot"></span>
+      <span class="engine-card-main">
+        <span class="engine-card-name">${esc(e.label)}</span>
+        <span class="engine-card-sub">${esc(e.vendor)} · ${esc(e.modeLabel)}</span>
+      </span>
+    </button>
+  `).join('');
+  cards.querySelectorAll('button').forEach((b) => {
+    b.addEventListener('click', () => {
+      switchEngine(state.activeId, b.dataset.engine);
+      closeSheet();
+    });
+  });
+}
+
+function syncEngineUi() {
+  const tab = activeTab();
+  const id = tab ? tab.engineId : state.settings.defaultEngine;
+  const e = engine(id);
+
+  $$('#engine-menu-list .em-item').forEach((b) => {
+    const on = b.dataset.engine === id;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+  $$('#engine-cards .engine-card').forEach((c) => {
+    c.classList.toggle('is-active', c.dataset.engine === id);
+  });
+
+  const badge = $('#omni-engine');
+  badge.style.setProperty('--engine-color', e.accent);
+  badge.classList.toggle('is-compat', e.mode === 'compat');
+  $('#omni-engine-short').textContent = e.short;
+  $('#brand-tag').textContent = `${e.label} · ${e.modeLabel}`;
+  $('#mb-engine-label').textContent = e.label;
+}
+
+function engineNotice(engineId) {
+  const e = engine(engineId);
+  const bar = $('#engine-notice');
+  if (e.mode === 'native') {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  $('#engine-notice-text').textContent =
+    `${e.label}：${e.modeLabel}。${e.fallbackReason || e.notes} 换成原生内核后即可获得真实内核行为。`;
+}
+
+/* ---- 地址栏右侧的内核选择器 ---- */
+
+function openEngineMenu() {
+  // 移动端空间不够，走底部分层
+  if (state.layout === 'mobile') { openSheet(); return; }
+  syncEngineUi();
+  $('#engine-menu').hidden = false;
+  $('#omni-engine').setAttribute('aria-expanded', 'true');
+}
+
+function closeEngineMenu() {
+  const menu = $('#engine-menu');
+  if (!menu || menu.hidden) return;
+  menu.hidden = true;
+  $('#omni-engine').setAttribute('aria-expanded', 'false');
+}
+
+function toggleEngineMenu() {
+  if (state.layout === 'mobile') { openSheet(); return; }
+  if ($('#engine-menu').hidden) openEngineMenu();
+  else closeEngineMenu();
+}
+
+/* ------------------------------------------------------------------ *
+ * 标签页
+ * ------------------------------------------------------------------ */
+
+function activeTab() {
+  return state.tabs.find((t) => t.id === state.activeId) || null;
+}
+
+function createTab(url, engineId, { activate = true } = {}) {
+  const id = ++state.seq;
+  const engineKey = engineId || state.settings.defaultEngine || 'chromium';
+  const tab = {
+    id,
+    engineId: engineKey,
+    url: url || state.settings.homepage,
+    title: '新标签页',
+    favicon: null,
+    loading: false,
+    canGoBack: false,
+    canGoForward: false,
+    webview: null,
+    crashed: false
+  };
+
+  state.tabs.push(tab);
+  mountTab(tab);
+  if (activate) activateTab(id);
+  else renderTabstrip();
+  persistSession();
+  return tab;
+}
+
+/** 按标签页当前内核属性创建渲染载体 */
+function mountTab(tab) {
+  const host = $('#viewport');
+  const e = engine(tab.engineId);
+
+  // UI 预览模式（非 Electron 环境）：不创建真实 webview，只画一个同构的占位面板
+  if (state.isPreview) {
+    const pane = document.createElement('div');
+    pane.className = 'preview-pane';
+    pane.dataset.tabId = String(tab.id);
+    pane.style.setProperty('--engine-color', e.accent);
+    pane.innerHTML = `
+      <div class="preview-bar">
+        <span class="pb-pill">${esc(e.short)} · ${esc(e.modeLabel)}</span>
+        <span>${esc(tab.url)}</span>
+      </div>
+      <div class="preview-body">
+        <div>
+          <h3>${esc(hostOf(tab.url) || '目标是本地页面')}</h3>
+          <p>
+            UI 预览模式：真实运行时这里嵌的是 ${esc(e.label)} 内核的页面视图。<br />
+            内核：${esc(e.label)}（${esc(e.modeLabel)}）· 隔离分区 ${esc(e.partition)}<br />
+            广告拦截：内置清单 ${state.adblock.rules.network || 0} 条网络规则 + ${state.adblock.rules.cosmetic || 0} 条隐藏规则
+          </p>
+        </div>
+      </div>`;
+    host.appendChild(pane);
+    tab.webview = pane;
+    // 预览模式没有真实 webContents，用标签页自增 id 顶替，
+    // 好让 mock 里按 tabId 分组的嗅探数据能对上号
+    tab.wcId = tab.id;
+    renderTabstrip();
+    renderTabGrid();
+    return;
+  }
+
+  const wv = document.createElement('webview');
+  wv.setAttribute('src', tab.url);
+  wv.setAttribute('partition', e.partition);
+  wv.setAttribute('useragent', e.userAgent);
+  wv.setAttribute('allowpopups', '');
+  wv.setAttribute('webpreferences', 'contextIsolation=yes, nodeIntegration=no, sandbox=yes');
+  wv.dataset.tabId = String(tab.id);
+  wv.hidden = true;
+
+  wv.addEventListener('did-start-loading', () => { tab.loading = true; renderTabstrip(); syncNavButtons(); });
+  wv.addEventListener('did-stop-loading', () => { tab.loading = false; renderTabstrip(); syncNavButtons(); });
+  wv.addEventListener('did-navigate', (ev) => {
+    tab.url = ev.url;
+    syncOmnibox();
+    renderTabGrid();
+    persistSession();
+  });
+  wv.addEventListener('did-navigate-in-page', (ev) => {
+    if (ev.isMainFrame) { tab.url = ev.url; syncOmnibox(); persistSession(); }
+  });
+  wv.addEventListener('page-title-updated', (ev) => {
+    tab.title = ev.title || tab.title;
+    renderTabstrip();
+    renderTabGrid();
+  });
+  wv.addEventListener('page-favicon-updated', (ev) => {
+    tab.favicon = (ev.favicons && ev.favicons[0]) || null;
+    renderTabstrip();
+  });
+  wv.addEventListener('new-window', (ev) => {
+    createTab(ev.url, tab.engineId, { activate: !ev.disposition || ev.disposition === 'foreground-tab' });
+  });
+  wv.addEventListener('crashed', () => { tab.crashed = true; renderTabstrip(); });
+  wv.addEventListener('dom-ready', () => {
+    syncNavButtons();
+    // 建立「标签页 ↔ webContents」的映射：主进程的嗅探结果按 webContents id 分组，
+    // 而 state.tabs 里那个 id 是自增序号，两者没有任何对应关系，只能这里问出来。
+    try { tab.wcId = wv.getWebContentsId(); } catch { /* 拿不到就留空，界面上会提示等待就绪 */ }
+    // 自动拼页要等页面 DOM 就位才能找正文容器和下一页，所以挂在这一步
+    injectAutoPage(tab);
+  });
+
+  host.appendChild(wv);
+  tab.webview = wv;
+  // 尽早拿一次：媒体请求可能比 dom-ready 还早，晚拿会漏掉开头几条
+  try { tab.wcId = wv.getWebContentsId(); } catch { /* 同上 */ }
+  renderTabstrip();
+  renderTabGrid();
+}
+
+function destroyTab(tab) {
+  if (tab.webview && tab.webview.parentNode) tab.webview.parentNode.removeChild(tab.webview);
+  tab.webview = null;
+  // 标签页没了，它嗅到的资源也一并释放（主进程侧销毁 webContents 时同样会清）
+  if (tab.wcId != null) state.sniffByWc.delete(tab.wcId);
+}
+
+function closeTab(id) {
+  const idx = state.tabs.findIndex((t) => t.id === id);
+  if (idx < 0) return;
+  const [tab] = state.tabs.splice(idx, 1);
+  destroyTab(tab);
+
+  if (state.tabs.length === 0) {
+    state.activeId = null;
+    createTab(newTabUrl(), state.settings.defaultEngine);
+    return;
+  }
+  if (state.activeId === id) {
+    const next = state.tabs[Math.min(idx, state.tabs.length - 1)];
+    activateTab(next.id);
+  } else {
+    renderTabstrip();
+    renderTabGrid();
+  }
+  persistSession();
+}
+
+function activateTab(id) {
+  state.activeId = id;
+  for (const t of state.tabs) {
+    if (t.webview) t.webview.hidden = t.id !== id;
+  }
+  renderTabstrip();
+  renderTabGrid();
+  syncOmnibox();
+  syncNavButtons();
+  syncEngineUi();
+  engineNotice(activeTab().engineId);
+  // 嗅探角标是「当前页」的口径，切标签页必须跟着变
+  syncSniffBadge();
+  persistSession();
+}
+
+function navigate(id, url) {
+  const tab = state.tabs.find((t) => t.id === id);
+  if (!tab || !url) return;
+  tab.url = url;
+  if (tab.webview) {
+    if (typeof tab.webview.loadURL === 'function') tab.webview.loadURL(url);
+    else tab.webview.setAttribute('src', url);
+  }
+  syncOmnibox();
+  persistSession();
+}
+
+/** 切内核：保留 URL 与原分区状态，按新内核重建渲染载体 */
+function switchEngine(tabId, engineId) {
+  const tab = state.tabs.find((t) => t.id === tabId);
+  if (!tab) { toast('还没有打开的标签页'); return; }
+  if (tab.engineId === engineId) return;
+
+  const from = engine(tab.engineId);
+  const to = engine(engineId);
+  const url = tab.url;
+
+  destroyTab(tab);
+  tab.engineId = engineId;
+  tab.crashed = false;
+  mountTab(tab);
+  tab.url = url;
+  if (tab.webview) {
+    if (typeof tab.webview.loadURL === 'function') tab.webview.loadURL(url);
+    else tab.webview.setAttribute('src', url);
+  }
+  if (tab.id === state.activeId) {
+    for (const t of state.tabs) if (t.webview) t.webview.hidden = t.id !== tab.id;
+  }
+  syncEngineUi();
+  engineNotice(engineId);
+  toast(`已切换到 ${to.label}（${to.modeLabel}），从 ${from.label} 换出`);
+}
+
+/* ------------------------------------------------------------------ *
+ * 会话快照（供「恢复上次会话」用）
+ * ------------------------------------------------------------------ */
+
+let sessionTimer = null;
+
+/**
+ * 把当前标签页集合写进设置。防抖 400ms —— 导航会连续触发，
+ * 没必要每次跳转都落一次盘。
+ */
+function persistSession() {
+  clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(() => {
+    const tabs = state.tabs.map((t) => ({ url: t.url, engineId: t.engineId }));
+    const activeIndex = Math.max(0, state.tabs.findIndex((t) => t.id === state.activeId));
+    state.settings.session = { tabs, activeIndex };
+    try {
+      const r = bridge.settings.patch({ session: { tabs, activeIndex } });
+      if (r && typeof r.catch === 'function') r.catch(() => {});
+    } catch { /* 预览桩不会抛，忽略 */ }
+  }, 400);
+}
+
+/* ------------------------------------------------------------------ *
+ * 渲染：标签条 / 标签总览
+ * ------------------------------------------------------------------ */
+
+function renderTabstrip() {
+  const box = $('#tabs');
+  box.innerHTML = state.tabs.map((t) => {
+    const e = engine(t.engineId);
+    const fav = t.favicon
+      ? `<img src="${esc(t.favicon)}" alt="" onerror="this.remove()" />`
+      : (hostOf(t.url) || 'N').slice(0, 1).toUpperCase();
+    return `
+      <div class="tab ${t.id === state.activeId ? 'is-active' : ''}" data-tab="${t.id}"
+           style="--tab-accent:${e.accent}" title="${esc(t.title)}&#10;${esc(t.url)}">
+        ${t.loading ? '<span class="tab-spinner"></span>' : `<span class="tab-favicon">${fav}</span>`}
+        <span class="tab-title">${esc(t.title)}</span>
+        <span class="tab-engine">${esc(e.short)}</span>
+        <button class="tab-close" data-close="${t.id}" title="关闭标签页">
+          <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" /></svg>
+        </button>
+      </div>`;
+  }).join('');
+
+  box.querySelectorAll('.tab').forEach((el) => {
+    el.addEventListener('mousedown', (ev) => {
+      if (ev.button === 1) { closeTab(Number(el.dataset.tab)); return; }
+      if (ev.target.closest('[data-close]')) return;
+      activateTab(Number(el.dataset.tab));
+    });
+  });
+  box.querySelectorAll('[data-close]').forEach((b) => {
+    b.addEventListener('click', (ev) => { ev.stopPropagation(); closeTab(Number(b.dataset.close)); });
+  });
+
+  $('#mb-tab-count').textContent = String(state.tabs.length);
+  $('#tg-count').textContent = String(state.tabs.length);
+}
+
+function renderTabGrid() {
+  const list = $('#tg-list');
+  list.innerHTML = state.tabs.map((t) => {
+    const e = engine(t.engineId);
+    return `
+      <div class="tg-card ${t.id === state.activeId ? 'is-active' : ''}" data-tab="${t.id}"
+           style="--tab-accent:${e.accent}">
+        <button class="tg-card-close" data-close="${t.id}" title="关闭">
+          <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" /></svg>
+        </button>
+        <div class="tg-card-top">
+          <span class="engine-card-dot" style="--engine-color:${e.accent}"></span>
+          <span class="tg-card-title">${esc(t.title)}</span>
+        </div>
+        <div class="tg-card-url">${esc(prettyUrl(t.url))}</div>
+        <div class="tab-engine" style="--tab-accent:${e.accent}; align-self:flex-start">${esc(e.label)}</div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('.tg-card').forEach((c) => {
+    c.addEventListener('click', (ev) => {
+      if (ev.target.closest('[data-close]')) {
+        closeTab(Number(ev.target.closest('[data-close]').dataset.close));
+        return;
+      }
+      activateTab(Number(c.dataset.tab));
+      closeTabGrid();
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * 地址栏 / 导航
+ * ------------------------------------------------------------------ */
+
+function syncOmnibox() {
+  const tab = activeTab();
+  const input = $('#omni-input');
+  if (document.activeElement === input) return;
+  input.value = tab ? tab.url : '';
+  const lock = $('#omni-lock');
+  const secure = tab && /^https:/i.test(tab.url);
+  lock.classList.toggle('is-insecure', !secure);
+  lock.title = secure ? '连接已加密' : '非加密连接或本地页面';
+}
+
+function syncNavButtons() {
+  const tab = activeTab();
+  const wv = tab && tab.webview;
+  const canNav = !!wv && typeof wv.canGoBack === 'function';
+  $('#nav-back').disabled = !canNav || !wv.canGoBack();
+  $('#nav-forward').disabled = !canNav || !wv.canGoForward();
+  $('#nav-reload').title = tab && tab.loading ? '停止' : '刷新';
+}
+
+/* ------------------------------------------------------------------ *
+ * 抽屉面板
+ * ------------------------------------------------------------------ */
+
+function openDrawer(title, html) {
+  $('#drawer-title').textContent = title;
+  $('#drawer-body').innerHTML = html;
+  $('#drawer').classList.add('is-open');
+  $('#drawer').setAttribute('aria-hidden', 'false');
+  $('#scrim').hidden = false;
+  requestAnimationFrame(() => $('#scrim').classList.add('is-open'));
+}
+
+function closeDrawer() {
+  $('#drawer').classList.remove('is-open');
+  $('#drawer').setAttribute('aria-hidden', 'true');
+  $('#scrim').classList.remove('is-open');
+  setTimeout(() => { $('#scrim').hidden = true; }, 220);
+  state.panel = null;
+}
+
+function renderMenuPanel() {
+  const tab = activeTab();
+  const e = tab ? engine(tab.engineId) : engine(state.settings.defaultEngine);
+  state.panel = 'menu';
+  openDrawer('菜单', `
+    <div class="engine-info">
+      <div class="engine-info-head">
+        <span class="engine-dot" style="--engine-color:${e.accent}"></span>
+        <span class="engine-info-name">当前内核 · ${esc(e.label)}</span>
+        <span class="mode-pill mode-${e.mode}">${esc(e.modeLabel)}</span>
+      </div>
+      <div class="engine-info-body">
+        ${esc(e.notes)}<br />
+        <span style="color:var(--text-4)">UA：${esc(e.userAgent)}</span>
+      </div>
+    </div>
+
+    <div class="panel-label">导航</div>
+    <div class="list-row is-click" data-act="new-tab">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg></span>
+      <span class="lr-main"><span class="lr-title">新建标签页</span></span>
+      <span class="lr-tail">Ctrl+T</span>
+    </div>
+    <div class="list-row is-click" data-act="home">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M3.5 9L10 3.5 16.5 9v7.5h-5v-4h-3v4h-5z"/></svg></span>
+      <span class="lr-main"><span class="lr-title">回到主页</span></span>
+      <span class="lr-tail">${esc(prettyUrl(state.settings.homepage))}</span>
+    </div>
+    <div class="list-row is-click" data-act="bookmark">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M6 3.5h8v13l-4-3-4 3z"/></svg></span>
+      <span class="lr-main"><span class="lr-title">加入书签</span></span>
+    </div>
+
+    <div class="panel-label">功能</div>
+    <div class="list-row is-click" data-read="1">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.2"/><path d="M2.5 10S5.5 5 10 5s7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5z"/></svg></span>
+      <span class="lr-main">
+        <span class="lr-title">阅读增强</span>
+        <span class="lr-sub">无图模式 ${esc(noImageLabel())} · 自动拼页 ${mobilePref().autoPage ? '开' : '关'}</span>
+      </span>
+      <span class="lr-tail">›</span>
+    </div>
+    <div class="list-row is-click" data-panel="adblock">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg></span>
+      <span class="lr-main"><span class="lr-title">广告拦截</span><span class="lr-sub">已拦截 ${state.adblock.blocked} 次</span></span>
+      <span class="lr-tail">›</span>
+    </div>
+    <div class="list-row is-click" data-panel="extensions">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg></span>
+      <span class="lr-main"><span class="lr-title">扩展管理</span><span class="lr-sub">${state.extensions.length} 个已安装</span></span>
+      <span class="lr-tail">›</span>
+    </div>
+    <div class="list-row is-click" data-panel="bookmarks">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/></svg></span>
+      <span class="lr-main"><span class="lr-title">书签</span><span class="lr-sub">${state.bookmarks.length} 条</span></span>
+      <span class="lr-tail">›</span>
+    </div>
+    <div class="list-row is-click" data-panel="history">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/></svg></span>
+      <span class="lr-main"><span class="lr-title">历史记录</span></span>
+      <span class="lr-tail">›</span>
+    </div>
+    <div class="list-row is-click" data-panel="downloads">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg></span>
+      <span class="lr-main"><span class="lr-title">下载</span></span>
+      <span class="lr-tail">${state.downloads.length}</span>
+    </div>
+    <div class="list-row is-click" data-panel="settings">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg></span>
+      <span class="lr-main"><span class="lr-title">设置</span><span class="lr-sub">常规 / 内核 / 拦截 / 数据</span></span>
+      <span class="lr-tail">›</span>
+    </div>
+    <div class="list-row is-click" data-panel="about">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg></span>
+      <span class="lr-main"><span class="lr-title">关于吾爱Nova</span><span class="lr-sub">多内核浏览器 · 0.1.0</span></span>
+      <span class="lr-tail">›</span>
+    </div>
+  `);
+  wireActions($('#drawer-body'));
+}
+
+/** 三个拦截源的卡片：独立开关 + 分源统计 + 溯源地址 */
+function renderSourceCards(s) {
+  const sources = (s && s.sources) || [];
+  if (!sources.length) return '';
+  return `
+    <div class="panel-label">拦截来源</div>
+    ${sources.map((src) => {
+      const c = src.counts || {};
+      const lists = (src.lists || []);
+      return `
+      <div class="src-card ${src.enabled ? '' : 'is-off'}" data-src="${esc(src.id)}">
+        <div class="src-head">
+          <span class="src-name">${esc(src.name)}</span>
+          <button class="switch ${src.enabled ? 'is-on' : ''}" data-source="${esc(src.id)}"
+                  title="${src.enabled ? '停用该源' : '启用该源'}"></button>
+        </div>
+        <div class="src-vendor">${esc(src.vendor)}</div>
+        <div class="src-metrics">
+          <span class="sm"><b>${fmtNum(c.network)}</b> 网络</span>
+          <span class="sm"><b>${fmtNum(c.cosmetic)}</b> 隐藏</span>
+          <span class="sm sm-hit"><b>${fmtNum(src.blocked)}</b> 命中</span>
+        </div>
+        ${lists.filter((l) => l.rules).map((l) => `
+          <div class="src-list" title="${esc(l.url || '随应用内置，不依赖网络')}">
+            <span class="sl-title">${esc(l.title || l.file)}</span>
+            <span class="sl-count">${fmtNum(l.rules)} 条</span>
+          </div>`).join('')}
+        ${lists.filter((l) => l.missing).map((l) => `
+          <div class="src-list is-missing">
+            <span class="sl-title">${esc(l.title || l.file)}</span>
+            <span class="sl-count">未下载</span>
+          </div>`).join('')}
+        ${src.note ? `<div class="src-note">${esc(src.note)}</div>` : ''}
+      </div>`;
+    }).join('')}
+  `;
+}
+
+function buildAdblock() {
+  const s = state.adblock;
+  const ab = state.settings.adblock || {};
+  const host = activeTab() ? hostOf(activeTab().url) : '';
+  const allowed = state.allowlist.some((h) => h === host || (host && host.endsWith('.' + h)));
+  const sources = s.sources || [];
+  const onCount = sources.filter((x) => x.enabled).length;
+
+  return `
+    <h2 class="sv-h2">广告拦截</h2>
+    <div class="sv-lead">
+      ${sources.length ? `${sources.length} 个拦截源，当前启用 ${onCount} 个。` : ''}
+      三个源各自独立判定，都可单独关掉；规则自带索引，十万级规则下单次判定仍在微秒量级。
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value is-ok">${fmtNum(s.blocked)}</div>
+        <div class="stat-label">本次会话已拦截</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${fmtNum(s.rules && s.rules.network)}</div>
+        <div class="stat-label">网络规则</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${fmtNum(s.rules && s.rules.cosmetic)}</div>
+        <div class="stat-label">隐藏规则</div>
+      </div>
+    </div>
+
+    ${renderSourceCards(s)}
+
+    <div class="panel-label">总开关</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">启用广告拦截</span><span class="lr-sub">网络层 + 元素隐藏</span></span>
+        <button class="switch ${ab.enabled ? 'is-on' : ''}" data-toggle="enabled"></button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">元素隐藏（外观过滤）</span><span class="lr-sub">干掉自售广告位</span></span>
+        <button class="switch ${ab.cosmetic ? 'is-on' : ''}" data-toggle="cosmetic"></button>
+      </div>
+    </div>
+
+    <div class="panel-label">拦截强度</div>
+    <div class="panel-section">
+      <div class="segmented" id="ab-level">
+        <button data-level="standard" class="${(ab.level || 'standard') === 'standard' ? 'is-active' : ''}">标准</button>
+        <button data-level="aggressive" class="${ab.level === 'aggressive' ? 'is-active' : ''}">严格</button>
+      </div>
+      <div class="muted" style="padding:var(--sp-2) 0 0">标准档只拦第三方统计；严格档连第一方埋点一并拦截。</div>
+    </div>
+
+    <div class="panel-label">白名单（${state.allowlist.length}）</div>
+    ${host ? `
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">当前站点 ${esc(host)}</span>
+          <span class="lr-sub">${allowed ? '已加入白名单，本站不拦截' : '正常拦截'}</span>
+        </span>
+        <button class="btn" data-allow="${esc(host)}">${allowed ? '移出白名单' : '加入白名单'}</button>
+      </div>
+    </div>` : ''}
+    ${state.allowlist.length ? `
+    <div class="sv-card">
+      ${state.allowlist.map((h) => `
+        <div class="list-row">
+          <span class="lr-main"><span class="lr-sub" style="font-size:12px;color:var(--text-2)">${esc(h)}</span></span>
+          <button class="btn" data-unallow="${esc(h)}">移除</button>
+        </div>`).join('')}
+    </div>` : '<div class="sv-empty">还没有例外站点。拦截误伤时把当前站点加进来即可。</div>'}
+
+    <div class="panel-label">拦截来源 Top</div>
+    ${(s.top || []).length ? `<div class="sv-card">${(s.top).map((r) => `
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-sub" style="font-size:12px;color:var(--text-2)">${esc(r.host)}</span></span>
+        <span class="lr-tail">${r.count} 次</span>
+      </div>`).join('')}</div>` : '<div class="muted">本次会话还没有拦截记录。</div>'}
+
+    <div class="btn-row">
+      <button class="btn btn-primary" data-act="import-list">导入过滤清单</button>
+      <button class="btn" data-act="reset-stats">重置统计</button>
+    </div>
+    <div class="muted">
+      支持 EasyList / ABP 语法：<code>||域名^</code>、<code>@@</code> 例外、<code>$third-party</code> 选项、<code>##选择器</code> 元素隐藏。<br />
+      未执行请求改写类规则（<code>$redirect=</code> / <code>$csp=</code> / <code>$removeparam=</code>），装载时如实跳过并计入 skipped。
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ *
+ * 媒体嗅探
+ * ------------------------------------------------------------------ */
+
+const SNIFF_KIND = {
+  video: { label: '视频', cls: 'is-video' },
+  audio: { label: '音频', cls: 'is-audio' },
+  stream: { label: '流媒体', cls: 'is-stream' },
+  subtitle: { label: '字幕', cls: 'is-subtitle' }
+};
+
+/** 列表里的类别顺序：流清单与大视频优先，字幕垫底 */
+const SNIFF_ORDER = ['stream', 'video', 'audio', 'subtitle'];
+
+/** 秒 → 时:分:秒。读不到时长返回空串，不写「0:00」骗人 */
+function fmtDuration(sec) {
+  if (!Number.isFinite(sec) || sec <= 0) return '';
+  const s = Math.round(sec);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(ss)}` : `${m}:${pad(ss)}`;
+}
+
+/** 从 URL 取一个能看的文件名 */
+function fileNameOf(url) {
+  try {
+    const u = new URL(url);
+    const base = decodeURIComponent(u.pathname.split('/').pop() || '');
+    return base || u.host;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * 当前活动标签页对应的 webContents id。
+ * 这是主进程给媒体分组用的键，与 state.tabs 里的自增 id 完全无关。
+ */
+function currentWcId() {
+  const t = activeTab();
+  return t && t.wcId != null ? t.wcId : null;
+}
+
+/** 当前页嗅探到的全部记录 */
+function sniffRecords() {
+  const wc = currentWcId();
+  if (wc == null) return [];
+  return state.sniffByWc.get(wc) || [];
+}
+
+/** 工具栏角标：只数非分片，否则一个 HLS 页面能显示成几百 */
+function sniffBadge() {
+  return sniffRecords().filter((r) => !r.isSegment).length;
+}
+
+/** 置信度标签 —— 把「我们凭什么认定这是媒体」直白地摆出来 */
+function confInfo(c) {
+  if (c >= 0.95) return { text: '确定', cls: 'is-high', hint: '响应类型直接声明' };
+  if (c >= 0.9) return { text: '很可能是', cls: 'is-high', hint: '响应类型以 video/ 或 audio/ 开头' };
+  if (c >= 0.75) return { text: '可能是', cls: 'is-mid', hint: '靠地址扩展名判断' };
+  return { text: '存疑', cls: 'is-low', hint: '通用二进制类型 + 地址扩展名' };
+}
+
+function syncSniffBadge() {
+  const el = $('#sniff-count');
+  if (!el) return;
+  const n = sniffBadge();
+  el.textContent = String(n);
+  el.classList.toggle('is-empty', n === 0);
+}
+
+/**
+ * 把主进程推来的记录并进本地缓存。
+ * 同 id 覆盖，但**本地已经探测出的 meta 要留住** —— 主进程那份可能是探测之前的快照，
+ * 直接覆盖会把刚读到的时长又抹掉，界面上表现为「读取中…」闪一下又没了。
+ */
+function mergeSniffRecords(tabId, recs) {
+  let bucket = state.sniffByWc.get(tabId);
+  if (!bucket) { bucket = []; state.sniffByWc.set(tabId, bucket); }
+  const idx = new Map(bucket.map((r, i) => [r.id, i]));
+
+  for (const rec of recs) {
+    const i = idx.get(rec.id);
+    if (i != null) {
+      const keep = (!rec.meta && bucket[i].meta) ? bucket[i].meta : rec.meta;
+      bucket[i] = Object.assign({}, rec, { meta: keep || null });
+    } else {
+      bucket.push(rec);
+      idx.set(rec.id, bucket.length - 1);
+    }
+  }
+}
+
+/** 给下载引擎挑个像样的默认文件名：地址里没有扩展名时，用容器格式补一个 */
+function suggestName(rec) {
+  const base = fileNameOf(rec.url) || 'media';
+  if (/\.[a-z0-9]{1,8}$/i.test(base)) return base;
+  const raw = rec.ext || String(rec.container || '').toLowerCase();
+  const ext = raw.replace(/[^a-z0-9]/g, '') || 'bin';
+  return `${base}.${ext}`;
+}
+
+function sniffItem(rec) {
+  const k = SNIFF_KIND[rec.kind] || { label: rec.kind, cls: '' };
+  const conf = confInfo(rec.confidence);
+  const isStream = rec.kind === 'stream';
+  const canPreview = !isStream && rec.kind !== 'subtitle';
+  const opened = state.sniffPreview === rec.id;
+
+  const bits = [];
+  if (rec.meta && rec.meta.width && rec.meta.height) bits.push(`${rec.meta.width}×${rec.meta.height}`);
+  if (rec.meta && rec.meta.duration) bits.push(fmtDuration(rec.meta.duration));
+  if (rec.size > 0) bits.push(fmtBytes(rec.size));
+  if (rec.container) bits.push(rec.container);
+  if (rec.hits > 1) bits.push(`命中 ${rec.hits} 次`);
+
+  const probing = canPreview && !rec.meta;
+  const noMeta = rec.meta && rec.meta.failed;
+
+  return `
+    <div class="sn-item ${rec.isSegment ? 'is-seg' : ''}" data-rec="${esc(rec.id)}">
+      <div class="sn-item-head">
+        <span class="sn-kind ${k.cls}">${esc(k.label)}</span>
+        <span class="sn-name" title="${esc(rec.url)}">${esc(fileNameOf(rec.url))}</span>
+        <span class="sn-conf ${conf.cls}" title="${esc(conf.hint)}">${esc(conf.text)}</span>
+      </div>
+      <div class="sn-item-meta">
+        ${bits.map((b) => `<span>${esc(b)}</span>`).join('')}
+        ${probing ? '<span class="sn-probing">读取中…</span>' : ''}
+        ${noMeta ? '<span class="sn-meta-fail">读不到元数据</span>' : ''}
+      </div>
+      <div class="sn-item-url" title="${esc(rec.url)}">${esc(rec.url)}</div>
+      <div class="sn-item-why">判定依据：${esc(rec.reason || '—')}</div>
+      ${opened ? `
+      <div class="sn-preview">
+        ${rec.kind === 'audio'
+          ? `<audio controls preload="metadata" src="${esc(rec.url)}"></audio>`
+          : `<video controls preload="metadata" src="${esc(rec.url)}"></video>`}
+        <div class="sn-preview-note">
+          预览走的是浏览器通用会话，不带该页面所在内核的登录态 —— 需要鉴权的资源可能播不了；
+          下载走对应内核会话（带 Cookie），不受此限。
+        </div>
+      </div>` : ''}
+      ${isStream ? `
+      <div class="sn-stream-note">
+        这是流媒体的<strong>分片清单</strong>：拿到的是切片地址表，不是单个文件。
+        下载得到的是清单本身，要合成完整视频需要专门的合并工具。
+      </div>` : ''}
+      <div class="sn-item-actions">
+        ${canPreview ? `<button class="btn btn-sm" data-sn="preview" data-id="${esc(rec.id)}">${opened ? '收起' : '预览'}</button>` : ''}
+        <button class="btn btn-sm btn-primary" data-sn="download" data-id="${esc(rec.id)}">下载</button>
+        <button class="btn btn-sm" data-sn="copy" data-id="${esc(rec.id)}">复制链接</button>
+        <button class="btn btn-sm" data-sn="open" data-id="${esc(rec.id)}">在标签页打开</button>
+      </div>
+    </div>`;
+}
+
+function buildSniffer() {
+  const prefs = (state.settings && state.settings.sniffer) || {};
+  const enabled = prefs.enabled !== false;
+  const autoProbe = prefs.autoProbe !== false;
+  const minSize = prefs.minSizeKB || 0;
+  const tab = activeTab();
+  const wc = currentWcId();
+
+  const all = sniffRecords();
+  const main = all.filter((r) => !r.isSegment);
+  const segs = all.filter((r) => r.isSegment);
+
+  const counts = { video: 0, audio: 0, stream: 0, subtitle: 0 };
+  let bytes = 0;
+  for (const r of main) {
+    counts[r.kind] = (counts[r.kind] || 0) + 1;
+    if (r.size > 0) bytes += r.size;
+  }
+
+  const fmt = state.sniffFormats || {};
+  const stat = state.sniffStats || {};
+
+  const seg = (id, values, current, fmtFn) => `
+    <div class="segmented" id="${id}">
+      ${values.map((v) => `<button data-v="${v}" class="${v === current ? 'is-active' : ''}">${fmtFn ? fmtFn(v) : v}</button>`).join('')}
+    </div>`;
+
+  // 按类别分组，组内体积大的排前面 —— 用户找的多半是那个大视频
+  const groups = SNIFF_ORDER
+    .map((kind) => ({ kind, items: main.filter((r) => r.kind === kind).sort((a, b) => (b.size || 0) - (a.size || 0)) }))
+    .filter((g) => g.items.length);
+
+  const listHtml = !enabled
+    ? '<div class="sv-empty">嗅探已关闭。打开后新产生的媒体请求才会被记录。</div>'
+    : (wc == null
+      ? '<div class="sv-empty">等待页面就绪…嗅探结果按标签页归属，页面开始加载后才会出现记录。</div>'
+      : (main.length
+        ? groups.map((g) => `
+          <div class="panel-label">${esc(SNIFF_KIND[g.kind].label)}（${g.items.length}）</div>
+          <div class="sv-card sn-card">${g.items.map(sniffItem).join('')}</div>`).join('')
+        : `<div class="sv-empty">
+             这一页还没有嗅到音频 / 视频。<br />
+             播放一次页面上的媒体，或往下滚动触发懒加载，资源出现后会自动冒出来。
+           </div>`));
+
+  return `
+    <h2 class="sv-h2">媒体嗅探</h2>
+    <div class="sv-lead">
+      在响应头阶段识别页面加载的音视频与流媒体，判定依据分四级置信度，并把依据如实标在每一条上。
+      识别不改写任何请求，纯旁路观察。
+    </div>
+
+    <div class="sn-engine">
+      <div class="sn-engine-head">
+        <span class="sn-engine-title">媒体嗅探引擎</span>
+        <span class="sn-pill ${enabled ? 'is-active' : 'is-canceled'}">${enabled ? '运行中' : '已关闭'}</span>
+      </div>
+      <div class="sn-stats">
+        <div class="sn-stat"><b>${fmtNum(counts.video)}</b><span>视频</span></div>
+        <div class="sn-stat"><b>${fmtNum(counts.audio)}</b><span>音频</span></div>
+        <div class="sn-stat"><b>${fmtNum(counts.stream)}</b><span>流媒体</span></div>
+        <div class="sn-stat"><b>${fmtNum(counts.subtitle)}</b><span>字幕</span></div>
+        <div class="sn-stat"><b>${bytes > 0 ? fmtBytes(bytes) : '—'}</b><span>合计体积</span></div>
+      </div>
+      <div class="sn-engine-note">
+        ${tab ? `当前页：<b>${esc(tab.title || hostOf(tab.url) || tab.url)}</b>` : '还没有打开的标签页'}
+        ${stat.seen ? ` · 本次会话共解析 ${fmtNum(stat.seen)} 个媒体响应、排除 ${fmtNum(stat.filtered)} 个非媒体响应` : ''}
+        ${fmt.extensions ? `<br />格式注册表：<b>${fmt.extensions}</b> 种扩展名 / <b>${fmt.mimes}</b> 种响应类型，归一为 <b>${fmt.containers}</b> 个容器。` : ''}
+      </div>
+    </div>
+
+    <div class="panel-label">嗅探设置</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">启用媒体嗅探</span>
+          <span class="lr-sub">关闭后不再解析响应头</span>
+        </span>
+        <button class="switch ${enabled ? 'is-on' : ''}" data-sncfg="enabled"></button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">自动读取时长与分辨率</span>
+          <span class="lr-sub">只取文件头，代价极小；流媒体清单一律不探测（那会把整条流拉起来）</span>
+        </span>
+        <button class="switch ${autoProbe ? 'is-on' : ''}" data-sncfg="autoProbe"></button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">显示 HLS 分片</span>
+          <span class="lr-sub">切片动辄几百条，默认折叠以免淹没清单</span>
+        </span>
+        <button class="switch ${state.sniffShowSegments ? 'is-on' : ''}" data-sncfg="showSegments"></button>
+      </div>
+    </div>
+
+    <div class="panel-label">最小体积</div>
+    ${seg('sn-minsize', [0, 64, 256, 1024], minSize, (v) => (v === 0 ? '不限' : v + ' KB'))}
+    <div class="muted" style="padding-bottom:var(--sp-3)">
+      默认「不限」是刻意的：嗅探是发现工具，宁可多列也不能漏。长度未知的响应永远不会被这一项拦掉。
+    </div>
+
+    <div class="panel-label dl-label-row">
+      <span>${wc == null ? '当前页面' : '当前页面的媒体'}（${main.length}）</span>
+      <button class="btn btn-sm" data-sn="clear" ${main.length || segs.length ? '' : 'disabled'}>清空</button>
+    </div>
+
+    ${listHtml}
+
+    ${segs.length ? `
+      <div class="panel-label dl-label-row">
+        <span>HLS 分片（${segs.length}）· 默认折叠</span>
+        <button class="btn btn-sm" data-sn="toggle-segs">${state.sniffShowSegments ? '收起' : '展开'}</button>
+      </div>
+      ${state.sniffShowSegments
+        ? `<div class="sv-card sn-card">${segs.slice(0, 200).map(sniffItem).join('')}</div>
+           ${segs.length > 200 ? `<div class="muted">仅显示前 200 条，共 ${segs.length} 条。</div>` : ''}`
+        : ''}` : ''}
+
+    <div class="sv-note">
+      嗅探只认「响应里声明了媒体类型」的资源。几种情况会漏，这里说清楚：
+      用 <code>blob:</code> 或 MSE 在页面里现拼的流（如部分直播与 DRM 视频）网络上没有可下载的完整地址；
+      加了密或需要特殊鉴权头的链接能嗅到、但下载可能被拒；
+      加密的 HLS（<code>#EXT-X-KEY</code>）分片单独下下来也解不开。
+    </div>
+  `;
+}
+
+/**
+ * 读媒体元数据：用隐藏的 <video>/<audio> 只加载文件头。
+ *
+ * 两条硬规矩：
+ *   1. 流媒体（m3u8/mpd）绝不自动探测 —— 浏览器一旦开始解析清单就会去拉分片，
+ *      用户的流量会在毫无察觉的情况下被吃掉；
+ *   2. 每条只探测一次，失败就记 failed，不在滚动时反复重试。
+ */
+const sniffProbed = new Set();
+
+function probeOne(rec) {
+  if (!rec || sniffProbed.has(rec.id)) return;
+  const prefs = (state.settings && state.settings.sniffer) || {};
+  if (prefs.autoProbe === false) return;
+  if (rec.kind === 'stream' || rec.kind === 'subtitle') return;
+  if (!/^https?:/i.test(rec.url)) return;
+  sniffProbed.add(rec.id);
+
+  const el = document.createElement(rec.kind === 'audio' ? 'audio' : 'video');
+  el.preload = 'metadata';
+  el.muted = true;
+
+  let settled = false;
+  const finish = (meta) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    try { el.removeAttribute('src'); el.load(); } catch { /* 释放连接，失败无妨 */ }
+    try { bridge.sniffer.setMeta(rec.id, meta); } catch { /* 主进程没起来就算了 */ }
+    // 本地也记一份，免得等 IPC 回来才更新界面
+    rec.meta = meta;
+    if (state.settingsSection === 'sniffer') refreshCurrent();
+  };
+
+  // 8 秒还读不到就当读不到 —— 不能让一个卡住的资源把「读取中…」永远挂在那
+  const timer = setTimeout(() => finish({ failed: true }), 8000);
+
+  el.addEventListener('loadedmetadata', () => {
+    const dur = Number(el.duration);
+    finish({
+      duration: Number.isFinite(dur) && dur > 0 ? Math.round(dur * 10) / 10 : null,
+      width: el.videoWidth || 0,
+      height: el.videoHeight || 0
+    });
+  });
+  el.addEventListener('error', () => finish({ failed: true }));
+
+  el.src = rec.url;
+}
+
+/** 渲染出列表后，给屏上靠前的几条排上探测 —— 不做全量，避免一次拉起几十个连接 */
+function scheduleSniffProbe() {
+  const recs = sniffRecords().filter((r) => !r.isSegment && !r.meta);
+  const batch = recs.slice(0, 6);
+  batch.forEach((rec, i) => setTimeout(() => probeOne(rec), 120 * i));
+}
+
+function buildExtensions() {
+  const list = state.extensions;
+  return `
+    <h2 class="sv-h2">扩展</h2>
+    <div class="sv-lead">
+      支持 Chromium 扩展（.crx / 已解包目录）与火狐扩展（.xpi）。
+      火狐扩展会经过清单归一化与 <code>browser.* → chrome.*</code> 桥接后装载，
+      依赖 Gecko 专有 API 的功能不可用 —— 每张卡片会列出实际做了哪些改动。
+    </div>
+    <div class="btn-row" style="padding-top:0">
+      <button class="btn btn-primary" data-act="install-ext" ${state.isPreview ? 'disabled title="UI 预览模式"' : ''}>安装扩展</button>
+    </div>
+    ${list.length ? list.map((x) => `
+      <div class="ext-card">
+        <div class="ext-icon">${x.icon ? `<img src="${esc(x.icon)}" alt="" />` : esc((x.name || 'E').slice(0, 1))}</div>
+        <div class="ext-main">
+          <div class="ext-name">
+            ${esc(x.name)}
+            <span class="source-tag source-${esc(x.source)}">${{
+              'chromium-store': 'Chromium 商店',
+              'firefox': '火狐扩展',
+              'archive': '压缩包',
+              'unpacked': '已解包'
+            }[x.source] || esc(x.source)}</span>
+          </div>
+          <div class="ext-desc">${esc(x.description || '（无描述）')}</div>
+          <div class="ext-meta">v${esc(x.version)} · Manifest V${esc(x.manifestVersion)}${x.packageVersion ? ' · ' + esc(x.packageVersion) : ''}</div>
+          ${(x.changes || []).length ? `<div class="ext-changes"><b>兼容处理：</b>${x.changes.map(esc).join('；')}</div>` : ''}
+        </div>
+        <button class="btn" data-remove-ext="${esc(x.id)}">移除</button>
+      </div>`).join('') : '<div class="sv-empty">还没有安装扩展。</div>'}
+  `;
+}
+
+async function buildHistory() {
+  const items = await bridge.history.list(200);
+  return `
+    <h2 class="sv-h2">历史记录</h2>
+    <div class="sv-lead">最多保留 2000 条，连续访问同一地址只累计次数。最近 ${items.length} 条。</div>
+    <div class="btn-row" style="padding-top:0">
+      <button class="btn" data-act="clear-history">清空历史</button>
+    </div>
+    ${items.length ? `<div class="sv-card">${items.map((h) => `
+      <div class="hist-row" data-url="${esc(h.url)}">
+        <div class="hist-main">
+          <div class="hist-title">${esc(h.title || h.url)}</div>
+          <div class="hist-url">${esc(prettyUrl(h.url))}</div>
+        </div>
+        <div class="hist-time">${esc(timeAgo(h.ts))}</div>
+      </div>`).join('')}</div>` : '<div class="sv-empty">暂无历史记录。</div>'}
+  `;
+}
+
+function buildBookmarks() {
+  const list = state.bookmarks || [];
+  return `
+    <h2 class="sv-h2">书签</h2>
+    <div class="sv-lead">共 ${list.length} 条。点一行就在当前标签页打开。</div>
+    ${list.length ? `<div class="sv-card">${list.map((b) => `
+      <div class="list-row is-click" data-url="${esc(b.url)}">
+        <span class="lr-main">
+          <span class="lr-title">${esc(b.title || b.url)}</span>
+          <span class="lr-sub">${esc(prettyUrl(b.url))}</span>
+        </span>
+        <button class="btn" data-unbookmark="${esc(b.url)}">删除</button>
+      </div>`).join('')}</div>` : '<div class="sv-empty">还没有书签。地址栏右侧的星形按钮可以加入当前页。</div>'}
+    <div class="btn-row">
+      <button class="btn btn-primary" data-act="bookmark-current">把当前页加入书签</button>
+      <button class="btn" data-act="clear-bookmarks" ${list.length ? '' : 'disabled'}>清空全部书签</button>
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ *
+ * 下载
+ * ------------------------------------------------------------------ */
+
+const DL_STATE = {
+  queued: { label: '排队中', cls: 'is-queued' },
+  probing: { label: '探测中', cls: 'is-active' },
+  downloading: { label: '下载中', cls: 'is-active' },
+  progress: { label: '下载中', cls: 'is-active' },
+  paused: { label: '已暂停', cls: 'is-paused' },
+  done: { label: '已完成', cls: 'is-done' },
+  completed: { label: '已完成', cls: 'is-done' },
+  error: { label: '失败', cls: 'is-error' },
+  canceled: { label: '已取消', cls: 'is-canceled' },
+  // Chromium 内建下载器沿用的原始状态名
+  cancelled: { label: '已取消', cls: 'is-canceled' },
+  interrupted: { label: '已中断', cls: 'is-error' }
+};
+
+function fmtBytes(n) {
+  if (!Number.isFinite(n) || n < 0) return '—';
+  if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
+  if (n >= 1048576) return (n / 1048576).toFixed(2) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+
+function fmtEta(sec) {
+  if (!Number.isFinite(sec) || sec < 0) return '';
+  if (sec < 60) return sec + ' 秒';
+  if (sec < 3600) return `${Math.floor(sec / 60)} 分 ${sec % 60} 秒`;
+  return `${Math.floor(sec / 3600)} 时 ${Math.floor((sec % 3600) / 60)} 分`;
+}
+
+/**
+ * 分片进度条 —— 这个界面里最重要的一个控件。
+ * Chromium 自带下载器只有一个整条进度，看不出用了多少连接；
+ * 这里一条分片画一格，谁快谁慢、有没有退化成单连接，一眼就能看出来。
+ */
+function dlSegments(t) {
+  const chunks = t.chunks || [];
+  if (!chunks.length) {
+    // 还没探测出分片（排队 / 探测中），或者这条是 Chromium 内建下载器的任务
+    const pct = Math.min(100, Math.round((t.progress || 0) * 100));
+    return `<i class="dl-seg is-pending" title="尚未分片"><b style="width:${pct}%"></b></i>`;
+  }
+  const maxSize = Math.max(...chunks.map((c) => c.size || 1), 1);
+  return chunks.map((c) => {
+    const cls = c.state === 'done' ? 'is-done' : c.state === 'active' ? 'is-active' : 'is-pending';
+    const w = Math.min(100, (c.progress || 0) * 100).toFixed(1);
+    return `<i class="dl-seg ${cls}" style="flex-grow:${((c.size || 1) / maxSize).toFixed(3)}"
+      title="分片 ${c.index + 1}/${chunks.length}　${fmtBytes(c.done)} / ${fmtBytes(c.size)}"><b style="width:${w}%"></b></i>`;
+  }).join('');
+}
+
+/** 按任务状态给出可用的操作按钮 */
+function dlActions(t) {
+  const btn = (act, label, extra = '') =>
+    `<button class="btn btn-sm" data-dl="${act}" data-id="${esc(t.id)}" ${extra}>${label}</button>`;
+  const pathBtn = (act, label) => t.savePath
+    ? `<button class="btn btn-sm" data-dl="${act}" data-path="${esc(t.savePath)}">${label}</button>` : '';
+
+  switch (t.state) {
+    case 'queued':
+      return btn('cancel', '取消');
+    case 'probing':
+    case 'downloading':
+    case 'progress':
+      return btn('pause', '暂停') + btn('cancel', '取消');
+    case 'paused':
+      return btn('resume', '继续') + btn('cancel', '取消') + pathBtn('show', '定位');
+    case 'error':
+      return btn('retry', '重试') + pathBtn('show', '定位') + btn('remove', '移除');
+    case 'canceled':
+      return btn('retry', '重新下载') + btn('remove', '移除');
+    case 'done':
+    case 'completed':
+      return `<button class="btn btn-sm btn-primary" data-dl="open" data-path="${esc(t.savePath || '')}">打开</button>`
+        + pathBtn('show', '在文件夹中显示') + btn('remove', '移除');
+    default:
+      return btn('remove', '移除');
+  }
+}
+
+function dlTaskRow(t) {
+  const st = DL_STATE[t.state] || { label: t.state, cls: '' };
+  const total = t.total > 0 ? t.total : 0;
+  const pct = Math.round((t.progress || 0) * 100);
+  const native = t.source === 'chromium' || t.source === 'fallback';
+
+  const meta = [];
+  meta.push(total ? `${fmtBytes(t.received)} / ${fmtBytes(total)}（${pct}%）` : fmtBytes(t.received));
+  if (st.cls === 'is-active') {
+    if (t.speed > 0) meta.push(fmtBytes(t.speed) + '/s');
+    if (t.eta > 0) meta.push('剩余 ' + fmtEta(t.eta));
+  }
+  if (native) meta.push('Chromium 内建下载器');
+  else if (t.ranged) meta.push(`${t.threads || 1} 线程并发`);
+  else if (t.state !== 'queued' && t.state !== 'probing') meta.push('单连接（服务端不支持分片）');
+
+  const err = t.state === 'error' && t.error ? `<div class="dl-error">${esc(t.error)}</div>` : '';
+  const where = t.savePath ? `<div class="dl-path" title="${esc(t.savePath)}">${esc(t.savePath)}</div>` : '';
+
+  return `
+    <div class="dl-task" data-task="${esc(t.id)}">
+      <div class="dl-task-head">
+        <span class="dl-name" title="${esc(t.url)}">${esc(t.filename || hostOf(t.url) || t.url)}</span>
+        <span class="dl-pill ${st.cls}">${esc(st.label)}</span>
+      </div>
+      <div class="dl-segs">${dlSegments(t)}</div>
+      <div class="dl-meta">${meta.map((m) => `<span>${esc(m)}</span>`).join('')}</div>
+      ${err}${where}
+      <div class="dl-actions">${dlActions(t)}</div>
+    </div>`;
+}
+
+async function buildDownloads() {
+  // 拉一份最新的：进度事件可能在别处丢过，进分区时以主进程为准
+  try {
+    state.downloads = await bridge.downloads.list();
+    state.downloadStats = await bridge.downloads.stats();
+    state.downloadsDir = await bridge.downloads.dir();
+  } catch { /* 预览模式或主进程未就绪，用已有缓存 */ }
+
+  const list = state.downloads || [];
+  const prefs = (state.settings && state.settings.download) || {};
+  const takeOver = prefs.takeOver !== false;
+  const threads = prefs.threads || 8;
+  const conc = prefs.maxConcurrent || 3;
+  const st = state.downloadStats
+    || (() => {
+      const active = list.filter((t) => ['probing', 'downloading', 'progress'].includes(t.state)).length;
+      const done = list.filter((t) => ['done', 'completed'].includes(t.state)).length;
+      const error = list.filter((t) => t.state === 'error').length;
+      const speed = list.reduce((a, t) => a + (t.speed || 0), 0);
+      return { active, done, error, speed, queued: 0, total: list.length };
+    })();
+
+  const active = list.filter((t) => ['probing', 'downloading', 'progress', 'queued', 'paused'].includes(t.state));
+  const finished = list.filter((t) => ['done', 'completed', 'canceled', 'error'].includes(t.state));
+
+  const seg = (id, values, current, fmt) => `
+    <div class="segmented" id="${id}">
+      ${values.map((v) => `<button data-v="${v}" class="${v === current ? 'is-active' : ''}">${fmt ? fmt(v) : v}</button>`).join('')}
+    </div>`;
+
+  return `
+    <h2 class="sv-h2">下载</h2>
+    <div class="sv-lead">吾爱Nova 多线程引擎：把文件按 Range 切成多段并发拉取，各段直接写到目标文件的对应偏移，最后无需合并。</div>
+
+    <div class="dl-engine">
+      <div class="dl-engine-head">
+        <span class="dl-engine-title">吾爱Nova 多线程下载引擎</span>
+        <span class="dl-pill ${takeOver ? 'is-active' : 'is-canceled'}">${takeOver ? '接管中' : '已关闭'}</span>
+      </div>
+      <div class="dl-stats">
+        <div class="dl-stat"><b>${fmtNum(st.active || 0)}</b><span>进行中</span></div>
+        <div class="dl-stat"><b>${st.speed > 0 ? fmtBytes(st.speed) + '/s' : '—'}</b><span>合计速度</span></div>
+        <div class="dl-stat"><b>${fmtNum(st.done || 0)}</b><span>已完成</span></div>
+        <div class="dl-stat"><b>${fmtNum(st.error || 0)}</b><span>失败</span></div>
+      </div>
+      <div class="dl-engine-note">
+        ${takeOver
+          ? '页面触发的下载会被接管到本引擎；引擎一个字节都拿不到时会自动交回 Chromium 内建下载器。'
+          : '当前未接管，页面下载走 Chromium 内建单连接下载器。'}
+        服务端不支持 Range 时自动退化为单连接，不会因此下载失败。
+      </div>
+    </div>
+
+    <div class="panel-label">并发线程数（每个任务）</div>
+    ${seg('dl-threads', [1, 4, 8, 16], threads)}
+    <div class="muted" style="padding-bottom:var(--sp-3)">分片过碎反而更慢，实测 4~8 条连接收益最高；上限 16。</div>
+
+    <div class="panel-label">同时进行的任务数</div>
+    ${seg('dl-conc', [1, 2, 3, 5], conc)}
+
+    <div class="sv-card" style="margin-top:var(--sp-3)">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">接管页面触发的下载</span>
+          <span class="lr-sub">关闭后一律使用 Chromium 内建下载器</span>
+        </span>
+        <button class="switch ${takeOver ? 'is-on' : ''}" data-dlcfg="takeOver"></button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">下载目录</span>
+          <span class="lr-sub">${esc(state.downloadsDir || '系统默认下载目录')}</span>
+        </span>
+        <button class="btn btn-sm" data-act="dl-choose-dir">更改</button>
+        <button class="btn btn-sm" data-act="dl-open-dir">打开</button>
+      </div>
+    </div>
+
+    <div class="panel-label">新建下载</div>
+    <div class="dl-new">
+      <input id="dl-url" placeholder="粘贴文件地址（http / https）" spellcheck="false" value="${esc(state.dlDraft)}" />
+      <button class="btn btn-primary" data-act="dl-start">开始下载</button>
+    </div>
+
+    ${active.length ? `
+      <div class="panel-label">进行中（${active.length}）</div>
+      <div class="sv-card">${active.map(dlTaskRow).join('')}</div>` : ''}
+
+    ${finished.length ? `
+      <div class="panel-label dl-label-row">
+        <span>已完成与历史（${finished.length}）</span>
+        <button class="btn btn-sm" data-act="dl-clear">清除记录</button>
+      </div>
+      <div class="sv-card">${finished.map(dlTaskRow).join('')}</div>` : ''}
+
+    ${list.length ? '' : '<div class="sv-empty">还没有下载任务。在上面的输入框粘贴一个文件地址试试，或者在网页里点任意下载链接。</div>'}
+  `;
+}
+
+/**
+ * 内核二进制一览：把「真内核下到哪一步了」摊开给用户看。
+ * 数据来自 native/engines/manifest.json（tools/check-engines.js 生成），
+ * 含每个发行版的版本、体积与 PE 特征识别结果。读不到清单时返回一行说明。
+ */
+function renderKernelBinaries() {
+  const rows = state.engines.filter((e) => e.kernel);
+  if (!rows.length) {
+    return `<div class="muted">未找到内核清单（<code>native/engines/manifest.json</code>）。<br />
+      运行 <code>node tools/check-engines.js</code> 生成。</div>`;
+  }
+
+  const mb = (n) => (n / 1048576).toFixed(0) + ' MB';
+  return rows.map((e) => {
+    const k = e.kernel;
+    const head = k.binariesReady
+      ? (k.bridgeReady ? '<span class="ok-text">原生桥接</span>' : '<span class="warn-text">二进制就位 · 待宿主编译</span>')
+      : '<span class="muted">未下载</span>';
+
+    const src = (k.sources || []).map((s) => {
+      const sig = s.signature && s.signature.detected
+        ? `　<span class="muted">PE ${esc(s.signature.arch || '')} · ${esc(s.signature.detected)}</span>`
+        : '';
+      return `<div class="kb-src ${s.complete ? '' : 'is-missing'}">
+        <span class="kb-mark">${s.complete ? '✓' : '✗'}</span>
+        <span class="kb-body">
+          <span class="kb-name">${esc(s.label)}${sig}</span>
+          <span class="kb-meta">${esc(s.version || '')}${s.fileCount ? `　${s.fileCount} 文件 / ${mb(s.sizeBytes)}` : ''}</span>
+        </span>
+      </div>`;
+    }).join('');
+
+    const note = k.blocker
+      ? `<div class="kb-note">${esc(k.blocker)}</div>`
+      : '';
+
+    return `<div class="kb-group">
+      <div class="kb-head">
+        <span class="kb-title">${esc(e.label)}</span>
+        <span class="kb-arch">${esc(k.arch || '')}</span>
+      </div>
+      <div class="kb-status">${head}</div>
+      ${src}
+      ${note}
+    </div>`;
+  }).join('');
+}
+
+/** 预设搜索引擎 —— 值就是 searchTemplate，界面上按模板反查当前项 */
+const SEARCH_PRESETS = [
+  { label: '百度', tpl: 'https://www.baidu.com/s?wd=%s' },
+  { label: '必应', tpl: 'https://www.bing.com/search?q=%s' },
+  { label: 'Google', tpl: 'https://www.google.com/search?q=%s' }
+];
+
+function buildGeneral() {
+  const s = state.settings;
+  const followsHome = (s.newTabPage || s.homepage) === s.homepage;
+  const sessCount = (s.session && Array.isArray(s.session.tabs)) ? s.session.tabs.length : 0;
+
+  return `
+    <h2 class="sv-h2">常规</h2>
+    <div class="sv-lead">主页、新标签页与地址栏搜索。改动即时生效，并原子写入 nova-settings.json。</div>
+
+    <div class="panel-label">主页</div>
+    <div class="field"><input id="set-homepage" value="${esc(s.homepage)}" spellcheck="false" /></div>
+    <div class="muted" style="padding-bottom:var(--sp-3)">点「主页」按钮、以及启动时的第一个标签页打开的地址。</div>
+
+    <div class="panel-label">新标签页</div>
+    <div class="field"><input id="set-newtab" value="${esc(s.newTabPage || s.homepage)}" spellcheck="false" /></div>
+    <div class="btn-row" style="padding-top:0">
+      <button class="btn" data-act="newtab-same" ${followsHome ? 'disabled' : ''}>与主页相同</button>
+      <span class="lr-sub" style="align-self:center">当前：${followsHome ? '跟随主页' : '独立地址'}</span>
+    </div>
+
+    <div class="panel-label">默认内核</div>
+    <div class="panel-section">
+      <div class="segmented" id="set-engine">
+        ${state.engines.map((e) => `<button data-engine="${e.id}" class="${s.defaultEngine === e.id ? 'is-active' : ''}">${esc(e.label)}</button>`).join('')}
+      </div>
+      <div class="muted" style="padding:var(--sp-2) 0 0">只影响新建标签页；已有标签页的内核在地址栏右侧单独切换。</div>
+    </div>
+
+    <div class="panel-label">地址栏搜索</div>
+    <div class="panel-section">
+      <div class="segmented" id="set-search-preset">
+        ${SEARCH_PRESETS.map((p) => `<button data-tpl="${esc(p.tpl)}" class="${s.searchTemplate === p.tpl ? 'is-active' : ''}">${esc(p.label)}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field"><input id="set-search" value="${esc(s.searchTemplate)}" spellcheck="false" /></div>
+    <div class="muted" style="padding-bottom:var(--sp-3)">
+      <code>%s</code> 会被替换成搜索词。当前示例：${esc(searchUrl('nova'))}
+    </div>
+
+    <div class="panel-label">启动</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">恢复上次会话</span>
+          <span class="lr-sub">启动时重新打开关闭前的标签页${sessCount ? `（已记录 ${sessCount} 个地址）` : ''}</span>
+        </span>
+        <button class="switch ${s.restoreSession ? 'is-on' : ''}" data-cfg="restoreSession"></button>
+      </div>
+    </div>
+  `;
+}
+
+function buildAppearance() {
+  const s = state.settings;
+  const pref = s.layout || 'auto';
+  return `
+    <h2 class="sv-h2">外观</h2>
+    <div class="sv-lead">布局档位决定外壳形态（PC 版三条横栏 / 移动版底栏 + 标签总览）；主题同时写入 Electron 的 nativeTheme。</div>
+
+    <div class="panel-label">布局</div>
+    <div class="panel-section">
+      <div class="segmented" id="set-layout">
+        <button data-layout="auto" class="${pref === 'auto' ? 'is-active' : ''}">跟随窗口</button>
+        <button data-layout="desktop" class="${pref === 'desktop' ? 'is-active' : ''}">桌面端</button>
+        <button data-layout="mobile" class="${pref === 'mobile' ? 'is-active' : ''}">移动端</button>
+      </div>
+      <div class="muted" style="padding:var(--sp-2) 0 0">
+        当前档位：${esc(pref)}；实际生效：${esc(state.layout)}。窗口宽度 &lt; ${MOBILE_BREAKPOINT}px 时「跟随窗口」判为移动端。
+      </div>
+    </div>
+
+    <div class="panel-label">主题</div>
+    <div class="panel-section">
+      <div class="segmented" id="set-theme">
+        <button data-theme="light" class="${s.theme === 'light' ? 'is-active' : ''}">浅色</button>
+        <button data-theme="dark" class="${s.theme === 'dark' ? 'is-active' : ''}">深色</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ *
+ * 移动端阅读增强：无图模式 / 自动拼页
+ * ------------------------------------------------------------------ */
+
+/**
+ * 无图档位。
+ * 这里再列一份 label 是为了让分段控件在拿不到主进程快照时也能画出来
+ * （预览模式、IPC 还没回来的时候）。真正的判定与计数全在主进程，界面不算数。
+ */
+const NOIMAGE_LEVELS = [
+  { id: 'off', label: '关闭', hint: '图片正常加载' },
+  { id: 'image', label: '无图', hint: '拦下所有图片请求' },
+  { id: 'image-av', label: '无图 + 视频', hint: '再停掉音视频的自动加载' }
+];
+
+const AUTOPAGE_MAX = [5, 10, 20];
+
+function mobilePref() {
+  const m = state.settings.mobile || {};
+  return {
+    noImage: m.noImage || 'off',
+    autoPage: !!m.autoPage,
+    autoPageMax: m.autoPageMax || 10
+  };
+}
+
+function noImageLevel() {
+  return mobilePref().noImage;
+}
+
+function noImageLabel(level) {
+  const hit = NOIMAGE_LEVELS.find((l) => l.id === (level || noImageLevel()));
+  return hit ? hit.label : '关闭';
+}
+
+/** 无图快照。主进程还没回话时给一份零值，免得模板里到处判空 */
+function nm() {
+  return state.noMedia || {
+    level: noImageLevel(),
+    label: noImageLabel(),
+    types: [],
+    blocked: 0,
+    byType: { image: 0, media: 0 },
+    tabBlocked: 0,
+    pageAllowed: false
+  };
+}
+
+function apSubtitle(ap, m) {
+  if (!m.autoPage) return '已关闭';
+  if (!ap) return '已开启 · 打开页面后生效';
+  if (ap.error) return '上次失败：' + ap.error;
+  if (ap.pages > 0) return `本页已拼接 ${ap.pages} 页` + (ap.hasNext ? ' · 还有下一页' : ' · 已到底');
+  if (ap.hasNext) return '已就绪 · 滚到底开始拼接';
+  return '本页没找到下一页';
+}
+
+function buildMobile() {
+  const m = mobilePref();
+  const st = nm();
+  const on = m.noImage !== 'off';
+  const cur = NOIMAGE_LEVELS.find((l) => l.id === m.noImage) || NOIMAGE_LEVELS[0];
+  const ap = state.autoPageStatus;
+
+  return `
+    <h2 class="sv-h2">移动端</h2>
+    <div class="sv-lead">
+      为小屏准备的两件事：<b>无图模式</b>在请求发出的那一刻就把图片掐掉（不是加载完再藏起来，
+      那种做法一个字节也没省），<b>自动拼页</b>把 <code>/p1 /p2 /p3</code> 这样的分页长文接成一整篇。
+      两项默认都关着 —— 一上来就没有图，很多人会以为浏览器坏了。
+    </div>
+
+    <div class="panel-label">无图模式</div>
+    <div class="panel-section">
+      <div class="segmented" id="nm-level">
+        ${NOIMAGE_LEVELS.map((l) => `<button data-level="${l.id}" class="${m.noImage === l.id ? 'is-active' : ''}">${esc(l.label)}</button>`).join('')}
+      </div>
+      <div class="muted" style="padding:var(--sp-2) 0 0">
+        当前：${esc(cur.hint)}。切换后当前标签页会自动重载 —— 已经发出去的请求拦不回来，
+        不重载界面状态就对不上。
+      </div>
+    </div>
+
+    <div class="panel-label">本次拦截</div>
+    <div class="sv-card">
+      <div class="kv"><span>图片</span><b>${fmtNum(st.byType.image || 0)}</b></div>
+      <div class="kv"><span>音视频</span><b>${fmtNum(st.byType.media || 0)}</b></div>
+      <div class="kv"><span>当前标签页</span><b>${fmtNum(st.tabBlocked || 0)}</b></div>
+    </div>
+    <div class="muted" style="padding:var(--sp-2) 0 var(--sp-3)">
+      只统计条数，没有「省下多少 MB」—— 被拦下的请求压根没有响应头，
+      Content-Length 无从得知。按平均图片大小估一个数很好看，但那是编的。
+    </div>
+    <div class="btn-row">
+      <button class="btn" data-act="nm-show-images" ${on && activeTab() ? '' : 'disabled'}>显示本页图片</button>
+      <button class="btn" data-act="nm-reset">重置计数</button>
+    </div>
+
+    <div class="panel-label">自动拼页</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">滚到底自动接下一页</span>
+          <span class="lr-sub">${esc(apSubtitle(ap, m))}</span>
+        </span>
+        <button class="switch ${m.autoPage ? 'is-on' : ''}" data-ap="autoPage"></button>
+      </div>
+    </div>
+
+    <div class="panel-label">单次最多拼几页</div>
+    <div class="panel-section">
+      <div class="segmented" id="ap-max">
+        ${AUTOPAGE_MAX.map((v) => `<button data-max="${v}" class="${m.autoPageMax === v ? 'is-active' : ''}">${v} 页</button>`).join('')}
+      </div>
+      <div class="muted" style="padding:var(--sp-2) 0 0">
+        上限是防呆，不是性能考虑：有些站点的「下一页」实际指向另一篇毫不相干的文章，
+        不封顶会一路拼下去。
+      </div>
+    </div>
+
+    <div class="panel-label">边界</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">字体不会被拦</span>
+          <span class="lr-sub">大量站点的界面图标就是字体，拦掉页面直接散架，省下的字节却不值当</span>
+        </span>
+      </div>
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">标签页图标放行</span>
+          <span class="lr-sub">这是启发式名单（路径含 favicon 或以 .ico 结尾），不是标准 —— 宁可放宽</span>
+        </span>
+      </div>
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">跨域分页拼不了</span>
+          <span class="lr-sub">下一页在不同域名时会被 CORS 挡下，此时会如实报错并停下，不会静默失败</span>
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+/** 底部弹层：移动端把这两个开关收在一处，不挤底栏 */
+function renderReadSheet() {
+  const body = $('#read-sheet-body');
+  if (!body) return;
+
+  const m = mobilePref();
+  const st = nm();
+  const t = activeTab();
+  const ap = state.autoPageStatus;
+
+  body.innerHTML = `
+    <div class="panel-label">无图模式</div>
+    <div class="segmented" id="rs-nm">
+      ${NOIMAGE_LEVELS.map((l) => `<button data-level="${l.id}" class="${m.noImage === l.id ? 'is-active' : ''}">${esc(l.label)}</button>`).join('')}
+    </div>
+    <div class="rs-note">
+      图片在请求发出前就被拦下，省的是真流量。本次已拦 <b>${fmtNum(st.blocked)}</b> 张
+      ${st.pageAllowed ? '· <b>本页已放行</b>' : ''}
+    </div>
+    ${m.noImage !== 'off' ? `
+      <button class="btn" data-act="rs-show-images" ${t ? '' : 'disabled'} style="width:100%;margin-top:var(--sp-2)">
+        显示本页图片（放行后重载）
+      </button>` : ''}
+
+    <div class="panel-label" style="padding-top:var(--sp-4)">自动拼页</div>
+    <div class="list-row">
+      <span class="lr-main">
+        <span class="lr-title">滚到底自动接下一页</span>
+        <span class="lr-sub">${esc(apSubtitle(ap, m))}</span>
+      </span>
+      <button class="switch ${m.autoPage ? 'is-on' : ''}" data-ap="autoPage"></button>
+    </div>
+    <div class="segmented" id="rs-apmax" style="margin-top:var(--sp-2)">
+      ${AUTOPAGE_MAX.map((v) => `<button data-max="${v}" class="${m.autoPageMax === v ? 'is-active' : ''}">最多 ${v} 页</button>`).join('')}
+    </div>
+    <div class="rs-note">
+      拼接后页面底部会出现一条状态条，上面就能「停止」或「撤销」。
+      有些站点的「下一页」其实指向另一篇文章，所以封了顶。
+    </div>
+  `;
+
+  body.querySelectorAll('#rs-nm button').forEach((b) => {
+    b.addEventListener('click', () => applyNoImage(b.dataset.level));
+  });
+  body.querySelectorAll('#rs-apmax button').forEach((b) => {
+    b.addEventListener('click', () => applyAutoPageMax(Number(b.dataset.max)));
+  });
+  const apSwitch = body.querySelector('[data-ap="autoPage"]');
+  if (apSwitch) {
+    apSwitch.addEventListener('click', () => applyAutoPage(!apSwitch.classList.contains('is-on')));
+  }
+  const showBtn = body.querySelector('[data-act="rs-show-images"]');
+  if (showBtn) showBtn.addEventListener('click', showPageImages);
+}
+
+function openReadSheet() {
+  closeDrawer();
+  closeSheet();
+  $('#read-sheet').hidden = false;
+  renderReadSheet();
+  // 弹层打开时才去问页面内脚本，平时不做无谓的 executeJavaScript
+  readAutoPageStatus().then(() => { if (!$('#read-sheet').hidden) renderReadSheet(); });
+}
+
+function closeReadSheet() {
+  const sheet = $('#read-sheet');
+  if (sheet) sheet.hidden = true;
+}
+
+/** 切换无图档位。档位真变了就重载当前页 —— 不重载，界面显示的状态和实际不符 */
+async function applyNoImage(level) {
+  const next = NOIMAGE_LEVELS.some((l) => l.id === level) ? level : 'off';
+  const prev = noImageLevel();
+  if (prev === next) return;
+
+  state.settings.mobile = Object.assign({}, mobilePref(), { noImage: next });
+  await bridge.settings.patch({ mobile: { noImage: next } });
+
+  const t = activeTab();
+  if (t && t.webview && typeof t.webview.reload === 'function') {
+    state.autoPageStatus = null;
+    t.webview.reload();
+  }
+  toast(next === 'off' ? '无图模式已关闭 · 正在重载当前页' : `${noImageLabel(next)}已开启 · 正在重载当前页`);
+  refreshCurrent();
+}
+
+async function applyAutoPage(on) {
+  state.settings.mobile = Object.assign({}, mobilePref(), { autoPage: !!on });
+  await bridge.settings.patch({ mobile: { autoPage: !!on } });
+
+  const t = activeTab();
+  if (on) {
+    // 已经打开的页面不用等重载，直接注入就行
+    injectAutoPage(t);
+    toast('已开启自动拼页');
+    // 页面内脚本 boot 有几百毫秒延迟，等一下再去读状态
+    setTimeout(() => { readAutoPageStatus().then(() => refreshCurrent()); }, 900);
+  } else {
+    // 关掉只是让它别再拼新的；已经接上去的内容由页面上的「撤销」负责清理
+    if (t && t.webview && typeof t.webview.executeJavaScript === 'function') {
+      try {
+        t.webview.executeJavaScript(
+          '(function(){var a=window.__novaAutoPage;if(a&&a.stop)a.stop();return "stopped";})()'
+        );
+      } catch { /* 页面可能已经销毁 */ }
+    }
+    state.autoPageStatus = null;
+    toast('已关闭自动拼页');
+  }
+  refreshCurrent();
+}
+
+async function applyAutoPageMax(v) {
+  const max = AUTOPAGE_MAX.includes(v) ? v : 10;
+  state.settings.mobile = Object.assign({}, mobilePref(), { autoPageMax: max });
+  await bridge.settings.patch({ mobile: { autoPageMax: max } });
+  toast(`单次最多拼 ${max} 页 · 下次加载生效`);
+  refreshCurrent();
+}
+
+/** 放行本页图片。放行之后必须重载，已经被拦掉的请求不会自己回来 */
+async function showPageImages() {
+  const t = activeTab();
+  if (!t) { toast('没有打开的标签页'); return; }
+  if (t.wcId == null) { toast('标签页还没就绪，稍候再试'); return; }
+
+  try {
+    const st = await bridge.mobile.showImages(t.wcId);
+    if (st) state.noMedia = st;
+  } catch { /* 预览模式下桥是空壳 */ }
+
+  if (t.webview && typeof t.webview.reload === 'function') t.webview.reload();
+  toast('已放行本页图片 · 正在重载');
+  refreshCurrent();
+}
+
+/**
+ * 往标签页里注入自动拼页脚本。
+ * 注入的是 autopage.js 里那份算法序列化出来的字符串 —— 与 Node 测试跑的是同一份源码。
+ */
+function injectAutoPage(tab) {
+  if (state.isPreview) return false;
+  if (!mobilePref().autoPage) return false;
+  if (!tab || !tab.webview) return false;
+  if (typeof tab.webview.executeJavaScript !== 'function') return false;
+
+  const AP = window.NovaAutoPage;
+  if (!AP || typeof AP.buildScript !== 'function') return false;
+
+  try {
+    const p = tab.webview.executeJavaScript(AP.buildScript({ maxPages: mobilePref().autoPageMax }));
+    if (p && typeof p.catch === 'function') p.catch(() => { /* 注入失败不影响浏览 */ });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 回读页面内拼页脚本的状态。没有注入过、或页面已经换掉，都会拿到 null */
+async function readAutoPageStatus() {
+  const t = activeTab();
+  if (!t || !t.webview || typeof t.webview.executeJavaScript !== 'function') {
+    state.autoPageStatus = null;
+    return null;
+  }
+  try {
+    const raw = await t.webview.executeJavaScript(
+      '(function(){var a=window.__novaAutoPage;return a?a.status():null;})()'
+    );
+    state.autoPageStatus = raw || null;
+  } catch {
+    state.autoPageStatus = null;
+  }
+  return state.autoPageStatus;
+}
+
+function buildEngines() {
+  return `
+    <h2 class="sv-h2">内核</h2>
+    <div class="sv-lead">
+      三档运行时：<b>native</b>（进程内真实 Blink）/ <b>bridge</b>（原生宿主进程，NDJSON over stdio）/
+      <b>compat</b>（兼容层：Chromium 渲染 + 伪造 UA 与 API 垫片）。探测不到宿主的绝不假装成真内核。
+    </div>
+
+    <div class="panel-label">当前状态</div>
+    <div class="sv-card">
+      ${state.engines.map((e) => `
+      <div class="list-row">
+        <span class="lr-icon"><span class="engine-dot" style="--engine-color:${e.accent}"></span></span>
+        <span class="lr-main">
+          <span class="lr-title">${esc(e.label)}</span>
+          <span class="lr-sub">${esc(e.partition)} · ${esc(e.vendor)}</span>
+        </span>
+        <span class="mode-pill mode-${e.mode}">${esc(e.modeLabel)}</span>
+      </div>`).join('')}
+    </div>
+
+    <div class="panel-label">内核二进制</div>
+    <div class="panel-section">
+      ${renderKernelBinaries()}
+    </div>
+
+    <div class="panel-label">内核桥接</div>
+    <div class="panel-section">
+      <button class="btn" data-act="probe-engine" style="width:100%">重新探测原生内核宿主</button>
+      <div class="muted" style="padding:var(--sp-2) 0 0">
+        把 <code>gecko-host.exe</code> / <code>trident-host.exe</code> 放进
+        <code>native/bin/</code> 后重新探测，对应内核会从「兼容层」升级为「原生桥接」。<br />
+        抓取内核：<code>bash tools/fetch-engines.sh</code>　校验：<code>node tools/check-engines.js</code>
+      </div>
+    </div>
+  `;
+}
+
+function buildAbout() {
+  const v = state.__versions || {};
+  return `
+    <h2 class="sv-h2">关于吾爱Nova</h2>
+    <div class="panel-section" style="text-align:center;padding-top:var(--sp-2)">
+      <div class="es-mark" style="margin:0 auto var(--sp-3)">N</div>
+      <div style="font-size:16px;font-weight:600">吾爱Nova浏览器</div>
+      <div class="muted" style="padding-top:var(--sp-1)">多内核 · 双端 · 内置广告拦截</div>
+    </div>
+
+    <div class="panel-label">运行时</div>
+    <div class="sv-card">
+      <div class="kv"><span>版本</span><b>0.1.0</b></div>
+      <div class="kv"><span>Electron</span><b>${esc(v.electron || '-')}</b></div>
+      <div class="kv"><span>Chromium</span><b>${esc(v.chrome || '-')}</b></div>
+      <div class="kv"><span>Node</span><b>${esc(v.node || '-')}</b></div>
+      <div class="kv"><span>平台</span><b>${esc(state.platform || '-')}</b></div>
+    </div>
+
+    <div class="panel-label">内核状态</div>
+    <div class="sv-card">
+      ${state.engines.map((e) => `
+      <div class="list-row">
+        <span class="lr-icon"><span class="engine-dot" style="--engine-color:${e.accent}"></span></span>
+        <span class="lr-main"><span class="lr-title">${esc(e.label)}</span><span class="lr-sub">${esc(e.vendor)}</span></span>
+        <span class="mode-pill mode-${e.mode}">${esc(e.modeLabel)}</span>
+      </div>`).join('')}
+    </div>
+
+    <div class="sv-note">
+      渲染载体：每个内核一份独立 session（Cookie / 缓存 / UA 全隔离）。
+      当前 shell 由 Electron 自带 Blink 承载；Gecko 与 Trident 的真内核二进制已在
+      <code>native/engines/</code> 就位，但缺原生宿主程序，因此标为「兼容层」而非「原生内核」。
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ *
+ * 设置页：导航 / 分区调度
+ * ------------------------------------------------------------------ */
+
+/** 左侧导航：分组 → 条目。count 是可选的实时角标。 */
+const SETTINGS_NAV = [
+  { group: '浏览器', items: [
+    { id: 'general', label: '常规', icon: 'gear' },
+    { id: 'appearance', label: '外观', icon: 'palette' },
+    { id: 'mobile', label: '移动端', icon: 'phone',
+      count: () => (mobilePref().noImage !== 'off' || mobilePref().autoPage ? '开' : '') },
+    { id: 'engines', label: '内核', icon: 'chip' }
+  ] },
+  { group: '内容', items: [
+    { id: 'adblock', label: '广告拦截', icon: 'shield',
+      count: () => ((state.adblock.sources || []).filter((s) => s.enabled).length + '/' + (state.adblock.sources || []).length) },
+    { id: 'sniffer', label: '媒体嗅探', icon: 'radar', count: () => sniffBadge() },
+    { id: 'extensions', label: '扩展', icon: 'puzzle', count: () => state.extensions.length },
+    { id: 'bookmarks', label: '书签', icon: 'star', count: () => state.bookmarks.length },
+    { id: 'history', label: '历史记录', icon: 'clock' },
+    { id: 'downloads', label: '下载', icon: 'down', count: () => state.downloads.length }
+  ] },
+  { group: '系统', items: [
+    { id: 'privacy', label: '隐私与数据', icon: 'lock' },
+    { id: 'about', label: '关于吾爱Nova', icon: 'info' }
+  ] }
+];
+
+const NAV_ICONS = {
+  gear: '<circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/>',
+  palette: '<path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.8-.8 1.8-1.6 0-.5-.3-.9-.6-1.2-.3-.3-.5-.6-.5-1 0-.6.5-1.1 1.1-1.1H13A4 4 0 0 0 17 8c0-2.8-3.1-5-7-5z"/><circle cx="7.4" cy="8.2" r=".9"/><circle cx="11" cy="6.8" r=".9"/>',
+  chip: '<rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/>',
+  phone: '<rect x="6" y="2.5" width="8" height="15" rx="2"/><path d="M9 15.3h2"/>',
+  shield: '<path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/>',
+  radar: '<rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/>',
+  puzzle: '<path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/>',
+  star: '<path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/>',
+  clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/>',
+  down: '<path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/>',
+  lock: '<path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/>',
+  info: '<circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/>'
+};
+
+/** 分区 id → 构建函数。构建函数可以返回字符串，也可以返回 Promise<string>。 */
+const SECTION_BUILDERS = {
+  general: buildGeneral,
+  appearance: buildAppearance,
+  mobile: buildMobile,
+  engines: buildEngines,
+  adblock: buildAdblock,
+  sniffer: buildSniffer,
+  extensions: buildExtensions,
+  bookmarks: buildBookmarks,
+  history: buildHistory,
+  downloads: buildDownloads,
+  privacy: buildPrivacy,
+  about: buildAbout
+};
+
+function findSection(id) {
+  for (const g of SETTINGS_NAV) {
+    const hit = g.items.find((i) => i.id === id);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function renderSettingsNav() {
+  const nav = $('#settings-nav');
+  nav.innerHTML = SETTINGS_NAV.map((g) => `
+    <div class="sv-nav-group">${esc(g.group)}</div>
+    ${g.items.map((it) => {
+      const c = it.count ? it.count() : null;
+      return `<button class="sv-nav-item ${it.id === state.settingsSection ? 'is-active' : ''}" data-sec="${it.id}">
+        <svg viewBox="0 0 20 20">${NAV_ICONS[it.icon] || ''}</svg>
+        <span>${esc(it.label)}</span>
+        ${c ? `<span class="sv-nav-count">${typeof c === 'number' ? fmtNum(c) : esc(c)}</span>` : ''}
+      </button>`;
+    }).join('')}
+  `).join('');
+  nav.querySelectorAll('.sv-nav-item').forEach((b) => {
+    b.addEventListener('click', () => renderSettingsSection(b.dataset.sec));
+  });
+}
+
+/**
+ * 渲染一个设置分区。同步分区立刻落 DOM（便于断言与避免闪烁），
+ * 异步分区（历史记录要读盘）先给占位再替换。
+ */
+function renderSettingsSection(id) {
+  const def = findSection(id) || findSection('general');
+  state.settingsSection = def.id;
+  state.panel = def.id;
+  $('#sv-path').textContent = def.label;
+  renderSettingsNav();
+
+  const body = $('#settings-body');
+  body.scrollTop = 0;
+  const html = SECTION_BUILDERS[def.id]();
+
+  if (html && typeof html.then === 'function') {
+    body.innerHTML = '<div class="sv-empty">载入中…</div>';
+    html.then((h) => {
+      if (state.settingsSection !== def.id) return;
+      body.innerHTML = h;
+      wireActions(body);
+      afterSectionRender(def.id);
+    });
+    return;
+  }
+  body.innerHTML = html;
+  wireActions(body);
+  afterSectionRender(def.id);
+}
+
+/** 分区渲染完的收尾钩子 —— 需要 DOM 已经就位的副作用放这里 */
+function afterSectionRender(id) {
+  if (id === 'sniffer') {
+    // 兜底补拉：事件推送可能丢，UI 预览模式下也根本没有事件
+    syncSniffFromMain();
+    // 渲染出来后，给靠前的几条排上元数据探测
+    scheduleSniffProbe();
+    return;
+  }
+  if (id === 'mobile') syncMobileFromMain();
+}
+
+/**
+ * 补拉无图快照与拼页状态。
+ *
+ * 递归防护：这个函数会触发重渲染，而重渲染又会回到 afterSectionRender。
+ * 用一个进行中标志把嵌套调用挡掉 —— 否则「渲染 → 补拉 → 重渲染」会转成死循环。
+ */
+let mobileSyncBusy = false;
+
+async function syncMobileFromMain() {
+  if (mobileSyncBusy) return;
+  mobileSyncBusy = true;
+  try {
+    const t = activeTab();
+    const before = JSON.stringify(state.noMedia);
+    try {
+      const st = await bridge.mobile.state(t && t.wcId != null ? t.wcId : null);
+      if (st && st.noImage) state.noMedia = st.noImage;
+    } catch { /* 预览模式：桥是空壳 */ }
+
+    await readAutoPageStatus();
+
+    if (JSON.stringify(state.noMedia) === before) return;
+    if (state.settingsSection === 'mobile') renderSettingsSection('mobile');
+  } finally {
+    mobileSyncBusy = false;
+  }
+}
+
+/**
+ * 从主进程补拉一次嗅探清单。
+ * 只在真的有新增时才触发重绘 —— 否则会和 afterSectionRender 形成
+ * 「刷新 → 渲染 → 补拉 → 再刷新」的死循环。
+ */
+async function syncSniffFromMain() {
+  let recs;
+  try {
+    recs = await bridge.sniffer.list({});
+  } catch {
+    return; // 主进程没起来 / 预览模式下桥是空壳
+  }
+  if (!Array.isArray(recs) || !recs.length) return;
+
+  let added = 0;
+  for (const rec of recs) {
+    const bucket = state.sniffByWc.get(rec.tabId);
+    if (!bucket || !bucket.some((r) => r.id === rec.id)) added += 1;
+    mergeSniffRecords(rec.tabId, [rec]);
+  }
+  if (!added) return;
+  syncSniffBadge();
+  refreshSniffer(true);
+}
+
+function openSettings(id) {
+  closeDrawer();
+  $('#settings-view').hidden = false;
+  renderSettingsSection(id || state.settingsSection || 'general');
+}
+
+function closeSettings() {
+  const view = $('#settings-view');
+  if (!view || view.hidden) return;
+  view.hidden = true;
+  state.panel = null;
+}
+
+/** 菜单里的 data-panel 值 → 设置页分区 */
+const PANEL_ALIAS = {
+  settings: 'general',
+  general: 'general',
+  appearance: 'appearance',
+  mobile: 'mobile',
+  engines: 'engines',
+  adblock: 'adblock',
+  sniffer: 'sniffer',
+  extensions: 'extensions',
+  bookmarks: 'bookmarks',
+  history: 'history',
+  downloads: 'downloads',
+  privacy: 'privacy',
+  about: 'about'
+};
+
+/** 兼容旧入口（菜单行、盾牌/扩展按钮、快捷键、?panel= 深链接） */
+function openPanel(p) {
+  openSettings(PANEL_ALIAS[p] || 'general');
+}
+
+/**
+ * 重绘当前所有可见面。
+ *
+ * 早先写的是「谁在最上面就只刷谁」—— 结果设置页挂着的时候，被它盖住的阅读弹层
+ * 就刷不动了：弹层里切了档位，主进程那边已经生效，弹层上的选中态却还停在旧的。
+ * 改成把在显示的面都刷一遍，谁盖着谁不影响各自的状态同步（没显示的那几个是空操作）。
+ */
+function refreshCurrent() {
+  const view = $('#settings-view');
+  if (view && !view.hidden) renderSettingsSection(state.settingsSection);
+
+  const read = $('#read-sheet');
+  if (read && !read.hidden) renderReadSheet();
+
+  if (state.panel === 'menu') renderMenuPanel();
+}
+
+/**
+ * 下载页专用刷新。
+ * 下载过程中主进程每 120ms 推一次进度，直接每次都整页重绘会把输入框里
+ * 正在敲的地址清掉；所以这里做两件事：节流到 350ms，并在重绘前后
+ * 把输入框的值、光标位置和焦点原样接回去。
+ */
+let dlRefreshTimer = null;
+
+function refreshDownloads(force = false) {
+  if (state.settingsSection !== 'downloads') return;
+  const view = $('#settings-view');
+  if (!view || view.hidden) return;
+
+  if (force) {
+    clearTimeout(dlRefreshTimer);
+    dlRefreshTimer = null;
+    doRefreshDownloads();
+    return;
+  }
+  if (dlRefreshTimer) return; // 已经排上队了，这一波合并掉
+  dlRefreshTimer = setTimeout(() => { dlRefreshTimer = null; doRefreshDownloads(); }, 350);
+}
+
+function doRefreshDownloads() {
+  const body = $('#settings-body');
+  if (!body) return;
+
+  const input = $('#dl-url');
+  const focused = !!input && document.activeElement === input;
+  const caret = focused ? input.selectionStart : 0;
+  if (input) state.dlDraft = input.value;
+
+  Promise.resolve(buildDownloads()).then((html) => {
+    if (state.settingsSection !== 'downloads') return;
+    body.innerHTML = html;
+    wireActions(body);
+    if (focused) {
+      const next = $('#dl-url');
+      if (next) {
+        next.focus();
+        try { next.setSelectionRange(caret, caret); } catch { /* 类型不支持就算了 */ }
+      }
+    }
+  }).catch(() => { /* 渲染失败不该把页面搞崩 */ });
+}
+
+/**
+ * 嗅探页刷新。
+ * 与下载页同理要节流（一页首屏能瞬时冒几十条），但多一条更硬的规矩：
+ * **有预览打开时不重绘** —— 整页重绘会把 <video> 节点拆掉，正在播的媒体会当场中断。
+ */
+let sniffRefreshTimer = null;
+
+function refreshSniffer(force = false) {
+  if (state.settingsSection !== 'sniffer') return;
+  const view = $('#settings-view');
+  if (!view || view.hidden) return;
+
+  if (force) {
+    clearTimeout(sniffRefreshTimer);
+    sniffRefreshTimer = null;
+    refreshCurrent();
+    return;
+  }
+  if (state.sniffPreview) return; // 别把用户正在看的东西刷没了
+  if (sniffRefreshTimer) return;
+  sniffRefreshTimer = setTimeout(() => { sniffRefreshTimer = null; refreshCurrent(); }, 400);
+}
+
+function buildPrivacy() {
+  const s = state.settings;
+  return `
+    <h2 class="sv-h2">隐私与数据</h2>
+    <div class="sv-lead">数据全部落在本机用户目录，不上传任何一方。每个内核一份独立 session，Cookie 与缓存互不串味。</div>
+
+    <div class="panel-label">存储位置</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">用户数据目录</span>
+          <span class="lr-sub">${esc(state.userDataPath || '（读取中…）')}</span>
+        </span>
+        <button class="btn" data-act="open-user-data">打开</button>
+      </div>
+      ${state.engines.map((e) => `
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">${esc(e.label)} 隔离分区</span>
+          <span class="lr-sub">${esc(e.partition)}</span>
+        </span>
+        <span class="mode-pill mode-${e.mode}">${esc(e.modeLabel)}</span>
+      </div>`).join('')}
+    </div>
+
+    <div class="panel-label">清理</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">清空历史记录</span><span class="lr-sub">保留书签与设置</span></span>
+        <button class="btn" data-act="clear-history">清空</button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">清空全部书签</span><span class="lr-sub">当前 ${state.bookmarks.length} 条</span></span>
+        <button class="btn" data-act="clear-bookmarks" ${state.bookmarks.length ? '' : 'disabled'}>清空</button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">清空站点数据</span><span class="lr-sub">Cookie / 缓存 / localStorage，覆盖全部内核分区</span></span>
+        <button class="btn" data-act="clear-site-data">清空</button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">重置广告拦截统计</span><span class="lr-sub">只清计数，不动已装载的规则</span></span>
+        <button class="btn" data-act="reset-stats">重置</button>
+      </div>
+    </div>
+
+    <div class="panel-label">还原</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">恢复默认设置</span>
+          <span class="lr-sub">主页 / 新标签页 / 搜索 / 默认内核 / 外观 / 拦截强度；不动书签与历史</span>
+        </span>
+        <button class="btn" data-act="restore-defaults">恢复</button>
+      </div>
+    </div>
+
+    <div class="sv-note">
+      本版没有做的东西，这里如实写明：站点级 Cookie 策略开关（<code>relaxThirdParty</code> 字段已在配置里，
+      但没有接到 Electron 的 session 策略上，所以不给一个点了没反应的按钮）、代理设置、证书管理。
+      第三方 Cookie 目前完全由 Chromium 默认策略决定。
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ *
+ * 交互接线（抽屉与设置页正文共用）
+ * ------------------------------------------------------------------ */
+
+function wireActions(root) {
+  root.querySelectorAll('[data-toggle]').forEach((sw) => {
+    sw.addEventListener('click', async () => {
+      const key = sw.dataset.toggle;
+      const next = !sw.classList.contains('is-on');
+      sw.classList.toggle('is-on', next);
+      await bridge.settings.patch({ adblock: { [key]: next } });
+      state.settings.adblock[key] = next;
+      if (key === 'enabled') {
+        state.adblock.enabled = next;
+        $('#btn-shield').classList.toggle('is-off', !next);
+      }
+      toast(next ? '已开启' : '已关闭');
+    });
+  });
+
+  // 三个拦截源的独立开关
+  root.querySelectorAll('[data-source]').forEach((sw) => {
+    sw.addEventListener('click', async () => {
+      const id = sw.dataset.source;
+      const next = !sw.classList.contains('is-on');
+      sw.classList.toggle('is-on', next);
+      const s = await bridge.adblock.sourceToggle(id, next);
+      if (s) state.adblock = s;
+      refreshCurrent();
+      const src = ((s && s.sources) || []).find((x) => x.id === id);
+      toast(`${src ? src.name : id} 已${next ? '启用' : '停用'}`);
+    });
+  });
+
+  root.querySelectorAll('#ab-level button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      root.querySelectorAll('#ab-level button').forEach((x) => x.classList.toggle('is-active', x === b));
+      state.settings.adblock.level = b.dataset.level;
+      await bridge.settings.patch({ adblock: { level: b.dataset.level } });
+      toast(b.dataset.level === 'aggressive' ? '已切换为严格拦截' : '已切换为标准拦截');
+    });
+  });
+
+  root.querySelectorAll('#set-engine button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      root.querySelectorAll('#set-engine button').forEach((x) => x.classList.toggle('is-active', x === b));
+      state.settings.defaultEngine = b.dataset.engine;
+      await bridge.settings.patch({ defaultEngine: b.dataset.engine });
+      toast(`默认内核：${engine(b.dataset.engine).label}`);
+    });
+  });
+
+  root.querySelectorAll('#set-layout button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      root.querySelectorAll('#set-layout button').forEach((x) => x.classList.toggle('is-active', x === b));
+      state.settings.layout = b.dataset.layout;
+      applyLayout();
+      await bridge.settings.patch({ layout: b.dataset.layout });
+      refreshCurrent();
+    });
+  });
+
+  root.querySelectorAll('#set-theme button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      root.querySelectorAll('#set-theme button').forEach((x) => x.classList.toggle('is-active', x === b));
+      state.settings.theme = b.dataset.theme;
+      document.documentElement.dataset.theme = b.dataset.theme;
+      await bridge.settings.patch({ theme: b.dataset.theme });
+    });
+  });
+
+  root.querySelectorAll('#set-search-preset button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      state.settings.searchTemplate = b.dataset.tpl;
+      await bridge.settings.patch({ searchTemplate: b.dataset.tpl });
+      refreshCurrent();
+      toast('搜索模板已更新');
+    });
+  });
+
+  // 通用布尔配置开关（restoreSession 等）
+  root.querySelectorAll('[data-cfg]').forEach((sw) => {
+    sw.addEventListener('click', async () => {
+      const key = sw.dataset.cfg;
+      const next = !sw.classList.contains('is-on');
+      sw.classList.toggle('is-on', next);
+      state.settings[key] = next;
+      await bridge.settings.patch({ [key]: next });
+      toast(next ? '已开启' : '已关闭');
+    });
+  });
+
+  /* --- 移动端阅读：无图模式 / 自动拼页 --- */
+  root.querySelectorAll('#nm-level button').forEach((b) => {
+    b.addEventListener('click', () => applyNoImage(b.dataset.level));
+  });
+  root.querySelectorAll('#ap-max button').forEach((b) => {
+    b.addEventListener('click', () => applyAutoPageMax(Number(b.dataset.max)));
+  });
+  root.querySelectorAll('[data-ap]').forEach((sw) => {
+    sw.addEventListener('click', () => applyAutoPage(!sw.classList.contains('is-on')));
+  });
+  root.querySelectorAll('[data-read]').forEach((row) => {
+    row.addEventListener('click', () => { closeDrawer(); openReadSheet(); });
+  });
+
+  const home = root.querySelector('#set-homepage');
+  if (home) {
+    home.addEventListener('change', async () => {
+      const v = home.value.trim() || (state.defaults && state.defaults.homepage) || 'https://52ta.top/';
+      state.settings.homepage = v;
+      await bridge.settings.patch({ homepage: v });
+      refreshCurrent();
+      toast('主页已更新');
+    });
+  }
+
+  const newTab = root.querySelector('#set-newtab');
+  if (newTab) {
+    newTab.addEventListener('change', async () => {
+      const v = newTab.value.trim() || state.settings.homepage;
+      state.settings.newTabPage = v;
+      await bridge.settings.patch({ newTabPage: v });
+      refreshCurrent();
+      toast('新标签页已更新');
+    });
+  }
+
+  const search = root.querySelector('#set-search');
+  if (search) {
+    search.addEventListener('change', async () => {
+      const v = search.value.trim() || 'https://www.baidu.com/s?wd=%s';
+      state.settings.searchTemplate = v;
+      await bridge.settings.patch({ searchTemplate: v });
+      refreshCurrent();
+      toast('搜索模板已更新');
+    });
+  }
+
+  root.querySelectorAll('[data-allow]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const host = b.dataset.allow;
+      const isAllowed = state.allowlist.includes(host);
+      state.allowlist = isAllowed
+        ? await bridge.adblock.allowlistRemove(host)
+        : await bridge.adblock.allowlistAdd(host);
+      refreshCurrent();
+      toast(isAllowed ? `已移出白名单：${host}` : `已加入白名单：${host}`);
+    });
+  });
+
+  root.querySelectorAll('[data-unallow]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const host = b.dataset.unallow;
+      state.allowlist = await bridge.adblock.allowlistRemove(host);
+      refreshCurrent();
+      toast(`已移出白名单：${host}`);
+    });
+  });
+
+  root.querySelectorAll('[data-remove-ext]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      await bridge.extensions.remove(b.dataset.removeExt);
+      state.extensions = await bridge.extensions.list();
+      refreshCurrent();
+      toast('扩展已移除');
+    });
+  });
+
+  root.querySelectorAll('[data-unbookmark]').forEach((b) => {
+    b.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      state.bookmarks = await bridge.bookmarks.remove(b.dataset.unbookmark);
+      refreshCurrent();
+      toast('书签已删除');
+    });
+  });
+
+  // 历史行 → 当前标签页打开
+  root.querySelectorAll('.hist-row').forEach((r) => {
+    r.addEventListener('click', () => {
+      const tab = activeTab();
+      if (tab) navigate(tab.id, r.dataset.url);
+      closeSettings();
+    });
+  });
+
+  // 书签行 → 当前标签页打开（删除按钮单独处理，不触发跳转）
+  root.querySelectorAll('.list-row[data-url]').forEach((r) => {
+    r.addEventListener('click', (ev) => {
+      if (ev.target.closest('[data-unbookmark]')) return;
+      const tab = activeTab();
+      if (tab) navigate(tab.id, r.dataset.url);
+      closeSettings();
+    });
+  });
+
+  /* --- 下载 --- */
+
+  const draft = root.querySelector('#dl-url');
+  if (draft) {
+    draft.addEventListener('input', () => { state.dlDraft = draft.value; });
+    // 回车即开始下载
+    draft.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        const go = root.querySelector('[data-act="dl-start"]');
+        if (go) go.click();
+      }
+    });
+  }
+
+  root.querySelectorAll('#dl-threads button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const v = Number(b.dataset.v);
+      root.querySelectorAll('#dl-threads button').forEach((x) => x.classList.toggle('is-active', x === b));
+      state.settings.download = Object.assign({}, state.settings.download, { threads: v });
+      await bridge.settings.patch({ download: { threads: v } });
+      toast(`并发线程数已设为 ${v}`);
+    });
+  });
+
+  root.querySelectorAll('#dl-conc button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const v = Number(b.dataset.v);
+      root.querySelectorAll('#dl-conc button').forEach((x) => x.classList.toggle('is-active', x === b));
+      state.settings.download = Object.assign({}, state.settings.download, { maxConcurrent: v });
+      await bridge.settings.patch({ download: { maxConcurrent: v } });
+      toast(`同时下载任务数已设为 ${v}`);
+    });
+  });
+
+  root.querySelectorAll('[data-dlcfg]').forEach((sw) => {
+    sw.addEventListener('click', async () => {
+      const key = sw.dataset.dlcfg;
+      const next = !sw.classList.contains('is-on');
+      sw.classList.toggle('is-on', next);
+      state.settings.download = Object.assign({}, state.settings.download, { [key]: next });
+      await bridge.settings.patch({ download: { [key]: next } });
+      refreshCurrent();
+      toast(next ? '已接管页面下载，走多线程引擎' : '已交回 Chromium 内建下载器');
+    });
+  });
+
+  root.querySelectorAll('[data-dl]').forEach((b) => {
+    b.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const act = b.dataset.dl;
+      const id = b.dataset.id;
+      const p = b.dataset.path;
+
+      if (act === 'open') { await bridge.downloads.open(p); return; }
+      if (act === 'show') { await bridge.downloads.showInFolder(p); return; }
+
+      const run = {
+        pause: () => bridge.downloads.pause(id),
+        resume: () => bridge.downloads.resume(id),
+        cancel: () => bridge.downloads.cancel(id),
+        remove: () => bridge.downloads.remove(id),
+        retry: () => bridge.downloads.retry(id)
+      }[act];
+      if (!run) return;
+
+      await run();
+      state.downloads = await bridge.downloads.list();
+      state.downloadStats = await bridge.downloads.stats();
+      refreshDownloads(true);
+
+      const msg = {
+        pause: '已暂停（进度已存档，可继续）',
+        resume: '已继续',
+        cancel: '已取消，半成品文件已删除',
+        remove: '已从列表移除',
+        retry: '已重新开始'
+      }[act];
+      if (msg) toast(msg);
+    });
+  });
+
+  /* --- 媒体嗅探 --- */
+
+  root.querySelectorAll('[data-sncfg]').forEach((sw) => {
+    sw.addEventListener('click', async () => {
+      const key = sw.dataset.sncfg;
+
+      // 「显示分片」纯界面开关，不必落盘
+      if (key === 'showSegments') {
+        state.sniffShowSegments = !state.sniffShowSegments;
+        refreshCurrent();
+        return;
+      }
+
+      const next = !sw.classList.contains('is-on');
+      sw.classList.toggle('is-on', next);
+      state.settings.sniffer = Object.assign({}, state.settings.sniffer, { [key]: next });
+      await bridge.settings.patch({ sniffer: { [key]: next } });
+      refreshCurrent();
+      toast(key === 'enabled'
+        ? (next ? '已开始嗅探页面媒体' : '已停止嗅探')
+        : (next ? '已开启自动读取时长与分辨率' : '已关闭自动读取'));
+    });
+  });
+
+  root.querySelectorAll('#sn-minsize button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const v = Number(b.dataset.v);
+      root.querySelectorAll('#sn-minsize button').forEach((x) => x.classList.toggle('is-active', x === b));
+      state.settings.sniffer = Object.assign({}, state.settings.sniffer, { minSizeKB: v });
+      await bridge.settings.patch({ sniffer: { minSizeKB: v } });
+      toast(v === 0 ? '不再按体积过滤' : `小于 ${v} KB 的不再收录`);
+    });
+  });
+
+  root.querySelectorAll('[data-sn]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const act = b.dataset.sn;
+      const id = b.dataset.id;
+
+      if (act === 'clear') {
+        const wc = currentWcId();
+        await bridge.sniffer.clear(wc == null ? {} : { tabId: wc });
+        if (wc == null) state.sniffByWc.clear();
+        else state.sniffByWc.set(wc, []);
+        state.sniffPreview = null;
+        refreshCurrent();
+        syncSniffBadge();
+        toast('已清空本页的媒体清单');
+        return;
+      }
+
+      if (act === 'toggle-segs') {
+        state.sniffShowSegments = !state.sniffShowSegments;
+        refreshCurrent();
+        return;
+      }
+
+      const rec = sniffRecords().find((r) => r.id === id);
+      if (!rec) return;
+
+      if (act === 'preview') {
+        state.sniffPreview = state.sniffPreview === id ? null : id;
+        refreshCurrent();
+        return;
+      }
+      if (act === 'download') {
+        const r = await bridge.downloads.create({ url: rec.url, filename: suggestName(rec) });
+        if (r && r.error) { toast(r.error); return; }
+        try { state.downloads = await bridge.downloads.list(); } catch { /* 列表拉不到不影响已入队 */ }
+        state.downloadStats = null;
+        toast('已交给多线程引擎下载');
+        return;
+      }
+      if (act === 'copy') {
+        await bridge.system.copy(rec.url);
+        toast('链接已复制到剪贴板');
+        return;
+      }
+      if (act === 'open') {
+        const base = activeTab();
+        createTab(rec.url, base ? base.engineId : state.settings.defaultEngine);
+        toast('已在新标签页打开');
+        return;
+      }
+    });
+  });
+
+  root.querySelectorAll('[data-act]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const act = b.dataset.act;
+      if (act === 'new-tab') { createTab(newTabUrl(), state.settings.defaultEngine); closeDrawer(); }
+      else if (act === 'home') { const t = activeTab(); if (t) navigate(t.id, state.settings.homepage); closeDrawer(); }
+      else if (act === 'bookmark' || act === 'bookmark-current') {
+        const t = activeTab();
+        if (!t) { toast('还没有打开的标签页'); return; }
+        state.bookmarks = await bridge.bookmarks.add({ title: t.title, url: t.url });
+        refreshCurrent();
+        toast('已加入书签');
+      } else if (act === 'clear-bookmarks') {
+        state.bookmarks = await bridge.bookmarks.clear();
+        refreshCurrent();
+        toast('书签已清空');
+      } else if (act === 'newtab-same') {
+        state.settings.newTabPage = state.settings.homepage;
+        await bridge.settings.patch({ newTabPage: state.settings.homepage });
+        refreshCurrent();
+        toast('新标签页已与主页一致');
+      } else if (act === 'reset-stats') {
+        state.adblock = await bridge.adblock.reset();
+        refreshCurrent();
+        toast('统计已重置');
+      } else if (act === 'nm-reset') {
+        try {
+          const st = await bridge.mobile.resetStats();
+          if (st) state.noMedia = st;
+        } catch { /* 预览模式 */ }
+        refreshCurrent();
+        toast('无图拦截计数已重置');
+      } else if (act === 'nm-show-images') {
+        await showPageImages();
+      } else if (act === 'import-list') {
+        const r = await bridge.adblock.importList();
+        if (r && r.imported) {
+          state.adblock = await bridge.adblock.stats();
+          refreshCurrent();
+          toast(`已导入 ${r.imported} 条规则`);
+        } else toast(r && r.note ? r.note : '未导入任何文件');
+      } else if (act === 'install-ext') {
+        const r = await bridge.extensions.install();
+        state.extensions = await bridge.extensions.list();
+        refreshCurrent();
+        const ok = (r.installed || []).filter((x) => !x.error);
+        const bad = (r.installed || []).filter((x) => x.error);
+        toast(ok.length ? `已安装 ${ok.length} 个扩展${bad.length ? `，${bad.length} 个失败` : ''}` : (bad[0] ? bad[0].error : '未选择文件'));
+      } else if (act === 'clear-history') {
+        await bridge.history.clear();
+        refreshCurrent();
+        toast('历史已清空');
+      } else if (act === 'dl-start') {
+        const input = root.querySelector('#dl-url');
+        const raw = (input ? input.value : '').trim();
+        if (!raw) { toast('请先粘贴一个文件地址'); return; }
+        const r = await bridge.downloads.create({ url: raw });
+        if (r && r.error) { toast(r.error); return; }
+        // DOM 的值也要一起清：否则紧随其后的重绘会把输入框里的旧内容
+        // 又当成草稿抄回 state.dlDraft，等于没清。
+        state.dlDraft = '';
+        if (input) input.value = '';
+        state.downloads = await bridge.downloads.list();
+        state.downloadStats = await bridge.downloads.stats();
+        refreshDownloads(true);
+        toast('已加入下载队列');
+      } else if (act === 'dl-choose-dir') {
+        const dir = await bridge.downloads.chooseDir();
+        if (!dir) return;
+        state.settings.download = Object.assign({}, state.settings.download, { dir });
+        await bridge.settings.patch({ download: { dir } });
+        state.downloadsDir = dir;
+        refreshDownloads(true);
+        toast('下载目录已更新');
+      } else if (act === 'dl-open-dir') {
+        await bridge.downloads.open(state.downloadsDir || '');
+      } else if (act === 'dl-clear') {
+        state.downloads = await bridge.downloads.clearFinished();
+        state.downloadStats = await bridge.downloads.stats();
+        refreshDownloads(true);
+        toast('下载记录已清除');
+      } else if (act === 'clear-site-data') {
+        const r = await bridge.system.clearSiteData();
+        toast(r && r.note ? r.note
+          : (r && r.cleared ? `已清空 ${r.cleared} 个分区的站点数据` : '已清空站点数据'));
+      } else if (act === 'restore-defaults') {
+        const d = state.defaults || {};
+        const patch = {};
+        for (const k of ['homepage', 'newTabPage', 'searchTemplate', 'defaultEngine', 'layout', 'theme', 'restoreSession']) {
+          if (d[k] !== undefined) patch[k] = d[k];
+        }
+        if (d.adblock) patch.adblock = { enabled: d.adblock.enabled, cosmetic: d.adblock.cosmetic, level: d.adblock.level };
+        state.settings = await bridge.settings.patch(patch);
+        document.documentElement.dataset.theme = state.settings.theme || 'light';
+        applyLayout();
+        refreshCurrent();
+        toast('已恢复默认设置');
+      } else if (act === 'open-user-data') {
+        await bridge.system.openUserData();
+      } else if (act === 'probe-engine') {
+        state.engines = await bridge.engines.reResolve(true);
+        state.engineMap = new Map(state.engines.map((e) => [e.id, e]));
+        renderEngineSwitch();
+        syncEngineUi();
+        refreshCurrent();
+        const native = state.engines.filter((e) => e.mode !== 'compat').map((e) => e.label);
+        toast(native.length > 1 ? `可用原生内核：${native.join('、')}` : '未发现原生内核宿主，仍为兼容层');
+      }
+    });
+  });
+
+  root.querySelectorAll('[data-panel]').forEach((row) => {
+    row.addEventListener('click', () => openPanel(row.dataset.panel));
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * 移动端
+ * ------------------------------------------------------------------ */
+
+function openTabGrid() { $('#tab-grid').hidden = false; renderTabGrid(); }
+function closeTabGrid() { $('#tab-grid').hidden = true; }
+function openSheet() { $('#engine-sheet').hidden = false; syncEngineUi(); }
+function closeSheet() { $('#engine-sheet').hidden = true; }
+
+/* ------------------------------------------------------------------ *
+ * 布局
+ * ------------------------------------------------------------------ */
+
+function applyLayout() {
+  const pref = state.settings.layout || 'auto';
+  const w = window.innerWidth;
+  const layout = pref === 'auto' ? (w < MOBILE_BREAKPOINT ? 'mobile' : 'desktop') : pref;
+  state.layout = layout;
+  document.documentElement.dataset.layout = layout;
+}
+
+/* ------------------------------------------------------------------ *
+ * 事件接线
+ * ------------------------------------------------------------------ */
+
+function wireUi() {
+  // 窗口控制
+  $$('[data-win]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const act = b.dataset.win;
+      if (act === 'minimize') bridge.window.minimize();
+      else if (act === 'maximize') bridge.window.maximize();
+      else bridge.window.close();
+    });
+  });
+
+  // 标签
+  $('#tab-new').addEventListener('click', () => createTab(newTabUrl(), state.settings.defaultEngine));
+  $('#tab-list-btn').addEventListener('click', openTabGrid);
+  $('#tg-close').addEventListener('click', closeTabGrid);
+  $('#tg-new').addEventListener('click', () => { createTab(newTabUrl(), state.settings.defaultEngine); closeTabGrid(); });
+
+  // 导航
+  $('#nav-back').addEventListener('click', () => { const t = activeTab(); if (t && t.webview && t.webview.canGoBack) t.webview.goBack(); });
+  $('#nav-forward').addEventListener('click', () => { const t = activeTab(); if (t && t.webview && t.webview.canGoForward) t.webview.goForward(); });
+  $('#nav-reload').addEventListener('click', () => {
+    const t = activeTab();
+    if (!t || !t.webview) return;
+    if (typeof t.webview.reload === 'function') t.webview.reload();
+    else t.webview.setAttribute('src', t.url);
+  });
+  $('#nav-home').addEventListener('click', () => { const t = activeTab(); if (t) navigate(t.id, state.settings.homepage); });
+
+  // 地址栏
+  const input = $('#omni-input');
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      const url = resolveInput(input.value);
+      const t = activeTab();
+      if (url && t) navigate(t.id, url);
+      input.blur();
+    } else if (ev.key === 'Escape') {
+      syncOmnibox();
+      input.blur();
+    }
+  });
+  input.addEventListener('focus', () => input.select());
+
+  $('#omni-star').addEventListener('click', async () => {
+    const t = activeTab();
+    if (!t) return;
+    await bridge.bookmarks.add({ title: t.title, url: t.url });
+    $('#omni-star').classList.add('is-on');
+    toast('已加入书签');
+  });
+
+  // 工具栏
+  $('#omni-engine').addEventListener('click', (ev) => { ev.stopPropagation(); toggleEngineMenu(); });
+  $('#engine-menu').addEventListener('click', (ev) => ev.stopPropagation());
+  document.addEventListener('click', closeEngineMenu);
+
+  $('#btn-shield').addEventListener('click', () => openPanel('adblock'));
+  $('#btn-sniff').addEventListener('click', () => openPanel('sniffer'));
+  $('#btn-ext').addEventListener('click', () => openPanel('extensions'));
+  $('#btn-menu').addEventListener('click', renderMenuPanel);
+  $('#drawer-close').addEventListener('click', closeDrawer);
+  $('#scrim').addEventListener('click', closeDrawer);
+  $('#sv-back').addEventListener('click', closeSettings);
+  $('#sv-close').addEventListener('click', closeSettings);
+  $('#engine-notice-close').addEventListener('click', () => { $('#engine-notice').hidden = true; });
+
+  // 移动端
+  $('#mb-back').addEventListener('click', () => { const t = activeTab(); if (t && t.webview && t.webview.canGoBack) t.webview.goBack(); });
+  $('#mb-forward').addEventListener('click', () => { const t = activeTab(); if (t && t.webview && t.webview.canGoForward) t.webview.goForward(); });
+  $('#mb-tabs').addEventListener('click', openTabGrid);
+  $('#mb-engine').addEventListener('click', openSheet);
+  $('#mb-read').addEventListener('click', openReadSheet);
+  $('#mb-menu').addEventListener('click', renderMenuPanel);
+  $('#engine-sheet').addEventListener('click', (ev) => { if (ev.target.id === 'engine-sheet') closeSheet(); });
+  $('#read-sheet').addEventListener('click', (ev) => { if (ev.target.id === 'read-sheet') closeReadSheet(); });
+
+  // 快捷键
+  window.addEventListener('keydown', (ev) => {
+    const mod = ev.ctrlKey || ev.metaKey;
+    if (mod && ev.key.toLowerCase() === 't') { ev.preventDefault(); createTab(newTabUrl(), state.settings.defaultEngine); }
+    else if (mod && ev.key.toLowerCase() === 'w') { ev.preventDefault(); if (state.activeId) closeTab(state.activeId); }
+    else if (mod && ev.key.toLowerCase() === 'l') { ev.preventDefault(); $('#omni-input').focus(); }
+    else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); openPanel('adblock'); }
+    else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
+    else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
+    else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (mod && ev.key === 'Tab') {
+      ev.preventDefault();
+      if (state.tabs.length < 2) return;
+      const idx = state.tabs.findIndex((t) => t.id === state.activeId);
+      const next = state.tabs[(idx + (ev.shiftKey ? -1 + state.tabs.length : 1)) % state.tabs.length];
+      activateTab(next.id);
+    }
+  });
+
+  window.addEventListener('resize', applyLayout);
+}
+
+/* ------------------------------------------------------------------ *
+ * 主进程事件
+ * ------------------------------------------------------------------ */
+
+function wireBridgeEvents() {
+  bridge.on('adblock:hit', () => {
+    state.hitCounter += 1;
+    const pill = $('#shield-count');
+    pill.textContent = String(state.hitCounter);
+    if (state.panel === 'adblock' && state.hitCounter % 5 === 0) {
+      bridge.adblock.stats().then((s) => { state.adblock = s; refreshCurrent(); });
+    }
+  });
+
+  bridge.on('adblock:stats', (s) => { state.adblock = s; $('#shield-count').textContent = String(s.blocked); });
+  bridge.on('ext:changed', (list) => { state.extensions = list; });
+  bridge.on('download:update', (d) => {
+    // 优先按 id 认（同一个文件重复下载时要能区分开），退而求其次才按 文件名+URL
+    const i = state.downloads.findIndex((x) => (d.id && x.id === d.id)
+      || (x.filename === d.filename && x.url === d.url));
+    if (i >= 0) state.downloads[i] = Object.assign({}, state.downloads[i], d);
+    else state.downloads.unshift(d);
+    // 进度事件很密，走节流刷新；输入框的草稿与焦点会被保留
+    refreshDownloads();
+  });
+  bridge.on('download:taken-over', (p) => {
+    toast(`已接管到多线程引擎：${p.filename || hostOf(p.url) || '下载任务'}`);
+  });
+
+  /* --- 媒体嗅探 --- */
+  bridge.on('sniff:found', (batch) => {
+    if (!Array.isArray(batch)) return;
+    for (const item of batch) {
+      if (!item || item.tabId == null) continue;
+      mergeSniffRecords(item.tabId, item.recs || []);
+    }
+    syncSniffBadge();
+    refreshSniffer();
+  });
+
+  bridge.on('sniff:reset', (p) => {
+    const tabId = p && p.tabId;
+    if (tabId == null) state.sniffByWc.clear();
+    else state.sniffByWc.delete(tabId);
+    state.sniffPreview = null;
+    syncSniffBadge();
+    refreshSniffer(true);
+  });
+
+  bridge.on('sniff:update', (rec) => {
+    if (!rec || rec.tabId == null) return;
+    mergeSniffRecords(rec.tabId, [rec]);
+    syncSniffBadge();
+    refreshSniffer();
+  });
+
+  bridge.on('sniff:state', (s) => { state.sniffStats = s; });
+
+  /* --- 无图模式 --- */
+  bridge.on('mobile:stats', (s) => {
+    if (!s) return;
+    // 主进程推的是全局快照，没有当前标签页那份，本地补一次按页计数
+    const t = activeTab();
+    if (t && t.wcId != null && state.noMedia && state.noMedia.tabBlocked != null) {
+      s = Object.assign({}, s, { tabBlocked: state.noMedia.tabBlocked });
+    }
+    state.noMedia = s;
+    if (state.settingsSection === 'mobile') refreshCurrent();
+    else {
+      const read = $('#read-sheet');
+      if (read && !read.hidden) renderReadSheet();
+    }
+  });
+
+  bridge.on('settings:changed', (s) => { state.settings = s; applyLayout(); });
+  bridge.on('tabs:open-request', (p) => {
+    if (p.background) createTab(p.url, activeTab() ? activeTab().engineId : state.settings.defaultEngine, { activate: false });
+    else createTab(p.url, activeTab() ? activeTab().engineId : state.settings.defaultEngine);
+  });
+  bridge.on('shell:viewport', applyLayout);
+}
+
+/* ------------------------------------------------------------------ *
+ * 启动
+ * ------------------------------------------------------------------ */
+
+async function init() {
+  const boot = await bridge.bootstrap();
+
+  state.engines = boot.engines;
+  state.engineMap = new Map(boot.engines.map((e) => [e.id, e]));
+  state.settings = boot.settings;
+  state.extensions = boot.extensions || [];
+  state.bookmarks = boot.settings.bookmarks || [];
+  state.adblock = boot.adblock || state.adblock;
+  state.allowlist = boot.allowlist || [];
+  state.defaults = boot.defaults || null;
+  state.downloads = boot.downloads || [];
+  state.downloadStats = boot.downloadStats || null;
+  state.downloadsDir = boot.downloadsDir || '';
+  state.sniffFormats = boot.sniffFormats || null;
+  state.sniffStats = boot.sniffStats || null;
+  state.__versions = boot.versions;
+  state.platform = boot.platform;
+  state.noMedia = boot.nomedia || null;
+  state.noImageCss = boot.noImageCss || '';
+  state.noImageJs = boot.noImageJs || '';
+
+  try { state.userDataPath = await bridge.system.userDataPath(); } catch { state.userDataPath = ''; }
+
+  document.documentElement.dataset.theme = boot.settings.theme || 'light';
+  applyLayout();
+
+  if (state.isPreview) {
+    const tag = $('#brand-tag');
+    tag.textContent = 'UI 预览';
+    tag.style.color = 'var(--warn)';
+    tag.style.borderColor = 'var(--warn)';
+  }
+
+  renderEngineSwitch();
+  wireUi();
+  wireBridgeEvents();
+
+  $('#shield-count').textContent = String(state.adblock.blocked || 0);
+  $('#btn-shield').classList.toggle('is-off', !state.adblock.enabled);
+  syncSniffBadge();
+
+  // 首个标签页：按「恢复上次会话」决定是还原还是开主页
+  const saved = boot.settings.session;
+  const canRestore = boot.settings.restoreSession !== false
+    && saved && Array.isArray(saved.tabs) && saved.tabs.length;
+
+  if (canRestore) {
+    saved.tabs.forEach((t) => createTab(t.url, t.engineId, { activate: false }));
+    const idx = Math.min(Math.max(0, Number(saved.activeIndex) || 0), state.tabs.length - 1);
+    activateTab(state.tabs[idx].id);
+  } else {
+    createTab(state.settings.homepage, state.settings.defaultEngine);
+  }
+
+  // 预览/调试深链接：?panel=settings 直接展开设置页对应分区
+  const deep = new URLSearchParams(location.search).get('panel');
+  if (deep) openPanel(deep);
+}
+
+init().catch((err) => {
+  console.error(err);
+  toast('初始化失败：' + err.message, 6000);
+});

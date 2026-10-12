@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  主界面。结构与桌面端 [data-layout="mobile"] 下的 shell.html 一致：
+    顶：工具栏（内核标识 + 首页 + 地址栏 + 刷新）
+    中：WebView（外面套一个容器承载加载进度与提示条）
+    底：六宫格底栏（.mobilebar）
+
+  刻意不给任何硬编码颜色，全部走 @color/*，这样 values-night 一换就整体变深色。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg"
+    android:fitsSystemWindows="true">
+
+    <!-- ============ 顶部工具栏 ============ -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/surface"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:elevation="1dp">
+
+        <!-- 内核标识：小圆点 + 当前引擎名。
+             它现在是**只读**的，不可点。
+             以前这里挂着一个选择动作，但移动版实际只有系统 WebView 一档真的内置
+             （其余两档是没带内核的、或只换 UA 的兼容层）——
+             给一个只有一个选项的按钮叫「内核选择」，等于用一个假选择骗用户。
+             所以动作去掉，标识留着：随时能看到自己跑在哪一档上，这一条还是有用的。 -->
+        <LinearLayout
+            android:id="@+id/engineChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="6dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
+
+            <View
+                android:id="@+id/engineDot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/dot" />
+
+            <TextView
+                android:id="@+id/engineLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/mb_engine"
+                android:textSize="11sp"
+                android:textColor="@color/text_2"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+        <!-- 首页按钮。放在地址栏左侧而不是底栏：
+             底栏六格是硬约束 —— 320dp 机型上每格已经贴着 44px 触控下限，
+             加第七格会掉到线下；而工具栏这里原本只有一个只读的内核标识，
+             位置是空的，地址栏让出 34dp 之后还剩 200dp 以上。
+             这也是 UC / QQ / 夸克们的惯例位置：回家键挨着地址栏，不占拇指动线。 -->
+        <ImageButton
+            android:id="@+id/btnHome"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginEnd="2dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/content_desc_home"
+            android:scaleType="centerInside"
+            android:padding="8dp"
+            android:src="@drawable/ic_home" />
+
+        <!-- 收藏（书签）按钮。和首页键挨着，都在地址栏左侧：
+             两个「一抬拇指就够到」的入口，不挤占底栏六格的触控预算。
+             图标随当前页是否收藏在描边 / 实心之间切换。 -->
+        <ImageButton
+            android:id="@+id/btnStar"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginEnd="2dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/content_desc_star"
+            android:scaleType="centerInside"
+            android:padding="8dp"
+            android:src="@drawable/ic_star" />
+
+        <!-- 地址栏 -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="34dp"
+            android:layout_weight="1">
+
+            <EditText
+                android:id="@+id/urlBar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/omnibox"
+                android:hint="搜索或输入网址"
+                android:textSize="14sp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text_4"
+                android:paddingStart="12dp"
+                android:paddingEnd="46dp"
+                android:maxLines="1"
+                android:inputType="textUri|textNoSuggestions"
+                android:imeOptions="actionGo|flagNoExtractUi"
+                android:selectAllOnFocus="false" />
+
+            <!-- 刷新 / 停止：同一个位置两种形态，跟桌面端 .ow-refresh 同理 -->
+            <ImageButton
+                android:id="@+id/btnReload"
+                android:layout_width="34dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="end"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_reload"
+                android:contentDescription="@string/content_desc_reload"
+                android:scaleType="centerInside"
+                android:padding="8dp" />
+        </FrameLayout>
+
+        <!-- AI 助手。放在地址栏右侧（刷新键再往右），和首页/收藏一样是
+             「一抬拇指就够到」的入口。点它弹出常用 AI 服务商列表，
+             选一个在新标签页打开对应网页版对话，不丢当前页。 -->
+        <ImageButton
+            android:id="@+id/btnAi"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/content_desc_ai"
+            android:scaleType="centerInside"
+            android:padding="8dp"
+            android:src="@drawable/ic_ai" />
+    </LinearLayout>
+
+    <!-- ============ 网页区 ============ -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!--
+          WebView 由代码注入（见 MainActivity#mountMain），不写在布局里。
+
+          写在布局里的话，setContentView 每次执行（也就是每次从弹层返回）
+          都会 inflate 出一个新的 WebView 实例，而那个实例不会被 destroy()，
+          于是每开关一次弹层就泄漏一个 —— WebView 持有的是 native 内存，
+          攒几十个就能把进程拖崩。
+
+          这里只留一个空容器，实例由 MainActivity 持有并搬进搬出：
+          既杜绝了泄漏，也保住了页面本身（滚动位置、表单、正在播放的音频）。
+        -->
+        <FrameLayout
+            android:id="@+id/webHost"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- 加载进度。高度 2dp 是桌面端进度条高度令牌 bar-h 的对应值，
+             粗了会跟内容抢注意力，细到看不见又等于没有。 -->
+        <ProgressBar
+            android:id="@+id/progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:layout_gravity="top"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="@color/brand"
+            android:progressBackgroundTint="@android:color/transparent" />
+
+        <!-- 状态条：拼页进度 / 降级提示 / 无图命中。
+             桌面端那个 shrink-to-fit 的截断坑在原生里不存在（原生按 layout 算宽），
+             但仍然要 maxLines=2，否则一句长的降级原因会把进度条顶下去。 -->
+        <TextView
+            android:id="@+id/statusStrip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="#E6171A22"
+            android:textColor="#F2F4F8"
+            android:textSize="12sp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:visibility="gone" />
+
+        <!-- 无图模式的常驻标记。放在地址栏下方而不是状态条里，
+             因为它是「当前生效的档位」，不是「刚刚发生的事」，关掉了就不该占地方。 -->
+        <TextView
+            android:id="@+id/noImageChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="12dp"
+            android:background="@drawable/chip_pill"
+            android:text="@string/status_noimage"
+            android:textSize="11sp"
+            android:textColor="#FFFFFF"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- ============ 六宫格底栏 ============ -->
+    <LinearLayout
+        android:id="@+id/mobileBar"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:orientation="horizontal"
+        android:background="@color/surface"
+        android:elevation="8dp">
+
+        <!--
+          五个按钮用 <include> 复用同一份布局。include 上必须显式写 id：
+          不写的话被包含布局的根 id（btnBox）会原样冒上来，六个一模一样的 id，
+          findViewById 只会拿到第一个 —— 那就是「五个按钮全绑成同一个动作」这种
+          能编译能运行、只是完全不对的 bug。
+        -->
+        <include layout="@layout/item_mb_back" android:id="@+id/item_mb_back" />
+        <include layout="@layout/item_mb_forward" android:id="@+id/item_mb_forward" />
+
+        <!-- 中间那个是主按钮：标签数写在图里，尺寸也更大（56dp），
+             跟 Chrome/Safari 的习惯一致 —— 底栏里最重要的操作要一眼可辨。 -->
+        <LinearLayout
+            android:id="@+id/mbTabs"
+            android:layout_width="56dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_primary_btn"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="6dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="19dp"
+                android:layout_height="19dp"
+                android:src="@drawable/ic_tabs"
+                android:contentDescription="@string/mb_tabs" />
+
+            <TextView
+                android:id="@+id/mbTabCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF" />
+        </LinearLayout>
+
+        <!-- 原来这一格是「内核」。移动版没有内核可选（只有系统 WebView 真内置），
+        空出来的位置给了下载 —— 下载是浏览器的高频动作，而内核不是。
+        六格数量不变，拇指动线也不用重新适应。 -->
+        <include layout="@layout/item_mb_download" android:id="@+id/item_mb_download" />
+        <include layout="@layout/item_mb_read" android:id="@+id/item_mb_read" />
+        <include layout="@layout/item_mb_menu" android:id="@+id/item_mb_menu" />
+    </LinearLayout>
+</LinearLayout>

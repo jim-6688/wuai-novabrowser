@@ -1,0 +1,53 @@
+# 依赖
+node_modules/
+
+# 内核程序：体积大（CEF + XULRunner ≈ 800MB），且可从上游重新下载
+# 用 `npm run engines` 重新拉取，不要提交
+native/engines/**
+
+# 但清单要提交 —— 它是内核状态的记录，也是引擎适配层判定模式的依据
+!native/engines/manifest.json
+
+# 原生宿主二进制（需自行编译，见 native/README.md）
+native/bin/
+
+# 过滤规则：约 5MB，且上游每周更新
+# 用 `npm run filters` 重新抓取，不要提交
+assets/filters/*.txt
+
+# 但镜像溯源与校验清单要提交 —— 它们记录了规则实际来自哪里、校验值是多少
+!assets/filters/_mirrors.txt
+!assets/filters/manifest.json
+
+# 运行时产物
+.user-data/
+*.log
+.DS_Store
+Thumbs.db
+
+# ---------------- Android ----------------
+# Gradle / AGP 构建产物与本地配置
+android-app/build/
+android-app/.gradle/
+android-app/app/build/
+android-app/local.properties
+android-app/.idea/
+android-app/*.iml
+android-app/captures/
+
+# 签名密钥：私钥绝不入库。
+#
+# 必须写 **/keystore/ 而不是 keystore/ —— 含斜杠的 gitignore 模式是相对路径，
+# 只写 keystore/*.jks 的话只匹配仓库根下那一个目录，
+# android-app/keystore/nova-dev.jks 会被静默漏掉。
+# 那份密钥一旦和 build.gradle 里写死的明文口令一起公开，
+# 等于把「签出同名恶意包、覆盖装到用户手机上」的能力交给了所有人。
+**/keystore/*.jks
+**/keystore/*.keystore
+**/keystore/*.p12
+*.jks
+*.keystore
+*.p12
+
+# 打包产物
+dist/

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  阅读增强弹层。内容比内核弹层长得多，所以整个卡片要能滚 ——
+  否则在小屏上「最多拼几页」会被顶出可视区，怎么划都划不到。
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxHeight="560dp"
+    android:background="@color/surface">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="20dp">
+
+        <include layout="@layout/sheet_head" />
+
+        <!-- 名单加载异常时的警告 -->
+        <TextView
+            android:id="@+id/registryWarn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:background="#14FF4D4F"
+            android:textColor="@color/text_2"
+            android:textSize="12sp"
+            android:padding="12dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp" />
+
+        <!-- 无图模式 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="无图模式"
+            android:textColor="@color/text"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="12dp" />
+
+        <LinearLayout
+            android:id="@+id/nmSeg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:id="@+id/nmHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_3"
+            android:textSize="11.5sp"
+            android:lineSpacingExtra="3dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="8dp" />
+
+        <!-- 自动拼页 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="自动拼页上限"
+            android:textColor="@color/text"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="18dp" />
+
+        <LinearLayout
+            android:id="@+id/apSeg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:id="@+id/apStop"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:gravity="center"
+                android:background="@drawable/row"
+                android:text="停止拼接"
+                android:textColor="@color/text_2"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/apUndo"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:gravity="center"
+                android:background="@drawable/row"
+                android:text="撤销拼接"
+                android:textColor="@color/text_2"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/readNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_4"
+            android:textSize="11.5sp"
+            android:lineSpacingExtra="3dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="12dp" />
+    </LinearLayout>
+</ScrollView>

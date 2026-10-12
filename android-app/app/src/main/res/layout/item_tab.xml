@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 标签总览的一格。缩略图在上、标题在下，左边一条竖条标出当前标签。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/row"
+    android:clickable="true"
+    android:focusable="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <ImageView
+            android:id="@+id/tabShot"
+            android:layout_width="match_parent"
+            android:layout_height="86dp"
+            android:scaleType="centerCrop"
+            android:background="@color/surface_3"
+            android:contentDescription="@string/mb_tabs" />
+
+        <TextView
+            android:id="@+id/tabTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="6dp"
+            android:textColor="@color/text"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/tabHost"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="8dp"
+            android:textColor="@color/text_4"
+            android:textSize="10.5sp"
+            android:maxLines="1"
+            android:ellipsize="middle" />
+    </LinearLayout>
+
+    <View
+        android:id="@+id/tabActiveBar"
+        android:layout_width="3dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:background="@color/brand" />
+
+    <!-- 单独关闭这一格。以前只能长按关闭，藏得太深；
+         点卡片是切换、点这个 × 是关闭，两个动作分开，误触也好分辨。
+         focusable=false：不抢网格的焦点，点卡片其它地方照样能切换。 -->
+    <ImageButton
+        android:id="@+id/tabClose"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="6dp"
+        android:background="@drawable/bg_close_badge"
+        android:contentDescription="@string/action_close_tab"
+        android:padding="6dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_close"
+        android:tint="@android:color/white" />
+</FrameLayout>

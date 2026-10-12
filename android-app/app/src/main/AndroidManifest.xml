@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      权限。两条都必须写在主 manifest 里：
+      Android 模板只在 src/debug 下放 INTERNET，release 包默认是「没有联网权限」的，
+      不显式补上就会装出一个「所有网页都打不开」的浏览器 —— 这个坑很安静：
+      构建不报错，启动不报错，只是每页都白屏。
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- 应用内安装更新包。Android 8.0 起装未知来源的 APK 需要它，
+         不声明的话点了安装也会被系统直接拒绝。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application
+        android:usesCleartextTraffic="true"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:hardwareAccelerated="true"
+        android:theme="@style/Theme.Nova">
+
+        <!-- usesCleartextTraffic：Android 9（API 28）起默认拒绝 http 明文。
+             一半中文站点至今仍是 http，不开这个等于把它们全挡在门外。
+             这不是「不安全就放开」，而是浏览器类产品本来就该让用户自己选，
+             真正的防护在页面的 https 锁与 HSTS 上。 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density|fontScale"
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- 从别的应用分享链接进来 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  收藏（书签）。实心五角星，已收藏时显示，用品牌色填充。
+  和 ic_star 是同一颗星的两种状态，切换只换 src，不换位置。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/brand">
+    <path android:fillColor="#000"
+        android:pathData="M10,1.5 L12.0,7.25 L18.08,7.37 L13.23,11.05 L15.0,16.88 L6.6,10 L5.0,16.88 L6.77,11.05 L1.92,7.37 L8.0,7.25 Z" />
+</vector>

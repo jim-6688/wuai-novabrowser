@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 弹层里的列表行底。8dp 对应设计令牌 r-sm。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface_2" />
+    <corners android:radius="8dp" />
+</shape>

@@ -1,0 +1,31 @@
+{
+  "version": "1.1.0",
+  "versionCode": 2,
+  "channel": "release",
+  "updatedAt": "2026-10-13",
+  "mandatory": false,
+  "minVersionCode": 1,
+  "changelog": [
+    "修复并行分片下载失效：探测请求未带 Range，判定恒为不支持，实际永远单线程",
+    "修复每次开关弹层泄漏一个 WebView（WebView 持有 native 内存，反复开关会 OOM）",
+    "修复 http 明文站点无法加载（缺少 usesCleartextTraffic 配置）",
+    "修复规则订阅更新成功后面板数字不刷新",
+    "修复 id 相同的多个脚本只有一个会被注入",
+    "切标签时恢复上次的滚动位置",
+    "新增自动更新：启动时拉取官网版本清单"
+  ],
+  "downloads": [
+    {
+      "label": "官网直链",
+      "url": "download/nova-1.1.0.apk",
+      "size": 319106,
+      "sha256": "f47e8da6579d2b6879a0483951fcde94a777de116ddd1e30b58c4b74301f9ddf"
+    },
+    {
+      "label": "Gitee Releases",
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.1.0/nova-1.1.0.apk",
+      "size": 319106,
+      "sha256": "f47e8da6579d2b6879a0483951fcde94a777de116ddd1e30b58c4b74301f9ddf"
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+plugins { id 'com.android.application' }
+
+// 开发签名。
+//
+// 仓库里带一份明文口令的开发密钥，是为了让任何人都能一条命令构建出可直接安装的包，
+// 不必先问「密钥怎么配」。它只用来签开发包，不要拿它分发正式版本 ——
+// 正式分发必须用你自己的密钥，而且那份密钥永远不要进仓库。
+def devKeystore = rootProject.file('keystore/nova-dev.jks')
+
+// 版本号只有一个来源：res/values/strings.xml 的 app_version。
+// 原来这里硬编码 1.0.0、而界面显示的是 strings.xml 里的另一个值，
+// 于是「关于」页写着 1.1.0、系统设置里显示 1.0.0、APK 文件名又是第三个。
+// 三处不一致时没人知道哪个是对的，所以让它只有一个来源 ——
+// 抽取而不是复制一份到本文件，因为复制的那份迟早会忘改。
+def readAppVersion = {
+    def f = file('src/main/res/values/strings.xml')
+    // 用 Groovy 的 =~ 运算符（它自己会 Pattern.compile），
+    // 不要手写 new java.util.regex.Matcher —— 那个在 Gradle 里找不到匹配构造器。
+    def m = (f.getText('UTF-8') =~ /name="app_version"\s*>([^<]+)</)
+    if (m.find()) return m.group(1).trim()
+    throw new GradleException('strings.xml 里找不到 app_version，版本号没有来源了')
+}
+
+// Groovy 的 `def x = { ... }` 只绑定闭包本身，不会执行它。
+// 必须显式调一次。写成 def x = { ... }() 也不行：
+// 闭包没带参数时，末尾的括号会被解析成「调用前面那个表达式」。
+def appVersion = readAppVersion()
+
+android {
+    namespace 'top.wuai.nova'
+    compileSdk 35
+    signingConfigs {
+        dev {
+            storeFile devKeystore
+            storePassword 'nova123456'
+            keyAlias 'nova'
+            keyPassword 'nova123456'
+        }
+    }
+
+    defaultConfig {
+        applicationId 'top.wuai.nova'
+        minSdk 24
+        targetSdk 35
+        // 本轮新增下载、插件、规则订阅，接口有变化
+        versionCode 2
+        versionName appVersion
+    }
+    // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用
+    // BuildConfig.VERSION_CODE 跟清单里的 versionCode 比大小，
+    // 不开这个开关会直接编译不过（报「找不到符号 BuildConfig」）。
+    buildFeatures {
+        buildConfig = true
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.dev
+        }
+        release {
+            minifyEnabled false
+            // 也签上开发密钥，理由同上：产出即装。
+            // 换成正式密钥时，只要改这一行。
+            signingConfig signingConfigs.dev
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                'proguard-rules.pro'
+        }
+    }
+    // 单测。只用 JUnit 4，不引 Robolectric：
+    // 那玩意能把 Android 框架在 JVM 上模拟起来，代价是每次跑测都慢十几秒，
+    // 而这里要测的类全都是刻意写成不依赖框架的（见各类的注释）。
+    // MainActivityTest 是个例外，但它只调两个静态纯函数
+    // （rulesStale / nightOn），不实例化 Activity、不碰框架 ——
+    // 真需要框架才能测的，那是「得写仪器测试」的信号，不该用 Robolectric 硬凑。
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+    // 关掉 release 的 lintVitalRelease。
+    //
+    // 原因很具体：本机 AGP 8.7.3 自带的 lint 与 build-tools 36.1 的版本号
+    // 解析不兼容，会在解析 "36.1" 时抛 NumberFormatException，
+    // 于是 release 构建直接失败。它做的只是发布前的静态提示，不是编译必需 ——
+    // 真正的编译检查（javac + aapt2 链接）已经过了。
+    // 这不是「怕 lint 报错就关掉」，是工具链版本不匹配。
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 下载项里的小按钮。surface-3 底，比整行高亮轻 —— 一行三个都要能被看见，
+     但不能让它们比文件名更抢眼。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface_3" />
+    <corners android:radius="8dp" />
+</shape>

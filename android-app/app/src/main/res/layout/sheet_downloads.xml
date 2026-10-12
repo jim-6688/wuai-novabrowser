@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  下载列表。每一项一个 include，理由和底栏一样：五项结构完全相同，
+  手抄五遍只会让改样式的人漏掉其中几个。
+
+  刻意做成「状态 + 进度条 + 三个动作」而不是一个纯列表：
+  下载失败时用户要能立刻看到原因并重试，而不是只看到一条灰色的条目。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="16dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <!-- 统计条：进行中 / 已完成 / 失败各多少，一眼看出有没有卡住的东西。 -->
+    <TextView
+        android:id="@+id/dlStat"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_3"
+        android:textSize="12sp"
+        android:lineSpacingExtra="2dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="10dp" />
+
+    <!-- 空态。列表为空时占住位置，否则「什么都没有」和「还没加载出来」看起来一样。 -->
+    <LinearLayout
+        android:id="@+id/dlEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
+        android:paddingTop="28dp"
+        android:paddingBottom="28dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="还没有下载任务"
+            android:textColor="@color/text_2"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:text="在网页里点下载链接，或在菜单里用「下载链接」直接粘贴地址"
+            android:textColor="@color/text_4"
+            android:textSize="11.5sp"
+            android:lineSpacingExtra="3dp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="160dp"
+        android:maxHeight="420dp">
+
+        <LinearLayout
+            android:id="@+id/dlList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
+    </ScrollView>
+
+    <!-- 底部动作：清已完成 / 粘贴地址下载 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="12dp">
+
+        <TextView
+            android:id="@+id/dlClear"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:gravity="center"
+            android:background="@drawable/row"
+            android:text="清除已完成"
+            android:textColor="@color/text_2"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/dlPaste"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:gravity="center"
+            android:background="@drawable/bg_primary_btn"
+            android:text="粘贴地址下载"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,521 @@
+{
+  "generatedAt": "2026-10-11T12:47:24.145Z",
+  "platform": "win32 x64",
+  "node": "v22.22.2",
+  "engineRoot": "native/engines",
+  "hosts": [
+    {
+      "id": "gecko-host",
+      "present": false,
+      "path": null,
+      "sizeBytes": 0
+    },
+    {
+      "id": "trident-host",
+      "present": false,
+      "path": null,
+      "sizeBytes": 0
+    }
+  ],
+  "engines": {
+    "chromium": {
+      "engine": "chromium",
+      "label": "Chromium (Blink)",
+      "mode": "native",
+      "binariesReady": true,
+      "bridgeReady": false,
+      "arch": "x64 (AMD64)",
+      "blocker": null,
+      "sources": [
+        {
+          "id": "chromium-electron",
+          "label": "Electron 主内核",
+          "version": "Electron 30.5.1",
+          "role": "primary",
+          "dir": "node_modules/electron/dist",
+          "present": true,
+          "complete": true,
+          "sizeBytes": 266413849,
+          "fileCount": 73,
+          "arch": "x64 (AMD64)",
+          "archNote": null,
+          "probes": [
+            {
+              "desc": "Chromium 运行时主程序",
+              "present": true,
+              "sizeBytes": 177038336,
+              "path": "node_modules/electron/dist/electron.exe"
+            },
+            {
+              "desc": "Chromium 资源包",
+              "present": true,
+              "sizeBytes": 5350667,
+              "path": "node_modules/electron/dist/resources.pak"
+            },
+            {
+              "desc": "ICU 国际化数据",
+              "present": true,
+              "sizeBytes": 10717680,
+              "path": "node_modules/electron/dist/icudtl.dat"
+            },
+            {
+              "desc": "V8 堆快照",
+              "present": true,
+              "sizeBytes": 656953,
+              "path": "node_modules/electron/dist/v8_context_snapshot.bin"
+            }
+          ],
+          "signature": {
+            "file": "node_modules/electron/dist/electron.exe",
+            "valid": true,
+            "peType": "PE32+",
+            "arch": "x64 (AMD64)",
+            "is64": true,
+            "subsystem": "WINDOWS_GUI",
+            "exportCount": 3126,
+            "dllName": "electron.exe",
+            "linkedAt": "2024-09-13",
+            "imageBytes": 180973568,
+            "sampleExports": [
+              "??$TryToCopyAndConvertArrayToCppBuffer@$0DAAAA@H@v8@@YA_NV?$Local@VArray@v8@@@0@PEAHI@Z",
+              "??$TryToCopyAndConvertArrayToCppBuffer@$0EAAAA@I@v8@@YA_NV?$Local@VArray@v8@@@0@PEAII@Z",
+              "??$TryToCopyAndConvertArrayToCppBuffer@$0HAAAA@M@v8@@YA_NV?$Local@VArray@v8@@@0@PEAMI@Z",
+              "??$TryToCopyAndConvertArrayToCppBuffer@$0IAAAA@N@v8@@YA_NV?$Local@VArray@v8@@@0@PEANI@Z"
+            ],
+            "detected": "Electron / Chromium",
+            "errors": []
+          },
+          "sha256": [
+            {
+              "file": "electron.exe",
+              "sha256": "bc1afa588af303fce744a2965036765136b26bc5e9dacab6a35188973463ea7f"
+            },
+            {
+              "file": "resources.pak",
+              "sha256": "75e03df55d7d23c840c09288da270285f17d067cef8709252451c0a8aa1254f4"
+            },
+            {
+              "file": "icudtl.dat",
+              "sha256": "7bf96c193befbf23514401f8f6568076450ade52dd1595b85e4dfcf3de5f6fb9"
+            },
+            {
+              "file": "v8_context_snapshot.bin",
+              "sha256": "0b239cf5ab92a27cfa087b49e6dc943e0c674b62cea643cff2130e1c2f8db31c"
+            }
+          ]
+        },
+        {
+          "id": "chromium-cef",
+          "label": "CEF 嵌入内核",
+          "version": "CEF 154.0.34 / Chromium 154.0.8037.98",
+          "role": "embedded",
+          "dir": "native/engines/chromium-cef",
+          "present": true,
+          "complete": true,
+          "sizeBytes": 441971376,
+          "fileCount": 972,
+          "arch": "x64 (AMD64)",
+          "archNote": null,
+          "probes": [
+            {
+              "desc": "CEF 运行时（Chromium 渲染本体）",
+              "present": true,
+              "sizeBytes": 289818624,
+              "path": "native/engines/chromium-cef/Release/libcef.dll"
+            },
+            {
+              "desc": "CEF 154 示例宿主（可直接运行）",
+              "present": true,
+              "sizeBytes": 4315648,
+              "path": "native/engines/chromium-cef/Release/bootstrap.exe"
+            },
+            {
+              "desc": "Chromium 崩溃处理模块",
+              "present": true,
+              "sizeBytes": 2829312,
+              "path": "native/engines/chromium-cef/Release/chrome_elf.dll"
+            },
+            {
+              "desc": "ICU 国际化数据",
+              "present": true,
+              "sizeBytes": 10819840,
+              "path": "native/engines/chromium-cef/Resources/icudtl.dat"
+            },
+            {
+              "desc": "Chromium 资源包",
+              "present": true,
+              "sizeBytes": 23449876,
+              "path": "native/engines/chromium-cef/Resources/resources.pak"
+            },
+            {
+              "desc": "CEF C++ API 头文件",
+              "present": true,
+              "sizeBytes": 45719,
+              "path": "native/engines/chromium-cef/include/cef_browser.h"
+            },
+            {
+              "desc": "libcef_dll_wrapper 源码",
+              "present": true,
+              "sizeBytes": 26827,
+              "path": "native/engines/chromium-cef/libcef_dll/wrapper/libcef_dll_wrapper.cc"
+            }
+          ],
+          "signature": {
+            "file": "native/engines/chromium-cef/Release/libcef.dll",
+            "valid": true,
+            "peType": "PE32+",
+            "arch": "x64 (AMD64)",
+            "is64": true,
+            "subsystem": "WINDOWS_CUI (控制台)",
+            "exportCount": 249,
+            "dllName": "libcef.dll",
+            "linkedAt": "2026-09-30",
+            "imageBytes": 291885056,
+            "sampleExports": [
+              "CrashForExceptionInNonABICompliantCodeRange",
+              "GetHandleVerifier",
+              "IsCrashReportingEnabledImpl",
+              "IsSandboxedProcess"
+            ],
+            "detected": "CEF / Chromium Embedded",
+            "errors": []
+          },
+          "sha256": [
+            {
+              "file": "Release/libcef.dll",
+              "sha256": "e3da6707a840a8f33f565e011542169fd51aaa5218603eb7a89039fb16d79ae7"
+            },
+            {
+              "file": "Release/bootstrap.exe",
+              "sha256": "0b6c80b6c81615f8c2b6c051d698cb9ff93d626fb82016ce61eefd62d8cc4fec"
+            },
+            {
+              "file": "Release/chrome_elf.dll",
+              "sha256": "f26656bfe38e1b78e42f292b6a8be1b5f0b5db15395ac571d6e20a1dedf698fb"
+            },
+            {
+              "file": "Resources/icudtl.dat",
+              "sha256": "495c45cc7a65562ec461f860c310c6b66e006acd96833f61d1aa31f77fe18cf1"
+            },
+            {
+              "file": "Resources/resources.pak",
+              "sha256": "8ee8b095ac381ebee66ee2a24ec6cd72adce90c101b82c132b753a2abaf4b246"
+            },
+            {
+              "file": "include/cef_browser.h",
+              "sha256": "7744e156356c28efe01b747c11ed5cb9b1711444880cbc717ec021ce50e158db"
+            },
+            {
+              "file": "libcef_dll/wrapper/libcef_dll_wrapper.cc",
+              "sha256": "421917f42bcb217b5365ea1d313664505df720a039bd8ca8c4094310784bb181"
+            }
+          ]
+        }
+      ]
+    },
+    "gecko": {
+      "engine": "gecko",
+      "label": "Gecko",
+      "mode": "compat",
+      "binariesReady": true,
+      "bridgeReady": false,
+      "arch": "x86 (I386)",
+      "blocker": "真内核二进制已就位（gecko-xulrunner45, gecko-xulrunner41），缺原生宿主 native/bin/gecko-host.exe —— 需自行编译，见 native/README.md",
+      "sources": [
+        {
+          "id": "gecko-xulrunner45",
+          "label": "GeckoFX 45 + XULRunner 45",
+          "version": "GeckoFX 45.0.6.0 / XULRunner 45.0.0.5873",
+          "role": "primary",
+          "dir": "native/engines/gecko-xulrunner45",
+          "present": true,
+          "complete": true,
+          "sizeBytes": 77411238,
+          "fileCount": 32,
+          "arch": "x86 (I386)",
+          "archNote": null,
+          "probes": [
+            {
+              "desc": "Gecko 引擎核心库",
+              "present": true,
+              "sizeBytes": 38625360,
+              "path": "native/engines/gecko-xulrunner45/output/xul.dll"
+            },
+            {
+              "desc": "Gecko 运行时资源",
+              "present": true,
+              "sizeBytes": 9899645,
+              "path": "native/engines/gecko-xulrunner45/output/omni.ja"
+            },
+            {
+              "desc": "NSS 加密库",
+              "present": true,
+              "sizeBytes": 1603664,
+              "path": "native/engines/gecko-xulrunner45/output/nss3.dll"
+            },
+            {
+              "desc": "Gecko 胶水层",
+              "present": true,
+              "sizeBytes": 96848,
+              "path": "native/engines/gecko-xulrunner45/output/mozglue.dll"
+            },
+            {
+              "desc": "Gecko 插件进程宿主",
+              "present": true,
+              "sizeBytes": 280144,
+              "path": "native/engines/gecko-xulrunner45/output/plugin-container.exe"
+            },
+            {
+              "desc": ".NET GeckoFX 绑定",
+              "present": true,
+              "sizeBytes": 2014208,
+              "path": "native/engines/gecko-xulrunner45/lib/Geckofx-Core.dll"
+            },
+            {
+              "desc": "GeckoFX Windows 窗体控件",
+              "present": true,
+              "sizeBytes": 138240,
+              "path": "native/engines/gecko-xulrunner45/lib/Geckofx-Winforms.dll"
+            }
+          ],
+          "signature": {
+            "file": "native/engines/gecko-xulrunner45/output/xul.dll",
+            "valid": true,
+            "peType": "PE32",
+            "arch": "x86 (I386)",
+            "is64": false,
+            "subsystem": "WINDOWS_GUI",
+            "exportCount": 1847,
+            "dllName": "xul.dll",
+            "linkedAt": "2016-01-30",
+            "imageBytes": 39313408,
+            "sampleExports": [
+              "??$EdgeNeedsSweep@PAVAccessorShape@js@@@gc@js@@YA_NPAV?$Heap@PAVAccessorShape@js@@@JS@@@Z",
+              "??$EdgeNeedsSweep@PAVArgumentsObject@js@@@gc@js@@YA_NPAV?$Heap@PAVArgumentsObject@js@@@JS@@@Z",
+              "??$EdgeNeedsSweep@PAVArrayBufferObject@js@@@gc@js@@YA_NPAV?$Heap@PAVArrayBufferObject@js@@@JS@@@Z",
+              "??$EdgeNeedsSweep@PAVArrayBufferObjectMaybeShared@js@@@gc@js@@YA_NPAV?$Heap@PAVArrayBufferObjectMaybeShared@js@@@JS@@@Z"
+            ],
+            "detected": "Gecko / XULRunner (XPCOM)",
+            "errors": []
+          },
+          "sha256": [
+            {
+              "file": "output/xul.dll",
+              "sha256": "756f78a4295f0870f858fb59147cbf59947ddb4cea2ba285263b600f3bf6dd39"
+            },
+            {
+              "file": "output/omni.ja",
+              "sha256": "1d39c17e88a969018fcdcbda7fdb9253a5165aa763a10963950d39568ec3f92b"
+            },
+            {
+              "file": "output/nss3.dll",
+              "sha256": "4c965ab79d4c7131f87d5cde7ecc8923be8d26e86f4ee3a6a15463aeb97a413a"
+            },
+            {
+              "file": "output/mozglue.dll",
+              "sha256": "0edcfa424f9da0d1894d99b99db4de8ea1b31f7717e8e14dd643f87d4d1c8eb6"
+            },
+            {
+              "file": "output/plugin-container.exe",
+              "sha256": "70ad689e89c97476474f209a802167eb058dce71c7eebe83fa633c8920b24461"
+            },
+            {
+              "file": "lib/Geckofx-Core.dll",
+              "sha256": "9e7c16247e476e9d2353353a24300669ca20ab437c2fefe2586faf3a16a75d2b"
+            },
+            {
+              "file": "lib/Geckofx-Winforms.dll",
+              "sha256": "796bf8ef739e81d2781e7df5ab50a54354bf2371a2414fd71f3a62ce1aa7598f"
+            }
+          ]
+        },
+        {
+          "id": "gecko-xulrunner41",
+          "label": "Mozilla 官方 XULRunner",
+          "version": "XULRunner 41.0.2 (win32, 官方归档)",
+          "role": "reference",
+          "dir": "native/engines/gecko-xulrunner41",
+          "present": true,
+          "complete": true,
+          "sizeBytes": 78387375,
+          "fileCount": 50,
+          "arch": "x86 (I386)",
+          "archNote": null,
+          "probes": [
+            {
+              "desc": "XULRunner 主程序",
+              "present": true,
+              "sizeBytes": 88064,
+              "path": "native/engines/gecko-xulrunner41/xulrunner/xulrunner.exe"
+            },
+            {
+              "desc": "Gecko 引擎核心库",
+              "present": true,
+              "sizeBytes": 36295680,
+              "path": "native/engines/gecko-xulrunner41/xulrunner/xul.dll"
+            },
+            {
+              "desc": "Gecko 运行时资源",
+              "present": true,
+              "sizeBytes": 12033392,
+              "path": "native/engines/gecko-xulrunner41/xulrunner/omni.ja"
+            },
+            {
+              "desc": "SpiderMonkey JS 引擎",
+              "present": true,
+              "sizeBytes": 4283392,
+              "path": "native/engines/gecko-xulrunner41/xulrunner/js.exe"
+            },
+            {
+              "desc": "崩溃报告器",
+              "present": true,
+              "sizeBytes": 281088,
+              "path": "native/engines/gecko-xulrunner41/xulrunner/crashreporter.exe"
+            }
+          ],
+          "signature": {
+            "file": "native/engines/gecko-xulrunner41/xulrunner/xul.dll",
+            "valid": true,
+            "peType": "PE32",
+            "arch": "x86 (I386)",
+            "is64": false,
+            "subsystem": "WINDOWS_GUI",
+            "exportCount": 1123,
+            "dllName": "xul.dll",
+            "linkedAt": "2015-10-14",
+            "imageBytes": 36966400,
+            "sampleExports": [
+              "??0?$SecurityWrapper@VCrossCompartmentWrapper@js@@@js@@QAE@ABV01@@Z",
+              "??0?$SecurityWrapper@VCrossCompartmentWrapper@js@@@js@@QAE@I_N@Z",
+              "??0?$SecurityWrapper@VWrapper@js@@@js@@QAE@ABV01@@Z",
+              "??0?$SecurityWrapper@VWrapper@js@@@js@@QAE@I_N@Z"
+            ],
+            "detected": "Gecko / XULRunner (XPCOM)",
+            "errors": []
+          },
+          "sha256": [
+            {
+              "file": "xulrunner/xulrunner.exe",
+              "sha256": "942f13a75851a213baef0a717bd614cb7e585de883a2720ca3a5afd833bdefd3"
+            },
+            {
+              "file": "xulrunner/xul.dll",
+              "sha256": "7e061c8d86ac6dea0936d943d7b5a961ec7a8ad6c8976210d31115bbcfd79b28"
+            },
+            {
+              "file": "xulrunner/omni.ja",
+              "sha256": "a2b4989d56da36b5192b89738659fffa05c3659f83f205b97c762873a53f43aa"
+            },
+            {
+              "file": "xulrunner/js.exe",
+              "sha256": "e7f30c8614f8ef247298e64f9ffaeed628679a82fe2cc458e40ecfc0f32b1394"
+            },
+            {
+              "file": "xulrunner/crashreporter.exe",
+              "sha256": "99c05534d06888c9750b1bef4dc3c1590ee824fd560122bf7fae76102ef04158"
+            }
+          ]
+        }
+      ]
+    },
+    "trident": {
+      "engine": "trident",
+      "label": "IE / Trident",
+      "mode": "compat",
+      "binariesReady": true,
+      "bridgeReady": false,
+      "arch": "x64 (AMD64)",
+      "blocker": "真内核二进制已就位（trident-mshtml），缺原生宿主 native/bin/trident-host.exe —— 需自行编译，见 native/README.md",
+      "sources": [
+        {
+          "id": "trident-mshtml",
+          "label": "Windows 内置 MSHTML",
+          "version": "系统组件（不下载）",
+          "role": "system",
+          "dir": null,
+          "present": true,
+          "complete": true,
+          "sizeBytes": 60756480,
+          "fileCount": 0,
+          "arch": "x64 (AMD64)",
+          "archNote": null,
+          "probes": [
+            {
+              "desc": "64 位 MSHTML（Trident 渲染本体）",
+              "present": true,
+              "sizeBytes": 23481856,
+              "path": "C:/Windows/System32/mshtml.dll"
+            },
+            {
+              "desc": "IE 框架（WebBrowser 控件宿主）",
+              "present": true,
+              "sizeBytes": 13135872,
+              "path": "C:/Windows/System32/ieframe.dll"
+            },
+            {
+              "desc": "IE 网络栈",
+              "present": true,
+              "sizeBytes": 5093376,
+              "path": "C:/Windows/System32/wininet.dll"
+            },
+            {
+              "desc": "32 位 MSHTML",
+              "present": true,
+              "sizeBytes": 19045376,
+              "path": "C:/Windows/SysWOW64/mshtml.dll"
+            }
+          ],
+          "signature": {
+            "file": "C:/Windows/System32/mshtml.dll",
+            "valid": true,
+            "peType": "PE32+",
+            "arch": "x64 (AMD64)",
+            "is64": true,
+            "subsystem": "WINDOWS_GUI",
+            "exportCount": 22,
+            "dllName": "MSHTML.dll",
+            "linkedAt": "2020-11-30",
+            "imageBytes": 23597056,
+            "sampleExports": [
+              "ClearPhishingFilterData",
+              "ConvertAndEscapePostData",
+              "CreateCoreWebView",
+              "CreateHTMLPropertyPage"
+            ],
+            "detected": "Trident / MSHTML (IE)",
+            "errors": []
+          },
+          "sha256": []
+        }
+      ]
+    }
+  },
+  "archives": [
+    {
+      "file": "cef_binary_154.0.34+g14c5a08+chromium-154.0.8037.98_windows64_minimal.tar.bz2",
+      "sizeBytes": 172752666,
+      "sha256": "c81c34d048d87276f4a18f0b000206710a1709bb67dd658948b87100e1a538da"
+    },
+    {
+      "file": "geckofx-1.0.5.zip",
+      "sizeBytes": 37863222,
+      "sha256": "3f17ccd29b5b9cf80fb9fef2f56c47dfc1291ca5e4ebe47138a488a2126bb034"
+    },
+    {
+      "file": "xulrunner-41.0.2.en-US.win32.zip",
+      "sizeBytes": 39794011,
+      "sha256": "e7ea4769dedeec40ef8c7e18b19f18a55415a1be630896e146ddd77c7f4b161c"
+    }
+  ],
+  "upstream": {
+    "electron": {
+      "file": "electron-v30.5.1-win32-x64.zip",
+      "found": true,
+      "archivePath": "C:/Users/jim/AppData/Local/electron/Cache/27d3a750158d882989a9780655e409b17d59ef655c907b70524fc4916ec2f191/electron-v30.5.1-win32-x64.zip",
+      "sizeBytes": 108828775,
+      "expectedSha256": "443119bb559fc2ca297a57cf79f2bce532e853ada070c1e71460c9657c13b4b3",
+      "actualSha256": "443119bb559fc2ca297a57cf79f2bce532e853ada070c1e71460c9657c13b4b3",
+      "match": true
+    }
+  }
+}

@@ -1,0 +1,150 @@
+'use strict';
+
+/**
+ * preload：把主进程能力收成一个白名单 API 暴露给外壳页面。
+ * 渲染层拿不到 ipcRenderer、拿不到 Node，只能调这里列出的方法。
+ */
+
+const { contextBridge, ipcRenderer } = require('electron');
+
+const EVENT_CHANNELS = [
+  'settings:changed',
+  'engine:changed',
+  'ext:changed',
+  'adblock:hit',
+  'adblock:stats',
+  'tab:title',
+  'tab:favicon',
+  'tab:navigated',
+  'tab:loading',
+  'tab:dom-ready',
+  'tab:crashed',
+  'tabs:open-request',
+  'download:update',
+  'download:taken-over',
+  'sniff:found',
+  'sniff:reset',
+  'sniff:update',
+  'sniff:state',
+  'mobile:stats',
+  'shell:viewport'
+];
+
+const listeners = new Map();
+
+for (const channel of EVENT_CHANNELS) {
+  ipcRenderer.on(channel, (_e, payload) => {
+    const set = listeners.get(channel);
+    if (set) set.forEach((fn) => { try { fn(payload); } catch (err) { console.error(err); } });
+  });
+}
+
+contextBridge.exposeInMainWorld('nova', {
+  /* --- 基础 --- */
+  bootstrap: () => ipcRenderer.invoke('app:bootstrap'),
+  platform: process.platform,
+
+  /* --- 设置 --- */
+  settings: {
+    patch: (partial) => ipcRenderer.invoke('settings:patch', partial)
+  },
+
+  /* --- 内核 --- */
+  engines: {
+    list: () => ipcRenderer.invoke('engine:list'),
+    reResolve: (forceCompat) => ipcRenderer.invoke('engine:re-resolve', forceCompat)
+  },
+
+  /* --- 广告拦截 --- */
+  adblock: {
+    stats: () => ipcRenderer.invoke('adblock:stats'),
+    reset: () => ipcRenderer.invoke('adblock:reset'),
+    sourceToggle: (id, enabled) => ipcRenderer.invoke('adblock:source:toggle', { id, enabled }),
+    allowlistAdd: (host) => ipcRenderer.invoke('adblock:allowlist:add', host),
+    allowlistRemove: (host) => ipcRenderer.invoke('adblock:allowlist:remove', host),
+    importList: () => ipcRenderer.invoke('adblock:import-list')
+  },
+
+  /* --- 扩展 --- */
+  extensions: {
+    list: () => ipcRenderer.invoke('ext:list'),
+    install: () => ipcRenderer.invoke('ext:install'),
+    remove: (id) => ipcRenderer.invoke('ext:remove', id)
+  },
+
+  /* --- 书签 / 历史 --- */
+  bookmarks: {
+    list: () => ipcRenderer.invoke('bookmarks:list'),
+    add: (bm) => ipcRenderer.invoke('bookmarks:add', bm),
+    remove: (url) => ipcRenderer.invoke('bookmarks:remove', url),
+    clear: () => ipcRenderer.invoke('bookmarks:clear')
+  },
+  history: {
+    list: (limit) => ipcRenderer.invoke('history:list', limit),
+    clear: () => ipcRenderer.invoke('history:clear')
+  },
+
+  /* --- 下载（Nova 多线程引擎） --- */
+  downloads: {
+    list: () => ipcRenderer.invoke('download:list'),
+    stats: () => ipcRenderer.invoke('download:stats'),
+    create: (opts) => ipcRenderer.invoke('download:new', opts),
+    pause: (id) => ipcRenderer.invoke('download:pause', id),
+    resume: (id) => ipcRenderer.invoke('download:resume', id),
+    cancel: (id) => ipcRenderer.invoke('download:cancel', id),
+    remove: (id) => ipcRenderer.invoke('download:remove', id),
+    retry: (id) => ipcRenderer.invoke('download:retry', id),
+    clearFinished: () => ipcRenderer.invoke('download:clear-finished'),
+    open: (p) => ipcRenderer.invoke('download:open', p),
+    showInFolder: (p) => ipcRenderer.invoke('download:show', p),
+    chooseDir: () => ipcRenderer.invoke('download:choose-dir'),
+    dir: () => ipcRenderer.invoke('download:dir')
+  },
+
+  /* --- 媒体嗅探（页面里的音视频资源） --- */
+  sniffer: {
+    list: (filter) => ipcRenderer.invoke('sniff:list', filter),
+    stats: (filter) => ipcRenderer.invoke('sniff:stats', filter),
+    clear: (filter) => ipcRenderer.invoke('sniff:clear', filter),
+    resetStats: () => ipcRenderer.invoke('sniff:reset-stats'),
+    setMeta: (id, meta) => ipcRenderer.invoke('sniff:meta', { id, meta }),
+    formats: () => ipcRenderer.invoke('sniff:formats')
+  },
+
+  /* --- 移动端阅读（无图模式） --- */
+  mobile: {
+    state: (wcId) => ipcRenderer.invoke('mobile:state', wcId),
+    stats: (wcId) => ipcRenderer.invoke('mobile:stats', wcId),
+    /** 放行当前标签页的所有图片；调用方负责随后的重载 */
+    showImages: (wcId) => ipcRenderer.invoke('mobile:show-images', wcId),
+    resetStats: () => ipcRenderer.invoke('mobile:reset-stats')
+  },
+
+  /* --- 系统 --- */
+  system: {
+    openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+    showItemInFolder: (p) => ipcRenderer.invoke('shell:show-item', p),
+    userDataPath: () => ipcRenderer.invoke('app:userData'),
+    openUserData: () => ipcRenderer.invoke('app:open-user-data'),
+    clearSiteData: () => ipcRenderer.invoke('app:clear-site-data'),
+    /** 复制走主进程的剪贴板 —— 比渲染层的 navigator.clipboard 稳，
+     *  后者在 file:// 下不算安全上下文，会直接抛异常 */
+    copy: (text) => ipcRenderer.invoke('shell:copy', text)
+  },
+
+  window: {
+    minimize: () => ipcRenderer.send('window:control', 'minimize'),
+    maximize: () => ipcRenderer.send('window:control', 'maximize'),
+    close: () => ipcRenderer.send('window:control', 'close')
+  },
+
+  /* --- 事件 --- */
+  on(channel, fn) {
+    if (!EVENT_CHANNELS.includes(channel)) throw new Error('未授权的事件通道: ' + channel);
+    if (!listeners.has(channel)) listeners.set(channel, new Set());
+    listeners.get(channel).add(fn);
+    return () => listeners.get(channel).delete(fn);
+  },
+
+  log: (msg) => ipcRenderer.send('debug:log', msg)
+});

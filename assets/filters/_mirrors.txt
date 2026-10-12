@@ -1,0 +1,5 @@
+adt-annoyance.txt	https://cdn.jsdelivr.net/gh/cjx82630/cjxlist@master/cjx-annoyance.txt
+adt-chinalist-easylist.txt	https://cdn.jsdelivr.net/gh/Zsy-2014/ChinaList2.0@master/ChinaList2.0.txt
+easylist-china.txt	https://filters.adtidy.org/extension/chromium/filters/104.txt
+easylist.txt	https://filters.adtidy.org/extension/chromium/filters/101.txt
+easyprivacy.txt	https://filters.adtidy.org/extension/chromium/filters/118.txt

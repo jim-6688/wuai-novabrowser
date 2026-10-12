@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  首页。房子轮廓：一条屋顶折线 + 一个门。
+
+  放在工具栏地址栏左侧，不在底栏 —— 底栏六格是硬约束（320dp 机型上每格
+  已经贴着 44px 触控下限，加第七格会掉下去），而工具栏这里现在只有一个
+  只读的内核标识，位置是空的。UC/QQ/夸克也都在这个位置。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M3.4,9.4 L10,3.6 L16.6,9.4" />
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M5.2,8.6 V16.2 H14.8 V8.6" />
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M8.6,16.2 V11.8 H11.4 V16.2" />
+</vector>

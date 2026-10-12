@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  一行可选项（搜索引擎 / 订阅源共用）：左侧色点 + 右侧文本列。
+  文本列是「标题横排 + 说明另起一行」的两层结构：
+    第一行：名字(engName) + 真身(engNature) + 选中勾(engCheck)
+    第二行：说明/网址(engNote)
+
+  以前根布局是 horizontal 却把 engNote 也用 match_parent 宽度直接挂在根下，
+  在横向布局里 match_parent 的子 View 会把带 weight 的文本列挤成 0 宽 ——
+  名字被裁得看不见，只剩一行网址（「搜索服务商只有网址没有名称」就是这么来的）。
+  现在 engNote 收进垂直文本列里，宽度跟着列走，名字自然露出来。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/row"
+    android:clickable="true"
+    android:focusable="true"
+    android:layout_marginTop="6dp"
+    android:padding="12dp">
+
+    <View
+        android:id="@+id/engDot"
+        android:layout_width="9dp"
+        android:layout_height="9dp"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/dot" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="10dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/engName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/engNature"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/text_3"
+                android:textSize="11sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <ImageView
+                android:id="@+id/engCheck"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_check"
+                android:contentDescription="@string/action_confirm" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/engNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/text_4"
+            android:textSize="11.5sp"
+            android:lineSpacingExtra="3dp" />
+    </LinearLayout>
+</LinearLayout>

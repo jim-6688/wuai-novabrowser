@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  关于页。
+
+  原来这里只是一个 NovaAlert 文字框：版本 + 三段说明，一屏不到、不能滚动、
+  也没有层次 —— 「它是什么」和「它不是什么」混在同一段里，用户要找的那句
+  （到底有没有内核）埋在中间。重设计成独立面板，按四个问题分段：
+
+    1. 这是什么          —— 名字、版本、一句话定位
+    2. 它能做什么        —— 能力清单，扫一眼就知道覆盖面
+    3. 它不是什么/做不到  —— 平台边界，全部是真的限制，没有一条是谦虚
+    4. 现在到什么程度     —— 验证状态，放在最后但用警示色框出来
+
+  顺序是有意的：先给能力再给边界。反过来写（先泼冷水）会让一个其实做了不少事的
+  应用看起来像半成品。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="18dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="200dp"
+        android:maxHeight="600dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- ============ 身份 ============ -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginEnd="20dp"
+                android:text="@string/app_name"
+                android:textColor="@color/text"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <!-- 版本与内核。运行时填：版本来自 strings，内核版本从 UA 里抠。 -->
+            <TextView
+                android:id="@+id/abVer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_3"
+                android:textSize="12sp"
+                android:lineSpacingExtra="3dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="20dp"
+                android:text="一个把「省流量、拦广告、自动拼页、嗅探下载」做实的手机浏览器。"
+                android:textColor="@color/text_2"
+                android:textSize="13sp"
+                android:lineSpacingExtra="4dp" />
+
+            <!-- ============ 能做什么 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="它能做什么" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="· 自动拼页：往上滑自动接上下一页，上限可调\n· 无图模式：按网址后缀判断，省流量；另有更彻底的「加载图片」总开关\n· 广告拦截：内置名单随包发布，可订阅外部规则\n· 媒体嗅探：识别页面里的音视频，多线程分片下载\n· 篡改猴用户脚本：装 .user.js（兼容 Tampermonkey），按 @match 注入页面\n· 标签管理、会话恢复、无痕浏览\n· 书签：一键收藏当前页，集中管理" />
+
+            <!-- ============ 边界 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="它做不到什么" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="· 不内置浏览器内核：渲染由系统内核（Chromium）提供，版本随系统更新。真内核最小 80MB，塞进来这个浏览器会变成 100MB 起步\n· 广告拦截只按域名：Android 的拦截接口不告诉我们要拦的是图片还是脚本，所以元素隐藏规则、路径规则在移动版用不了\n· 篡改猴用户脚本不是 Chrome 扩展：Android 没有提供扩展宿主，只支持用户脚本，且不支持跨域等特权\n· 下载存在应用私有目录：别的应用看不到这些文件，也还不能通过系统分享直接发出去" />
+
+            <!-- ============ 与桌面端的关系 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="和桌面端的关系" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="拼页算法、嗅探名单、拦截规则解析是同一份代码，由 npm run mobile:sync 从桌面端源码生成后同步过来 —— 两边对同一类链接的判断是一致的，不会出现「桌面端拦得了、手机端拦不了」的分裂。" />
+
+            <!-- ============ 验证状态 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="现在到什么程度" />
+
+            <!-- 用警示色边条框起来。这不是谦虚，是当前最大的未知项：
+                 所有功能都有单元测试兜底，但没有在真机或模拟器上跑过。 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/row"
+                android:orientation="horizontal"
+                android:padding="14dp">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bar_warn" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:textColor="@color/text_2"
+                    android:textSize="12sp"
+                    android:lineSpacingExtra="4dp"
+                    android:text="尚未在真机或模拟器上验证。全部功能有单元测试兜底，但下载、嗅探、注入这类和系统版本强相关的行为，只有装上真机跑过才算数。已知待办：下载目录未接系统分享。" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  设置页/菜单里的一行。用 include 复用，所以根必须带 id 供各 sheet 覆盖。
+
+  三层信息（标题 / 副标题 / 右侧取值）不是所有行都用得上，但把副标题做成可选
+  比为「有副标题的行」和「纯文字的行」各写一份布局好得多 —— 后者会立刻变成第二套
+  行高与内边距，然后两种行慢慢长得不一样。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rowRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="?android:attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:minHeight="52dp"
+    android:paddingStart="20dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="11dp"
+    android:paddingBottom="11dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/rowTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text"
+            android:textSize="14sp" />
+
+        <!-- 副标题。默认 gone：没有内容时不占地方，
+             这样纯文字行的行高不会因为多一个空 TextView 而变高。 -->
+        <TextView
+            android:id="@+id/rowSub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/text_4"
+            android:textSize="11.5sp"
+            android:lineSpacingExtra="2dp"
+            android:maxLines="2"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- 右侧取值 / 开关。默认 gone，由 MainActivity 按行决定要不要显示。 -->
+    <TextView
+        android:id="@+id/rowValue"
+        android:layout_width="wrap_content"
+        android:layout_height="30dp"
+        android:visibility="gone"
+        android:minWidth="52dp"
+        android:gravity="center"
+        android:background="@drawable/seg_track"
+        android:textColor="@color/text_2"
+        android:textSize="12sp"
+        android:paddingStart="13dp"
+        android:paddingEnd="13dp"
+        android:layout_marginStart="12dp" />
+
+    <!-- 箭头。只有「点进去有另一个页面」的行才显示，
+         「点了直接执行」的行不显示 —— 显示了会让人以为还有下一层。 -->
+    <TextView
+        android:id="@+id/rowArrow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:text="›"
+        android:textColor="@color/text_4"
+        android:textSize="19sp"
+        android:layout_marginStart="6dp" />
+</LinearLayout>

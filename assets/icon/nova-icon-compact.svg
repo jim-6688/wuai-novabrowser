@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="吾爱Nova浏览器（小尺寸）">
+  <title>吾爱Nova浏览器 · 小尺寸变体</title>
+  <defs>
+    <linearGradient id="nova-bg-s" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5B84FF"/>
+      <stop offset="0.46" stop-color="#3D6BFF"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 16 / 24 px 专用：轨道环只有 1.6/64*16 ≈ 0.4px，渲染出来是一圈灰雾，
+       反而把星芒糊掉；柔光同理。所以小尺寸下**主动删掉这两个元素**，
+       并把星芒外径 17 → 19、腰 3.4 → 4.8（臂更粗），保证 16px 下仍可辨。 -->
+  <rect x="0" y="0" width="64" height="64" rx="15" fill="url(#nova-bg-s)"/>
+  <path d="M32 13 Q35.2 28.8 51 32 Q35.2 35.2 32 51 Q28.8 35.2 13 32 Q28.8 28.8 32 13 Z"
+        fill="#FFFFFF"/>
+</svg>

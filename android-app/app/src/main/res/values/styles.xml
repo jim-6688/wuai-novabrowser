@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  共享样式。刻意只放「多处会用」的东西，一处一处的样式留在它自己的布局文件里。
+
+  注释里不写 CSS 变量名（连续两个连字符在 XML 注释里非法，
+  aapt2 报的却是「根元素后面的标记必须格式正确」，完全指不到真正的行）。
+-->
+<resources>
+
+    <!-- 设置页专用样式。抽出来是因为它们出现十几次 ——
+         每处写一遍全属性，不仅啰嗦，改一次间距要改十四个地方。 -->
+    <style name="SectionHead">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_4</item>
+        <item name="android:textSize">11.5sp</item>
+        <item name="android:letterSpacing">0.06</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:paddingTop">18dp</item>
+        <item name="android:paddingBottom">4dp</item>
+    </style>
+
+    <style name="RowTitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_3</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:paddingBottom">6dp</item>
+    </style>
+
+</resources>

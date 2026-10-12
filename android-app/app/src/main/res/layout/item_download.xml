@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  一个下载任务。四个信息层，从上到下就是用户的疑问顺序：
+    文件名 → 现在什么状态 → 进度到哪 → 我能按什么。
+
+  进度条用的是 determinate（max=100），因为总长未知时要显示「已下载 X」而不是
+  一个永不前进的条 —— 那看起来像卡死。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/row"
+    android:layout_marginBottom="8dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="11dp"
+    android:paddingBottom="11dp">
+
+    <TextView
+        android:id="@+id/dlName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text"
+        android:textSize="13.5sp"
+        android:maxLines="1"
+        android:ellipsize="middle" />
+
+    <TextView
+        android:id="@+id/dlState"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:textColor="@color/text_3"
+        android:textSize="11.5sp"
+        android:lineSpacingExtra="2dp"
+        android:maxLines="3"
+        android:ellipsize="end" />
+
+    <ProgressBar
+        android:id="@+id/dlBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_marginTop="7dp"
+        android:max="100"
+        android:progressTint="@color/brand"
+        android:progressBackgroundTint="@color/surface_3" />
+
+    <!-- 动作行。三个按钮固定占位，按状态换文案而不是让它们时有时无 ——
+         元素位置会跳是移动端最难受的一类问题。 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="9dp">
+
+        <TextView
+            android:id="@+id/dlPrimary"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:gravity="center"
+            android:background="@drawable/btn_mini"
+            android:textColor="@color/text_2"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/dlSecond"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:gravity="center"
+            android:background="@drawable/btn_mini"
+            android:textColor="@color/text_2"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/dlCancel"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:gravity="center"
+            android:background="@drawable/btn_mini"
+            android:textColor="@color/danger"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>

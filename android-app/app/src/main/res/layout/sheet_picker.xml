@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  通用的「从列表里选一个」面板。搜索引擎与内核说明都用它。
+
+  原来是 sheet_engine 一个布局被三处复用（内核、搜索引擎、规则订阅），
+  结果那三处的需求已经分开了：内核要「真/假」标记，搜索要「选一个」，
+  订阅要「当前是哪个 + 说明」。硬塞进一份就到处都是 if。
+  这份只保留三者真正共有的东西：一个头 + 一个列表。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="20dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <TextView
+        android:id="@+id/pickerNote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_4"
+        android:textSize="11.5sp"
+        android:lineSpacingExtra="4dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="10dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="140dp"
+        android:maxHeight="420dp">
+
+        <LinearLayout
+            android:id="@+id/pickerList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
+    </ScrollView>
+</LinearLayout>

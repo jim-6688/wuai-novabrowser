@@ -1,0 +1,344 @@
+'use strict';
+
+/**
+ * 扩展管理器
+ * ---------------------------------------------------------------------------
+ * 三类输入统一走一条流水线：识别 → 解包 → 归一化 → 装载
+ *   .crx / .zip       Chromium 商店包 / 压缩包  → 解包后 loadExtension
+ *   目录              已解包的扩展目录          → 直接 loadExtension
+ *   .xpi              火狐扩展（就是一个 zip）   → 解包 + 清单归一化（browser → chrome 桥）
+ *
+ * 注意：Electron 的 loadExtension 底层是 Chromium 的扩展实现，
+ * 因此「火狐扩展」走的是 polyfill 桥：把 browser.* 命名空间补上、
+ * 把 Firefox 专有清单字段清洗掉。能跑 WebExtension 通用能力的子集，
+ * 依赖 Gecko 专有 API（browser.tabs.hide 等）的扩展会失效 —— 这一点在 UI 里如实标注。
+ */
+
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
+const os = require('os');
+
+/* ========================================================================== *
+ * 极简 ZIP 读取器（stored + deflate，够解扩展包）
+ * ========================================================================== */
+
+function findEOCD(buf) {
+  const min = Math.max(0, buf.length - 66000);
+  for (let i = buf.length - 22; i >= min; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) return i;
+  }
+  return -1;
+}
+
+function listZipEntries(buf) {
+  const eocd = findEOCD(buf);
+  if (eocd < 0) throw new Error('不是有效的 ZIP 包（未找到中央目录）');
+  const count = buf.readUInt16LE(eocd + 10);
+  let offset = buf.readUInt32LE(eocd + 16);
+  const entries = [];
+
+  for (let i = 0; i < count; i++) {
+    if (buf.readUInt32LE(offset) !== 0x02014b50) break;
+    const method = buf.readUInt16LE(offset + 10);
+    const compressedSize = buf.readUInt32LE(offset + 20);
+    const uncompressedSize = buf.readUInt32LE(offset + 24);
+    const nameLen = buf.readUInt16LE(offset + 28);
+    const extraLen = buf.readUInt16LE(offset + 30);
+    const commentLen = buf.readUInt16LE(offset + 32);
+    const localOffset = buf.readUInt32LE(offset + 42);
+    const name = buf.toString('utf8', offset + 46, offset + 46 + nameLen);
+    entries.push({ name, method, compressedSize, uncompressedSize, localOffset });
+    offset += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+function readZipEntry(buf, entry) {
+  const lo = entry.localOffset;
+  if (buf.readUInt32LE(lo) !== 0x04034b50) throw new Error('本地文件头损坏: ' + entry.name);
+  const nameLen = buf.readUInt16LE(lo + 26);
+  const extraLen = buf.readUInt16LE(lo + 28);
+  const start = lo + 30 + nameLen + extraLen;
+  const raw = buf.subarray(start, start + entry.compressedSize);
+  if (entry.method === 0) return Buffer.from(raw);
+  if (entry.method === 8) return zlib.inflateRawSync(raw);
+  throw new Error('不支持的压缩方式: ' + entry.method);
+}
+
+function safeJoin(root, name) {
+  const target = path.resolve(root, name);
+  if (!target.startsWith(path.resolve(root) + path.sep)) throw new Error('非法路径: ' + name);
+  return target;
+}
+
+function extractZip(buf, destDir) {
+  const entries = listZipEntries(buf);
+  let files = 0;
+  for (const entry of entries) {
+    const target = safeJoin(destDir, entry.name);
+    if (entry.name.endsWith('/')) {
+      fs.mkdirSync(target, { recursive: true });
+      continue;
+    }
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, readZipEntry(buf, entry));
+    files++;
+  }
+  return { files, entries: entries.length };
+}
+
+/* ========================================================================== *
+ * CRX 解包
+ * ========================================================================== */
+
+function stripCrxHeader(buf) {
+  if (buf.readUInt32LE(0) !== 0x43723234) throw new Error('不是 CRX 文件（魔数不符）');
+  const version = buf.readUInt32LE(4);
+  if (version === 2) {
+    const pubKeyLen = buf.readUInt32LE(8);
+    const sigLen = buf.readUInt32LE(12);
+    return { version, zip: buf.subarray(16 + pubKeyLen + sigLen) };
+  }
+  if (version === 3) {
+    const headerLen = buf.readUInt32LE(8);
+    return { version, zip: buf.subarray(12 + headerLen) };
+  }
+  throw new Error('不支持的 CRX 版本: ' + version);
+}
+
+/* ========================================================================== *
+ * Firefox 扩展清单归一化
+ * ========================================================================== */
+
+const GECKO_ONLY_PERMISSIONS = new Set([
+  'menus.overrideContext', 'contextualIdentities', 'dns', 'geckoProfiler',
+  'identity.email', 'nativeMessaging', 'privacy', 'theme', 'browserSettings',
+  'pkcs11', 'webRequestFilterResponse', 'webRequestFilterResponse.serviceWorkerScript',
+  'proxy', 'tabHide', 'normandyAddonStudy', 'urlbar', 'telemetry'
+]);
+
+const BROWSER_POLYFILL = `/* Nova · browser.* → chrome.* 桥（自动注入给 Firefox 扩展） */
+(function () {
+  if (typeof window === 'undefined' || window.browser) return;
+  if (!window.chrome) return;
+  var wrap = function (ctx, fn) {
+    return function () {
+      try {
+        var r = fn.apply(ctx, arguments);
+        if (r && typeof r.then === 'function') return r;
+        if (r === undefined) return Promise.resolve();
+        return Promise.resolve(r);
+      } catch (e) { return Promise.reject(e); }
+    };
+  };
+  var browser = {};
+  for (var ns in chrome) {
+    var api = chrome[ns];
+    if (api && typeof api === 'object') {
+      browser[ns] = {};
+      for (var k in api) {
+        browser[ns][k] = typeof api[k] === 'function' ? wrap(api, api[k]) : api[k];
+      }
+    } else if (typeof api === 'function') {
+      browser[ns] = wrap(chrome, api);
+    } else {
+      browser[ns] = api;
+    }
+  }
+  try { Object.defineProperty(window, 'browser', { value: browser, configurable: true }); } catch (e) { window.browser = browser; }
+})();
+`;
+
+/**
+ * 把一个 Firefox 扩展目录归一化成 Chromium 能装的形态。
+ * 返回一份变更报告，UI 里如实展示（而不是假装完全兼容）。
+ */
+function normalizeFirefoxExtension(dir) {
+  const manifestPath = path.join(dir, 'manifest.json');
+  if (!fs.existsSync(manifestPath)) throw new Error('扩展包内缺少 manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const changes = [];
+
+  // 1) browser_specific_settings / applications → 记录来源后移除（Chromium 不认）
+  const gecko = manifest.browser_specific_settings || manifest.applications;
+  if (gecko) {
+    changes.push('移除 Firefox 专有字段 browser_specific_settings');
+    delete manifest.browser_specific_settings;
+    delete manifest.applications;
+  }
+
+  // 2) 清洗 Gecko 专有权限
+  if (Array.isArray(manifest.permissions)) {
+    const before = manifest.permissions.length;
+    manifest.permissions = manifest.permissions.filter((p) => {
+      const head = String(p).split('.')[0];
+      return !GECKO_ONLY_PERMISSIONS.has(p) && !GECKO_ONLY_PERMISSIONS.has(head);
+    });
+    if (manifest.permissions.length !== before) {
+      changes.push(`过滤 ${before - manifest.permissions.length} 项 Gecko 专有权限`);
+    }
+  }
+
+  // 3) MV3 的 background.scripts → service_worker（语义有差异，需标注）
+  if (manifest.manifest_version === 3 && manifest.background && !manifest.background.service_worker && Array.isArray(manifest.background.scripts)) {
+    manifest.background.service_worker = manifest.background.scripts[0];
+    delete manifest.background.scripts;
+    changes.push('background.scripts → service_worker（事件页语义与 Gecko 不完全一致）');
+  }
+
+  // 4) MV3 的 browser_specific_settings 里 content_security_policy 形态差异
+  if (manifest.content_security_policy && typeof manifest.content_security_policy === 'object') {
+    // Chromium MV3 只接受字符串
+    const csp = manifest.content_security_policy.extension_pages || manifest.content_security_policy;
+    if (typeof csp !== 'string') {
+      manifest.content_security_policy = { extension_pages: "script-src 'self'; object-src 'self'" };
+      changes.push('CSP 归一化为 Chromium MV3 形态');
+    }
+  }
+
+  // 5) 注入 browser → chrome 桥，写进 background 与 content_scripts 前面
+  const bridgeFile = '_nova_browser_polyfill.js';
+  fs.writeFileSync(path.join(dir, bridgeFile), BROWSER_POLYFILL, 'utf8');
+
+  const injectInto = (scripts) => {
+    if (Array.isArray(scripts) && !scripts.includes(bridgeFile)) scripts.unshift(bridgeFile);
+  };
+  if (manifest.background && Array.isArray(manifest.background.scripts)) injectInto(manifest.background.scripts);
+  if (Array.isArray(manifest.content_scripts)) {
+    manifest.content_scripts.forEach((cs) => injectInto(cs.js));
+  }
+  if (manifest.background && manifest.background.service_worker) {
+    changes.push('Service Worker 形态的桥接需要打包器支持，已尽力注入');
+  }
+  changes.push('注入 browser.* → chrome.* 兼容桥');
+
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+  return { manifest, changes };
+}
+
+/* ========================================================================== *
+ * 扩展管理器
+ * ========================================================================== */
+
+class ExtensionManager {
+  constructor({ workDir, partitions }) {
+    this.workDir = workDir; // 解包缓存目录
+    this.partitions = partitions; // 需要装载扩展的 partition 列表
+    this.loaded = new Map(); // id → { info, electronExtension }
+    this.onChange = () => {};
+  }
+
+  ensureDirs() {
+    fs.mkdirSync(this.workDir, { recursive: true });
+  }
+
+  /** 统一入口：返回 { id, name, source, changes, warnings } */
+  async install(inputPath, sessionFactory) {
+    this.ensureDirs();
+    const stat = fs.statSync(inputPath);
+    let extDir = inputPath;
+    let source = 'unpacked';
+    let pkgVersion = null;
+    const warnings = [];
+
+    if (stat.isFile()) {
+      const ext = path.extname(inputPath).toLowerCase();
+      const base = path.basename(inputPath, ext);
+      extDir = path.join(this.workDir, `${base}-${Date.now()}`);
+      fs.mkdirSync(extDir, { recursive: true });
+      const buf = fs.readFileSync(inputPath);
+
+      if (ext === '.crx') {
+        const { version, zip } = stripCrxHeader(buf);
+        pkgVersion = `CRX v${version}`;
+        source = 'chromium-store';
+        extractZip(Buffer.from(zip), extDir);
+      } else if (ext === '.xpi' || ext === '.zip' || ext === '.crx3') {
+        source = ext === '.xpi' ? 'firefox' : 'archive';
+        extractZip(buf, extDir);
+      } else {
+        throw new Error(`不支持的文件类型：${ext}（支持 .crx / .xpi / .zip 或已解包目录）`);
+      }
+    }
+
+    let changes = [];
+    if (source === 'firefox') {
+      const result = normalizeFirefoxExtension(extDir);
+      changes = result.changes;
+    }
+
+    const manifestPath = path.join(extDir, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) throw new Error('扩展目录内缺少 manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+    const id = manifest.name.replace(/[^\w-]+/g, '-').toLowerCase();
+    const electronExtension = await sessionFactory().loadExtension(extDir, { allowFileAccess: true });
+
+    const info = {
+      id,
+      electronId: electronExtension.id,
+      name: manifest.name,
+      version: manifest.version,
+      description: manifest.description || '',
+      manifestVersion: manifest.manifest_version,
+      source,
+      packageVersion: pkgVersion,
+      dir: extDir,
+      changes,
+      warnings,
+      enabled: true,
+      icon: this._findIcon(extDir, manifest)
+    };
+
+    this.loaded.set(electronExtension.id, { info, electronExtension });
+    this.onChange(this.list());
+    return info;
+  }
+
+  _findIcon(dir, manifest) {
+    const icons = manifest.icons || (manifest.action && manifest.action.default_icon) || (manifest.browser_action && manifest.browser_action.default_icon);
+    if (!icons) return null;
+    const rel = typeof icons === 'string' ? icons : icons[Object.keys(icons).sort((a, b) => b - a)[0]];
+    if (!rel) return null;
+    const abs = path.join(dir, rel);
+    if (!fs.existsSync(abs)) return null;
+    try {
+      const ext = path.extname(abs).slice(1) || 'png';
+      return `data:image/${ext === 'svg' ? 'svg+xml' : ext};base64,${fs.readFileSync(abs).toString('base64')}`;
+    } catch { return null; }
+  }
+
+  /** 已装载的 Electron 扩展集合（供 UA / 过滤逻辑查询） */
+  electronExtensions() {
+    return [...this.loaded.values()].map((v) => v.electronExtension);
+  }
+
+  list() {
+    return [...this.loaded.values()].map((v) => v.info);
+  }
+
+  electronIdOf(id) {
+    const hit = [...this.loaded.values()].find((v) => v.info.id === id);
+    return hit ? hit.info.electronId : null;
+  }
+
+  remove(id, sessionFactory) {
+    const ses = sessionFactory();
+    const eid = this.electronIdOf(id);
+    if (!eid) return false;
+    try { ses.removeExtension(eid); } catch (err) { console.warn('[extensions] 移除失败:', err.message); }
+    for (const [k, v] of this.loaded) if (v.info.id === id) this.loaded.delete(k);
+    this.onChange(this.list());
+    return true;
+  }
+}
+
+module.exports = {
+  ExtensionManager,
+  extractZip,
+  listZipEntries,
+  stripCrxHeader,
+  normalizeFirefoxExtension,
+  BROWSER_POLYFILL
+};

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 底栏主按钮（标签数）。品牌渐变，角度与图标背景的蓝紫渐变一致。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:startColor="#5B84FF"
+        android:centerColor="#3D6BFF"
+        android:endColor="#7C5CFF"
+        android:angle="315" />
+    <corners android:radius="12dp" />
+</shape>

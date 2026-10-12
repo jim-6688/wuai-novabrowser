@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  颜色令牌。与 src/renderer/shell.css 的 :root 变量逐条对应，
+  EngineCatalog 引用的 engine_chromium / engine_gecko / engine_trident 必须存在。
+
+  注意：XML 注释里不允许出现连续两个连字符，所以这里只能写「brand」而不能照抄
+  CSS 自定义属性的写法。连字符会让 aapt2 直接报错，而它报的是文件名加行号，
+  不指具体是哪个词 —— 不好查。
+-->
+<resources>
+    <!-- 品牌。shell.css 的 brand / brand-strong / accent -->
+    <color name="brand">#3D6BFF</color>
+    <color name="brand_strong">#2E56D9</color>
+    <color name="accent">#7C5CFF</color>
+
+    <!-- 内核标识色。shell.css 的 engine 系列 -->
+    <color name="engine_chromium">#3D6BFF</color>
+    <color name="engine_gecko">#FF7139</color>
+    <color name="engine_trident">#0A84C6</color>
+
+    <!-- 语义色。shell.css 的 ok / warn / danger -->
+    <color name="ok">#14B87A</color>
+    <color name="warn">#FF9F0A</color>
+    <color name="danger">#FF4D4F</color>
+
+    <!-- 浅色中性 -->
+    <color name="bg">#F6F7FB</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_2">#F1F3F9</color>
+    <color name="surface_3">#E9ECF5</color>
+    <color name="border">#E6E8EF</color>
+    <color name="border_strong">#D5D9E4</color>
+    <color name="text">#14161C</color>
+    <color name="text_2">#4A5062</color>
+    <color name="text_3">#6B7183</color>
+    <color name="text_4">#9AA0B0</color>
+
+    <!-- 深色中性。shell.css 的深色主题块 -->
+    <color name="bg_dark">#0E1016</color>
+    <color name="surface_dark">#171A22</color>
+    <color name="surface_2_dark">#1E222C</color>
+    <color name="surface_3_dark">#262B37</color>
+    <color name="border_dark">#262B37</color>
+    <color name="border_strong_dark">#343A48</color>
+    <color name="text_dark">#F2F4F8</color>
+    <color name="text_2_dark">#C3C9D6</color>
+    <color name="text_3_dark">#9299A8</color>
+    <color name="text_4_dark">#6B7284</color>
+</resources>

@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  设置页。从「一个首页输入框 + 三行」扩成六个分组。
+
+  分组而不是一长条列表：移动端屏幕纵向就那么长，二十来行平铺的话用户要上下划很久
+  才能看完，而其中大半项是「设一次就再也不动」的（搜索引擎、缓存）。
+  分组头可点，默认只展开当前用得上的那两组。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="20dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="200dp"
+        android:maxHeight="600dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- ============ 通用 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="通用" />
+
+            <TextView
+                style="@style/RowTitle"
+                android:text="首页地址" />
+
+            <EditText
+                android:id="@+id/setHomepage"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/omnibox"
+                android:hint="https://"
+                android:importantForAutofill="no"
+                android:inputType="textUri"
+                android:maxLines="1"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text_4"
+                android:textSize="14sp" />
+
+            <include layout="@layout/item_menu" android:id="@+id/setNewTab" />
+            <include layout="@layout/item_menu" android:id="@+id/setSearch" />
+            <include layout="@layout/item_menu" android:id="@+id/setTheme" />
+            <include layout="@layout/item_menu" android:id="@+id/setUA" />
+
+            <!-- ============ 阅读增强 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="阅读增强" />
+
+            <include layout="@layout/item_menu" android:id="@+id/setNoImage" />
+            <include layout="@layout/item_menu" android:id="@+id/setAutoPage" />
+            <include layout="@layout/item_menu" android:id="@+id/setLoadImages" />
+
+            <!-- ============ 广告拦截 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="广告拦截" />
+
+            <!-- 总开关放第一行：它管着下面全部，包括随包内置的那份名单。 -->
+            <include layout="@layout/item_menu" android:id="@+id/setAdblock" />
+            <include layout="@layout/item_menu" android:id="@+id/setRules" />
+            <TextView
+                android:id="@+id/setRulesSub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_4"
+                android:textSize="11.5sp"
+                android:lineSpacingExtra="3dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="10dp" />
+
+            <include layout="@layout/item_menu" android:id="@+id/setRulesAuto" />
+
+            <!-- ============ 插件 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="插件" />
+
+            <!-- 总开关同样放第一行。关掉它已装脚本全部停用，但不用逐个卸载。 -->
+            <include layout="@layout/item_menu" android:id="@+id/setPluginsOn" />
+            <include layout="@layout/item_menu" android:id="@+id/setPlugins" />
+            <include layout="@layout/item_menu" android:id="@+id/setPluginConfirm" />
+
+            <!-- ============ 下载 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="下载" />
+
+            <include layout="@layout/item_menu" android:id="@+id/setThreads" />
+            <include layout="@layout/item_menu" android:id="@+id/setAutoDownload" />
+            <include layout="@layout/item_menu" android:id="@+id/setDlNotify" />
+            <include layout="@layout/item_menu" android:id="@+id/setHistoryMax" />
+            <include layout="@layout/item_menu" android:id="@+id/setOpenFolder" />
+
+            <!-- ============ 隐私 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="隐私与浏览" />
+
+            <include layout="@layout/item_menu" android:id="@+id/setIncognito" />
+            <include layout="@layout/item_menu" android:id="@+id/setClearOnExit" />
+            <include layout="@layout/item_menu" android:id="@+id/setForceHttps" />
+            <include layout="@layout/item_menu" android:id="@+id/setRestore" />
+            <include layout="@layout/item_menu" android:id="@+id/setClearCache" />
+            <include layout="@layout/item_menu" android:id="@+id/setClear" />
+
+            <!-- ============ 关于 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="关于" />
+
+            <TextView
+                android:id="@+id/setEngineNow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="4dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="4dp" />
+
+            <TextView
+                android:id="@+id/setStat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_3"
+                android:textSize="11.5sp"
+                android:lineSpacingExtra="4dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="4dp" />
+
+            <TextView
+                android:id="@+id/setListSize"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_4"
+                android:textSize="11.5sp"
+                android:lineSpacingExtra="4dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="8dp" />
+
+            <include layout="@layout/item_menu" android:id="@+id/setAbout" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 品牌主色，与 src/renderer/shell.css 的品牌色令牌同源。
+         改这里要同步改 assets/icon/nova-icon-background.svg 的渐变首停靠点。 -->
+    <color name="ic_launcher_brand">#3D6BFF</color>
+</resources>

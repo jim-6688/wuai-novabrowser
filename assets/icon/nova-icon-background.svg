@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108" role="img" aria-label="吾爱Nova浏览器 自适应图标背景">
+  <title>吾爱Nova浏览器 · 自适应图标背景</title>
+  <defs>
+    <linearGradient id="nova-bg-a" x1="0" y1="0" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5B84FF"/>
+      <stop offset="0.46" stop-color="#3D6BFF"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景层铺满整块 108 × 108（不描圆角）—— 圆角由系统蒙版负责，
+       自己再描一遍会在方形蒙版下露出双层圆角的毛边。 -->
+  <rect x="0" y="0" width="108" height="108" fill="url(#nova-bg-a)"/>
+</svg>

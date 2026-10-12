@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 一个已装插件。名字 / 说明 / 匹配范围 / 开关 / 删除。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/row"
+    android:layout_marginBottom="8dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="11dp"
+    android:paddingBottom="11dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/plName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/text"
+            android:textSize="13.5sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/plToggle"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:minWidth="56dp"
+            android:gravity="center"
+            android:background="@drawable/seg_track"
+            android:textColor="@color/text_2"
+            android:textSize="12sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/plDesc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/text_3"
+        android:textSize="11.5sp"
+        android:lineSpacingExtra="2dp"
+        android:maxLines="3"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/plMatch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/text_4"
+        android:textSize="10.5sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/plRemove"
+        android:layout_width="wrap_content"
+        android:layout_height="28dp"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:background="@drawable/btn_mini"
+        android:text="卸载"
+        android:textColor="@color/danger"
+        android:textSize="11.5sp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp" />
+</LinearLayout>

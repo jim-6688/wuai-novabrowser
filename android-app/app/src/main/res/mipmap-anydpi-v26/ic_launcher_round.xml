@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 吾爱Nova浏览器 · 自适应图标（Android 8.0+）
+     前景/背景两层由 assets/icon/nova-icon-{foreground,background}.svg 生成。
+     要改图标请改 SVG 再跑 npm run icons，不要手改这里的 PNG。 -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
