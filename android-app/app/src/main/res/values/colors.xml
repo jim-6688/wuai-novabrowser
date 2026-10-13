@@ -11,7 +11,7 @@
     <!-- 品牌。shell.css 的 brand / brand-strong / accent -->
     <color name="brand">#3D6BFF</color>
     <color name="brand_strong">#2E56D9</color>
-    <color name="accent">#7C5CFF</color>
+    <color name="accent">#00B8A2</color>
 
     <!-- 内核标识色。shell.css 的 engine 系列 -->
     <color name="engine_chromium">#3D6BFF</color>

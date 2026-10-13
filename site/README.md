@@ -25,7 +25,7 @@ site/
 ├── version.json          【关键】自动更新清单，App 端与官网都从它读版本号
 ├── edgeone.json          构建与响应头声明（EdgeOne 会读它）
 ├── download/
-│   └── nova-1.2.1.apk    官网直链安装包（每次发版新增同名文件）
+│   └── nova-<版本>.apk    官网直链安装包（每次发版新增同名文件）
 └── assets/
     ├── css/style.css     样式（颜色令牌与 App 端 colors.xml 对应）
     └── js/app.js         读取 version.json 并渲染版本信息

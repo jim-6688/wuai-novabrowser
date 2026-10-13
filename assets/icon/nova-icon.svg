@@ -9,7 +9,7 @@
     <linearGradient id="nova-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#5B84FF"/>
       <stop offset="0.46" stop-color="#3D6BFF"/>
-      <stop offset="1" stop-color="#7C5CFF"/>
+      <stop offset="1" stop-color="#00B8A2"/>
     </linearGradient>
 
     <!-- 星核的柔光：让星芒看起来是「发光的」而不是贴上去的白色图形 -->

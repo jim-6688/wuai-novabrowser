@@ -9,7 +9,7 @@
    设计令牌（与 src/renderer/shell.css 同源，改这里 = 改产品）
    ========================================================================== */
 :root{
-  --brand:#3D6BFF; --brand-strong:#2E56D9; --brand-soft:rgba(61,107,255,.12); --accent:#7C5CFF;
+  --brand:#3D6BFF; --brand-strong:#2E56D9; --brand-soft:rgba(61,107,255,.12); --accent:#00B8A2;
   --engine-chromium:#3D6BFF; --engine-gecko:#FF7139; --engine-trident:#0A84C6;
   --ok:#14B87A; --warn:#FF9F0A; --danger:#FF4D4F;
   --bg:#F6F7FB; --surface:#FFF; --surface-2:#F1F3F9; --surface-3:#E9ECF5;
@@ -547,7 +547,7 @@ td code{font-size:11px}
       <p class="label">品牌与语义色</p>
       <div class="swatches">
         <div class="sw"><i style="background:#3D6BFF"></i><div><b>Brand</b><span>#3D6BFF</span><em>主操作 / 当前项</em></div></div>
-        <div class="sw"><i style="background:#7C5CFF"></i><div><b>Accent</b><span>#7C5CFF</span><em>渐变副色</em></div></div>
+        <div class="sw"><i style="background:#00B8A2"></i><div><b>Accent</b><span>#00B8A2</span><em>渐变副色</em></div></div>
         <div class="sw"><i style="background:#14B87A"></i><div><b>OK</b><span>#14B87A</span><em>拦截计数 / 已开启</em></div></div>
         <div class="sw"><i style="background:#FF9F0A"></i><div><b>Warn</b><span>#FF9F0A</span><em>兼容层 / 降级提示</em></div></div>
         <div class="sw"><i style="background:#FF4D4F"></i><div><b>Danger</b><span>#FF4D4F</span><em>关闭窗口 / 清除</em></div></div>
@@ -1933,7 +1933,7 @@ td code{font-size:11px}
       <svg viewBox="0 0 64 64" class="icon-big" aria-label="主图标">
         <defs>
           <linearGradient id="ibg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#5B84FF"/><stop offset=".5" stop-color="#3D6BFF"/><stop offset="1" stop-color="#7C5CFF"/>
+            <stop offset="0" stop-color="#5B84FF"/><stop offset=".5" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/>
           </linearGradient>
           <radialGradient id="iglow">
             <stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
@@ -1954,7 +1954,7 @@ td code{font-size:11px}
       <svg viewBox="0 0 64 64" class="icon-big" aria-label="紧凑变体（16/24px 用）">
         <defs>
           <linearGradient id="cbg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#5B84FF"/><stop offset=".5" stop-color="#3D6BFF"/><stop offset="1" stop-color="#7C5CFF"/>
+            <stop offset="0" stop-color="#5B84FF"/><stop offset=".5" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/>
           </linearGradient>
         </defs>
         <rect x="1" y="1" width="62" height="62" rx="15" fill="url(#cbg)"/>
@@ -1962,7 +1962,7 @@ td code{font-size:11px}
       </svg>
 
       <div class="icon-notes">
-        <p><b>品牌渐变</b>　<code>#5B84FF → #3D6BFF → #7C5CFF</code>，与 brand / accent 令牌同源。</p>
+        <p><b>品牌渐变</b>　<code>#5B84FF → #3D6BFF → #00B8A2</code>，与 brand / accent 令牌同源。</p>
         <p><b>轨道环</b>　倾斜 −24°，椭圆 <code>rx 20.5 / ry 8.6</code>，白色 55% 描边，环上一颗珠子。</p>
         <p><b>星芒</b>　二次贝塞尔凹边四射，外径 32→15，腰身 3.4。</p>
         <p><b>圆角</b>　<code>rx 15</code>，对应 <code>--r-lg</code>。</p>
@@ -1993,19 +1993,19 @@ td code{font-size:11px}
       在方形蒙版机型上会露出双层圆角的毛边。</p>
       <div class="icon-adaptive">
         <div class="ia">
-          <div class="ia-mask circle" style="background:linear-gradient(135deg,#5B84FF,#3D6BFF 50%,#7C5CFF)">
+          <div class="ia-mask circle" style="background:linear-gradient(135deg,#5B84FF,#3D6BFF 50%,#00B8A2)">
             <svg viewBox="0 0 66 66"><path d="M33 13 Q35.7 30.3 51 33 Q35.7 35.7 33 53 Q30.3 35.7 15 33 Q30.3 30.3 33 13 Z" fill="#fff"/></svg>
           </div>
           <span>圆形蒙版</span>
         </div>
         <div class="ia">
-          <div class="ia-mask squircle" style="background:linear-gradient(135deg,#5B84FF,#3D6BFF 50%,#7C5CFF)">
+          <div class="ia-mask squircle" style="background:linear-gradient(135deg,#5B84FF,#3D6BFF 50%,#00B8A2)">
             <svg viewBox="0 0 66 66"><path d="M33 13 Q35.7 30.3 51 33 Q35.7 35.7 33 53 Q30.3 35.7 15 33 Q30.3 30.3 33 13 Z" fill="#fff"/></svg>
           </div>
           <span>圆角方蒙版</span>
         </div>
         <div class="ia">
-          <div class="ia-mask square" style="background:linear-gradient(135deg,#5B84FF,#3D6BFF 50%,#7C5CFF)">
+          <div class="ia-mask square" style="background:linear-gradient(135deg,#5B84FF,#3D6BFF 50%,#00B8A2)">
             <svg viewBox="0 0 66 66"><path d="M33 13 Q35.7 30.3 51 33 Q35.7 35.7 33 53 Q30.3 35.7 15 33 Q30.3 30.3 33 13 Z" fill="#fff"/></svg>
           </div>
           <span>方形蒙版<br>（角被裁，所以要留安全区）</span>

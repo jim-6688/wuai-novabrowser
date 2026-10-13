@@ -1,161 +1,386 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>吾爱Nova浏览器 · 多内核浏览器</title>
-<meta name="description" content="吾爱Nova浏览器：多内核切换、内置广告拦截、无图模式、自动拼页、多线程下载、篡改猴用户脚本。PC 与移动双端。">
-<link rel="stylesheet" href="assets/css/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>吾爱Nova浏览器 · 小体积，全功能的安卓浏览器</title>
+    <meta name="description" content="开源安卓浏览器：安装包三百多 KB，不内置内核，渲染交给系统。多线程下载、广告拦截、篡改猴脚本、无图模式与自动拼页，一样不少。">
+    <link rel="icon" type="image/png" href="assets/img/logo.png">
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
 
 <header class="nav">
     <div class="nav-in">
         <a class="logo" href="index.html">
-            <span class="logo-mark">N</span>
-            吾爱Nova浏览器
+            <img src="assets/img/logo.png" alt="吾爱Nova浏览器图标">
+            吾爱Nova浏览器 <small>nova.52ta.top</small>
         </a>
         <nav class="nav-links">
             <a href="#features">功能</a>
+            <a href="#screens">界面</a>
+            <a href="#honest">先说清楚</a>
             <a href="#download">下载</a>
-            <a href="#about">关于</a>
             <a href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">源码</a>
         </nav>
     </div>
 </header>
 
-<main class="wrap">
-
-    <!-- ============ Hero ============ -->
+<main>
+    <!-- ======================== Hero ======================== -->
     <section class="hero">
-        <span class="eyebrow">PC 与移动双端 · 内置广告拦截</span>
-        <h1>把浏览器的控制权<br>拿回自己手里</h1>
-        <p class="lede">
-            多内核切换、按域名拦截广告、无图模式省流量、自动拼接下一页、
-            多线程下载，以及兼容 Tampermonkey 的用户脚本。
-        </p>
-        <div class="hero-actions">
-            <a class="btn btn-primary btn-lg" href="#download">下载 Android 版</a>
-            <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
-        </div>
-        <div class="hero-meta">
-            <!-- 同理写死一份，JS 读到清单后覆盖。空着或写「加载中」都不合适：
-                 脚本没跑起来时，用户看到的就是一个永远在转的半成品。 -->
-            <span id="verLatest">最新版本 1.2.1（4）</span>
-            <span id="verDate">更新于 2026-10-13</span>
-            <span>Android 7.0 及以上</span>
-        </div>
-    </section>
-
-    <!-- ============ 功能 ============ -->
-    <section id="features">
-        <div class="sec-head">
-            <h2>功能</h2>
-            <p>以下是移动版当前实际具备的能力，不含规划中的部分。</p>
-        </div>
-        <div class="grid">
-
-            <div class="card">
-                <h3><span class="dot" style="background:var(--brand)"></span>广告拦截</h3>
-                <p>随包内置域名名单，也支持订阅外部规则。按域名匹配，命中即不发起请求。</p>
+        <div class="wrap hero-grid">
+            <div>
+                <span class="eyebrow"><i></i>开源 · 双端 · 每一条能力都写在文档里</span>
+                <h1>三百多 KB 的浏览器，<br><em>装得下你真正要用的</em></h1>
+                <p class="lede">
+                    吾爱Nova 是一个开源安卓浏览器。<b>安装包不到半张照片的体积</b>——
+                    因为不内置内核，渲染交给系统 WebView，省下的是上百 MB 的下载
+                    和一份常驻内存。多线程下载、广告拦截、篡改猴脚本、无图模式，
+                    一样不少；做不到的，文档里写明。
+                </p>
+                <div class="hero-actions">
+                    <a class="btn btn-primary btn-lg" href="#download">下载 Android 版</a>
+                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
+                </div>
+                <div class="hero-meta">
+                    <span id="verLatest">最新版本 1.2.2（5）</span>
+                    <span id="verDate">更新于 2026-10-13</span>
+                    <span><i></i>Android 7.0 及以上</span>
+                    <span><i></i>无内置内核 · 零个 .so</span>
+                </div>
             </div>
 
-            <div class="card">
-                <h3><span class="dot" style="background:var(--ok)"></span>无图模式</h3>
-                <p>三档可调，按网址后缀识别图片与音视频，尽量不下载。另有「加载图片」总开关。</p>
-            </div>
-
-            <div class="card">
-                <h3><span class="dot" style="background:var(--accent)"></span>自动拼页</h3>
-                <p>滑到页尾自动接上下一页并就地展开，可设 5 / 10 / 20 页上限，支持撤销。</p>
-            </div>
-
-            <div class="card">
-                <h3><span class="dot" style="background:var(--warn)"></span>多线程下载</h3>
-                <p>支持分片并行，暂停后可从断点续传；服务器不支持分片时自动退回单线程。</p>
-            </div>
-
-            <div class="card">
-                <h3><span class="dot" style="background:var(--engine-gecko)"></span>篡改猴脚本</h3>
-                <p>安装 .user.js，按 @match 声明的地址注入。不支持 @grant 特权。</p>
-            </div>
-
-            <div class="card">
-                <h3><span class="dot" style="background:var(--engine-trident)"></span>多标签</h3>
-                <p>最多 40 个标签，带缩略图总览，可单独关闭，切回时恢复滚动位置。</p>
-            </div>
-
-        </div>
-    </section>
-
-    <!-- ============ 下载 ============ -->
-    <section id="download">
-        <div class="sec-head">
-            <h2>下载</h2>
-            <p>Android 安装包。安装前需要在系统设置里允许来自此来源的应用。</p>
-        </div>
-
-        <div class="dl-box">
-            <div class="dl-version">
-                <!--
-                  这里默认写死一份版本号，JS 读到清单后会覆盖成清单里的值。
-
-                  写死不是偷懒：这个页面唯一的目的就是让人下到 APK，
-                  把「版本号」和「下载按钮」全押在 JS 上，
-                  一旦脚本没跑起来（网络慢、被拦截、浏览器禁用 JS），
-                  用户就只看到一片空白 —— 官网等于失效。
-                  所以静态 HTML 本身就必须能独立完成「下载」这件事。
-                -->
-                <strong id="dlVer">v1.2.1</strong>
-                <span id="dlStamp">更新于 2026-10-13</span>
-            </div>
-            <p class="dl-note" id="dlNote">安装包约 316 KB。安装前请在系统设置中允许来自此来源的应用。</p>
-
-            <!-- 静态兜底按钮：不依赖 JS 也能下载。JS 成功后会用清单里的地址替换（见 app.js）。 -->
-            <div class="dl-list" id="dlBtns">
-                <a class="btn btn-primary" href="download/nova-1.2.1.apk" download>
-                    官网直链 · v1.2.1
-                </a>
-                <a class="btn btn-ghost"
-                   href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases"
-                   target="_blank" rel="noopener">
-                    Gitee Releases
-                </a>
-            </div>
-            <ul class="dl-facts" id="dlFacts" hidden></ul>
-        </div>
-    </section>
-
-    <!-- ============ 关于 ============ -->
-    <section id="about">
-        <div class="sec-head">
-            <h2>关于</h2>
-        </div>
-        <div class="grid">
-            <div class="card">
-                <h3>它是什么</h3>
-                <p>一个把「多内核、广告拦截、脚本扩展」做成可切换开关的浏览器原型，
-                   同时提供 PC（Electron）与移动（Android）两端实现。</p>
-            </div>
-            <div class="card">
-                <h3>它不是什么</h3>
-                <p>移动版<b>不内置浏览器内核</b>，渲染由系统自带的 Chromium 内核提供，
-                   它会随系统或 Chrome 自动更新。</p>
-            </div>
-            <div class="card">
-                <h3>能力边界</h3>
-                <p>Android 的请求拦截拿不到资源类型，因此移动版只支持按域名匹配：
-                   元素隐藏规则与带路径的规则会被跳过，并在界面上显示跳过了多少条。</p>
+            <!-- 宣传图：浏览器主页（纯 CSS 绘制，与 App 新版界面同款配色） -->
+            <div class="stage">
+                <div class="phone">
+                    <div class="screen">
+                        <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
+                        <div class="addr"><span class="lock">🔒</span>52ta.top<span class="go">↻</span></div>
+                        <div class="sbody">
+                            <div class="ntp-hero">
+                                <img src="assets/img/logo.png" alt="">
+                                <p>吾爱Nova · 新标签页</p>
+                            </div>
+                            <div class="quicks">
+                                <div class="qk"><i style="background:linear-gradient(135deg,#3D6BFF,#5B84FF)">吾</i><span>主页</span></div>
+                                <div class="qk"><i style="background:linear-gradient(135deg,#00B8A2,#34D399)">知</i><span>知乎</span></div>
+                                <div class="qk"><i style="background:linear-gradient(135deg,#2E56D9,#3D6BFF)">B</i><span>哔哩</span></div>
+                                <div class="qk"><i style="background:linear-gradient(135deg,#00937F,#00B8A2)">微</i><span>微博</span></div>
+                                <div class="qk"><i style="background:linear-gradient(135deg,#3D6BFF,#00B8A2)">G</i><span>Gitee</span></div>
+                                <div class="qk"><i style="background:linear-gradient(135deg,#34D399,#22C55E)">贴</i><span>贴吧</span></div>
+                                <div class="qk"><i style="background:linear-gradient(135deg,#5B84FF,#00B8A2)">豆</i><span>豆瓣</span></div>
+                                <div class="qk"><i style="background:var(--surface-2);color:var(--text-3)">＋</i><span>添加</span></div>
+                            </div>
+                        </div>
+                        <div class="tbar">
+                            <span class="tb">←</span>
+                            <span class="tb">→</span>
+                            <span class="tb tabs">7</span>
+                            <span class="tb">☰</span>
+                            <span class="tb">⇩</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
 
+    <!-- ======================== 功能 ======================== -->
+    <section class="section" id="features">
+        <div class="wrap">
+            <div class="sec-head">
+                <span class="kicker">FEATURES</span>
+                <h2>该有的都有，说出去的都做到</h2>
+                <p>每一项能力都对应一段可以直接翻阅的实现，测试跟着代码走——官网里不写做不到的事。</p>
+            </div>
+            <div class="grid">
+                <div class="card">
+                    <div class="fico">⇩</div>
+                    <h3>多线程下载引擎</h3>
+                    <p>Range 分片并行、断点续传、分片校验。服务器不支持分片时<b>如实退回单线程</b>，设置里选几线程就显示几线程。</p>
+                </div>
+                <div class="card">
+                    <div class="fico g">🛡</div>
+                    <h3>广告拦截</h3>
+                    <p>网络规则 + 元素隐藏两级拦截，内置三源规则，支持订阅自动更新——不用手动去找最新规则。</p>
+                </div>
+                <div class="card">
+                    <div class="fico">⚙</div>
+                    <h3>篡改猴用户脚本</h3>
+                    <p>按网址规则注入用户脚本，行为与 Tampermonkey 一类扩展同源；装错了也可以一键停用。</p>
+                </div>
+                <div class="card">
+                    <div class="fico g">◐</div>
+                    <h3>无图模式 + 自动拼页</h3>
+                    <p>三档控图，验证码与关键缩略图<b>智能放行</b>不误伤；列表页自动拼接下一页，省流量也省翻页。</p>
+                </div>
+                <div class="card">
+                    <div class="fico">▣</div>
+                    <h3>多标签 · 本地历史</h3>
+                    <p>标签总览、切换后还原滚动位置；浏览记录只存本机，无痕模式下<b>一条都不写盘</b>。</p>
+                </div>
+                <div class="card">
+                    <div class="fico g">↑</div>
+                    <h3>应用内自动更新</h3>
+                    <p>启动时静默检查，有新版才提示；官网与 Gitee Releases <b>双下载源互为兜底</b>，一条路断了另一条还在。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======================== 界面（宣传图） ======================== -->
+    <section class="section tint" id="screens">
+        <div class="wrap">
+            <div class="sec-head">
+                <span class="kicker">INTERFACE</span>
+                <h2>重新设计后的样子</h2>
+                <p>蓝与绿，来自应用图标的渐变。下面这些界面由代码直接绘制，与 App 实际配色一一对应。</p>
+            </div>
+
+            <div class="shots">
+                <!-- 下载管理 -->
+                <div class="shot">
+                    <div class="phone">
+                        <div class="screen">
+                            <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
+                            <div class="sbody">
+                                <div class="p-head"><b>下载管理</b><span>2 个进行中</span></div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#3D6BFF,#5B84FF)">📦</span>
+                                        <div class="meta"><b>novabrowser-v2.zip</b><span>248.2 MB · 4 线程 · 2.4 MB/s</span></div>
+                                        <span style="color:var(--accent-strong);font-weight:700;font-size:10px">62%</span>
+                                    </div>
+                                    <div class="prog"><i style="width:62%"></i></div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#00B8A2,#34D399)">🎬</span>
+                                        <div class="meta"><b>media-1080p.mp4</b><span>96.5 MB · 8 线程 · 5.1 MB/s</span></div>
+                                        <span style="color:var(--accent-strong);font-weight:700;font-size:10px">87%</span>
+                                    </div>
+                                    <div class="prog"><i style="width:87%"></i></div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:var(--surface-2);color:var(--text-3)">🎵</span>
+                                        <div class="meta"><b>podcast-ep12.mp3</b><span>已完成 · 32.1 MB</span></div>
+                                        <span class="sw2 on"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tbar">
+                                <span class="tb">←</span><span class="tb">→</span>
+                                <span class="tb tabs">7</span>
+                                <span class="tb">☰</span><span class="tb" style="color:var(--brand)">⇩</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cap"><b>多线程下载</b><span>分片并行 · 断点续传</span></div>
+                </div>
+
+                <!-- 广告拦截 -->
+                <div class="shot">
+                    <div class="phone">
+                        <div class="screen">
+                            <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
+                            <div class="sbody">
+                                <div class="p-head"><b>广告拦截</b><span>今日</span></div>
+                                <div class="card-s">
+                                    <div class="stat-big"><b>12,408</b><span>本次开机以来已拦截</span></div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#3D6BFF,#00B8A2)">▣</span>
+                                        <div class="meta"><b>内置规则 · 三源</b><span>网络 207 · 隐藏 89 条</span></div>
+                                        <span class="sw2 on"></span>
+                                    </div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#00937F,#00B8A2)">↻</span>
+                                        <div class="meta"><b>订阅规则</b><span>昨天自动更新 · 正常</span></div>
+                                        <span class="sw2 on"></span>
+                                    </div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:var(--surface-2);color:var(--text-3)">⏸</span>
+                                        <div class="meta"><b>本站不拦截</b><span>例外名单 · 2 个站点</span></div>
+                                        <span class="sw2"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tbar">
+                                <span class="tb">←</span><span class="tb">→</span>
+                                <span class="tb tabs">7</span>
+                                <span class="tb" style="color:var(--brand)">☰</span><span class="tb">⇩</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cap"><b>广告拦截</b><span>内置三源 · 订阅自动更新</span></div>
+                </div>
+
+                <!-- 无图模式 -->
+                <div class="shot">
+                    <div class="phone">
+                        <div class="screen">
+                            <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
+                            <div class="sbody">
+                                <div class="p-head"><b>无图模式</b><span>本月省 1.8 GB</span></div>
+                                <div class="seg">
+                                    <span>全部显示</span>
+                                    <span class="on">智能无图</span>
+                                    <span>全程无图</span>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#34D399,#22C55E)">✓</span>
+                                        <div class="meta"><b>验证码 · 放行</b><span>关键图片不误伤</span></div>
+                                    </div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#3D6BFF,#5B84FF)">⤓</span>
+                                        <div class="meta"><b>自动拼页</b><span>列表页自动接下一页</span></div>
+                                        <span class="sw2 on"></span>
+                                    </div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#00B8A2,#34D399)">▣</span>
+                                        <div class="meta"><b>放行名单</b><span>3 个站点始终显示图片</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tbar">
+                                <span class="tb">←</span><span class="tb">→</span>
+                                <span class="tb tabs">7</span>
+                                <span class="tb">☰</span><span class="tb">⇩</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cap"><b>无图 + 拼页</b><span>省流量 · 连续阅读</span></div>
+                </div>
+
+                <!-- 标签与历史 -->
+                <div class="shot">
+                    <div class="phone">
+                        <div class="screen">
+                            <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
+                            <div class="sbody">
+                                <div class="p-head"><b>浏览历史</b><span>本机存储 · 328 条</span></div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#3D6BFF,#5B84FF)">吾</span>
+                                        <div class="meta"><b>吾爱Nova · 主页</b><span>今天 14:28</span></div>
+                                    </div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#00B8A2,#34D399)">知</span>
+                                        <div class="meta"><b>一篇讲 Range 分片的文章</b><span>今天 13:51</span></div>
+                                    </div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:linear-gradient(135deg,#2E56D9,#3D6BFF)">G</span>
+                                        <div class="meta"><b>Gitee · i-adore-the-nova-browser</b><span>昨天 21:07</span></div>
+                                    </div>
+                                </div>
+                                <div class="card-s">
+                                    <div class="row-s">
+                                        <span class="ic" style="background:var(--surface-2);color:var(--text-3)">🕵</span>
+                                        <div class="meta"><b>无痕模式</b><span>开着时一条都不记录</span></div>
+                                        <span class="sw2"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tbar">
+                                <span class="tb">←</span><span class="tb">→</span>
+                                <span class="tb tabs">7</span>
+                                <span class="tb">☰</span><span class="tb">⇩</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cap"><b>本地历史</b><span>只存本机 · 无痕不落盘</span></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======================== 诚实条款 ======================== -->
+    <section class="section" id="honest">
+        <div class="wrap">
+            <div class="sec-head">
+                <span class="kicker">HONESTY</span>
+                <h2>先把「我们没什么」说清楚</h2>
+                <p>这一节比功能列表更重要。选择都有代价，写出来是让你带着判断来用，而不是被宣传语请进来。</p>
+            </div>
+            <div class="honest">
+                <div class="card">
+                    <h3><span class="tag b">取舍</span>为什么不内置内核</h3>
+                    <p>安装包只有三百多 KB，因为 APK 里<b>零个 .so</b>——渲染交给系统 WebView（Chromium）。
+                       换来的是极小的体积和更省的内存；代价是内核版本跟随系统，无法独自升级。
+                       我们认为对大多数用户这是笔划算的买卖，但你应当知道这笔账。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag t">如实</span>桌面端三档运行时的标注</h3>
+                    <p>桌面版提供 Chromium / Gecko / IE(Trident) 三档，<b>只有 Chromium 是真内核</b>，
+                       另两档是如实标注的兼容层——界面上就这么写，不做假选择。支持安装
+                       <code>.crx</code> 与 <code>.xpi</code> 扩展。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag t">如实</span>无图模式有盲区</h3>
+                    <p>移动端无图按文件后缀判断，覆盖常见图片格式，但<b>不是万无一失</b>——
+                       验证码与关键内容走放行名单，其余边界在源码注释里逐条写明。设置里的每个开关都真的生效。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag b">取舍</span>下载并行视服务器而定</h3>
+                    <p>多线程下载依赖服务器支持 Range 分片。探测到不支持时<b>自动退回单线程</b>并照常下载，
+                       不会假装并行——你可以从下载详情里看到实际生效的线程数。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======================== 下载 ======================== -->
+    <section class="section tint" id="download">
+        <div class="wrap">
+            <div class="sec-head">
+                <span class="kicker">DOWNLOAD</span>
+                <h2>下载 Android 版</h2>
+                <p>两个下载源内容完全一致，任选其一；官网直链与 Gitee Releases 互为备份。</p>
+            </div>
+            <div class="dl-box">
+                <div class="dl-version">
+                    <strong id="dlVer">v1.2.2</strong>
+                    <span id="dlStamp">更新于 2026-10-13</span>
+                </div>
+                <p class="dl-note" id="dlNote">安装包大小约 332 KB。安装前请在系统设置中允许来自此来源的应用。</p>
+                <div class="dl-list" id="dlBtns">
+                    <a class="btn btn-primary btn-lg" href="download/nova-1.2.2.apk" download>官网直链 · v1.2.2</a>
+                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.2/nova-1.2.2.apk" download>Gitee Releases · v1.2.2</a>
+                </div>
+                <ul class="dl-facts" id="dlFacts">
+                    <li><span>版本</span><span>1.2.2</span></li>
+                    <li><span>版本码</span><span>4</span></li>
+                    <li><span>更新日期</span><span>2026-10-13</span></li>
+                </ul>
+            </div>
+        </div>
+    </section>
 </main>
 
-<footer class="foot">
-    <div class="wrap">
-        吾爱Nova浏览器 · 开源项目 ·
-        <a href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">Gitee 仓库</a>
+<footer>
+    <div class="wrap foot-in">
+        <img src="assets/img/logo.png" alt="">
+        <span>吾爱Nova浏览器 · 开源 · 默认主页 52ta.top</span>
+        <div class="foot-links">
+            <a href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">Gitee 源码</a>
+            <a href="https://nova.52ta.top/version.json">版本清单</a>
+        </div>
     </div>
 </footer>
 
