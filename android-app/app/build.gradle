@@ -61,9 +61,9 @@ android {
         applicationId 'top.wuai.nova'
         minSdk 24
         targetSdk 35
-        // 本轮：下载判定四档重做、底栏并格与胶囊搜索、下载面板重绘、
-        // 更新改为后台静默下载 + 校验后重启安装
-        versionCode 6
+        // 本轮：随包内置一条用户脚本（网页限制解除）、下拉刷新与滚动态胶囊搜索框、
+        // 内置新标签页（两端共用一份源）、顶栏图标彩色化 + 地址栏点开全选与复制/分享
+        versionCode 7
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用
