@@ -60,6 +60,8 @@ public final class NovaSettings {
     /** 主题配色 id（见 {@link ThemeCatalog}），默认蓝。与 theme 的深浅正交。 */
     public String accentTheme = ThemeCatalog.DEFAULT_ID;
     public boolean adblockEnabled = true;
+    /** 第三方请求拦截（严格隐私模式）：拦一切非同源子资源。默认关，避免影响老用户。 */
+    public boolean thirdPartyBlock = false;
     /** off | image | image-av */
     public String noImage = "off";
     public boolean autoPage = false;
@@ -202,6 +204,7 @@ public final class NovaSettings {
         m.put(K_THEME, theme);
         m.put(K_ACCENT_THEME, accentTheme);
         m.put("adblockEnabled", String.valueOf(adblockEnabled));
+        m.put("thirdPartyBlock", String.valueOf(thirdPartyBlock));
         m.put("noImage", noImage);
         m.put("autoPage", String.valueOf(autoPage));
         m.put("autoPageMax", String.valueOf(autoPageMax));
@@ -242,6 +245,7 @@ public final class NovaSettings {
         s.accentTheme = ThemeCatalog.known(m.get(K_ACCENT_THEME))
             ? m.get(K_ACCENT_THEME) : ThemeCatalog.DEFAULT_ID;
         s.adblockEnabled = bool(m.get("adblockEnabled"), s.adblockEnabled);
+        s.thirdPartyBlock = bool(m.get("thirdPartyBlock"), s.thirdPartyBlock);
         s.noImage = NoImagePolicy.Level.fromId(m.get("noImage")).id;
         s.autoPage = bool(m.get("autoPage"), s.autoPage);
         // 页数上限只认规范里的三档，读到别的值一律拉回默认 —— 配置文件是可以被手改的

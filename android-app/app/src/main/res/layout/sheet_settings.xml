@@ -64,9 +64,6 @@
 
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
-                <include layout="@layout/item_menu" android:id="@+id/setNewTab" />
-                <View android:layout_width="match_parent" android:layout_height="1dp"
-                    android:background="@drawable/divider_row" />
                 <include layout="@layout/item_menu" android:id="@+id/setSearch" />
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
@@ -119,6 +116,9 @@
 
                 <!-- 总开关放第一行：它管着下面全部，包括随包内置的那份名单。 -->
                 <include layout="@layout/item_menu" android:id="@+id/setAdblock" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setThirdParty" />
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
                 <include layout="@layout/item_menu" android:id="@+id/setRules" />

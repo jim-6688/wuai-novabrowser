@@ -32,17 +32,17 @@
          alpha 0xE6 ≈ 90%，既看得清输入内容、又不会完全遮住后面的页面。 -->
     <color name="surface_translucent">#E6FFFFFF</color>
 
-    <!-- 浅色中性 -->
-    <color name="bg">#F6F7FB</color>
+    <!-- 浅色中性。为提升「灰底 + 白卡」的层次清晰度，背景再压低一档、分隔线再清晰一档。 -->
+    <color name="bg">#F2F4F8</color>
     <color name="surface">#FFFFFF</color>
-    <color name="surface_2">#F1F3F9</color>
-    <color name="surface_3">#E9ECF5</color>
-    <color name="border">#E6E8EF</color>
-    <color name="border_strong">#D5D9E4</color>
-    <color name="text">#14161C</color>
-    <color name="text_2">#4A5062</color>
-    <color name="text_3">#6B7183</color>
-    <color name="text_4">#9AA0B0</color>
+    <color name="surface_2">#EEF1F7</color>
+    <color name="surface_3">#E4E8F1</color>
+    <color name="border">#E2E6EF</color>
+    <color name="border_strong">#CDD4E0</color>
+    <color name="text">#12141B</color>
+    <color name="text_2">#434956</color>
+    <color name="text_3">#61687A</color>
+    <color name="text_4">#8F96A8</color>
 
     <!-- 深色中性。shell.css 的深色主题块 -->
     <color name="bg_dark">#0E1016</color>

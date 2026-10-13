@@ -52,5 +52,9 @@
             android:background="@drawable/divider_row"
             android:layout_marginStart="48dp" />
         <include layout="@layout/item_menu" android:id="@+id/toolAdblock" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/toolSiteInfo" />
     </LinearLayout>
 </LinearLayout>

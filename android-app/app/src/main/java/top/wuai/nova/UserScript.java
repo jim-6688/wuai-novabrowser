@@ -17,6 +17,27 @@ import java.util.Locale;
  *
  * <p>这个取舍必须在界面上讲明，不能让用户以为装了个 Chrome 扩展。
  *
+ * <h3>能力边界：{@code GM_} 接口只提供一部分</h3>
+ *
+ * <p>{@code GM_addStyle} 这类接口不是内核给的，是用户脚本管理器自己搭的门面
+ * （详见 {@link GmShim}）。本引擎提供其中<b>不需要原生桥</b>的那一批
+ * —— 清单在 {@link GmShim#SUPPORTED}，判定走 {@link GmShim#unsupported}。
+ *
+ * <p>其余的分两批，各自缺的东西不一样：
+ *
+ * <ul>
+ *   <li><b>缺原生桥</b>：{@code GM_setValue} / {@code GM_getValue} 这类要落盘的。
+ *       本工程没有 {@code addJavascriptInterface}，所以脚本没法把值交给 Java 侧。</li>
+ *   <li><b>缺网络层</b>：{@code GM_xmlhttpRequest} 这类要跨域发请求的。
+ *       还得额外解决 Cookie 共享与目标站点白名单两个问题，不只是「发个请求」。</li>
+ * </ul>
+ *
+ * <p>这些一律<b>不假装支持</b>：声明了就拿不到对应的函数，并且
+ * {@link Meta#summary()} 与安装前的确认框都会如实列出来。原因很实在 ——
+ * 静默失败比不提供更糟：用户以为装了个好用的东西，实际什么都没发生，
+ * 最后怪浏览器有 bug。{@code @grant} 声明也因此保持有意义，
+ * 将来每补上一批接口，警告就会自动少一项。
+ *
  * <h3>注入时机</h3>
  *
  * <p>只有 {@code document-end} 与 {@code document-idle} 能做到 ——
@@ -47,7 +68,12 @@ public final class UserScript {
         public final List<String> exclude = new ArrayList<>();
         /** {@code @require} 的外部依赖 */
         public final List<String> require = new ArrayList<>();
-        /** {@code @grant} 里请求了特权 —— 我们一律拒绝并记下来 */
+        /**
+         * {@code @grant} 里声明的东西（{@code none} 已在解析时剔除）。
+         *
+         * <p>存的是脚本<b>声明</b>的全量，不区分本引擎支不支持 —— 支持与否是
+         * {@link GmShim} 的判断，在两处各存一份迟早会对不上。
+         */
         public final List<String> grants = new ArrayList<>();
         /**
          * 启停状态存在元数据文件里（跟着脚本走），而不是存在实例上 ——
@@ -56,15 +82,24 @@ public final class UserScript {
          */
         public boolean enabledFlag = true;
 
+        /**
+         * 脚本声明了、而本引擎确实不提供的那些权限项。
+         *
+         * <p>判定全在 {@link GmShim#unsupported}，这里只转发 —— 支持清单将来会变长，
+         * 让每个调用方各自去比对，改清单时一定会漏掉某一处。
+         */
+        public List<String> unsupportedGrants() { return GmShim.unsupported(grants); }
+
         /** 声明了越界权限的脚本不能直接跑，要用户知道。 */
-        public boolean needsPrivilegeWarning() { return !grants.isEmpty(); }
+        public boolean needsPrivilegeWarning() { return !unsupportedGrants().isEmpty(); }
 
         /** 一条能显示在列表里的说明。 */
         public String summary() {
             List<String> parts = new ArrayList<>();
             if (!description.isEmpty()) parts.add(description);
             else parts.add("匹配 " + match.size() + " 个地址模式");
-            if (needsPrivilegeWarning()) parts.add("声明了 " + grants.size() + " 项未支持的权限");
+            List<String> un = unsupportedGrants();
+            if (!un.isEmpty()) parts.add("声明了 " + un.size() + " 项未支持的权限");
             if ("document-start".equalsIgnoreCase(runAt)) parts.add("原定文档开始前，实际按文档结束后注入");
             return String.join(" · ", parts);
         }
@@ -195,11 +230,14 @@ public final class UserScript {
                 + "装上会变成「所有网站都运行」。请补上适用范围。";
             return p;
         }
-        if (m.needsPrivilegeWarning()) {
-            // 不拒绝安装，但要明确告知能力边界。
-            // GM_xmlhttpRequest 这类特权我们不提供，硬跑只会静默失败。
+        List<String> unsupported = m.unsupportedGrants();
+        if (!unsupported.isEmpty()) {
+            // 不拒绝安装，但要明确告知能力边界：声明了 GM_xmlhttpRequest
+            // 这类本引擎不提供的接口，硬跑只会静默失败。
+            // 数字只算「确实不支持的」，已经提供了的（如 GM_addStyle）不算 ——
+            // 否则这条警告会把一件已经能做好的事说成缺陷。
             m.description = (m.description.isEmpty() ? "" : m.description + " · ")
-                + "已忽略 " + m.grants.size() + " 项不支持的权限";
+                + "已忽略 " + unsupported.size() + " 项不支持的权限";
         }
         StringBuilder body = new StringBuilder();
         for (int i = headEnd + 1; i < lines.size(); i++) {
@@ -346,16 +384,51 @@ public final class UserScript {
         }
     }
 
-    /** 生成注入用的代码包：把 @require 的依赖也放进去。 */
+    /**
+     * 生成注入用的代码包：把 {@code @require} 的依赖与 {@code GM_} 垫片一并放进去。
+     *
+     * <p>结构如下（{@code __g} 那一段只在脚本确实用到了垫片接口时才出现）：
+     * <pre>
+     * (function(){var __g=(function(){ ...三个接口的定义... })();
+     * (function(GM_addStyle,unsafeWindow){
+     * try{
+     *   ...require 依赖...
+     *   ...脚本正文...
+     * }catch(e){console.error('[Nova插件]',e);}
+     * })(__g.addStyle,window);})();
+     * </pre>
+     *
+     * <p>外层那一圈不是为了好看：实参 {@code __g.addStyle} 是在内层函数体
+     * <b>之外</b>求值的，所以 {@code __g} 必须先存在于外层作用域。
+     * 把它定义在内层（与形参同一层）会直接抛
+     * {@code ReferenceError: __g is not defined}，而脚本正文被 try 包着，
+     * 报错连页面控制台都进不去 —— 表现只是「脚本装上了一点动静都没有」。
+     *
+     * <p>接口走形参而不是挂在 {@code window} 上，理由见 {@link GmShim} 的注释。
+     * 没有任何受支持声明的脚本（绝大多数，含内置那条）拿到的输出与
+     * 加垫片之前<b>逐字节一致</b>。
+     */
     public static String buildInject(Installed script, String requireBodies) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("(function(){\n");
+        List<String> params = new ArrayList<>();
+        List<String> args = new ArrayList<>();
+        boolean usesShim = GmShim.collect(script == null ? null : script.meta, params, args);
+
+        StringBuilder sb = new StringBuilder(
+            512 + (script == null || script.body == null ? 0 : script.body.length()));
+        if (usesShim) {
+            sb.append("(function(){var __g=(function(){")
+                .append(GmShim.SHIM_BODY).append("})();");
+        }
+        sb.append("(function(").append(String.join(",", params)).append("){\n");
         sb.append("try{\n");
         if (requireBodies != null && !requireBodies.isEmpty()) {
             sb.append(requireBodies).append('\n');
         }
-        sb.append(script.body);
-        sb.append("\n}catch(e){console.error('[Nova插件]',e);}\n})();\n");
+        sb.append(script == null ? "" : script.body);
+        sb.append("\n}catch(e){console.error('[Nova插件]',e);}\n");
+        sb.append("})(").append(String.join(",", args)).append(");");
+        if (usesShim) sb.append("})();");
+        sb.append('\n');
         return sb.toString();
     }
 

@@ -18,8 +18,8 @@ import java.util.List;
  * <h3>为什么是「网页限制解除」，而不是安装量第一名</h3>
  *
  * <p>Greasy Fork 总安装量第一是 AC-Baidu 净化搜索（约 342 万），但它依赖
- * {@code GM_xmlhttpRequest}、{@code GM_setValue} 这类特权接口 ——
- * 本工程的引擎一律不提供（见 {@link UserScript} 的能力边界说明），
+ * {@code GM_xmlhttpRequest}、{@code GM_setValue} 这类需要原生桥与网络层的特权接口
+ * —— 本引擎不提供（能力边界见 {@link GmShim} 与 {@link UserScript}），
  * 装上只会静默失败。那<b>比不内置更糟</b>：用户以为装了个好用的东西，
  * 实际什么都没发生，还怪浏览器有 bug。
  *

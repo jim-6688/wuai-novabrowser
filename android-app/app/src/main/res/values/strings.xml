@@ -4,7 +4,7 @@
          改这里不会改到桌面端，两边要一起改。 -->
     <string name="app_name">吾爱Nova浏览器</string>
     <!-- 版本号单点。原先散在若干个字符串字面量里，改版本要改四处，漏一处就对不上。 -->
-    <string name="app_version">1.3.0</string>
+    <string name="app_version">1.4.0</string>
 
     <!-- 底栏。现在是五格：后退 / 前进 / 标签 / 工具 / 菜单。
          「内核」那一格早已换掉（移动版只有系统 WebView 真内置，
@@ -55,6 +55,7 @@
     <string name="sheet_downloads">下载</string>
     <string name="sheet_rules">广告拦截规则</string>
     <string name="sheet_plugins">篡改猴</string>
+    <string name="sheet_siteinfo">网页安全</string>
 
     <!-- 「内置」徽章。内置脚本是浏览器替用户装上的，列表里要能一眼区分。 -->
     <string name="plugin_builtin">内置</string>

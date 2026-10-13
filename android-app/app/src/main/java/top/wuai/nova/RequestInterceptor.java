@@ -39,6 +39,7 @@ public final class RequestInterceptor {
     private final AtomicInteger blockedImages = new AtomicInteger();
     private final AtomicInteger blockedMedia = new AtomicInteger();
     private final AtomicInteger blockedHosts = new AtomicInteger();
+    private final AtomicInteger blockedThirdParty = new AtomicInteger();
 
     /**
      * 1×1 透明 GIF，43 字节。
@@ -60,6 +61,22 @@ public final class RequestInterceptor {
      * 表现就是「我明明开了，怎么还在拦」。
      */
     private volatile boolean adblockEnabled;
+
+    /**
+     * 第三方请求拦截（严格隐私模式）总开关。
+     *
+     * <p>开着时，凡是「与当前主文档不同源」的子资源请求一律拦下 ——
+     * 脚本、跟踪像素、第三方字体、跨域图片，一个都不放。这是比广告名单
+     * 更激进的一层：广告名单只拦已知坏域名，这层拦的是「一切非同源」。
+     *
+     * <p>移动端 {@code shouldInterceptRequest} 拿不到资源类型，所以无法精确到
+     * 「只拦脚本」—— 这是平台的硬限制，这里做成「第三方即拦」，语义是
+     * 隐私优先：默认不共享你的浏览行为给任何第三方。
+     */
+    private volatile boolean thirdPartyBlockEnabled;
+
+    /** 当前主文档的 host。由 {@link #onMainFrame(String)} 更新，读在 IO 线程。 */
+    private volatile String currentPageHost = "";
 
     public RequestInterceptor(MediaRegistry registry, NoImagePolicy policy) {
         this.registry = registry;
@@ -95,17 +112,40 @@ public final class RequestInterceptor {
         return adblockEnabled;
     }
 
+    public void setThirdPartyBlockEnabled(boolean on) {
+        this.thirdPartyBlockEnabled = on;
+    }
+
+    public boolean thirdPartyBlockEnabled() {
+        return thirdPartyBlockEnabled;
+    }
+
+    /** 主文档开始加载时更新当前页面 host，供第三方判定做同源比对。 */
+    public void onMainFrame(String url) {
+        if (url == null) return;
+        try {
+            Uri u = Uri.parse(url);
+            String host = u.getHost();
+            currentPageHost = host == null ? "" : host;
+        } catch (Exception e) {
+            currentPageHost = "";
+        }
+    }
+
     public int blockedImages() { return blockedImages.get(); }
     public int blockedMedia() { return blockedMedia.get(); }
     public int blockedHosts() { return blockedHosts.get(); }
+    public int blockedThirdParty() { return blockedThirdParty.get(); }
     public int blockedTotal() {
-        return blockedImages.get() + blockedMedia.get() + blockedHosts.get();
+        return blockedImages.get() + blockedMedia.get() + blockedHosts.get()
+            + blockedThirdParty.get();
     }
 
     public void resetCounters() {
         blockedImages.set(0);
         blockedMedia.set(0);
         blockedHosts.set(0);
+        blockedThirdParty.set(0);
     }
 
     /**
@@ -163,6 +203,12 @@ public final class RequestInterceptor {
             return main ? blockedNotice(url) : pixel();
         }
 
+        // 第三方拦截：非主框架、且与当前页面不同源 → 拦下。
+        if (thirdPartyBlockEnabled && !main && isThirdParty(url)) {
+            blockedThirdParty.incrementAndGet();
+            return pixel();
+        }
+
         NoImagePolicy.Decision d = judgeImage(url, main);
         if (d.block) {
             if ("media".equals(d.kind)) blockedMedia.incrementAndGet();
@@ -170,6 +216,28 @@ public final class RequestInterceptor {
             return pixel();
         }
         return null;
+    }
+
+    /**
+     * 判断一个请求是否「第三方」：host 与当前主文档 host 不同源。
+     *
+     * <p>同源判定只看 host（不含子域降级、不含端口）：第三方脚本几乎都挂在
+     * 完全不同的域名下（cdn、广告联盟、统计服务），按 host 严格比对足够。
+     * currentPageHost 为空（尚未记录主文档）时不拦，避免误伤首屏资源。
+     */
+    private boolean isThirdParty(String url) {
+        if (currentPageHost == null || currentPageHost.isEmpty()) return false;
+        try {
+            Uri u = Uri.parse(url);
+            String scheme = u.getScheme();
+            if (scheme == null) return false;
+            String s = scheme.toLowerCase(java.util.Locale.ROOT);
+            if (!"http".equals(s) && !"https".equals(s)) return false;
+            String host = u.getHost();
+            return host != null && !host.equalsIgnoreCase(currentPageHost);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** 1×1 透明 GIF 的响应。 */
@@ -222,7 +290,8 @@ public final class RequestInterceptor {
         int i = blockedImages.get();
         int m = blockedMedia.get();
         int h = blockedHosts.get();
-        if (i + m + h == 0) return "尚未拦截任何请求";
+        int tp = blockedThirdParty.get();
+        if (i + m + h + tp == 0) return "尚未拦截任何请求";
         StringBuilder sb = new StringBuilder();
         if (i > 0) sb.append("省下 ").append(i).append(" 张图");
         if (m > 0) {
@@ -232,6 +301,10 @@ public final class RequestInterceptor {
         if (h > 0) {
             if (sb.length() > 0) sb.append("、");
             sb.append(h).append(" 次广告请求");
+        }
+        if (tp > 0) {
+            if (sb.length() > 0) sb.append("、");
+            sb.append(tp).append(" 次第三方请求");
         }
         return sb.toString();
     }

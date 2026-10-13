@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 推荐脚本库。清单随包内置，但一条都不装 —— 用户点哪条才装哪条。
+     与「插件面板」分开成两级，是因为这两件事的语义不同：
+     那个面板是「我已经装了什么」，这里是「我可以装什么」。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="18dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <!-- 两条免责说明放最上面：本体不入包（只存地址）、以及未验证是什么意思。
+         这两点如果不说清楚，用户会把「未验证」直接读成「不推荐」。 -->
+    <TextView
+        android:id="@+id/ctNotice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_4"
+        android:textSize="11.5sp"
+        android:lineSpacingExtra="4dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="12dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="160dp"
+        android:maxHeight="420dp">
+
+        <LinearLayout
+            android:id="@+id/ctList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="4dp" />
+    </ScrollView>
+</LinearLayout>

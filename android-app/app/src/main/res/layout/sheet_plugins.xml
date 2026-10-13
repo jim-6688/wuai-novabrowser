@@ -88,8 +88,11 @@
             android:paddingTop="12dp" />
     </ScrollView>
 
+    <!-- 主入口：推荐脚本库。多数用户想要的是「有什么好用的」，
+         而不是「我手上有一个 .user.js 要装」—— 后者是少数人的路径，
+         所以它降为次要按钮。 -->
     <TextView
-        android:id="@+id/plInstall"
+        android:id="@+id/plCatalog"
         android:layout_width="match_parent"
         android:layout_height="44dp"
         android:layout_marginStart="12dp"
@@ -97,8 +100,21 @@
         android:layout_marginTop="14dp"
         android:gravity="center"
         android:background="@drawable/bg_primary_btn"
-        android:text="从文件安装（.user.js）"
+        android:text="浏览推荐脚本"
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/plInstall"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:background="@drawable/btn_mini"
+        android:text="从文件安装（.user.js）"
+        android:textColor="@color/accent"
+        android:textSize="13sp" />
 </LinearLayout>

@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>吾爱Nova浏览器 · 小体积，全功能的安卓浏览器</title>
-    <meta name="description" content="开源安卓浏览器：安装包三百多 KB，不内置内核，渲染交给系统。多线程下载、广告拦截、篡改猴脚本、无图模式与自动拼页，一样不少。">
+    <title>吾爱Nova浏览器 · 轻量、省流、可扩展的开源浏览器</title>
+    <meta name="description" content="吾爱Nova 是面向移动端的开源浏览器：安装包不足 400 KB，不内置内核、渲染交由系统 Chromium 完成。提供多线程下载、广告拦截、用户脚本、无图模式与自动拼页，能力与边界均如实标注。">
     <link rel="icon" type="image/png" href="assets/img/logo.png">
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
@@ -31,23 +31,23 @@
     <section class="hero">
         <div class="wrap hero-grid">
             <div>
-                <span class="eyebrow"><i></i>开源 · 双端 · 每一条能力都写在文档里</span>
-                <h1>三百多 KB 的浏览器，<br><em>装得下你真正要用的</em></h1>
+                <span class="eyebrow"><i></i>开源 · 双端 · 能力与边界如实标注</span>
+                <h1>不足 400 KB 的浏览器，<br><em>把该做的事做扎实</em></h1>
                 <p class="lede">
-                    吾爱Nova 是一个开源安卓浏览器。<b>安装包不到半张照片的体积</b>——
-                    因为不内置内核，渲染交给系统 WebView，省下的是上百 MB 的下载
-                    和一份常驻内存。多线程下载、广告拦截、篡改猴脚本、无图模式，
-                    一样不少；做不到的，文档里写明。
+                    吾爱Nova 是一款面向移动端的开源浏览器。<b>安装包不足 400 KB</b>——
+                    它不内置内核，渲染交由系统 WebView（Chromium）完成，省下的是上百 MB
+                    的下载与一份常驻内存。多线程下载、广告拦截、用户脚本、无图模式与自动拼页，
+                    应有尽有；做不到的，也在文档里逐条写明。
                 </p>
                 <div class="hero-actions">
                     <a class="btn btn-primary btn-lg" href="#download">下载 Android 版</a>
                     <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
                 </div>
                 <div class="hero-meta">
-                    <span id="verLatest">最新版本 1.3.0（9）</span>
+                    <span id="verLatest">最新版本 1.4.0（10）</span>
                     <span id="verDate">更新于 2026-10-14</span>
                     <span><i></i>Android 7.0 及以上</span>
-                    <span><i></i>无内置内核 · 零个 .so</span>
+                    <span><i></i>不内置内核 · 零个 .so</span>
                 </div>
             </div>
 
@@ -91,39 +91,59 @@
         <div class="wrap">
             <div class="sec-head">
                 <span class="kicker">FEATURES</span>
-                <h2>该有的都有，说出去的都做到</h2>
-                <p>每一项能力都对应一段可以直接翻阅的实现，测试跟着代码走——官网里不写做不到的事。</p>
+                <h2>核心能力，逐项可验证</h2>
+                <p>每一项能力都对应一段可直接翻阅的实现，测试与代码同步。官网只呈现经过验证的功能，不写做不到的事。</p>
             </div>
             <div class="grid">
                 <div class="card">
                     <div class="fico">⇩</div>
                     <h3>多线程下载引擎</h3>
-                    <p>Range 分片并行、断点续传、分片校验。服务器不支持分片时<b>如实退回单线程</b>，设置里选几线程就显示几线程。</p>
+                    <p>基于 Range 分片并行下载，支持断点续传与分片校验。服务器不支持分片时<b>如实退回单线程</b>，实际生效的线程数可在下载详情中查看。</p>
                 </div>
                 <div class="card">
                     <div class="fico g">🛡</div>
                     <h3>广告拦截</h3>
-                    <p>网络规则 + 元素隐藏两级拦截，内置三源规则，支持订阅自动更新——不用手动去找最新规则。</p>
+                    <p>网络规则与元素隐藏两级拦截，内置三源规则，支持订阅源自动更新，无需手动维护最新规则。</p>
+                </div>
+                <div class="card">
+                    <div class="fico">◎</div>
+                    <h3>第三方脚本拦截</h3>
+                    <p>严格隐私模式：拦下一切非同源的脚本、跟踪像素与第三方资源，默认不把你的浏览行为共享给任何第三方。</p>
+                </div>
+                <div class="card">
+                    <div class="fico g">⌕</div>
+                    <h3>划词搜索 + 翻译</h3>
+                    <p>页面里选中文字即可一键搜索或打开有道翻译（国内可用、免密钥），当前页不丢。</p>
+                </div>
+                <div class="card">
+                    <div class="fico">ⓘ</div>
+                    <h3>网页安全面板</h3>
+                    <p>一眼看清当前页的资源构成、SSL 证书状态与本次会话的拦截统计，技术细节不藏私。</p>
                 </div>
                 <div class="card">
                     <div class="fico">⚙</div>
-                    <h3>篡改猴用户脚本</h3>
-                    <p>按网址规则注入用户脚本，行为与 Tampermonkey 一类扩展同源；装错了也可以一键停用。已内置一条口碑脚本「网页限制解除」，开箱即用。</p>
+                    <h3>用户脚本</h3>
+                    <p>按网址规则注入用户脚本，行为与 Tampermonkey 类扩展同源；可一键停用。内置「网页限制解除」等口碑脚本，开箱即用。</p>
+                </div>
+                <div class="card">
+                    <div class="fico g">✦</div>
+                    <h3>推荐脚本库</h3>
+                    <p>精选口碑脚本清单随包内置，点哪条装哪条；装前自动检测脚本能力并如实列出，避免装了跑不起来。</p>
                 </div>
                 <div class="card">
                     <div class="fico g">◐</div>
                     <h3>无图模式 + 自动拼页</h3>
-                    <p>三档控图，验证码与关键缩略图<b>智能放行</b>不误伤；列表页自动拼接下一页，省流量也省翻页。</p>
+                    <p>三档控图，验证码与关键缩略图<b>智能放行</b>不误伤；列表页自动拼接下一页，兼顾省流与连续阅读。</p>
                 </div>
                 <div class="card">
                     <div class="fico">▣</div>
                     <h3>多标签 · 本地历史</h3>
-                    <p>标签总览、切换后还原滚动位置；浏览记录只存本机，无痕模式下<b>一条都不写盘</b>。</p>
+                    <p>标签总览、切换后还原滚动位置；浏览记录仅存本机，无痕模式下<b>不写入任何记录</b>。</p>
                 </div>
                 <div class="card">
                     <div class="fico g">↑</div>
                     <h3>应用内自动更新</h3>
-                    <p>有新版不用先点「下载」：直接在后台下好，界面上只留一句「重启更新」。下载包带 <b>sha256 校验</b>，官网与 Gitee Releases <b>双源互为兜底</b>。</p>
+                    <p>新版本后台静默下载，界面仅提示「重启更新」。下载包带 <b>sha256 校验</b>，官网直链与 Gitee Releases <b>双源互为兜底</b>。</p>
                 </div>
             </div>
         </div>
@@ -134,9 +154,9 @@
         <div class="wrap">
             <div class="sec-head">
                 <span class="kicker">INTERFACE</span>
-                <h2>重新设计后的样子</h2>
-                <p>蓝与绿，来自应用图标的渐变。下面的界面由代码直接绘制，颜色取自 App 的令牌表——
-                   向下滚动时顶栏换成搜索胶囊、并成五格的底栏、按连接分格的下载进度、页面顶部下拉即刷新，都在这里。</p>
+                <h2>重新设计后的界面</h2>
+                <p>配色取自应用图标的蓝绿渐变，与 App 内颜色令牌保持一致。下方界面由代码直接绘制——
+                   向下滚动时顶栏收起、底栏换为搜索胶囊，按连接分格的下载进度，以及页面顶部下拉刷新，均如实呈现。</p>
             </div>
 
             <div class="shots">
@@ -413,31 +433,31 @@
         <div class="wrap">
             <div class="sec-head">
                 <span class="kicker">HONESTY</span>
-                <h2>先把「我们没什么」说清楚</h2>
-                <p>这一节比功能列表更重要。选择都有代价，写出来是让你带着判断来用，而不是被宣传语请进来。</p>
+                <h2>先说清楚「我们没有」什么</h2>
+                <p>这一节比功能列表更重要。每一项取舍都明示代价，让你带着判断使用，而非被宣传语引导。</p>
             </div>
             <div class="honest">
                 <div class="card">
                     <h3><span class="tag b">取舍</span>为什么不内置内核</h3>
-                    <p>安装包只有三百多 KB，因为 APK 里<b>零个 .so</b>——渲染交给系统 WebView（Chromium）。
-                       换来的是极小的体积和更省的内存；代价是内核版本跟随系统，无法独自升级。
-                       我们认为对大多数用户这是笔划算的买卖，但你应当知道这笔账。</p>
+                    <p>安装包不足 400 KB，是因为 APK 中<b>零个 .so</b>——渲染交由系统 WebView（Chromium）完成。
+                       换来的是极小的体积与更低的内存占用；代价是内核版本跟随系统，无法独立升级。
+                       我们认为对多数用户这是值得的取舍，但你应当了解这笔账。</p>
                 </div>
                 <div class="card">
                     <h3><span class="tag t">如实</span>桌面端三档运行时的标注</h3>
-                    <p>桌面版提供 Chromium / Gecko / IE(Trident) 三档，<b>只有 Chromium 是真内核</b>，
-                       另两档是如实标注的兼容层——界面上就这么写，不做假选择。支持安装
+                    <p>桌面版提供 Chromium / Gecko / IE(Trident) 三档运行时，<b>仅 Chromium 为完整内核</b>，
+                       其余两档为如实标注的兼容层——界面如实呈现，不做虚假选择。支持安装
                        <code>.crx</code> 与 <code>.xpi</code> 扩展。</p>
                 </div>
                 <div class="card">
-                    <h3><span class="tag t">如实</span>无图模式有盲区</h3>
-                    <p>移动端无图按文件后缀判断，覆盖常见图片格式，但<b>不是万无一失</b>——
-                       验证码与关键内容走放行名单，其余边界在源码注释里逐条写明。设置里的每个开关都真的生效。</p>
+                    <h3><span class="tag t">如实</span>无图模式的边界</h3>
+                    <p>移动端无图按资源后缀判断，覆盖常见图片格式，但<b>并非万无一失</b>——
+                       验证码与关键内容走放行名单，其余边界在源码注释中逐条注明。设置中的每个开关均真实生效。</p>
                 </div>
                 <div class="card">
                     <h3><span class="tag b">取舍</span>下载并行视服务器而定</h3>
-                    <p>多线程下载依赖服务器支持 Range 分片。探测到不支持时<b>自动退回单线程</b>并照常下载，
-                       不会假装并行——你可以从下载详情里看到实际生效的线程数。</p>
+                    <p>多线程下载依赖服务器支持 Range 分片。探测到不支持时<b>自动退回单线程</b>并正常完成下载，
+                       不会伪装并行——实际生效的线程数可在下载详情中查看。</p>
                 </div>
             </div>
         </div>
@@ -449,21 +469,21 @@
             <div class="sec-head">
                 <span class="kicker">DOWNLOAD</span>
                 <h2>下载 Android 版</h2>
-                <p>两个下载源内容完全一致，任选其一；官网直链与 Gitee Releases 互为备份。</p>
+                <p>官网直链与 Gitee Releases 内容一致，互为备份，任选其一即可。</p>
             </div>
             <div class="dl-box">
                 <div class="dl-version">
-                    <strong id="dlVer">v1.3.0</strong>
+                    <strong id="dlVer">v1.4.0</strong>
                     <span id="dlStamp">更新于 2026-10-14</span>
                 </div>
-                <p class="dl-note" id="dlNote">安装包大小约 399 KB。安装前请在系统设置中允许来自此来源的应用。</p>
+                <p class="dl-note" id="dlNote">安装包大小约 415 KB。安装前请在系统设置中允许来自此来源的应用。</p>
                 <div class="dl-list" id="dlBtns">
-                    <a class="btn btn-primary btn-lg" href="download/nova-1.3.0.apk" download>官网直链 · v1.3.0</a>
-                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.3.0/nova-1.3.0.apk" download>Gitee Releases · v1.3.0</a>
+                    <a class="btn btn-primary btn-lg" href="download/nova-1.4.0.apk" download>官网直链 · v1.4.0</a>
+                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.4.0/nova-1.4.0.apk" download>Gitee Releases · v1.4.0</a>
                 </div>
                 <ul class="dl-facts" id="dlFacts">
-                    <li><span>版本</span><span>1.3.0</span></li>
-                    <li><span>版本码</span><span>9</span></li>
+                    <li><span>版本</span><span>1.4.0</span></li>
+                    <li><span>版本码</span><span>10</span></li>
                     <li><span>更新日期</span><span>2026-10-14</span></li>
                 </ul>
             </div>

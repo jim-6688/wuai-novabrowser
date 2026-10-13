@@ -64,7 +64,7 @@
                 android:layout_marginStart="20dp"
                 android:layout_marginTop="8dp"
                 android:layout_marginEnd="20dp"
-                android:text="一个把「省流量、拦广告、自动拼页、嗅探下载」做实的手机浏览器。"
+                android:text="面向移动端的轻量级浏览器：以极小的体积提供省流量、广告拦截、多线程下载、脚本扩展等核心能力，渲染交由系统 Chromium 内核完成。"
                 android:textColor="@color/text_2"
                 android:textSize="13sp"
                 android:lineSpacingExtra="4dp" />
@@ -82,7 +82,7 @@
                 android:textColor="@color/text_2"
                 android:textSize="12.5sp"
                 android:lineSpacingExtra="5dp"
-                android:text="· 自动拼页：往上滑自动接上下一页，上限可调\n· 无图模式：按网址后缀判断，省流量；另有更彻底的「加载图片」总开关\n· 广告拦截：内置名单随包发布，可订阅外部规则\n· 媒体嗅探：识别页面里的音视频，多线程分片下载\n· 篡改猴用户脚本：装 .user.js（兼容 Tampermonkey），按 @match 注入页面\n· 标签管理、会话恢复、无痕浏览\n· 书签：一键收藏当前页，集中管理" />
+                android:text="· 自动拼页：滚动到底自动加载下一页，翻页上限可调\n· 无图模式：按资源后缀拦截图片，另有「加载图片」总开关可彻底关闭\n· 广告拦截：内置规则随包分发，支持订阅外部规则源\n· 媒体嗅探：识别页面中的音视频资源，多线程分片下载\n· 用户脚本：安装 .user.js（兼容 Tampermonkey），按 @match 规则注入\n· 标签管理、会话恢复、无痕浏览\n· 书签：一键收藏当前页，集中管理" />
 
             <!-- ============ 边界 ============ -->
             <TextView
@@ -97,7 +97,7 @@
                 android:textColor="@color/text_2"
                 android:textSize="12.5sp"
                 android:lineSpacingExtra="5dp"
-                android:text="· 不内置浏览器内核：渲染由系统内核（Chromium）提供，版本随系统更新。真内核最小 80MB，塞进来这个浏览器会变成 100MB 起步\n· 广告拦截只按域名：Android 的拦截接口不告诉我们要拦的是图片还是脚本，所以元素隐藏规则、路径规则在移动版用不了\n· 篡改猴用户脚本不是 Chrome 扩展：Android 没有提供扩展宿主，只支持用户脚本，且不支持跨域等特权\n· 下载存在应用私有目录：别的应用看不到这些文件，也还不能通过系统分享直接发出去" />
+                android:text="· 不内置浏览器内核：渲染由系统 WebView（Chromium）提供，版本随系统更新。独立内核体积约 80 MB 起，内置后安装包将突破 100 MB\n· 广告拦截限于域名粒度：Android 拦截接口不区分资源类型，元素隐藏与路径级规则在移动端不可用\n· 用户脚本并非浏览器扩展：系统未提供扩展宿主，仅支持用户脚本，且不开放跨域等特权\n· 下载文件存于应用私有目录：其他应用不可直接访问，暂未接入系统分享" />
 
             <!-- ============ 与桌面端的关系 ============ -->
             <TextView
@@ -112,7 +112,7 @@
                 android:textColor="@color/text_2"
                 android:textSize="12.5sp"
                 android:lineSpacingExtra="5dp"
-                android:text="拼页算法、嗅探名单、拦截规则解析是同一份代码，由 npm run mobile:sync 从桌面端源码生成后同步过来 —— 两边对同一类链接的判断是一致的，不会出现「桌面端拦得了、手机端拦不了」的分裂。" />
+                android:text="拼页算法、嗅探名单、拦截规则解析与桌面端共用同一份代码，经构建脚本由桌面端源码生成后同步至移动端。两端对同一类资源的判断保持一致，不存在「桌面端可拦、移动端漏拦」的差异。" />
 
             <!-- ============ 验证状态 ============ -->
             <TextView

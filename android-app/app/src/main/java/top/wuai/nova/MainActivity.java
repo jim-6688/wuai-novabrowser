@@ -91,6 +91,8 @@ public final class MainActivity extends Activity {
     private Downloader downloader;
     /** 拦截规则订阅更新器。同上，懒建。 */
     private RuleUpdater ruleUpdater;
+    /** 推荐脚本的下载器。同样懒建 —— 只有用户点进脚本库才会用到。 */
+    private ScriptInstaller scriptInstaller;
     /** 应用内自动更新。同样懒建 —— 大多数会话里用户根本不会去点它。 */
     private UpdateManager updateManager;
 
@@ -156,6 +158,18 @@ public final class MainActivity extends Activity {
 
     /** 观影/沉浸模式是否开启（隐藏顶栏底栏，只留网页）。 */
     private boolean cinemaMode;
+
+    // --------------------------------------------------- 网页安全/资源统计
+
+    /** 当前页加载的资源计数（网页安全/资源面板用）。主线程更新，onLoadResource 回调触发。 */
+    private int resImages;
+    private int resCss;
+    private int resScripts;
+    private int resOthers;
+    /** 当前页 SSL 证书是否可信。默认 true，onReceivedSslError 置 false。 */
+    private boolean pageSslOk = true;
+    /** 当前页 SSL 错误信息（若有）。 */
+    private String pageSslError = "";
 
     // ------------------------------------------------------------ 视图
 
@@ -252,6 +266,7 @@ public final class MainActivity extends Activity {
         interceptor = new RequestInterceptor(registry,
             new NoImagePolicy(settings.noImageLevel(), registry.mediaExts()));
         interceptor.setAdblockEnabled(settings.adblockEnabled);
+        interceptor.setThirdPartyBlockEnabled(settings.thirdPartyBlock);
 
         // 内置用户脚本：首次启动装上，之后不再检查（卸载了也不会复活）。
         // 必须排在 loadScripts 之前 —— 否则第一次启动会先读到空列表，
@@ -707,7 +722,7 @@ public final class MainActivity extends Activity {
         setupWebView();
         setupBottomBar();
         setupStarButton();
-        setupToolsButton();
+        setupTopActions();
         setupOmnibox();
         // 滚动显隐。状态机复位成「底栏可见」，与新 inflate 出来的 XML 初态对齐 ——
         // 否则从「胶囊」状态返回主界面时，界面显示的是底栏、状态机却以为是胶囊，
@@ -829,9 +844,36 @@ public final class MainActivity extends Activity {
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 progress.setVisibility(View.VISIBLE);
                 progress.setProgress(0);
+                // 更新当前主文档 host，供第三方拦截做同源比对。
+                interceptor.onMainFrame(url);
+                // 重置本页资源统计与 SSL 状态。
+                resImages = 0; resCss = 0; resScripts = 0; resOthers = 0;
+                pageSslOk = true; pageSslError = "";
                 // 只更新地址栏，不动 tab.url —— 后者是「这个标签本来要去哪」，
                 // 被页面内的跳转改写，会让会话恢复直接跳进广告落地页。
                 syncUrlBar(url);
+            }
+
+            @Override
+            public void onLoadResource(WebView view, String url) {
+                // 按扩展名粗分资源类型，供「网页安全/资源面板」展示。
+                String low = url == null ? "" : url.toLowerCase(java.util.Locale.ROOT);
+                if (low.endsWith(".js") || low.endsWith(".mjs")) resScripts++;
+                else if (low.endsWith(".css")) resCss++;
+                else if (low.endsWith(".png") || low.endsWith(".jpg") || low.endsWith(".jpeg")
+                    || low.endsWith(".gif") || low.endsWith(".webp") || low.endsWith(".svg")
+                    || low.endsWith(".ico") || low.endsWith(".avif")) resImages++;
+                else resOthers++;
+            }
+
+            @Override
+            public void onReceivedSslError(WebView view, android.webkit.SslErrorHandler handler,
+                                           android.net.http.SslError error) {
+                // 记录证书状态，但交给系统默认行为（onReceivedError 会兜底）。
+                // 这里只做「记录」，不擅自 proceed 或 cancel —— 安全决策不该替用户做。
+                pageSslOk = false;
+                pageSslError = error == null ? "证书校验失败" : String.valueOf(error.getUrl());
+                handler.cancel();
             }
 
             @Override
@@ -861,6 +903,7 @@ public final class MainActivity extends Activity {
                     }
                 }
                 injectPlugins(url);
+                injectSelectionTools(url);
                 maybeInjectAutoPage();
                 updateStarState();
             }
@@ -1043,15 +1086,48 @@ public final class MainActivity extends Activity {
         bindMb(R.id.item_mb_back, R.drawable.ic_back, R.string.mb_back, v -> {
             if (web.canGoBack()) web.goBack();
         });
-        // 主页：从底栏「工具」格挪过来（工具已搬去顶栏）。回家键是高频动作，
-        // 放底栏比放顶栏更贴拇指动线。
+        // 主页：回家键是高频动作，放底栏比放顶栏更贴拇指动线。
         bindMb(R.id.item_mb_home, R.drawable.ic_home, R.string.mb_home, v -> goHome());
-        // 刷新：原来内嵌在地址栏里，本轮随布局重构挪到底栏第四格。
+        // 刷新。
         bindMb(R.id.item_mb_reload, R.drawable.ic_reload, R.string.mb_reload, v -> {
             reloadOrStop();
         });
+        // 第五格「工具箱」：弹工具面板（下载 / 篡改猴 / 广告拦截等）。
+        bindMb(R.id.item_mb_tools, R.drawable.ic_tools, R.string.mb_tools, v -> showToolsSheet());
 
         findViewById(R.id.mbTabs).setOnClickListener(v -> showTabSheet());
+    }
+
+    /**
+     * 顶栏第二行四个功能按钮：阅读模式 / 观影模式 / 翻译 / AI 助手。
+     * 直接触发对应动作，不再经过「工具」面板中转。
+     */
+    private void setupTopActions() {
+        bindTopAction(R.id.btnRead, R.drawable.ic_read, "阅读", v -> {
+            mountMain();
+            showReadSheet();
+        });
+        bindTopAction(R.id.btnMovie, R.drawable.ic_movie, "观影", v -> {
+            mountMain();
+            toggleCinemaMode();
+        });
+        bindTopAction(R.id.btnTranslate, R.drawable.ic_translate, "翻译", v -> {
+            mountMain();
+            translateCurrentPage();
+        });
+        bindTopAction(R.id.btnAi, R.drawable.ic_ai, "AI", v -> {
+            mountMain();
+            showAiSheet();
+        });
+    }
+
+    /** 绑定顶栏功能按钮（图标 + 文字）。 */
+    private void bindTopAction(int boxId, int iconRes, String text, OnTap cb) {
+        View box = findViewById(boxId);
+        if (box == null) return;
+        ((ImageView) box.findViewById(R.id.btnIcon)).setImageResource(iconRes);
+        ((TextView) box.findViewById(R.id.btnText)).setText(text);
+        box.setOnClickListener(v -> cb.tap(v));
     }
 
     /**
@@ -1079,11 +1155,6 @@ public final class MainActivity extends Activity {
      */
     private void setupStarButton() {
         findViewById(R.id.btnStar).setOnClickListener(v -> toggleBookmark());
-    }
-
-    /** 工具按钮：地址栏右侧，弹「工具」面板（下载 / 阅读 / 翻译 / 观影 / AI 等）。 */
-    private void setupToolsButton() {
-        findViewById(R.id.btnTools).setOnClickListener(v -> showToolsSheet());
     }
 
     /** 切换当前页收藏状态。 */
@@ -1132,17 +1203,15 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 顶栏「工具」按钮上的下载角标：有任务在跑时把图标换成下载图标。
+     * 底栏「工具箱」格上的下载角标：有任务在跑时把图标换成下载图标。
      *
-     * <p>「下载」格被合并进「工具」之后，这个提醒不能丢 —— 否则任务在后台跑，
-     * 界面上没有任何迹象。工具格从底栏（带文字）挪到顶栏（纯图标）后，
-     * 文字角标写不下，改用图标切换：有活动任务时显示下载图标，否则恢复工具图标。
-     *
-     * <p>函数名与调用点一律保留（被 syncChrome 和下载回调调用），只是作用的 id 换了。
+     * <p>「下载」格合并进「工具」之后，这个提醒不能丢 —— 否则任务在后台跑，
+     * 界面上没有任何迹象。工具入口在底栏（带文字），有活动任务时切换图标。
      */
     private void updateDownloadBadge() {
-        ImageButton tools = findViewById(R.id.btnTools);
-        if (tools == null) return;
+        View box = findViewById(R.id.item_mb_tools);
+        if (box == null) return;
+        ImageView tools = box.findViewById(R.id.btnIcon);
         int active_ = 0;
         if (downloader != null) {
             for (DownloadTask t : downloader.tasks()) {
@@ -1665,17 +1734,15 @@ public final class MainActivity extends Activity {
     // -------------------------------------------------------- 内置新标签页
 
     /**
-     * 新标签页该去哪。三种取值见 {@code NovaSettings.newTabPage}。
+     * 新标签页该去哪。
      *
-     * <p>这一档原先是个**死设置**：写进磁盘、读得回来、界面上也能切，
-     * 但从来没有任何地方问过它，于是无论怎么设，新标签页永远是首页。
-     * 现在三个取值各有去处，才算真的生效。
+     * <p>设置页里的「新标签页」三态切换已移除（用户要「启动进主页、
+     * 点新建进内置新标签页」的固定行为），这里统一返回内置新标签页。
+     * 保留 {@code settings.newTabPage} 字段不动（老配置仍能读回），
+     * 但新建动作不再询问它。
      */
     private String newTabTarget() {
-        String mode = settings.newTabPage;
-        if ("blank".equals(mode)) return "about:blank";
-        if ("start".equals(mode)) return ntpUrl();
-        return settings.homepage;
+        return ntpUrl();
     }
 
     /** 开一个新标签（用户主动新建）。目标完全由设置决定，不需要解析输入。 */
@@ -1732,6 +1799,11 @@ public final class MainActivity extends Activity {
      * 不重载的话用户点了 × 屏幕上什么都没少，看起来就是「这个按钮坏了」。
      */
     private void handleNovaCommand(String url) {
+        // 划词命令：nova://sel?q=…
+        if (url != null && url.startsWith("nova://sel")) {
+            handleSelectionCommand(url);
+            return;
+        }
         NewTab.Cmd cmd = NewTab.parse(url);
         if (cmd == null) return;
         if (NewTab.OP_ADD.equals(cmd.op)) {
@@ -1754,7 +1826,40 @@ public final class MainActivity extends Activity {
         reloadNewTab();
     }
 
-    /** 重新加载当前的内置新标签页。数据变了，页面上那一屏也得跟着变。 */
+    /**
+     * 划词命令：{@code nova://sel?q=…}。弹「搜索 / 翻译」选择，用户点哪个走哪个。
+     *
+     * <p>两者都开新标签，当前页不丢。搜索走内置搜索引擎；翻译走有道网页翻译
+     * （国内可用、免密钥）。
+     */
+    private void handleSelectionCommand(String url) {
+        try {
+            android.net.Uri u = android.net.Uri.parse(url);
+            String q = u.getQueryParameter("q");
+            if (q == null || q.trim().isEmpty()) return;
+            final String text = q.trim();
+            if (text.length() > 120) {
+                // 太长的选中文字大概率是误触（整段、整页），截断到 120 字。
+                // 截断是为了让对话框标题可读，也避免误触整页。
+            }
+            final String display = text.length() > 30 ? text.substring(0, 30) + "…" : text;
+
+            new android.app.AlertDialog.Builder(this)
+                .setTitle("「" + display + "」")
+                .setItems(new String[]{"搜索", "翻译"}, (d, which) -> {
+                    if (which == 0) {
+                        newTab(settings.resolveInput(text));
+                    } else {
+                        newTab("https://fanyi.youdao.com/#/TextTranslate");
+                        toast("已打开有道翻译，把选中文字粘进去即可");
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+        } catch (Exception ignored) {
+            // 命令格式不对就静默忽略，绝不影响页面。
+        }
+    }
     private void reloadNewTab() {
         Tab t = current();
         if (t == null || !NewTab.isNewTab(t.url)) return;
@@ -1965,6 +2070,44 @@ public final class MainActivity extends Activity {
         }
         if (code.isEmpty()) return;
         web.evaluateJavascript(code, null);
+    }
+
+    /**
+     * 划词搜索 / 翻译：注入一段自包含脚本，监听用户选中文字。
+     *
+     * <p>移动端长按选词会触发 {@code selectionchange} 与 {@code touchend}，
+     * 脚本在用户「选中了一段文字且抬手」时，把选中内容通过
+     * {@code location.href = 'nova://sel?q=…'} 回传。
+     * 这个跳转会被 {@link #shouldOverrideUrlLoading} 拦下（COMMAND 分支返回 true），
+     * 页面本身不会真的离开 —— 由 {@link #handleSelectionCommand} 弹出
+     * 「搜索 / 翻译」选择。
+     *
+     * <p>脚本刻意做成幂等：每页只注入一次（用 window 标志位防重复），
+     * 且只对 http/https 页面注入，file:// 的内置页不注入（没有可划的词）。
+     * 选中文字少于 2 个字符不触发，避免长按链接时误判。
+     */
+    private void injectSelectionTools(String url) {
+        if (url == null) return;
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return;
+        String js = "(function(){"
+            + "if(window.__novaSel)return;window.__novaSel=true;"
+            + "var go=function(q){"
+            + "  if(!q||q.length>500||q.length<2)return;"
+            + "  try{location.href='nova://sel?q='+encodeURIComponent(q);}catch(e){}"
+            + "};"
+            + "var read=function(){"
+            + "  var s=window.getSelection?window.getSelection().toString():'';"
+            + "  if(s&&s.trim())return s.trim();return '';"
+            + "};"
+            + "var last='';"
+            + "document.addEventListener('touchend',function(){"
+            + "  setTimeout(function(){"
+            + "    var s=read();"
+            + "    if(s&&s!==last){last=s;go(s);}"
+            + "  },250);"
+            + "},true);"
+            + "})();";
+        web.evaluateJavascript(js, null);
     }
 
     /** 插件相关配置变了之后重设一遍，避免下次进页面才生效。 */
@@ -2594,6 +2737,60 @@ public final class MainActivity extends Activity {
             mountMain();
             showRulesSheet();
         }, true);
+        menuRow(sheet, R.id.toolSiteInfo, R.drawable.ic_settings, "网页安全",
+            "当前页资源 / 证书 / 拦截情报", () -> {
+            mountMain();
+            showSiteInfoSheet();
+        }, true);
+    }
+
+    /**
+     * 网页安全 / 资源面板。只读展示当前页的技术情报，不发任何网络请求。
+     */
+    private void showSiteInfoSheet() {
+        View sheet = openSheet(getString(R.string.sheet_siteinfo), R.layout.sheet_siteinfo);
+
+        String url = currentUrl();
+        String host = Tab.hostOf(url);
+        boolean https = url != null && url.startsWith("https://");
+
+        ((TextView) sheet.findViewById(R.id.siHost)).setText(
+            host.isEmpty() ? "（无站点）" : host);
+        ((TextView) sheet.findViewById(R.id.siUrl)).setText(url);
+
+        // SSL 状态徽章。
+        TextView badge = sheet.findViewById(R.id.siSslBadge);
+        TextView sslText = sheet.findViewById(R.id.siSslText);
+        if (https && pageSslOk) {
+            badge.setText("https");
+            badge.setBackgroundResource(R.drawable.seg_on);
+            badge.setTextColor(color(R.color.surface));
+            sslText.setText("连接已加密，证书有效");
+        } else if (https && !pageSslOk) {
+            badge.setText("警告");
+            badge.setBackgroundResource(R.drawable.bar_warn);
+            badge.setTextColor(color(R.color.text));
+            sslText.setText("证书校验失败：" + pageSslError);
+        } else {
+            badge.setText("http");
+            badge.setBackgroundResource(R.drawable.seg_track);
+            badge.setTextColor(color(R.color.text_2));
+            sslText.setText("明文连接，未加密");
+        }
+
+        // 资源统计。
+        ((TextView) sheet.findViewById(R.id.siScripts)).setText("脚本 " + resScripts);
+        ((TextView) sheet.findViewById(R.id.siCss)).setText("样式 " + resCss);
+        ((TextView) sheet.findViewById(R.id.siImages)).setText("图片 " + resImages);
+        ((TextView) sheet.findViewById(R.id.siOthers)).setText("其他 " + resOthers);
+
+        // 拦截统计。
+        StringBuilder sb = new StringBuilder();
+        sb.append("广告请求：").append(interceptor.blockedHosts()).append("\n");
+        sb.append("第三方请求：").append(interceptor.blockedThirdParty()).append("\n");
+        sb.append("省下图片：").append(interceptor.blockedImages()).append("\n");
+        sb.append("媒体资源：").append(interceptor.blockedMedia());
+        ((TextView) sheet.findViewById(R.id.siBlocked)).setText(sb.toString());
     }
 
     /**
@@ -2928,7 +3125,146 @@ public final class MainActivity extends Activity {
             showPluginSheet();
         });
 
+        sheet.findViewById(R.id.plCatalog).setOnClickListener(v -> showCatalogSheet());
         sheet.findViewById(R.id.plInstall).setOnClickListener(v -> pickScriptFile());
+    }
+
+    // ---------------------------------------------------------- 推荐脚本库
+
+    /**
+     * 推荐脚本库：清单随包内置，但<b>一条都不装</b>，用户点哪条才装哪条。
+     *
+     * <p>与插件面板分成两级，是因为两件事的语义不同 —— 那个面板答的是
+     * 「我已经装了什么」，这里答的是「我可以装什么」。挤进同一个列表的话，
+     * 「已装」和「可装」会混在一起，用户分不清哪些已经在页面上跑着了。
+     */
+    private void showCatalogSheet() {
+        View sheet = openSheet("推荐脚本", R.layout.sheet_catalog);
+
+        ((TextView) sheet.findViewById(R.id.ctNotice)).setText(
+            "这些脚本不在安装包里，选了哪条才去 Greasy Fork 下哪条 —— "
+            + "第三方脚本的许可各不相同，只提供地址就不涉及随包分发的问题，"
+            + "安装包也不会变大。\n"
+            + "「已确认」= 它的 @grant 声明已人工核对过，本引擎能跑；"
+            + "「未确认」不是不能用，是还没核对过 —— 安装时仍会逐项检测，"
+            + "把它要的权限摆出来给你看。");
+
+        LinearLayout list = sheet.findViewById(R.id.ctList);
+        list.removeAllViews();
+
+        Set<String> installed = installedCatalogKeys();
+        float d = getResources().getDisplayMetrics().density;
+        int p4 = (int) (4 * d), p6 = (int) (6 * d), p10 = (int) (10 * d);
+
+        for (ScriptCatalog.Category c : ScriptCatalog.Category.values()) {
+            List<ScriptCatalog.Item> items = ScriptCatalog.of(c);
+            if (items.isEmpty()) continue;
+
+            TextView head = new TextView(this);
+            head.setText(c.label);
+            head.setTextSize(12f);
+            head.setTextColor(color(R.color.text_3));
+            head.setPadding(p4, p10, 0, p6);
+            list.addView(head);
+
+            for (ScriptCatalog.Item item : items) {
+                list.addView(catalogRow(list, item, installed.contains(item.key)));
+            }
+        }
+    }
+
+    /**
+     * 清单里哪些条目已经装过了。
+     *
+     * <p>靠<b>安装来源</b>反查，而不是拿脚本名去比 —— 名字是作者随时会改的东西，
+     * 改一次这个判断就失效，表现是「装过了却还显示可安装」，点下去装出第二份。
+     */
+    private Set<String> installedCatalogKeys() {
+        Set<String> out = new HashSet<>();
+        for (UserScript.Installed s : store.loadScripts()) {
+            ScriptCatalog.Item item = ScriptCatalog.fromOrigin(s.origin);
+            if (item != null) out.add(item.key);
+        }
+        return out;
+    }
+
+    private View catalogRow(LinearLayout parent, final ScriptCatalog.Item item,
+                            final boolean installed) {
+        View row = LayoutInflater.from(this).inflate(R.layout.item_catalog, parent, false);
+        ((TextView) row.findViewById(R.id.ctName)).setText(item.name);
+        ((TextView) row.findViewById(R.id.ctCredit)).setText(item.credit());
+        ((TextView) row.findViewById(R.id.ctDesc)).setText(item.desc);
+
+        // 「未确认」不能画得像「推荐」—— 用中性色，与「已确认」的强调色分开。
+        TextView badge = row.findViewById(R.id.ctBadge);
+        badge.setText(item.verified ? "已确认" : "未确认");
+        badge.setTextColor(color(item.verified ? R.color.accent : R.color.text_3));
+
+        TextView caution = row.findViewById(R.id.ctCaution);
+        if (item.caution.isEmpty()) {
+            caution.setVisibility(View.GONE);
+        } else {
+            caution.setVisibility(View.VISIBLE);
+            caution.setText("注意：" + item.caution);
+        }
+
+        TextView action = row.findViewById(R.id.ctAction);
+        if (installed) {
+            action.setText("已安装");
+            action.setEnabled(false);
+            action.setAlpha(0.45f);
+        } else {
+            action.setOnClickListener(v -> installFromCatalog(item));
+        }
+        return row;
+    }
+
+    /**
+     * 装一条推荐脚本。
+     *
+     * <p>下载是异步的。取回来的第一件事<b>不是</b>写库，而是把能力检测的结果
+     * 摆给用户看 —— {@link UserScript#parse} 会读出脚本真实的 {@code @grant}，
+     * 那是清单里「未确认」三个字变成确定事实的时刻。用户点了确认才落盘。
+     */
+    private void installFromCatalog(final ScriptCatalog.Item item) {
+        if (scriptInstaller == null) scriptInstaller = new ScriptInstaller();
+        toast("正在获取「" + item.name + "」…");
+
+        scriptInstaller.fetch(item, r -> {
+            if (!r.ok || r.pending == null) {
+                new NovaAlert(this, "没能安装", r.message)
+                    .positive("知道了", null).show();
+                return;
+            }
+
+            UserScript.Installed inst = r.pending;
+            StringBuilder msg = new StringBuilder();
+            msg.append("匹配：").append(String.join("、", inst.meta.match));
+            msg.append("\n\n").append(inst.meta.summary());
+            if (r.headless) {
+                msg.append("\n\n⚠ 它没有 ==UserScript== 元数据头，"
+                    + "会被当成「所有网站都运行」。");
+            }
+            if (!r.grants.isEmpty()) {
+                msg.append("\n\n⚠ 它声明了本引擎不提供的权限：")
+                    .append(String.join("、", r.grants))
+                    .append("。依赖这些权限的功能不会生效，其余部分照常。");
+            }
+            msg.append("\n\n来源：").append(r.origin);
+
+            new NovaAlert(this, "安装「" + inst.displayName() + "」", msg.toString())
+                .negative("取消", null)
+                .positive("安装", () -> {
+                    if (!store.saveScript(inst)) {
+                        toast("写入失败，可能是存储空间不足");
+                        return;
+                    }
+                    mountMain();
+                    showCatalogSheet();
+                    toast("已安装 " + inst.displayName());
+                })
+                .show();
+        });
     }
 
     private void refreshPluginPanel(View sheet) {
@@ -3520,16 +3856,6 @@ public final class MainActivity extends Activity {
         });
 
         // ---- 通用
-        setRow(sheet, R.id.setNewTab, "新标签页", "内置 / 首页 / 空白",
-            ntpLabel(settings.newTabPage), false, false,
-            () -> {
-                settings.newTabPage = nextNtpMode(settings.newTabPage);
-                store.save(settings);
-                mountMain();
-                showSettings();
-                toast("新标签页：" + ntpLabel(settings.newTabPage));
-            });
-
         setRow(sheet, R.id.setSearch, "搜索引擎", null,
             settings.searchTemplate().label, false, false,
             () -> pickSearchEngine());
@@ -3594,6 +3920,16 @@ public final class MainActivity extends Activity {
             null, settings.adblockEnabled, false, () -> {
                 settings.adblockEnabled = !settings.adblockEnabled;
                 interceptor.setAdblockEnabled(settings.adblockEnabled);
+                store.save(settings);
+                web.reload();
+                mountMain();
+                showSettings();
+            });
+        setRow(sheet, R.id.setThirdParty, "第三方脚本拦截",
+            "严格隐私：拦下一切非同源脚本、跟踪像素与第三方资源，可能影响部分页面加载",
+            null, settings.thirdPartyBlock, false, () -> {
+                settings.thirdPartyBlock = !settings.thirdPartyBlock;
+                interceptor.setThirdPartyBlockEnabled(settings.thirdPartyBlock);
                 store.save(settings);
                 web.reload();
                 mountMain();
@@ -4436,6 +4772,10 @@ public final class MainActivity extends Activity {
         if (ruleUpdater != null) {
             ruleUpdater.shutdown();
             ruleUpdater = null;
+        }
+        if (scriptInstaller != null) {
+            scriptInstaller.shutdown();
+            scriptInstaller = null;
         }
         if (updateManager != null) {
             // 下载到一半被中断不会留下坏文件：写的是 .part，改名那一步没走到，

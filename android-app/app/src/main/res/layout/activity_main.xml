@@ -15,14 +15,11 @@
     android:fitsSystemWindows="true">
 
     <!-- ============ 顶部工具栏 ============
-         常态：内核标识 + 首页 + 收藏 + 地址栏 + 刷新 + AI。
+         第一行：logo + 地址栏 + 收藏。
+         第二行：四个功能按钮（阅读 / 观影 / 翻译 / AI），横排等分。
 
-         滚动时这一行<b>整行收起</b>（setVisibility(GONE)），高度还给网页。
-         以前的做法是「行留着、把内容换成胶囊搜索框」，好处是行高恒定不推网页，
-         坏处是搜索框和网页顶端挤在同一块区域，而底部五格栏隐去后留下一条空白没人用。
-
-         现在两件事对调：顶栏收起让出 52dp，搜索框搬到下面底栏那一行
-         （见文件末尾的 bottomRow）—— 滚动时屏幕上只剩「网页 + 底部一条搜索框」。
+         滚动时这一整块<b>收起</b>（setVisibility(GONE)），高度还给网页。
+         「工具」入口挪到底栏第五格（工具箱），这里不再挂工具图标。
     -->
     <FrameLayout
         android:id="@+id/topRow"
@@ -31,7 +28,7 @@
         android:background="@color/surface"
         android:elevation="4dp">
 
-        <!-- 顶栏底部分隔线：让工具栏与网页区有明显的视觉分界，不再「白成一片」。 -->
+        <!-- 顶栏底部分隔线：让工具栏与网页区有明显的视觉分界。 -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -39,86 +36,87 @@
             android:background="@color/border" />
 
         <LinearLayout
-            android:id="@+id/topBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="6dp"
-            android:paddingEnd="6dp"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp">
+            android:orientation="vertical">
 
-            <!-- 应用 logo：占最左侧的品牌位，点它打开主菜单（书签/历史/工具/设置等汇总）。
-                 原来这里是「圆点 + CR」的内核标识 —— 它信息量低（用户既看不懂也没得点），
-                 还占了地址栏左侧唯一的空位。换成 logo 之后：
-                 · 有品牌感，一眼知道自己在用 Nova；
-                 · 给了顶栏一个真实的交互入口（主菜单），而不是一个假按钮。 -->
-            <ImageButton
-                android:id="@+id/btnLogo"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="2dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/sheet_menu"
-                android:scaleType="centerInside"
-                android:padding="7dp"
-                android:src="@mipmap/ic_launcher" />
+            <!-- 第一行：logo + 地址栏 + 收藏 -->
+            <LinearLayout
+                android:id="@+id/topBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="2dp">
 
-            <!-- 地址栏。id 是给「复制 / 分享」那个浮层的锚点用的：
-                 PopupWindow 要挂在一个 View 上定位，而浮层该贴的是**整个地址栏**
-                 而不是里面那个 EditText —— 拿 EditText 当锚点，它的光标与
-                 padding 会让浮层偏出去几个 dp。 -->
-            <FrameLayout
-                android:id="@+id/omniboxWrap"
-                android:layout_width="0dp"
-                android:layout_height="34dp"
-                android:layout_weight="1">
+                <!-- 应用 logo：品牌位，点它打开主菜单。 -->
+                <ImageButton
+                    android:id="@+id/btnLogo"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="2dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/sheet_menu"
+                    android:scaleType="centerInside"
+                    android:padding="7dp"
+                    android:src="@mipmap/ic_launcher" />
 
-                <EditText
-                    android:id="@+id/urlBar"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/omnibox"
-                    android:hint="@string/omnibox_hint"
-                    android:textSize="14sp"
-                    android:textColor="@color/text"
-                    android:textColorHint="@color/text_4"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:maxLines="1"
-                    android:inputType="textUri|textNoSuggestions"
-                    android:imeOptions="actionGo|flagNoExtractUi"
-                    android:selectAllOnFocus="true" />
-            </FrameLayout>
+                <!-- 地址栏 -->
+                <FrameLayout
+                    android:id="@+id/omniboxWrap"
+                    android:layout_width="0dp"
+                    android:layout_height="34dp"
+                    android:layout_weight="1">
 
-            <!-- 收藏（书签）按钮。放在地址栏右侧，与「工具」并排 ——
-                 收藏是最高频的单手动作，不该埋在菜单里。图标随当前页是否收藏
-                 在描边 / 实心之间切换。 -->
-            <ImageButton
-                android:id="@+id/btnStar"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="4dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/content_desc_star"
-                android:scaleType="centerInside"
-                android:padding="9dp"
-                android:src="@drawable/ic_star" />
+                    <EditText
+                        android:id="@+id/urlBar"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/omnibox"
+                        android:hint="@string/omnibox_hint"
+                        android:textSize="14sp"
+                        android:textColor="@color/text"
+                        android:textColorHint="@color/text_4"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:maxLines="1"
+                        android:inputType="textUri|textNoSuggestions"
+                        android:imeOptions="actionGo|flagNoExtractUi"
+                        android:selectAllOnFocus="true" />
+                </FrameLayout>
 
-            <!-- 工具。原 AI 按钮的位置（地址栏右侧再往右）：
-                 AI 助手收进工具面板，这里挂「工具」—— 下载 / 阅读 / 翻译 /
-                 观影 / 篡改猴 / 广告拦截 / AI 助手 全在一个面板里。 -->
-            <ImageButton
-                android:id="@+id/btnTools"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="2dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/mb_tools"
-                android:scaleType="centerInside"
-                android:padding="9dp"
-                android:src="@drawable/ic_tools" />
+                <!-- 收藏（书签）按钮 -->
+                <ImageButton
+                    android:id="@+id/btnStar"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="4dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/content_desc_star"
+                    android:scaleType="centerInside"
+                    android:padding="9dp"
+                    android:src="@drawable/ic_star" />
+            </LinearLayout>
+
+            <!-- 第二行：四个功能按钮（阅读 / 观影 / 翻译 / AI），等分横排。
+                 带小字标签，图标 20dp、文字 11sp，和底栏同一套视觉语言。 -->
+            <LinearLayout
+                android:id="@+id/topActions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:paddingBottom="6dp">
+
+                <include layout="@layout/item_top_action" android:id="@+id/btnRead" />
+                <include layout="@layout/item_top_action" android:id="@+id/btnMovie" />
+                <include layout="@layout/item_top_action" android:id="@+id/btnTranslate" />
+                <include layout="@layout/item_top_action" android:id="@+id/btnAi" />
+            </LinearLayout>
         </LinearLayout>
 
     </FrameLayout>
@@ -315,8 +313,7 @@
             <include layout="@layout/item_mb_back" android:id="@+id/item_mb_back" />
             <include layout="@layout/item_mb_home" android:id="@+id/item_mb_home" />
 
-            <!-- 中间那个是主按钮：标签数写在图里，尺寸也更大（56dp），
-                 跟 Chrome/Safari 的习惯一致 —— 底栏里最重要的操作要一眼可辨。 -->
+            <!-- 中间那个是主按钮：标签数写在图里，尺寸也更大（56dp）。 -->
             <LinearLayout
                 android:id="@+id/mbTabs"
                 android:layout_width="56dp"
@@ -347,9 +344,10 @@
                     android:textColor="#FFFFFF" />
             </LinearLayout>
 
-            <!-- 「工具」格已搬去顶栏（btnTools），下载角标提醒也随之挂到顶栏。
-                 底栏这里改成「刷新」—— 前进格去掉后，四格：后退 / 主页 / 标签 / 刷新。 -->
             <include layout="@layout/item_mb_reload" android:id="@+id/item_mb_reload" />
+            <!-- 第五格「工具箱」：弹工具面板（下载 / 篡改猴 / 广告拦截等）。
+                 原来的顶栏工具图标挪到这里。 -->
+            <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools" />
         </LinearLayout>
 
         <!--

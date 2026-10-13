@@ -61,9 +61,9 @@ android {
         applicationId 'top.wuai.nova'
         minSdk 24
         targetSdk 35
-        // 本轮：新增主题配色（5 套）、顶栏底栏重构、崩溃兜底、装完自动重启、
-        // 网页字号、UA 预设、内置主页搜索框、默认书签、启动进主页等一批功能
-        versionCode 9
+        // 本轮：顶栏四功能按钮、底栏工具箱格、第三方脚本拦截、划词搜索+翻译、
+        // 网页安全/资源面板、配色重设、字体加大、删新标签页设置项
+        versionCode 10
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用

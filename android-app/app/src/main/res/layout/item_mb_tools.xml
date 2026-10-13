@@ -15,8 +15,8 @@
 
     <ImageView
         android:id="@+id/btnIcon"
-        android:layout_width="19dp"
-        android:layout_height="19dp"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
         android:contentDescription="@string/mb_tools"
         android:scaleType="fitCenter" />
 
@@ -25,7 +25,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
-        android:textSize="10sp"
-        android:textColor="@color/text_3"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_2"
         android:maxLines="1" />
 </LinearLayout>
