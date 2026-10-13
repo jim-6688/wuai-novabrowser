@@ -47,11 +47,14 @@ const bodies = {
   odd: pattern(1000 * 1000 + 7),      // 故意不是整数兆，验边界
   norange: pattern(1024 * 1024),
   slow: pattern(512 * 1024),
-  trunc: pattern(2 * 1024 * 1024)
+  trunc: pattern(2 * 1024 * 1024),
+  liar: pattern(3 * 1024 * 1024)
 };
 
 const stats = {
   requests: 0, rangeRequests: 0, bytesSent: 0,
+  /** /liar.bin 上「要 206 却回 200 整份」的次数 */
+  liarFullBodies: 0,
   paths: {},
   /** 每个路径同时在飞的响应数，用来抓「并发达到了多少」 */
   inflight: {}, peakInflight: {}
@@ -106,6 +109,55 @@ function makeServer() {
         res.write(slice);
       }, 20);
       res.on('close', () => clearInterval(timer));
+      return;
+    }
+
+    // 「骗子」服务器：探测那一个字节（Range: bytes=0-0）老老实实回 206，
+    // 于是引擎会按 8 片规划；等真正的分片请求来了，却把 Range 当耳边风，
+    // 每次都从头倒一份完整的 200。这是「服务端不支持分片」最难缠的一种：
+    // 探测阶段看不出来，只能在传输中途发现。
+    if (p === '/liar.bin' || p === '/echo.bin') {
+      const body = bodies.liar;
+      const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+      const isProbe = !!m && m[1] === '0' && m[2] === '0';
+      if (isProbe) {
+        res.writeHead(206, {
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': '1',
+          'Content-Range': `bytes 0-0/${body.length}`,
+          'Accept-Ranges': 'bytes'
+        });
+        stats.bytesSent += 1;
+        return res.end(body.subarray(0, 1));
+      }
+      stats.liarFullBodies++;
+      // 一点点挤，好让降级发生时确实有分片正在写盘 —— 太快的话
+      // 八片会在降级生效前就各自跑完，测不出「边下边切」。
+      // ?dribble=ms 可以把窗口拉长到「来得及在半路按暂停」。
+      const dribble = Number(u.searchParams.get('dribble') || 2);
+      const piece = 64 * 1024;
+      // echo 变体：整份从头倒，但把 Content-Range 老老实实回写成 bytes 0-(N-1)/N。
+      // 起点恰好是 0，正好等于第一片请求的起点 —— 判据只看起点的话，
+      // 第一片会被误判成「服务端认了 Range」。（QA 端到端在安卓端逮到的那一次。）
+      const echo = p === '/echo.bin';
+      const headers = {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': body.length,
+        'Accept-Ranges': 'bytes'
+      };
+      if (echo) headers['Content-Range'] = `bytes 0-${body.length - 1}/${body.length}`;
+      res.writeHead(200, headers);
+      let off = 0;
+      const pump = () => {
+        if (res.destroyed || res.writableEnded) return;
+        if (off >= body.length) return res.end();
+        const s2 = body.subarray(off, Math.min(off + piece, body.length));
+        off += s2.length;
+        stats.bytesSent += s2.length;
+        res.write(s2);
+        setTimeout(pump, dribble);
+      };
+      pump();
       return;
     }
 
@@ -335,6 +387,107 @@ async function download(mgr, url, opts = {}) {
   // 除此之外不该再有分片请求 —— 这就是退化成单连接的证据。
   check('除探测那 1 个之外不再发 Range 请求',
     stats.rangeRequests - beforeC === 1, `多了 ${stats.rangeRequests - beforeC} 个`);
+
+  /* ---------- [C2] 探测说支持、真发请求却被无视 → 运行时降级 ---------- */
+  console.log('\n[C2] 分片请求被无视时运行时切回单连接');
+
+  const dirC2 = path.join(tmpRoot, 'c2');
+  await fsp.mkdir(dirC2, { recursive: true });
+  const beforeC2 = { bytes: stats.bytesSent, full: stats.liarFullBodies };
+  const { mgr: mgrC2, updates: upC2 } = mkManager(dirC2, { threads: 8 });
+  const idC2 = mgrC2.enqueue({ url: `${base}/liar.bin`, filename: 'liar.bin' });
+  const tC2 = mgrC2.get(idC2);
+  await waitFor(tC2, ['done', 'error', 'canceled'], 30000);
+
+  // 先确认它确实是「按多线程起手」的 —— 否则这个用例根本没测到降级。
+  // 取快照里的峰值而不是结束时的值：降级后 chunks 只剩一片，
+  // 而「进入 downloading 那一次」的快照一定还是 8 片。
+  const plannedC2 = upC2.reduce((m, u) => Math.max(m, (u.chunks || []).length), 0);
+  check('起手按 8 片规划（探测确实回了 206）', plannedC2 === 8, `峰值 ${plannedC2} 片`);
+  check('服务端确实整份从头倒过（不是我们误判）',
+    stats.liarFullBodies - beforeC2.full >= 1, `${stats.liarFullBodies - beforeC2.full} 次`);
+  check('运行时降级被触发', tC2.degraded === true, String(tC2.degraded));
+  check('降级后 ranged=false', tC2.ranged === false);
+  check('降级后只剩一片', tC2.chunks.length === 1, `${tC2.chunks.length} 片`);
+  check('界面线程数如实变成 1', tC2.snapshot().threads === 1, String(tC2.snapshot().threads));
+  check('降级后仍然下完（没有甩出去报错）', tC2.state === 'done',
+    tC2.state + (tC2.error ? ' / ' + tC2.error : ''));
+
+  const gotC2 = await fsp.readFile(tC2.savePath);
+  check('降级后文件逐字节正确（没有写坏）', sha(gotC2) === sha(bodies.liar),
+    sha(gotC2).slice(0, 16) + '… vs ' + sha(bodies.liar).slice(0, 16) + '…');
+  check('落盘大小正好等于文件长度（没有残留尾巴）',
+    gotC2.length === bodies.liar.length, `${gotC2.length} vs ${bodies.liar.length}`);
+  check('降级消息是给用户看的一句话', /单连接/.test(tC2.degradeReason || ''), tC2.degradeReason);
+  check('降级后不再有八份全量在飞（带宽没被浪费成 8 倍）',
+    stats.bytesSent - beforeC2.bytes < bodies.liar.length * 3,
+    `${human(stats.bytesSent - beforeC2.bytes)}（整份 ${human(bodies.liar.length)}）`);
+  check('降级那一刻之后界面收到过单连接的快照',
+    upC2.some((u) => u.degraded === true && u.threads === 1));
+
+  // 降级时「从哪儿接着下」是全链路最容易写错的一步：分片是并行填的，
+  // 第 3 片可能写完了而第 1 片才过半。这时正确的起点是连续前缀（1500），
+  // 不是最大已下偏移（3000）—— 取后者会把 1500–2000 那个洞留在文件里。
+  const { mgr: mgrC3 } = mkManager(dirC2, { threads: 1 });
+  const tC3 = mgrC3.get(mgrC3.enqueue({ url: `${base}/404`, filename: 'probe-only.bin' }));
+  await waitFor(tC3, ['error', 'done']);
+  tC3.chunks = [
+    { index: 0, start: 0, end: 999, cursor: 1000, state: 'done', connections: 0 },
+    { index: 1, start: 1000, end: 1999, cursor: 1500, state: 'active', connections: 0 },
+    { index: 2, start: 2000, end: 2999, cursor: 3000, state: 'done', connections: 0 }
+  ];
+  check('连续前缀算到第一个洞为止（不会把洞留在文件里）', tC3.contiguousReceived() === 1500,
+    String(tC3.contiguousReceived()));
+  tC3.chunks[1].cursor = 2000;
+  check('补齐之后连续前缀继续往前推', tC3.contiguousReceived() === 3000,
+    String(tC3.contiguousReceived()));
+  await mgrC3.shutdown();
+
+  // 降级之后再暂停 / 续传：服务端不认 Range，续传只能靠「从 0 重新倒、丢掉前 N 字节」。
+  // 这条路和「刚从八片切成一片」叠在一起，是整条需求里最容易把偏移算错的地方。
+  const { mgr: mgrC4 } = mkManager(dirC2, { threads: 8 });
+  const idC4 = mgrC4.enqueue({ url: `${base}/liar.bin?dribble=20`, filename: 'liar-resume.bin' });
+  const tC4 = mgrC4.get(idC4);
+  const deadline = Date.now() + 15000;
+  while (!tC4.degraded && tC4.state !== 'done' && Date.now() < deadline) await sleep(20);
+  await sleep(60);
+  mgrC4.pause(idC4);
+  await waitFor(tC4, ['paused', 'done', 'error']);
+  const midC4 = tC4.received;
+
+  check('降级中途能按下暂停', tC4.state === 'paused', tC4.state);
+  check('暂停时已经下到一部分（不是从零重来）',
+    midC4 > 0 && midC4 < bodies.liar.length, `${human(midC4)} / ${human(bodies.liar.length)}`);
+  check('暂停时落了 sidecar', fs.existsSync(tC4.savePath + '.novadl.json'));
+
+  mgrC4.resume(idC4);
+  await waitFor(tC4, ['done', 'error'], 30000);
+  const gotC4 = await fsp.readFile(tC4.savePath);
+  check('降级 + 续传后仍下完', tC4.state === 'done', tC4.state + (tC4.error ? ' / ' + tC4.error : ''));
+  check('降级 + 续传后文件逐字节正确（偏移没算错）', sha(gotC4) === sha(bodies.liar),
+    sha(gotC4).slice(0, 16) + '…');
+  check('降级 + 续传后大小正好（没有重复也没有缺口）',
+    gotC4.length === bodies.liar.length, `${gotC4.length} vs ${bodies.liar.length}`);
+  await mgrC4.shutdown();
+
+  // 同一个「服务端不支持」，只是它把 Content-Range 也回了出来：
+  // bytes 0-(N-1)/N 的起点是 0，正好等于第一片请求的起点。
+  // 判据若只比对起点，第一片会被当成「服务端认了 Range」—— 整份被倒进一个
+  // 只有 1/8 的分片，而降级时那一片又因为「已完成」被整片留下。
+  const dirC5 = path.join(tmpRoot, 'c5');
+  await fsp.mkdir(dirC5, { recursive: true });
+  const { mgr: mgrC5 } = mkManager(dirC5, { threads: 8 });
+  const tC5 = await download(mgrC5, `${base}/echo.bin`, { filename: 'echo.bin' });
+  const gotC5 = await fsp.readFile(tC5.savePath);
+
+  check('回显整份 Content-Range 时同样要降级', tC5.degraded === true, String(tC5.degraded));
+  check('回显整份 Content-Range 时仍然下完', tC5.state === 'done',
+    tC5.state + (tC5.error ? ' / ' + tC5.error : ''));
+  check('回显整份 Content-Range 时文件逐字节正确', sha(gotC5) === sha(bodies.liar),
+    sha(gotC5).slice(0, 16) + '…');
+  check('回显整份 Content-Range 时大小正好（不是「完整 + 尾巴」）',
+    gotC5.length === bodies.liar.length, `${gotC5.length} vs ${bodies.liar.length}`);
+  await mgrC5.shutdown();
 
   /* ---------- [D] 不支持 Range 时的单连接续传 ---------- */
   console.log('\n[D] 不支持 Range 时暂停再继续（靠丢弃前缀续传）');

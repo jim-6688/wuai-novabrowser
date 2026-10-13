@@ -99,6 +99,15 @@ public final class DownloadTask {
     public final List<Chunk> chunks = new ArrayList<>();
     /** 服务器认不认 Range。false 时整个分片方案退化成单线程。 */
     public volatile boolean rangeSupported;
+    /**
+     * 分片请求被无视过：探测时说支持（回了 206），真发 Range 却整份从头倒。
+     *
+     * <p>这是一个「已经在传输中途」才能发现的事实，和 {@link #rangeSupported}
+     * 分开记 —— 后者是开工前的判断，前者要在收工后据此降级重跑。
+     */
+    public volatile boolean rangeIgnored;
+    /** 已经从多线程降级成单线程过。界面与续传都要看它，且降级只允许发生一次。 */
+    public volatile boolean degraded;
     public volatile long createdAt;
 
     public DownloadTask(long id, String url, String suggestedName, long createdAt) {
@@ -166,6 +175,101 @@ public final class DownloadTask {
         String head = contentRange.trim();
         int dash = head.indexOf('-');
         return dash > 0;
+    }
+
+    /**
+     * 服务器这次到底<b>认没认</b>我们发的 Range。
+     *
+     * <p>比 {@link #isPartialResponse} 多问了两句 —— 「起点对不对」和「终点有没有
+     * 越出我们要的窗口」，这正是「不支持分片」的第二种判据：探测那一个字节时回了
+     * 206，于是我们按八片规划；真发分片请求时却整份从头倒。只看「有没有
+     * Content-Range」会把「{@code bytes 0-999/1000} 的整份 200」误判成分片，
+     * 于是照单全收，拼出来的文件是「完整 + 完整」。
+     *
+     * <p><b>为什么终点也必须看</b>：整份从头倒的 200 里，最常见的一种会把
+     * Content-Range 老实回写成 {@code bytes 0-(N-1)/N} —— 起点恰好是 0，
+     * 而第一片请求的起点也恰好是 0。只比对起点的话，第一片永远被判成
+     * 「服务端认了 Range」，于是整份 N 字节被无上限地写进一个只有 N/8 的分片；
+     * 后面七片起点不为 0，照常被判「被无视」；降级时第一片又因为「已完成」
+     * 被整片留下，合并出来是「完整 + 尾巴」。这个 bug 是 QA 端到端复现出来的。
+     *
+     * @param requestedStart 这一片请求的起始偏移
+     * @param requestedEnd   这一片请求的结束偏移（含）
+     * @return true = 服务器确实按我们要的那一段截断了
+     */
+    public static boolean honorsRange(int httpCode, String contentRange,
+                                      long requestedStart, long requestedEnd) {
+        if (httpCode == 206) return true;
+        long start = contentRangeStart(contentRange);
+        if (start < 0 || start != requestedStart) return false;
+        long end = contentRangeEnd(contentRange);
+        if (end < 0) return false;
+        // 给得比要的少也算认了（剩下的下次补）；给得比要的多就是无视。
+        return end >= requestedStart && end <= requestedEnd;
+    }
+
+    /**
+     * 从 {@code bytes 100-199/1000} 里解出起点；解不出返回 -1。
+     *
+     * <p>刻意不复用 {@link #parseContentRangeTotal}：那个取的是斜杠后的总长，
+     * 而这里要判断「身体是不是从 0 开始倒的」，只能看起点。
+     */
+    public static long contentRangeStart(String header) {
+        if (header == null) return -1;
+        String s = header.trim().toLowerCase(Locale.ROOT);
+        int b = s.indexOf("bytes");
+        if (b < 0) return -1;
+        int sp = s.indexOf(' ', b);
+        if (sp < 0) return -1;
+        int dash = s.indexOf('-', sp);
+        if (dash < 0) return -1;
+        try {
+            return Long.parseLong(s.substring(sp + 1, dash).trim());
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * 从 {@code bytes 100-199/1000} 里解出终点（含）；解不出返回 -1。
+     *
+     * <p>终点写成星号（说不清给了多少）的按 -1 处理，也就是按「没认 Range」
+     * 处理 —— 宁可降级，也不要赌。
+     */
+    public static long contentRangeEnd(String header) {
+        if (header == null) return -1;
+        String s = header.trim().toLowerCase(Locale.ROOT);
+        int b = s.indexOf("bytes");
+        if (b < 0) return -1;
+        int sp = s.indexOf(' ', b);
+        if (sp < 0) return -1;
+        int dash = s.indexOf('-', sp);
+        if (dash < 0) return -1;
+        int slash = s.indexOf('/', dash);
+        String num = slash < 0 ? s.substring(dash + 1) : s.substring(dash + 1, slash);
+        num = num.trim();
+        if (num.isEmpty() || num.startsWith("*")) return -1;
+        try {
+            return Long.parseLong(num);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * 降级之后的规划：一整条单连接，从 {@code start} 一直吞到文件末尾。
+     *
+     * @param start   这一片的起始偏移。降级时它必须是「已经连续下到的那个位置」，
+     *                因为服务端不认 Range，只能整份从头倒、再把前面已有的丢掉。
+     * @param total   文件总长；未知（{@code <=0}）时末字节按 {@code start} 记，
+     *                长度因此是 1 —— 只是给进度一个非空的底，真正到哪儿由连接决定。
+     */
+    public static List<Chunk> singleFrom(long start, long total, String baseName, int index) {
+        List<Chunk> out = new ArrayList<>();
+        long end = total > 0 ? total - 1 : start;
+        if (end < start) end = start;
+        out.add(new Chunk(start, end, index, partName(baseName, index)));
+        return out;
     }
 
     // ------------------------------------------------------------ 文件名

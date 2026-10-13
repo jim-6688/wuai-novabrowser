@@ -15,7 +15,11 @@
  *   3. 进度按「分片内游标」而不是「本次已经收了多少字节」记录，
  *      这样分片中途断线重试、以及暂停后续传，都只需要重取剩余区间。
  *   4. 服务端不支持 Range 时不是报错，而是退化成单连接顺序流，
- *      并且靠「丢弃前 cursor 个字节」依然能续传。
+ *      并且靠「丢弃前 cursor 个字节」依然能续传。「不支持」有两种判据：
+ *      探测就回 200（或 206 的 Content-Range 不合法），以及探测说支持、
+ *      真发分片请求时却整份从头倒（要 206 却回 200）。后一种要在运行时
+ *      从多线程切回单连接，且只认「从 0 起连续的那一段」已下字节 ——
+ *      分片是并行填的，中间可能有洞，从最大的已下偏移接着写会把洞留在文件里。
  *
  * 本文件不 require electron，也不碰任何全局状态，因此可以在普通 Node 进程里
  * 起一个本地 HTTP 服务器直接跑集成测试（见 tools/test-downloader.js）。
@@ -49,6 +53,34 @@ function parseContentRange(value) {
   if (!value) return -1;
   const m = /\/(\d+)\s*$/.exec(String(value));
   return m ? Number(m[1]) : -1;
+}
+
+/**
+ * 服务器这次到底<b>认没认</b>我们发的 Range —— 也就是有没有按 [start, end]
+ * 这个窗口截断。与移动端 {@code DownloadTask.honorsRange} 是同一条判据。
+ *
+ * <p>两条必须都问：
+ * <ul>
+ *   <li><b>起点对不对</b> —— 不对就是整份从头倒，写下去是「完整 + 完整」。</li>
+ *   <li><b>终点有没有越出窗口</b> —— 整份从头倒的 200 里最常见的一种，会把
+ *       Content-Range 老实回写成 {@code bytes 0-(N-1)/N}，起点恰好是 0，
+ *       而第一片请求的起点也恰好是 0。只看起点的话第一片永远被判成「认了」，
+ *       于是整份 N 字节被无上限地倒进一个只有 N/8 的分片（QA 端到端复现）。</li>
+ * </ul>
+ *
+ * <p>反过来也不能滥判：有些服务端拿 200 回分片、但 Content-Range 老老实实
+ * 写着起止点，那是合规分片，误判成「被无视」会把已下的字节白白丢掉重来。
+ */
+function honorsRange(status, headers, start, end) {
+  if (status === 206) return true;
+  const cr = headers && headers['content-range'];
+  const m = cr ? /bytes\s+(\d+)\s*-(\d+)?/i.exec(String(cr)) : null;
+  if (!m) return false;
+  const gotStart = Number(m[1]);
+  if (gotStart !== start) return false;
+  // 给得比要的少也算认了（剩下的下次补）；给得比要的多就是无视。
+  const gotEnd = m[2] === undefined ? Number.POSITIVE_INFINITY : Number(m[2]);
+  return gotEnd >= start && gotEnd <= end;
 }
 
 /** 把 [0,total) 切成 n 段；返回每段的起止与游标 */
@@ -192,6 +224,15 @@ class DownloadTask {
     this.total = -1;
     this.received = 0;
     this.ranged = false;
+    /**
+     * 运行时从多线程降级成单连接过。
+     *
+     * 与「探测时就发现不支持」的区别在于：这一档已经按分片写过盘了，
+     * 文件里可能留着被丢弃分片写下的字节，收尾时必须按单片游标裁一刀。
+     */
+    this.degraded = false;
+    /** 降级原因，给用户看的一句话。 */
+    this.degradeReason = '';
     this.connections = 0;
     this.chunks = [];
     this.error = null;
@@ -261,6 +302,9 @@ class DownloadTask {
       threads: this.ranged ? Math.max(1, this.chunks.length) : 1,
       requestedThreads: this.requestedThreads,
       ranged: this.ranged,
+      /** 中途才降级时这两项让界面说实话，而不是继续画八格进度 */
+      degraded: this.degraded,
+      degradeReason: this.degradeReason,
       connections: this.connections,
       mime: this.mime,
       createdAt: this.createdAt,
@@ -297,6 +341,10 @@ class DownloadTask {
       savePath: this.savePath,
       total: this.total,
       ranged: this.ranged,
+      // 降级过要跟着 sidecar 走：否则续传时会再探一次、再被无视一次，
+      // 界面上刚说过的「单连接」又要跳回「8 线程」再掉下来。
+      degraded: this.degraded,
+      degradeReason: this.degradeReason,
       received: this.received,
       mime: this.mime,
       chunks: this.chunks.map((c) => ({ index: c.index, start: c.start, end: c.end, cursor: c.cursor }))
@@ -332,6 +380,8 @@ class DownloadTask {
       // 有 sidecar 就不重复探测，直接按上次的结论恢复
       this.total = sidecar.total;
       this.ranged = !!sidecar.ranged;
+      this.degraded = !!sidecar.degraded;
+      this.degradeReason = sidecar.degradeReason || '';
       this.mime = sidecar.mime || '';
       this.finalUrl = sidecar.finalUrl || this.url;
       this.chunks = (sidecar.chunks || []).map((c) => ({
@@ -372,6 +422,54 @@ class DownloadTask {
     this.chunks = this.ranged
       ? planChunks(this.total, this.requestedThreads)
       : [{ index: 0, start: 0, end: null, cursor: 0, state: 'pending', connections: 0 }];
+  }
+
+  /**
+   * 已经连续下到的字节数 —— 从 0 起没有空洞的那一段。
+   *
+   * 分片是并行填的，各片进度不齐：第 3 片可能已经写完而第 1 片才过半。
+   * 所以「继续下」的起点只能取连续前缀，不能取「最大的已下偏移」——
+   * 后者会把中间那个洞留在文件里，而洞在播放/解压时才炸，那时已经晚了。
+   */
+  contiguousReceived() {
+    let adv = 0;
+    for (const c of this.chunks) {
+      if (c.start > adv) break;
+      if (c.cursor > adv) adv = c.cursor;
+    }
+    return adv;
+  }
+
+  /**
+   * 运行时从多线程切回单连接。
+   *
+   * @param keeper 接手的那一片。它手上已经有一个「整份文件从头倒」的响应，
+   *               正好从连续前缀处接着读到尾 —— 不必再开一条连接。
+   * @param resume 连续前缀的字节数，也就是接手那一片的写入起点
+   */
+  degradeToSingle(keeper, resume, reason) {
+    if (this.degraded) return;
+    this.degraded = true;
+    this.degradeReason = reason;
+    this.ranged = false;
+    // 其余片一律弃掉：它们各自在吞一整份文件，既浪费带宽，
+    // 又会在文件里互相覆盖（谁后写完谁说了算）。
+    for (const c of this.chunks) {
+      if (c !== keeper) c.abandoned = true;
+    }
+    if (keeper) {
+      keeper.index = 0;
+      keeper.start = 0;
+      keeper.end = null;
+      keeper.cursor = resume;
+      this.chunks = [keeper];
+    } else {
+      this.chunks = [];
+    }
+    // 只认连续前缀这一段：被丢弃分片写下的字节马上会被覆盖重写，
+    // 现在算进 received 只会让进度先跳一下再退回来。
+    this.received = resume;
+    this.ctx.onUpdate(this.snapshot());
   }
 
   async openFile() {
@@ -514,10 +612,28 @@ class DownloadTask {
       return;
     }
 
-    // 完整性校验：声明了总长度就必须一分不差
+    // 降级过的任务：切回单连接之前，被丢弃的分片可能已经在文件里写下过
+    // 越界字节（它们各吞一整份，写得比真实内容更远是常事）。
+    // 单连接那一片只能覆盖它自己走过的区间，覆盖不到的尾巴就是垃圾，
+    // 所以落盘前按单片游标裁一刀 —— 否则用户拿到的是一个「大小正常、
+    // 末尾却粘着一截别的内容」的文件，而它不会报任何错。
+    if (this.degraded && this.fh && this.chunks.length === 1) {
+      try { await this.fh.truncate(this.chunks[0].cursor); } catch { /* 裁不动就算了 */ }
+    }
+
+    // 完整性校验：声明了总长度就必须一分不差。
+    //
+    // 只要服务端给过长度就验，不再区分「分片的 / 降级过的 / 普通单连接」：
+    // 三者拿到的 total 同样是服务端的一句话，凭什么只有前两种要兑现。
+    // 早先只验 ranged 的任务，于是降级后（ranged 已置 false）那一段完全裸奔，
+    // 而偏移恰恰是在那一段最容易算错（要自己跳过前缀、还要自己裁掉被丢弃
+    // 分片写下的越界字节）；普通单连接那边则一直没验，服务端少给会静默 DONE。
+    //
+    // 校验只会命中「写多了 / 服务端说谎」这一类 —— 少收字节的分片走的是
+    // 更早的那道闸门（chunk.cursor 到不了 end），到不了这里。
     let finalSize = -1;
     try { finalSize = (await fsp.stat(this.savePath)).size; } catch { /* noop */ }
-    if (this.ranged && this.total > 0 && finalSize !== this.total) {
+    if (this.total > 0 && finalSize !== this.total) {
       this.error = `完整性校验失败：期望 ${this.total} 字节，实际 ${finalSize} 字节`;
       this.endedAt = Date.now();
       await this.closeFile();
@@ -544,6 +660,9 @@ class DownloadTask {
 
     while (chunk.end === null || chunk.cursor <= chunk.end) {
       if (this.aborting) throw new Error('已中止');
+      // 被降级丢弃的片：那一段已经交给单连接重新下了，继续跑只会在文件里
+      // 和单连接的写打架（谁后写完谁说了算）。
+      if (chunk.abandoned) return;
       try {
         const headers = Object.assign({}, await this.ctx.headersFor(this.url, this.engineId));
         if (this.ranged && chunk.end !== null) {
@@ -553,7 +672,9 @@ class DownloadTask {
           headers.Range = `bytes=${chunk.cursor}-`;
         }
 
-        const { res, status } = await openUrl(this.url, { headers, signal: this.controller.signal });
+        const { res, status, headers: rh } = await openUrl(this.url, { headers, signal: this.controller.signal });
+        // 上面那次 openUrl 可能跟重定向，也可能等了很久；这期间本片也许已经被降级弃掉了。
+        if (chunk.abandoned) { res.destroy(); return; }
         this.connections += 1;
         chunk.connections += 1;
 
@@ -565,14 +686,19 @@ class DownloadTask {
         if (this.ranged && chunk.end !== null) {
           if (status === 206) {
             skip = 0;
-          } else if (status === 200) {
-            // 探测时答应得好好的，这会儿又不认 Range 了 —— 那就自己跳过
-            skip = chunk.cursor;
+          } else if (!honorsRange(status, rh, chunk.cursor, chunk.end)) {
+            // 探测时答应得好好的，真要数据了却整份从头倒 —— 这就是「不支持」的
+            // 第二种判据。八片各吞一份全量既浪费带宽，又会互相覆盖写坏文件，
+            // 所以这里一次性切回单连接：由本片从连续前缀处接着读到尾。
+            const resume = this.contiguousReceived();
+            this.degradeToSingle(chunk, resume,
+              '服务端忽略了分片请求（要 206 却回 200），已自动切换为单连接');
+            skip = resume;
           } else {
-            res.destroy();
-            throw new Error(`分片请求返回 HTTP ${status}`);
+            // 200 但 Content-Range 落在我们要的窗口里：合规分片，不是被无视
+            skip = 0;
           }
-          limit = chunk.end - chunk.cursor + 1;
+          limit = chunk.end === null ? null : chunk.end - chunk.cursor + 1;
         } else if (status === 206) {
           // 反向情况：本来判定不支持分片，续传时带了 `bytes=N-` 结果服务端认了。
           // 206 的响应体本来就从 N 开始，所以既不要额外跳过、也绝不能把游标倒回去
@@ -619,6 +745,13 @@ function pumpToFile(task, chunk, res, opts) {
     res.on('data', (buf) => {
       res.pause();
       chain = chain.then(async () => {
+        // 降级时这一片会被就地丢弃。这里必须立刻收手：晚一步就是往文件里
+        // 写一个马上要被别人覆盖的偏移，白占带宽还可能留下越界字节。
+        if (chunk.abandoned) {
+          try { res.destroy(); } catch { /* noop */ }
+          ok();
+          return;
+        }
         let b = buf;
         if (skip > 0) {
           const n = Math.min(skip, b.length);

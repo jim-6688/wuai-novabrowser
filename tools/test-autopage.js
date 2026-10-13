@@ -42,6 +42,15 @@ const check = (name, cond, extra) => {
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** 轮询等一个条件成立。等到了返回 true，超时返回 false。 */
+const until = async (cond, timeout = 2000) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeout) {
+    if (cond()) return true;
+    await sleep(10);
+  }
+  return cond();
+};
 
 /** 造一个 jsdom 文档。runScripts:'outside-only' 允许 window.eval，但不跑页面自带脚本 */
 function doc(html, url) {
@@ -421,7 +430,12 @@ function page(n, links, extra) {
     check('注入后挂上了接口', A && typeof A.step === 'function' && typeof A.status === 'function');
     check('版本号一致', A.v === AP.SCRIPT_VERSION, String(A.v));
 
-    await sleep(10);
+    // boot 是脚本 eval 时用 setTimeout(…, 0) 排进去的一个宏任务。
+    // 原来这里写死 sleep(10) 等它 —— 机器一忙（比如 npm test 把十来个套件
+    // 串着跑、或者同时有人在编译）10ms 就不够用，boot 还没落地就开始断言，
+    // 「boot 找到了下一页」一路红到底。改成轮询到 boot 真的发生为止。
+    const booted = await until(() => A.status().hasNext === true || !!A.status().rootPath, 3000);
+    check('boot 在预期时间内跑完（等不到就直接报出来）', booted === true);
     const s0 = A.status();
     check('boot 找到了下一页', s0.hasNext === true, s0.nextUrl);
     check('boot 后处于运行态', s0.running === true);

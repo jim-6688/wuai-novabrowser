@@ -163,13 +163,11 @@ public final class MainActivity extends Activity {
     private TextView engineLabel;
     private View engineDot;
     private View engineChip;
-    /** 五格底栏。滚动时整条淡出。 */
+    /** 五格底栏。滚动时整条淡出，位置上换成 {@link #searchCapsule}。 */
     private View mobileBar;
-    /** 顶部那一行。里面叠着 {@link #topBar} 与 {@link #searchCapsule} 两套内容。 */
+    /** 顶栏那一行。滚动时整行收起，把这 52dp 还给网页。 */
     private View topRow;
-    /** 顶栏常态：内核标识 + 首页 + 收藏 + 地址栏 + AI。滚动时被胶囊顶掉。 */
-    private View topBar;
-    /** 滚动时顶掉地址栏那一行的胶囊搜索框。 */
+    /** 滚动态的胶囊搜索框。与 {@link #mobileBar} 叠在同一行里（布局里的 bottomRow）。 */
     private View searchCapsule;
     /** 胶囊搜索框里的输入框。 */
     private EditText capsuleInput;
@@ -691,7 +689,6 @@ public final class MainActivity extends Activity {
         engineChip = findViewById(R.id.engineChip);
         mobileBar = findViewById(R.id.mobileBar);
         topRow = findViewById(R.id.topRow);
-        topBar = findViewById(R.id.topBar);
         searchCapsule = findViewById(R.id.searchCapsule);
         capsuleInput = findViewById(R.id.capsuleInput);
         refreshHost = findViewById(R.id.webHost);
@@ -799,27 +796,18 @@ public final class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 if (req.getUrl() == null) return false;
-                String scheme = req.getUrl().getScheme();
-                if (scheme == null) return false;
-                String lower = scheme.toLowerCase(java.util.Locale.ROOT);
-                if ("http".equals(lower) || "https".equals(lower)) return false;
-
-                // 内置新标签页回传的动作（加/删快捷方式）。必须排在下面那一支
-                // 「非 http(s) 交给系统」前面：nova:// 没有注册任何系统组件，
-                // 交出去只会是「没有应用能打开」，用户点 × 就像按了个死键。
-                if ("nova".equals(lower)) {
+                // 判定全在 routeUrl 里，这里只负责执行。
+                //
+                // 注意这个回调对 web.loadUrl(...) 同样会来一次 —— 内置新标签页是
+                // 我们自己 loadUrl 进去的，所以它也会过这一关。把 file: 判成外部
+                // 就等于把「新建标签页」这件事整个掐掉。
+                UrlRoute route = routeUrl(req.getUrl().toString());
+                if (route == UrlRoute.WEB) return false;
+                if (route == UrlRoute.COMMAND) {
                     handleNovaCommand(req.getUrl().toString());
                     return true;
                 }
-
-                // 非 http(s) 的（tel: / mailto: / intent: / weixin:）交回系统。
-                // 自己吞掉只会得到一个打不开的空白页。
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, req.getUrl()));
-                } catch (Exception ignored) {
-                    // 没有应用能处理它。那就什么都不做 ——
-                    // 弹一个「出错了」对用户毫无帮助，他也不知道该怎么办。
-                }
+                handToSystem(req.getUrl());
                 return true;
             }
 
@@ -902,13 +890,15 @@ public final class MainActivity extends Activity {
             // 所以这里先把头部里的名字解出来传给下载器；取不到再回落到 URL。
             final String name = filenameFromDisposition(contentDisposition);
             main.post(() -> {
-                // 「自动下载」开关在这里生效：开着就直接下，
-                // 关着则先问一句（见 NovaSettings.autoDownload 的注释）。
-                if (settings.autoDownload) {
-                    enqueueDownload(url, name);
-                } else {
-                    confirmDownload(url, name, contentLength);
-                }
+                // 这里刻意不问：能走到这一步，说明判定器已经确认这是附件类型
+                // （Content-Disposition / MIME / 后缀三者之一说了算），
+                // 再问一句「要下载这个文件吗？」只是多一次点击。
+                // 真正有信息量的决定点是下载面板里的暂停 / 取消 —— 文件已经在下、
+                // 速度和大小都看得见的时候，用户才知道自己要不要这份流量。
+                //
+                // 早先这里有一层 NovaAlert 确认（settings.autoDownload 关着才问），
+                // 已被去掉：那一层除了多一次点击什么也没挡住。
+                enqueueDownload(url, name);
             });
         });
 
@@ -932,6 +922,21 @@ public final class MainActivity extends Activity {
                 engineLabel.setContentDescription(title);
             }
         });
+    }
+
+    /**
+     * 把地址交回系统（{@code tel:} / {@code mailto:} / {@code intent:} / {@code weixin:}）。
+     *
+     * <p>自己吞掉只会得到一个打不开的空白页，所以宁可交给系统去撞。
+     * 撞不上（没有任何应用能处理）就什么都不做 —— 弹一个「出错了」对用户
+     * 毫无帮助，他也不知道该怎么办。
+     */
+    private void handToSystem(android.net.Uri uri) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, uri));
+        } catch (Exception ignored) {
+            // 没有应用能处理它。
+        }
     }
 
     /**
@@ -1153,13 +1158,16 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 把状态落到界面。一次切换里同时发生两件事：
+     * 把状态落到界面。一次切换里上下各发生一件事：
      *
      * <ul>
-     *   <li><b>顶栏</b>：常态的地址栏那一行（{@code topBar}）与胶囊搜索框
-     *       交叉淡入淡出，胶囊从本行上沿滑进来、滑出去。两套内容叠在同一行里，
-     *       行高恒定 —— 行高一变，下面的网页就会被整体推一下（见布局里的注释）。</li>
-     *   <li><b>底栏</b>：滚动时整条向下淡出，把那 54dp 还给网页。</li>
+     *   <li><b>顶栏</b>：滚动时整行收起（{@code topRow} 置 {@link View#GONE}），
+     *       把这 52dp 还给网页。它是整行进出，不做交叉淡入淡出 ——
+     *       收起的目的就是把高度让出去，若只是把内容变透明，那一条空白
+     *       照样横在网页上面，等于没让。</li>
+     *   <li><b>底栏</b>：五格与胶囊搜索框叠在同一行（布局里的 {@code bottomRow}，
+     *       行高恒定 54dp）里交叉淡入淡出。滚动时五格向下滑出、胶囊从下沿滑进来。
+     *       两套内容互相覆盖，行高不变，所以网页不会被推一下。</li>
      * </ul>
      *
      * @param s       目标状态
@@ -1168,42 +1176,38 @@ public final class MainActivity extends Activity {
     private void applyReveal(BottomBarReveal.State s, boolean animate) {
         final View bar = mobileBar;
         final View cap = searchCapsule;
-        final View top = topBar;
+        final View top = topRow;
         if (bar == null || cap == null || top == null) return;
         boolean showBar = s == BottomBarReveal.State.SHOW_BAR;
         int duration = animate ? 300 : 0;
         // 高度拿不到（还没 layout）时用布局里写死的尺寸兜底，否则位移量会是 0，
-        // 动画看起来就像没动。54dp / 46dp 分别对应 mobileBar 与 topRow。
+        // 动画看起来就像没动。54dp 对应 bottomRow（底栏那一行）。
         float density = getResources().getDisplayMetrics().density;
         int barH = bar.getHeight() > 0 ? bar.getHeight() : Math.round(54 * density);
-        int rowH = topRow != null && topRow.getHeight() > 0
-            ? topRow.getHeight() : Math.round(46 * density);
 
         if (showBar) {
-            // 地址栏那一行回来
+            // 顶栏整行回来。它上一轮是被 GONE 掉的，这里没有 alpha 可播 —— 直接出现。
             top.setVisibility(View.VISIBLE);
-            top.animate().alpha(1f).setDuration(duration).start();
-            // 胶囊向上滑出行外。位移取的是整个「行高」而不是它自己的高度：
-            // 它要从本行上沿出去，只移自身高度的话会卡在行里露一条边。
-            cap.animate().alpha(0f).translationY(-rowH).setDuration(duration)
+            // 胶囊向下滑出行外。位移取的是整个「行高」而不是它自己的高度：
+            // 它要从本行下沿出去，只移自身高度的话会卡在行里露一条边。
+            cap.animate().alpha(0f).translationY(barH).setDuration(duration)
                 .withEndAction(() -> settleReveal(cap, View.GONE,
                     BottomBarReveal.State.SHOW_BAR))
                 .start();
-            // 底栏从下方滑回来
+            // 五格从下方滑回来
             bar.setVisibility(View.VISIBLE);
+            bar.setTranslationY(barH);
             bar.animate().alpha(1f).translationY(0f).setDuration(duration).start();
         } else {
+            // 顶栏整行收起，把这一行的高度让给网页
+            top.setVisibility(View.GONE);
             cap.setVisibility(View.VISIBLE);
             // 先摆到行外，再滑进来。少了这一步，第一帧它已经在终点上，
             // 看起来是「啪」一下出现，而不是滑进来。
-            cap.setTranslationY(-rowH);
+            cap.setTranslationY(barH);
             cap.animate().alpha(1f).translationY(0f).setDuration(duration).start();
-            top.animate().alpha(0f).setDuration(duration)
-                .withEndAction(() -> settleReveal(top, View.INVISIBLE,
-                    BottomBarReveal.State.SHOW_CAPSULE))
-                .start();
             bar.animate().alpha(0f).translationY(barH).setDuration(duration)
-                .withEndAction(() -> settleReveal(bar, View.INVISIBLE,
+                .withEndAction(() -> settleReveal(bar, View.GONE,
                     BottomBarReveal.State.SHOW_CAPSULE))
                 .start();
         }
@@ -1213,8 +1217,8 @@ public final class MainActivity extends Activity {
      * 动画收尾：把淡出的那一套真正藏起来。
      *
      * <p>收尾前必须复核一次状态。这 300ms 里页面可能已经被拉回顶部，
-     * 状态也翻回了 {@code SHOW_BAR} —— 照着老目标收尾的话，就会把刚回来的地址栏
-     * 又藏起来，而胶囊同时被另一条动画藏起来，顶栏空成一片。
+     * 状态也翻回了 {@code SHOW_BAR} —— 照着老目标收尾的话，就会把刚滑回来的五格
+     * 又藏起来、而胶囊也被另一条动画藏起来，底栏那一行空成一片。
      * 这不是理论问题：动画的结束回调不保证在状态翻转之前跑完。
      *
      * @param v        要藏的那个 View
@@ -1517,6 +1521,53 @@ public final class MainActivity extends Activity {
             }
         }
         return true;
+    }
+
+    /**
+     * 一个地址该由谁处理。
+     *
+     * <p>抽成枚举是因为这条判定曾经写死在 {@code shouldOverrideUrlLoading} 的
+     * if 链里，而那个位置没法被测：它一判错，用户点「新建标签页」会静静停在
+     * 上一个页面，日志里一行都没有。判定的三种去向各写成一个名字，
+     * 单测就能把「内置页面不许被送走」这件事钉住。
+     */
+    public enum UrlRoute {
+        /** WebView 自己加载：http(s)、以及 {@code file:} / {@code about:} 这类本机内容。 */
+        WEB,
+        /** 内置新标签页回传的 {@code nova://shortcut/…} 命令，交给 {@code handleNovaCommand}。 */
+        COMMAND,
+        /**
+         * 交回系统。{@code tel:} / {@code mailto:} / {@code intent:} / {@code weixin:}
+         * 这些自己吞掉只会得到一个打不开的空白页。
+         */
+        EXTERNAL
+    }
+
+    /**
+     * 非 http(s) 的地址该去哪。
+     *
+     * <p><b>{@code file:} 为什么算 {@link UrlRoute#WEB}</b>：内置新标签页的真身就是
+     * 一条 {@code file:///android_asset/newtab.html?theme=…&data=…}。它若是被当成
+     * 外部地址递给系统，系统里没有能打开它的组件（{@code /android_asset} 不是真实
+     * 路径，别的 app 也读不到本 app 的 assets），异常被吞掉、回调返回 true，
+     * WebView 于是什么都不加载 —— 表现就是「新建标签页打开的是上一个页面」。
+     *
+     * <p>{@code about:blank} 同理：「新标签页 → 空白页」那一档也是这么丢的。
+     *
+     * <p>其余未知 scheme 一律 {@link UrlRoute#EXTERNAL}：宁可交给系统去撞，
+     * 也不要在一个自己不了解的协议上假装能渲染。
+     */
+    static UrlRoute routeUrl(String url) {
+        if (url == null) return UrlRoute.WEB;
+        String s = url.trim();
+        if (s.isEmpty()) return UrlRoute.WEB;
+        int colon = s.indexOf(':');
+        if (colon <= 0) return UrlRoute.WEB;
+        String scheme = s.substring(0, colon).toLowerCase(java.util.Locale.ROOT);
+        if ("http".equals(scheme) || "https".equals(scheme)) return UrlRoute.WEB;
+        if ("nova".equals(scheme)) return UrlRoute.COMMAND;
+        if ("file".equals(scheme) || "about".equals(scheme)) return UrlRoute.WEB;
+        return UrlRoute.EXTERNAL;
     }
 
     private void syncUrlBar(String url) {
@@ -2875,38 +2926,6 @@ public final class MainActivity extends Activity {
             .show();
     }
 
-    /**
-     * 没开「自动下载」时，嗅探到下载链接先问一句再动手。
-     *
-     * <p>判定器只能看出「这个链接像是媒体」，看不出用户想不想要它。
-     * 不问就下，等于替用户决定要不要花这份流量 —— 移动网络下尤其不合适。
-     * 开关开着的意思正是「我信得过判定器，别问我了」。
-     */
-    private void confirmDownload(String url, String name, long contentLength) {
-        String shown = TextUtils.isEmpty(name) ? nameFromUrl(url) : name;
-        String size = contentLength > 0 ? DownloadTask.human(contentLength) : "大小未知";
-        new NovaAlert(this, "要下载这个文件吗？", shown + "\n" + size)
-            .positive("下载", () -> enqueueDownload(url, name))
-            .negative("取消", null)
-            .show();
-    }
-
-    /**
-     * 从 URL 末段取个能给人看的名字。
-     *
-     * <p>末尾是斜杠（如 {@code example.com/dir/}）时末段为空，那就退回整串；
-     * 名字过长则截断，否则对话框会被一串网址撑到看不见按钮。
-     */
-    static String nameFromUrl(String url) {
-        if (url == null || url.isEmpty()) return "";
-        int q = url.indexOf('?');
-        String s = q > 0 ? url.substring(0, q) : url;
-        int slash = s.lastIndexOf('/');
-        String last = slash >= 0 ? s.substring(slash + 1) : s;
-        if (last.isEmpty()) last = s;
-        return last.length() > 64 ? last.substring(0, 64) + "…" : last;
-    }
-
     private void enqueueDownload(String url, String name) {
         if (downloader == null) {
             showDownloadSheet();
@@ -3401,8 +3420,12 @@ public final class MainActivity extends Activity {
                 showSettings();
             });
 
+        // 副标题里的「关着先问一句」已经不成立了：下载前的确认框被去掉了，
+        // 嗅探到的链接一律直接进队列（理由见 setDownloadListener 里那句注释）。
+        // 这一格暂时留着占位 —— 它现在不再参与判定，等产品定了「还要不要这一档」
+        // 再决定是删掉还是换个说法。
         setRow(sheet, R.id.setAutoDownload, "自动下载媒体",
-            "开着：嗅探到的音视频直接进队列，不再询问。关着：每次先问一句再下",
+            "嗅探到的音视频直接进入队列，不再弹框询问；可在下载面板里暂停或取消",
             null, settings.autoDownload, false, () -> {
                 settings.autoDownload = !settings.autoDownload;
                 store.save(settings);

@@ -114,6 +114,109 @@ public class DownloadTaskTest {
         assertFalse(DownloadTask.isPartialResponse(200, "text/html"));
     }
 
+    // -------------------------------------------- 服务器到底认没认 Range
+
+    @Test
+    public void 要了偏移却回整份就是被无视() {
+        // 最难缠的一种「不支持」：探测那一个字节时回得好好的 206，
+        // 真发分片请求却整份从头倒。200 且没有 Content-Range → 被无视。
+        assertFalse(DownloadTask.honorsRange(200, null, 1024, 2047));
+        // 200 且 Content-Range 写着起点 0（也就是整份）：同样是被无视。
+        // 只看「有没有 Content-Range」会把这一支误判成分片，
+        // 于是照单全收，拼出来的是「完整 + 完整」。
+        assertFalse(DownloadTask.honorsRange(200, "bytes 0-4095/4096", 1024, 2047));
+    }
+
+    @Test
+    public void 整份从头倒却把ContentRange回写成整份时也要判为被无视() {
+        // 这一条是 QA 端到端逮到的真 bug。整份从头倒的 200 里最常见的一种，
+        // 会把 Content-Range 老实写成 bytes 0-(N-1)/N —— 起点恰好是 0，
+        // 而第一片请求的起点也恰好是 0。只比对起点的话这一片永远被判成
+        // 「服务端认了 Range」，于是整份 512KB 被无上限地倒进一个只有 64KB
+        // 的分片；后面七片起点不为 0 照常被判「被无视」；降级时第一片又因为
+        // 「已完成」被整片留下 —— 合并出来是「完整 + 尾巴」。
+        assertFalse(DownloadTask.honorsRange(200, "bytes 0-524287/524288", 0, 65535));
+
+        // 同样的响应落在「要的就是整份」那一片上才算认了：终点没有越出窗口。
+        assertTrue(DownloadTask.honorsRange(200, "bytes 0-524287/524288", 0, 524287));
+    }
+
+    @Test
+    public void 回了206或起止点都在窗口内就是真分片() {
+        assertTrue(DownloadTask.honorsRange(206, "bytes 1024-2047/4096", 1024, 2047));
+        // 有些服务端拿 200 回分片，但 Content-Range 老实写着起止点 —— 那是合规分片，
+        // 误判成「被无视」会把已经下到的字节白白丢掉重来。
+        assertTrue(DownloadTask.honorsRange(200, "bytes 1024-2047/4096", 1024, 2047));
+        // 第一片本来就从 0 要起
+        assertTrue(DownloadTask.honorsRange(200, "bytes 0-1023/4096", 0, 1023));
+        // 给得比要的少也算认了（剩下的下次补）
+        assertTrue(DownloadTask.honorsRange(200, "bytes 1024-1500/4096", 1024, 2047));
+    }
+
+    @Test
+    public void 起点差一个字节也算被无视() {
+        // 要 1024 却从 1023 开始给 —— 写下去整份文件错一位
+        assertFalse(DownloadTask.honorsRange(200, "bytes 1023-2046/4096", 1024, 2047));
+    }
+
+    @Test
+    public void 说不清终点的按没认处理() {
+        // bytes 0-*/1024：给多给少全凭猜，宁可降级也不要赌
+        assertFalse(DownloadTask.honorsRange(200, "bytes 0-*/1024", 0, 1023));
+    }
+
+    @Test
+    public void 解ContentRange的起点与终点() {
+        assertEquals(1024, DownloadTask.contentRangeStart("bytes 1024-2047/4096"));
+        assertEquals(0, DownloadTask.contentRangeStart("bytes 0-0/1"));
+        assertEquals(-1, DownloadTask.contentRangeStart(null));
+        assertEquals(-1, DownloadTask.contentRangeStart(""));
+        // 总长未知（bytes */4096）时起点无从谈起
+        assertEquals(-1, DownloadTask.contentRangeStart("bytes */4096"));
+
+        assertEquals(2047, DownloadTask.contentRangeEnd("bytes 1024-2047/4096"));
+        assertEquals(524287, DownloadTask.contentRangeEnd("bytes 0-524287/524288"));
+        assertEquals(-1, DownloadTask.contentRangeEnd(null));
+        assertEquals(-1, DownloadTask.contentRangeEnd("bytes 0-*/4096"));
+    }
+
+    // -------------------------------------------- 运行时降级成单连接
+
+    @Test
+    public void 降级后的单连接从断点吞到末尾() {
+        List<DownloadTask.Chunk> cs = DownloadTask.singleFrom(1500, 4096, "v", 1);
+        assertEquals(1, cs.size());
+        assertEquals(1500, cs.get(0).start);
+        assertEquals(4095, cs.get(0).endInclusive);
+        // 序号必须还是原来那一片：合并是按 index 顺序拼的，
+        // 换成 0 会把这一片拼到文件开头去。
+        assertEquals(1, cs.get(0).index);
+        assertEquals("v.part1", cs.get(0).fileName);
+        assertEquals(2596, cs.get(0).length());
+    }
+
+    @Test
+    public void 降级时总长未知也不炸() {
+        // 总长拿不到时末字节按起点记，长度因此是 1 —— 只是给进度一个非空的底，
+        // 真正到哪儿由连接决定。绝不能算出负长度（那会让「这一片已完成」恒成立）。
+        List<DownloadTask.Chunk> cs = DownloadTask.singleFrom(500, -1, "v", 0);
+        assertEquals(500, cs.get(0).start);
+        assertEquals(500, cs.get(0).endInclusive);
+        assertTrue("长度必须是正数", cs.get(0).length() >= 1);
+    }
+
+    @Test
+    public void 降级只允许翻一次闸() {
+        // degraded 是「只许翻一次」的开关：run() 靠它避免
+        // 「降级 → 重跑 → 又被判无视 → 再降级」的死循环。
+        DownloadTask t = new DownloadTask(1, "u", "a", 0);
+        assertFalse(t.degraded);
+        assertFalse(t.rangeIgnored);
+        t.rangeIgnored = true;
+        t.degraded = true;
+        assertTrue(t.degraded);
+    }
+
     // ------------------------------------------------------------ 文件名
 
     @Test

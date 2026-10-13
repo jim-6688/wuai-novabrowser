@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  滚动时顶掉地址栏那一行的胶囊搜索框背景。
+  滚动态的胶囊搜索框背景。它现在落在**底栏那一行**（见 activity_main.xml 的 bottomRow）。
 
-  圆角 17dp = 高度 34dp 的一半 → 两端是标准半圆胶囊。
-  高度必须与 omnibox 的 34dp 齐平：这一格是「地址栏位置上的搜索状态」，
-  比地址栏矮一点点会看起来像没对齐。
+  圆角 20dp = 高度 40dp 的一半 → 两端是标准半圆胶囊。
+  高度 40dp 而不是原先在顶栏时的 34dp：底部是拇指的自然落点，放大一点更好按；
+  而 40dp < 54dp（底栏行高），所以它在 GONE 与 VISIBLE 之间怎么切，
+  那一行的高度都不会变 —— 网页不会被推一下。
 
   底色用 surface 而不是 omnibox 的 surface_2，并换成品牌色描边：
   常态的地址栏是灰底无边框的，描边一出来就知道「现在这一格是搜索」，
@@ -16,6 +17,6 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/surface" />
-    <corners android:radius="17dp" />
+    <corners android:radius="20dp" />
     <stroke android:width="1.5dp" android:color="@color/brand" />
 </shape>

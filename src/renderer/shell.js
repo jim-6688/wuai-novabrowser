@@ -1419,6 +1419,7 @@ function dlTaskRow(t) {
   }
   if (native) meta.push('Chromium 内建下载器');
   else if (t.ranged) meta.push(`${t.threads || 1} 线程并发`);
+  else if (t.degraded) meta.push('单连接（分片请求被无视，已自动降级）');
   else if (t.state !== 'queued' && t.state !== 'probing') meta.push('单连接（服务端不支持分片）');
 
   const err = t.state === 'error' && t.error ? `<div class="dl-error">${esc(t.error)}</div>` : '';

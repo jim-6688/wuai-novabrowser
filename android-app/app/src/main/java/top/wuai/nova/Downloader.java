@@ -217,7 +217,14 @@ public final class Downloader {
             // Content-Range，于是「看 Content-Range 是否存在」这个判据恒为 false，
             // 分片下载会永远退化成单线程 —— 界面上照旧显示「并行 N 线程」，
             // 没有任何报错，只是从来没并行过。
-            t.rangeSupported = probeRange(t.url);
+            if (t.degraded) {
+                // 降级过就不再重新问它认不认 Range：这个服务端已经证明过一次
+                // 「0-0 那一个字节回 206、真要数据却整份从头倒」，再探一次
+                // 拿到的还是同一个假阳性，然后又一次被无视、又一次停在「没收完」。
+                t.rangeSupported = false;
+            } else {
+                t.rangeSupported = probeRange(t.url);
+            }
 
             if (!t.chunks.isEmpty()) {
                 // 续传：片已经在（可能部分已下），直接接着跑
@@ -230,6 +237,14 @@ public final class Downloader {
                     t.chunks.addAll(DownloadTask.plan(t.totalBytes, threads,
                         t.rangeSupported, t.fileName));
                 }
+                fetchChunks(t);
+            }
+
+            // 服务端把 Range 当耳边风：探测那一个字节时回了 206，真发分片请求
+            // 却整份从头倒。这时候不是报错，而是退化成单连接再跑一遍 ——
+            // 能安全接上的那一段不会重下（见 degradeToSingle）。
+            if (t.rangeIgnored && !t.degraded && t.state != DownloadTask.State.CANCELED) {
+                degradeToSingle(t);
                 fetchChunks(t);
             }
 
@@ -260,6 +275,76 @@ public final class Downloader {
             if (t.state == DownloadTask.State.DONE) deleteTemps(t);
             // 合并中断留下的半成品，既不能续传也没人再用，不该留着占空间
             deleteMerging(t);
+        }
+    }
+
+    /**
+     * 把任务从多片切成一条单连接，并只保留能安全接上的那一段。
+     *
+     * <p>合并是按 index 顺序把 {@code .part} 一个个拼起来的，中间缺一片整份文件
+     * 就会错位。所以能留下的是「从 0 起连续完整的那几片」加上「第一片没下完的
+     * 那一片」—— 后者改造成一条单连接，从它当前的位置一路吞到文件末尾。
+     * 它后面那些分片即便已经下了也不能留：中间是断的，拼上去就是错位的文件，
+     * 所以连临时文件一起删掉。
+     *
+     * <p>于是「已经下到的字节」一点没丢：连续前缀原样保留，断点之后由单连接
+     * 用「丢掉前 N 个字节」的办法接着写 —— 服务端不认 Range，这是唯一能续传的路。
+     */
+    private void degradeToSingle(DownloadTask t) {
+        t.rangeSupported = false;
+        t.degraded = true;
+
+        int keep = 0;
+        while (keep < t.chunks.size() && t.chunks.get(keep).complete()) keep++;
+
+        for (int i = keep + 1; i < t.chunks.size(); i++) deleteByName(t.chunks.get(i).fileName);
+
+        List<DownloadTask.Chunk> out = new ArrayList<>();
+        for (int i = 0; i < keep; i++) {
+            DownloadTask.Chunk c = t.chunks.get(i);
+            // 留下来的片必须正好是它该有的长度。「被无视」的那一次请求若是已经
+            // 往里倒过整份，文件会比这一片该有的长度更长 —— 拼上去整份错位，
+            // 而它看起来只是「这一片下完了」。裁一刀比赌它没写多更稳。
+            trimTo(new File(dir, c.fileName), c.length());
+            out.add(c);
+        }
+        if (keep < t.chunks.size()) {
+            DownloadTask.Chunk tail = t.chunks.get(keep);
+            out.addAll(DownloadTask.singleFrom(tail.start, t.totalBytes, t.fileName, keep));
+        }
+        t.chunks.clear();
+        t.chunks.addAll(out);
+        notifyChange(t);
+    }
+
+    /**
+     * 把分片文件裁到它该有的长度。
+     *
+     * <p>只在「文件比声明长度更长」时动手。短的不能动 —— 那只是没下完，
+     * 续传会接着写；长的一定是写多了（整份被倒进一个分片就是这么来的）。
+     */
+    private void trimTo(File f, long len) {
+        if (len < 0 || !f.exists()) return;
+        try {
+            if (f.length() <= len) return;
+            RandomAccessFile raf = new RandomAccessFile(f, "rw");
+            try {
+                raf.setLength(len);
+            } finally {
+                closeQuietly(raf);
+            }
+        } catch (Exception ignored) {
+            // 裁不动就算了，下面 merge 还有一道大小校验接着
+        }
+    }
+
+    /** 删一个临时文件。删不掉不影响正确性：下次会覆盖它。 */
+    private void deleteByName(String name) {
+        try {
+            File f = new File(dir, name);
+            if (f.exists()) f.delete();
+        } catch (Exception ignored) {
+            // 同 deleteTemps
         }
     }
 
@@ -333,13 +418,17 @@ public final class Downloader {
     private void pull(DownloadTask t, DownloadTask.Chunk c) throws IOException {
         File f = new File(dir, c.fileName);
         long already = f.exists() ? f.length() : 0;
+        // 已有的字节先记到这一片上：不记的话续传一开工进度会先倒退一截，
+        // 用户的感觉是「点继续反而少了」。
+        c.received = already;
         if (already >= c.length()) {
             c.received = c.length();
             return;
         }
         long from = c.start + already;
 
-        String range = (t.totalBytes > 0)
+        // 降级过就不再发 Range：服务端已经证明不认它，发了也是白发。
+        String range = (t.rangeSupported && !t.degraded && t.totalBytes > 0)
             ? "bytes=" + from + "-" + c.endInclusive
             : null;
         HttpURLConnection conn = open(t.url, range, null);
@@ -349,11 +438,20 @@ public final class Downloader {
 
             String cr = conn.getHeaderField("Content-Range");
             // 关键防线：服务器不认 Range（200 + 整个文件）却给了分片请求，
-            // 这时写下去会得到「完整 + 完整」的坏文件。立刻退回单片。
-            if (range != null && !DownloadTask.isPartialResponse(code, cr)) {
-                throw new IOException("服务器忽略了分片请求（HTTP " + code
-                    + "），已退回单线程，请重试");
+            // 这时写下去会得到「完整 + 完整」的坏文件。
+            //
+            // 早先这里直接抛异常，整条任务失败、界面让用户手动重试 —— 等于把
+            // 「服务端不支持分片」这件事变成了一次用户可见的故障。现在改成
+            // 打标记后收手，由 run() 在所有分片线程收工之后退化成单连接重跑：
+            // 已经下到的那一段留着，用户只会看到连接数从 8 变成 1。
+            if (range != null && !DownloadTask.honorsRange(code, cr, from, c.endInclusive)) {
+                t.rangeIgnored = true;
+                return;
             }
+
+            // 没带 Range 时服务端从 0 开始倒，必须先把文件里已有的那一段丢掉，
+            // 否则写出来的就是「已有前缀 + 一整份」。
+            long skip = (range == null) ? from : 0;
 
             RandomAccessFile raf = null;
             InputStream in = null;
@@ -367,6 +465,14 @@ public final class Downloader {
                 while ((n = in.read(buf)) > 0) {
                     if (t.state == DownloadTask.State.CANCELED) return;
                     if (t.state == DownloadTask.State.PAUSED) return;
+                    if (skip > 0) {
+                        int drop = (int) Math.min(skip, n);
+                        skip -= drop;
+                        n -= drop;
+                        if (n <= 0) continue;
+                        // 剩下的往前挪，再按原样写
+                        System.arraycopy(buf, drop, buf, 0, n);
+                    }
                     raf.write(buf, 0, n);
                     c.received += n;
                     t.receivedBytes += n;
@@ -418,6 +524,18 @@ public final class Downloader {
         if (!tmp.renameTo(target)) {
             throw new IOException("合并后的文件无法重命名：" + t.fileName);
         }
+        // 大小校验：声明了总长就必须一分不差。
+        //
+        // 这一道不是可选项。合并是全链路唯一能把「某处偏移算错」变成坏文件的地方，
+        // 而坏文件的大小照样正常、不会报任何错，只有播到一半才炸 ——
+        // 用户拿到手时根本不知道是谁错的。所以宁可把文件删掉、报一个明确的错，
+        // 也不要留一个看起来下好了的废品。
+        if (t.totalBytes > 0 && target.length() != t.totalBytes) {
+            long got = target.length();
+            try { target.delete(); } catch (Exception ignored) { /* 删不掉也没办法 */ }
+            throw new IOException("合并后的大小对不上（实得 " + got + " 字节，应为 "
+                + t.totalBytes + " 字节），已丢弃半成品");
+        }
         if (t.totalBytes <= 0) {
             try {
                 t.totalBytes = target.length();
@@ -437,6 +555,11 @@ public final class Downloader {
         conn.setReadTimeout(30000);
         conn.setRequestProperty("User-Agent", "NovaBrowser/1.0 (Android)");
         conn.setRequestProperty("Accept", "*/*");
+        // 必须明说 identity：默认会带 Accept-Encoding: gzip，服务端一压，
+        // 拿到的 Content-Length 就是压缩后的长度而不是文件真实大小，
+        // 于是总长是错的、分片偏移整体错位 —— 而这类错在合并前看不出来。
+        // 桌面端 downloader.js 的设计要点第 2 条说的就是这同一件事。
+        conn.setRequestProperty("Accept-Encoding", "identity");
         if (range != null) conn.setRequestProperty("Range", range);
         if (headers != null) {
             for (Map.Entry<String, String> e : headers.entrySet()) {

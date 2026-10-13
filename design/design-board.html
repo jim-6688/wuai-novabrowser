@@ -343,14 +343,20 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
 .mbar div.pri{flex:0 0 56px;margin:6px 4px;border:1.5px solid var(--brand);border-radius:var(--r-md);color:var(--brand)}
 .mbar div.pri span{font-size:12px;font-weight:700}
 
-/* 滚动状态下的顶栏：那一行整行换成胶囊搜索框（R 帧）。
-   高度仍是 52px、与 .mtoolbar 完全一致 —— 行高一变，下面的网页就会被整体推一下。
+/* 滚动状态下的胶囊搜索框（R 帧）。它落在**底栏那一行**里（见 .mbar-search）。
+   40px 高：底部是拇指的自然落点，比它在顶栏时那会儿（34px）放大一点更好按；
+   同时 40 < 54（底栏行高），所以它显隐不会改那一行的高度。
    描边用品牌色，与常态的 omnibox（灰底无边框）区分开：不用读字就知道这一格是搜索。 */
-.tcapsule{height:34px;display:flex;align-items:center;gap:8px;padding:0 12px;
+.tcapsule{height:40px;display:flex;align-items:center;gap:8px;padding:0 12px;
           border:1.5px solid var(--brand);border-radius:var(--r-pill);background:var(--surface);
           font-size:11.5px;color:var(--text-4)}
 .tcapsule svg{width:14px;height:14px;flex:0 0 14px;color:var(--text-3)}
 .tcapsule .caret{width:1.5px;height:13px;border-radius:2px;background:var(--brand)}
+
+/* 滚动态下底栏那一行：五格让位给胶囊搜索框，行高仍是 54px。
+   不要复用 .mbar —— 它的 `div{...}` 会把胶囊也按「图标+文字」的竖排格子排掉。 */
+.mbar-search{display:flex;height:54px;align-items:center;padding:0 8px;
+             background:var(--surface);border-top:1px solid var(--border)}
 
 /* 下拉刷新的球：从网页上沿滑下来（R 帧）。
    圆形而不是圆角矩形 —— 它移动途中要在任何高度都读成同一颗球。 */
@@ -1439,7 +1445,9 @@ td code{font-size:11px}
       最后那屏 <b>S（新标签页）是两端共用的一页</b> —— 它唯一的源文件在 <code>src/renderer/newtab.html</code>，
       移动端那份是逐字节同步出来的产物，所以它既属于这一节、也不属于这一节。
       <b>T（地址栏点开）记的是顶栏那一行的新规格</b>：图标改彩色、整体放大到 40dp，
-      点开地址栏即全选并在下方弹出复制 / 分享。</span>
+      点开地址栏即全选并在下方弹出复制 / 分享。
+      <b>R（滚动态）记的是两条栏在滚动时怎么让位</b>：顶栏整行收起还网页 52px、
+      底栏那一行由五格换成胶囊搜索框（行高 54px 不变）。</span>
   </div>
 
   <div class="frames">
@@ -1483,17 +1491,11 @@ td code{font-size:11px}
 
     <!-- 滚动态 + 下拉刷新 -->
     <div class="frame-wrap">
-      <div class="frame-cap"><b>R · 滚动态与下拉刷新</b> · 向下滚动后底栏整条隐去，<b>顶栏那一行由地址栏换成胶囊搜索框</b>（同为 52px 高，行高不变）；滚回顶部即还原。页面停在顶部时往下拉唤出<b>刷新球</b>，拉到球完全露出来松手即刷新</div>
+      <div class="frame-cap"><b>R · 滚动态与下拉刷新</b> · 向下滚动后<b>顶栏整行收起</b>（把那一行的 52px 还给网页）、<b>底栏那一行由五格换成胶囊搜索框</b>；滚回顶部即还原。页面停在顶部时往下拉唤出<b>刷新球</b>，拉到球完全露出来松手即刷新</div>
       <div class="frame mb">
         <div class="screen">
-          <div class="mtoolbar" style="gap:0;padding:0 8px">
-            <div class="tcapsule" style="flex:1">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="4.2"/><path d="M12.4 12.4l4 4"/></svg>
-              <span style="flex:1;color:var(--text-4)">输入关键词搜索</span>
-              <i class="caret"></i>
-            </div>
-          </div>
-          <div class="vp" style="display:block;padding:52px 14px 0">
+          <!-- 滚动态下顶栏整行收起，所以这一屏顶部**没有** .mtoolbar —— 网页直接顶到上沿 -->
+          <div class="vp" style="display:block;padding:14px 14px 0">
             <div class="npara" style="width:66%;height:11px;background:var(--border-strong)"></div>
             <div class="npara w92"></div>
             <div class="npara w80"></div>
@@ -1517,8 +1519,16 @@ td code{font-size:11px}
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(140deg)"><path d="M16.5 10 a6.5,6.5 0 1,1 -1.9,-4.6"/><path d="M16.8,2.6 V5.6 H13.8"/></svg>
             </div>
           </div>
+          <!-- 底栏那一行：五格让位给胶囊搜索框，行高仍是 54px -->
+          <div class="mbar-search">
+            <div class="tcapsule" style="flex:1">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="4.2"/><path d="M12.4 12.4l4 4"/></svg>
+              <span style="flex:1;color:var(--text-4)">输入关键词搜索</span>
+              <i class="caret"></i>
+            </div>
+          </div>
           <div class="rtip">
-            <b>滚动态</b><span>底栏隐去 · 顶栏换成胶囊搜索框</span><br />
+            <b>滚动态</b><span>顶栏整行收起（网页多得 52px）· 底栏那一行换成胶囊搜索框</span><br />
             <b>下拉刷新</b><span>球滑到完全露出来＝可以松手（52dp × 0.85 ≈ 44dp，正好是球的行程）</span><br />
             <b>判定与拦截</b><span><code>PullToRefresh.java</code> · <code>RefreshHost.java</code></span>
           </div>
@@ -2520,8 +2530,9 @@ td code{font-size:11px}
     <code>engineChip</code>（已去掉 <code>selectableItemBackground</code>）；
     底栏工具格与角标 <code>.mbadge</code> → <code>res/layout/item_mb_tools.xml</code> +
     <code>MainActivity.updateDownloadBadge()</code>；
-    <b>滚动态顶栏胶囊 <code>.tcapsule</code>（R 帧）</b> → <code>searchCapsule</code>
-    （与 <code>topBar</code> 同处 <code>topRow</code> 这个 FrameLayout 里，交叉淡入淡出；
+    <b>滚动态底栏胶囊 <code>.tcapsule</code>（R 帧）</b> → <code>searchCapsule</code>
+    （与五格 <code>mobileBar</code> 同处 <code>bottomRow</code> 这个 FrameLayout 里，交叉淡入淡出；
+    顶栏 <code>topRow</code> 则是整行 GONE、把高度还给网页；
     判定在 <code>BottomBarReveal.java</code>，动画在 <code>MainActivity#applyReveal</code>）；
     <b>下拉刷新球 <code>.pullball</code>（R 帧）</b> → <code>RefreshHost.java</code>
     （容器 + 触摸拦截 + 指示器）+ <code>PullToRefresh.java</code>（阈值与阻尼，纯类可单测）；

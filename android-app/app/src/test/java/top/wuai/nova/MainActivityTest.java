@@ -119,45 +119,72 @@ public class MainActivityTest {
         assertNull(MainActivity.filenameFromDisposition("attachment; filename=\"/\""));
     }
 
-    // ---------------------------------------------------------- URL 末段取名
+    // -------------------------------------------------- 非 http(s) 地址归谁管
 
     @Test
-    public void 取URL末段当文件名() {
-        assertEquals("a.apk", MainActivity.nameFromUrl("https://x.com/dir/a.apk"));
+    public void 内置新标签页是本机内容不该被送走() {
+        // 这一条就是「新建标签页打开的还是首页」的根因。
+        // 早先 shouldOverrideUrlLoading 写的是「非 http(s) 一律交回系统」，
+        // 于是 file:///android_asset/newtab.html 也被递给系统；
+        // 系统里没有能打开它的组件（/android_asset 不是真实路径），
+        // 异常被吞掉、回调返回 true，WebView 于是什么都不加载 ——
+        // 屏幕上是上一个页面，第一次用时那就是首页。
+        assertEquals(MainActivity.UrlRoute.WEB,
+            MainActivity.routeUrl("file:///android_asset/newtab.html?theme=dark&data=a"));
     }
 
     @Test
-    public void 查询串不进文件名() {
-        // 带 ?token=... 的下载链接很常见，不砍掉的话文件名会变成一长串签名，
-        // 用户根本看不出自己要下的是什么。
-        assertEquals("a.apk", MainActivity.nameFromUrl("https://x.com/a.apk?token=abc&e=1"));
+    public void 内置新标签页拼出来的地址一定留在本机() {
+        // 把两端接起来验一次：NewTab 负责拼地址，routeUrl 负责放行。
+        // 任一侧改了写法（比如改成 file:// 之外的形式）这里都会红。
+        assertEquals(MainActivity.UrlRoute.WEB,
+            MainActivity.routeUrl(NewTab.pageUrl("dark", NewTab.candidates(null))));
+        assertEquals(MainActivity.UrlRoute.WEB,
+            MainActivity.routeUrl(NewTab.pageUrl("light",
+                NewTab.candidates(java.util.Collections.singletonList(
+                    new NewTab.Row("示例", "https://example.com/", 3, true))))));
     }
 
     @Test
-    public void 末尾是斜杠时退回整串() {
-        // example.com/dir/ 的末段是空的，这时不能再返回空名字 ——
-        // 确认框会显示一片空白，用户不知道要下什么。
-        assertEquals("https://x.com/dir/", MainActivity.nameFromUrl("https://x.com/dir/"));
+    public void 空白页同理留在WebView里() {
+        // 「新标签页 → 空白页」那一档是 about:blank，走的正是同一个分支，
+        // 一样会被送出去、一样会静默不动。
+        assertEquals(MainActivity.UrlRoute.WEB, MainActivity.routeUrl("about:blank"));
     }
 
     @Test
-    public void 没有路径时就是主机名之后那一段() {
-        assertEquals("x.com", MainActivity.nameFromUrl("https://x.com"));
+    public void http与https由WebView自己加载() {
+        assertEquals(MainActivity.UrlRoute.WEB, MainActivity.routeUrl("https://example.com/"));
+        assertEquals(MainActivity.UrlRoute.WEB, MainActivity.routeUrl("http://example.com/"));
     }
 
     @Test
-    public void 超长名字会被截断() {
-        // 不截断的话，一串长网址能把确认框撑到看不见「下载」按钮
-        String got = MainActivity.nameFromUrl("https://x.com/" + "a".repeat(100));
-        assertTrue("应截断到 65 以内，实际 " + got.length(), got.length() <= 65);
-        assertTrue("截断处应有省略号：" + got, got.endsWith("…"));
+    public void 快捷方式命令交给命令处理器() {
+        assertEquals(MainActivity.UrlRoute.COMMAND,
+            MainActivity.routeUrl("nova://shortcut/add?label=x&url=y"));
+        assertEquals(MainActivity.UrlRoute.COMMAND,
+            MainActivity.routeUrl("nova://shortcut/remove?url=y"));
+        // scheme 是大小写不敏感的，页面拼的时候大小写不固定
+        assertEquals(MainActivity.UrlRoute.COMMAND,
+            MainActivity.routeUrl("NOVA://shortcut/add?label=x"));
     }
 
     @Test
-    public void 空URL返回空串而不是崩() {
-        // 确认框拿它拼提示语，返回 null 会让显示变成 "null" 四个字母
-        assertEquals("", MainActivity.nameFromUrl(null));
-        assertEquals("", MainActivity.nameFromUrl(""));
+    public void 电话邮件微信这类交回系统() {
+        assertEquals(MainActivity.UrlRoute.EXTERNAL, MainActivity.routeUrl("tel:10086"));
+        assertEquals(MainActivity.UrlRoute.EXTERNAL, MainActivity.routeUrl("mailto:a@b.com"));
+        assertEquals(MainActivity.UrlRoute.EXTERNAL, MainActivity.routeUrl("weixin://dl/x"));
+        assertEquals(MainActivity.UrlRoute.EXTERNAL,
+            MainActivity.routeUrl("intent://x#Intent;scheme=y;end"));
+    }
+
+    @Test
+    public void 没有协议头的相对地址不往外送() {
+        // 页面里 location.href = "下一页.html" 这种相对地址，
+        // 交出去只会得到一个打不开的空白页。
+        assertEquals(MainActivity.UrlRoute.WEB, MainActivity.routeUrl("next/page.html"));
+        assertEquals(MainActivity.UrlRoute.WEB, MainActivity.routeUrl(""));
+        assertEquals(MainActivity.UrlRoute.WEB, MainActivity.routeUrl(null));
     }
 
     // ------------------------------------------------------ 历史条目上的时间

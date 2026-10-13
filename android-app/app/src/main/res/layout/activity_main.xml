@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   主界面。结构与桌面端 [data-layout="mobile"] 下的 shell.html 一致：
-    顶：工具栏（内核标识 + 首页 + 地址栏 + 刷新 + AI）；滚动时整行换成胶囊搜索框
+    顶：工具栏（内核标识 + 首页 + 收藏 + 地址栏 + 刷新 + AI）；滚动时整行收起
     中：WebView（容器 RefreshHost 负责下拉刷新）+ 加载进度 + 提示条
-    底：五格底栏（.mobilebar）；滚动时整体隐去
+    底：五格底栏（.mobilebar）；滚动时原位置换成胶囊搜索框（见 bottomRow）
 
   刻意不给任何硬编码颜色，全部走 @color/*，这样 values-night 一换就整体变深色。
 -->
@@ -14,19 +14,15 @@
     android:background="@color/bg"
     android:fitsSystemWindows="true">
 
-    <!-- ============ 顶部工具栏（两态叠放） ============
-         同一行里叠着两套内容，滚动时交叉淡入淡出：
-           常态 = topBar        —— 内核标识 + 首页 + 收藏 + 地址栏 + AI
-           滚动 = searchCapsule —— 整行顶掉地址栏那一行，变成胶囊搜索框
+    <!-- ============ 顶部工具栏 ============
+         常态：内核标识 + 首页 + 收藏 + 地址栏 + 刷新 + AI。
 
-         为什么叠着、而不是让两套轮流「显示/隐藏」：
-         顶部这一行的高度必须恒定。若两套内容上下相接，切换时行高会变，
-         下面的网页就被整体推一下 —— 滚动中看过去就是页面在抖。
-         两个子 View 都放在这一行里、互相覆盖，「行高 = 最高的那个」恒定不变。
+         滚动时这一行<b>整行收起</b>（setVisibility(GONE)），高度还给网页。
+         以前的做法是「行留着、把内容换成胶囊搜索框」，好处是行高恒定不推网页，
+         坏处是搜索框和网页顶端挤在同一块区域，而底部五格栏隐去后留下一条空白没人用。
 
-         胶囊高度刻意做成 34dp（与地址栏 omnibox 齐平），不是网页区时期那个 44dp：
-         只要它不高于 topBar 的 46dp，就算它在 GONE 与 VISIBLE 之间切换，
-         本 FrameLayout 的高度也永远不会变 —— 行高跳动从结构上被排除。
+         现在两件事对调：顶栏收起让出 52dp，搜索框搬到下面底栏那一行
+         （见文件末尾的 bottomRow）—— 滚动时屏幕上只剩「网页 + 底部一条搜索框」。
     -->
     <FrameLayout
         android:id="@+id/topRow"
@@ -173,53 +169,6 @@
                 android:src="@drawable/ic_ai" />
         </LinearLayout>
 
-    <!--
-      滚动时顶掉地址栏那一行的胶囊搜索框。
-
-      为什么从网页区底部搬到顶栏：它出现在底部时，手指刚划完的地方正好被它压住，
-      而「搜索」这个动作和地址栏是同一件事，放在地址栏的位置上，视线不用来回找。
-      刻意用 surface + 品牌色描边，与常态的 omnibox（surface_2 灰底无边框）区分开 ——
-      一眼能看出「现在这一格是搜索状态」。
-
-      初始 gone + alpha=0：不进场时它不该吃掉任何触摸。
-      位移由代码给（见 MainActivity#applyReveal），从本行上沿滑进来。
-    -->
-        <LinearLayout
-            android:id="@+id/searchCapsule"
-            android:layout_width="match_parent"
-            android:layout_height="34dp"
-            android:layout_gravity="center_vertical"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_search_capsule"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:visibility="gone"
-            android:alpha="0">
-
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_marginEnd="8dp"
-                android:src="@drawable/ic_search"
-                android:contentDescription="@string/search_hint" />
-
-            <EditText
-                android:id="@+id/capsuleInput"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@null"
-                android:hint="@string/search_hint"
-                android:textColor="@color/text"
-                android:textColorHint="@color/text_4"
-                android:textSize="14sp"
-                android:maxLines="1"
-                android:inputType="textUri|textNoSuggestions"
-                android:imeOptions="actionSearch|flagNoExtractUi" />
-        </LinearLayout>
     </FrameLayout>
 
     <!-- ============ 更新提示条 ============ -->
@@ -377,60 +326,129 @@
             android:visibility="gone" />
     </FrameLayout>
 
-    <!-- ============ 五格底栏 ============ -->
-    <LinearLayout
-        android:id="@+id/mobileBar"
+    <!-- ============ 底栏（两态叠放） ============
+         这一行有两种形态，同一行里叠着、滚动时交叉淡入淡出：
+           常态   = mobileBar     —— 五格（后退 / 前进 / 标签 / 工具 / 菜单）
+           滚动中 = searchCapsule —— 整条换成胶囊搜索框
+
+         为什么搜索框搬到这里（原先是放在顶栏那一行的）：
+         底栏隐去时它那 54dp 是留着的（用 INVISIBLE 而不是 GONE，图的是不改布局、
+         不推网页），于是屏幕下方多出一条谁也没用的空白。与其让它空着，
+         不如把「滚动时唯一还要用的东西」放进去 —— 手指刚划完的地方，
+         本来也是拇指最顺的位置。
+
+         行高恒定（54dp）的做法与顶栏原先一样：两个子 View 互相覆盖，
+         「行高 = 最高的那个」，胶囊 40dp < 54dp，所以它在 GONE 与 VISIBLE
+         之间怎么切都不会改这一行的高度 —— 网页不会被推一下。
+    -->
+    <FrameLayout
+        android:id="@+id/bottomRow"
         android:layout_width="match_parent"
         android:layout_height="54dp"
-        android:orientation="horizontal"
         android:background="@color/surface"
         android:elevation="8dp">
 
-        <!--
-          四格按钮用 <include> 复用同一份布局。include 上必须显式写 id：
-          不写的话被包含布局的根 id（btnBox）会原样冒上来，四个一模一样的 id，
-          findViewById 只会拿到第一个 —— 那就是「几个按钮全绑成同一个动作」这种
-          能编译能运行、只是完全不对的 bug。
-        -->
-        <include layout="@layout/item_mb_back" android:id="@+id/item_mb_back" />
-        <include layout="@layout/item_mb_forward" android:id="@+id/item_mb_forward" />
-
-        <!-- 中间那个是主按钮：标签数写在图里，尺寸也更大（56dp），
-             跟 Chrome/Safari 的习惯一致 —— 底栏里最重要的操作要一眼可辨。 -->
         <LinearLayout
-            android:id="@+id/mbTabs"
-            android:layout_width="56dp"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:background="@drawable/bg_primary_btn"
-            android:layout_marginTop="6dp"
-            android:layout_marginBottom="6dp"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
-            android:clickable="true"
-            android:focusable="true">
+            android:id="@+id/mobileBar"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:orientation="horizontal">
 
-            <ImageView
-                android:layout_width="19dp"
-                android:layout_height="19dp"
-                android:src="@drawable/ic_tabs"
-                android:contentDescription="@string/mb_tabs" />
+            <!--
+              四格按钮用 <include> 复用同一份布局。include 上必须显式写 id：
+              不写的话被包含布局的根 id（btnBox）会原样冒上来，四个一模一样的 id，
+              findViewById 只会拿到第一个 —— 那就是「几个按钮全绑成同一个动作」这种
+              能编译能运行、只是完全不对的 bug。
+            -->
+            <include layout="@layout/item_mb_back" android:id="@+id/item_mb_back" />
+            <include layout="@layout/item_mb_forward" android:id="@+id/item_mb_forward" />
 
-            <TextView
-                android:id="@+id/mbTabCount"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="1"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="#FFFFFF" />
+            <!-- 中间那个是主按钮：标签数写在图里，尺寸也更大（56dp），
+                 跟 Chrome/Safari 的习惯一致 —— 底栏里最重要的操作要一眼可辨。 -->
+            <LinearLayout
+                android:id="@+id/mbTabs"
+                android:layout_width="56dp"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@drawable/bg_primary_btn"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="19dp"
+                    android:layout_height="19dp"
+                    android:src="@drawable/ic_tabs"
+                    android:contentDescription="@string/mb_tabs" />
+
+                <TextView
+                    android:id="@+id/mbTabCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="1"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFFFFF" />
+            </LinearLayout>
+
+            <!-- 「工具」格合并了原来的「下载」与「阅读」两格：320dp 机型上底栏每格
+            已经贴着 44px 触控下限，减格比加格更值当。有下载任务在跑时，这一格的文字会被
+            updateDownloadBadge() 改成「工具 N」并换上品牌色底，提醒「它还在动」。 -->
+            <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools" />
+            <include layout="@layout/item_mb_menu" android:id="@+id/item_mb_menu" />
         </LinearLayout>
 
-        <!-- 「工具」格合并了原来的「下载」与「阅读」两格：320dp 机型上底栏每格
-        已经贴着 44px 触控下限，减格比加格更值当。有下载任务在跑时，这一格的文字会被
-        updateDownloadBadge() 改成「工具 N」并换上品牌色底，提醒「它还在动」。 -->
-        <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools" />
-        <include layout="@layout/item_mb_menu" android:id="@+id/item_mb_menu" />
-    </LinearLayout>
+        <!--
+          滚动态的胶囊搜索框。顶栏整行收起后，搜索入口落到这里。
+
+          刻意用 surface + 品牌色描边（bg_search_capsule），与常态的 omnibox
+          （surface_2 灰底无边框）区分开 —— 一眼能看出「现在这一格是搜索状态」。
+
+          40dp 高：底部这一行是拇指的自然落点，比它原先在顶栏时的 34dp 放大一点更好按；
+          同时 40 < 54（行高），所以它显隐不会改本行高度。
+
+          初始 gone + alpha=0：不进场时它不该吃掉任何触摸。
+          位移由代码给（见 MainActivity#applyReveal），从本行下沿滑进来。
+        -->
+        <LinearLayout
+            android:id="@+id/searchCapsule"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_search_capsule"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:visibility="gone"
+            android:alpha="0">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginEnd="8dp"
+                android:src="@drawable/ic_search"
+                android:contentDescription="@string/search_hint" />
+
+            <EditText
+                android:id="@+id/capsuleInput"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="@string/search_hint"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text_4"
+                android:textSize="14sp"
+                android:maxLines="1"
+                android:inputType="textUri|textNoSuggestions"
+                android:imeOptions="actionSearch|flagNoExtractUi" />
+        </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

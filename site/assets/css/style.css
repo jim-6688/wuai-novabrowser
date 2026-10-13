@@ -778,8 +778,8 @@ img { max-width: 100%; display: block; }
     box-shadow: 0 3px 10px rgba(61, 107, 255, 0.28);
 }
 
-/* 滚动态的顶栏：整行换成胶囊搜索框，底栏同时隐去。
-   高度与常态工具栏保持一致 —— 行高一变，下面的网页就会被整体推一下。
+/* 滚动态的「底栏那一行」：五格让位给胶囊搜索框。
+   顶栏那边是整行收起、把高度还给网页，所以这台手机顶部没有那一行。
    类名刻意不叫 .trow —— 那个名字已经属于上面下载卡片的任务行，
    重名会让后定义的这条规则顺着层叠把下载行也改成横排。 */
 .mobrow {
@@ -787,7 +787,7 @@ img { max-width: 100%; display: block; }
     align-items: center;
     padding: 6px 8px;
     background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
 }
 
 /* 胶囊搜索框。描边用品牌色，而不是常态地址栏的「灰底无边框」——
@@ -797,7 +797,7 @@ img { max-width: 100%; display: block; }
     align-items: center;
     gap: 7px;
     width: 100%;
-    height: 34px;
+    height: 40px;
     padding: 0 13px;
     border: 1.5px solid var(--brand);
     border-radius: 999px;
