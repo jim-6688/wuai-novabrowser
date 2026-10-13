@@ -1,11 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  刷新 / 停止。同一个位置两种形态，跟桌面端 .ow-refresh 同理。
+
+  青绿（accent）：和品牌蓝的首页、金色的星标拉开，顶栏一行读过去
+  是「蓝 · 金 · 青 · 渐变」，四个入口各有各的颜色，不用读形状就能区分。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="20dp" android:height="20dp"
-    android:viewportWidth="20" android:viewportHeight="20"
-    android:tint="@color/text_3">
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
+    android:width="22dp" android:height="22dp"
+    android:viewportWidth="20" android:viewportHeight="20">
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.6"
         android:strokeLineCap="round" android:strokeLineJoin="round"
         android:pathData="M16.5,10 a6.5,6.5 0 1,1 -1.9,-4.6" />
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.6"
         android:strokeLineCap="round" android:strokeLineJoin="round"
         android:pathData="M16.8,2.6 V5.6 H13.8" />
 </vector>

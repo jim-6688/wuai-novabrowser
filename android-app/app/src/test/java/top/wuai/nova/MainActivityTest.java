@@ -303,4 +303,45 @@ public class MainActivityTest {
         // 老配置里 newTabPage 存的是一个地址 —— 也不该崩
         assertEquals("start", MainActivity.nextNtpMode("https://52ta.top/"));
     }
+
+    // ------------------------------------------- 有没有「真实的网站地址」
+
+    @Test
+    public void 普通网址算有网站() {
+        assertTrue(MainActivity.hasSiteUrl("https://52ta.top/"));
+        assertTrue(MainActivity.hasSiteUrl("http://example.com/a?b=1"));
+    }
+
+    @Test
+    public void 内置新标签页没有网站() {
+        // 这是最要紧的一条：内置新标签页是一条 file:///android_asset/…，
+        // 它出现在地址栏里的样子被刻意换成了提示语（见 syncUrlBar），
+        // 要是这里漏了，用户点「分享该网站」会把一条本机路径发给别人。
+        assertFalse(MainActivity.hasSiteUrl("file:///android_asset/newtab.html"));
+        assertFalse(MainActivity.hasSiteUrl("file:///sdcard/a.html"));
+    }
+
+    @Test
+    public void 空白页与脚本页都没有网站() {
+        assertFalse(MainActivity.hasSiteUrl("about:blank"));
+        assertFalse(MainActivity.hasSiteUrl("javascript:void(0)"));
+        // data: 是原来收藏那处判断漏掉的一个 —— 它同样没有网站可分享
+        assertFalse(MainActivity.hasSiteUrl("data:text/html,<b>x</b>"));
+    }
+
+    @Test
+    public void 空值一律算没有网站() {
+        assertFalse(MainActivity.hasSiteUrl(null));
+        assertFalse(MainActivity.hasSiteUrl(""));
+    }
+
+    @Test
+    public void 网址判断不区分大小写() {
+        // scheme 按 RFC 不区分大小写，而 WebView 回吐的 URL 大小写没有保证。
+        // 只写 startsWith("file:") 的话，"FILE:///x" 会被放过去。
+        assertFalse(MainActivity.hasSiteUrl("FILE:///android_asset/newtab.html"));
+        assertFalse(MainActivity.hasSiteUrl("About:Blank"));
+        assertFalse(MainActivity.hasSiteUrl("Javascript:void(0)"));
+        assertTrue(MainActivity.hasSiteUrl("HTTPS://example.com/"));
+    }
 }

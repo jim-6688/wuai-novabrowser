@@ -2,6 +2,8 @@ package top.wuai.nova;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -10,6 +12,7 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -17,7 +20,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -39,6 +44,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -167,6 +173,14 @@ public final class MainActivity extends Activity {
     private View searchCapsule;
     /** 胶囊搜索框里的输入框。 */
     private EditText capsuleInput;
+    /**
+     * 地址栏点开后贴在它下面的「复制 / 分享该网站」浮层。
+     *
+     * <p>存成字段是为了能主动收掉 —— 它不像 {@link #openSheet} 那样有遮罩接管，
+     * 页面切换、重新装界面、隐藏键盘这些时机都得手动 dismiss，
+     * 否则浮层会孤零零地悬在一个已经换过的界面上。
+     */
+    private PopupWindow urlActions;
     /** 装着 WebView 的容器，负责下拉刷新（见 {@link RefreshHost}）。 */
     private RefreshHost refreshHost;
     /** 刷新卡死时的兜底。正常由 onPageFinished / onReceivedError 先收掉。 */
@@ -640,6 +654,11 @@ public final class MainActivity extends Activity {
         openSheetLayout = 0;
         downloadSheetOpen = false;
 
+        // 「复制 / 分享」那个浮层挂在旧布局的地址栏上。setContentView 之后
+        // 整棵视图树被换掉，而浮层是挂在 **WindowManager** 上的，不在那棵树里 ——
+        // 没人收它，它会一直悬在一个已经不存在了的地址栏下面。
+        dismissUrlActions();
+
         // 先把现有的 WebView 从旧容器里摘出来，inflate 之后再放回去
         WebView keep = web;
         if (keep != null && keep.getParent() instanceof ViewGroup) {
@@ -992,10 +1011,8 @@ public final class MainActivity extends Activity {
     private void toggleBookmark() {
         if (!mainViewMounted) mountMain();
         String url = currentUrl();
-        // file: 一并挡掉 —— 内置新标签页就是一条 file:// 地址，它不长在
-        // 任何网站上，收藏了也回不到「有内容的那一页」。
-        if (url == null || url.isEmpty() || url.startsWith("about:")
-                || url.startsWith("javascript:") || url.startsWith("file:")) {
+        // 判断与复制 / 分享共用同一份（原先这里自己写了一份，少挡一个 data:）
+        if (!hasSiteUrl(url)) {
             toast("当前页面无法收藏");
             return;
         }
@@ -1279,6 +1296,159 @@ public final class MainActivity extends Activity {
                 web.reload();
             }
         });
+
+        /*
+         * 点开地址栏：全选 + 弹出「复制 / 分享该网站」。
+         *
+         * 全选交给 XML 的 selectAllOnFocus —— 用代码在这里再 selectAll() 一次
+         * 是重复的，而且顺序上会跟 syncUrlBar 里那句 setSelection(length) 打架。
+         * 这里只管浮层。
+         *
+         * 用 focus 变化而不是 onClick：EditText 每次被点击都会回调 onClick
+         * （包括已经聚焦时再点），那样用户想挪一下光标就会被反复弹一次浮层；
+         * 而「没焦点 → 有焦点」这一跳，正好等于「用户要开始输网址了」。
+         */
+        urlBar.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                showUrlActions();
+            } else {
+                dismissUrlActions();
+            }
+        });
+
+        /*
+         * 一开始打字就收掉浮层。它挡着地址栏下面那条，而用户已经在输地址了，
+         * 两个按钮此刻只会碍事。
+         *
+         * 用 TextWatcher 而不是 onKeyListener：中文输入法下按键事件大多拿不到
+         * （走的是组合文本），而 setText 这类改动又根本不产生按键事件。
+         */
+        urlBar.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) {
+                if (urlActions != null && urlActions.isShowing()) dismissUrlActions();
+            }
+        });
+    }
+
+    /**
+     * 弹出「复制 / 分享该网站」。
+     *
+     * <p>锚在地址栏那一格的 FrameLayout 上，不是里面的 EditText：
+     * EditText 自带 padding 与光标，拿它当锚点，浮层会偏出去几个 dp。
+     *
+     * <p>{@code setInputMethodMode(INPUT_METHOD_NOT_NEEDED)} 是关键 ——
+     * 不设的话 PopupWindow 会自认为也要一个输入法，点开地址栏后
+     * 它和软键盘会互相顶位置，浮层在键盘弹起的一瞬间被顶到屏幕外。
+     */
+    private void showUrlActions() {
+        if (!mainViewMounted) return;
+        View anchor = findViewById(R.id.omniboxWrap);
+        if (anchor == null) return;
+        if (urlActions != null && urlActions.isShowing()) return;
+
+        View box = LayoutInflater.from(this).inflate(R.layout.pop_url_actions, null);
+        box.findViewById(R.id.urlActCopy).setOnClickListener(v -> {
+            dismissUrlActions();
+            copyCurrentUrl();
+        });
+        box.findViewById(R.id.urlActShare).setOnClickListener(v -> {
+            dismissUrlActions();
+            shareCurrentUrl();
+        });
+
+        PopupWindow pop = new PopupWindow(box,
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        /*
+         * 背景必须给一个**非 null** 的 drawable，哪怕是全透明的：
+         * PopupWindow 拿它来判断「点击发生在窗体之外」，为 null 时
+         * setOutsideTouchable(true) 形同虚设，浮层只能靠按钮收掉。
+         */
+        pop.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        pop.setOutsideTouchable(true);
+        pop.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
+        pop.setElevation(dp(8));
+        pop.showAsDropDown(anchor, 0, dp(6));
+        urlActions = pop;
+    }
+
+    private void dismissUrlActions() {
+        if (urlActions == null) return;
+        if (urlActions.isShowing()) urlActions.dismiss();
+        urlActions = null;
+    }
+
+    /**
+     * 复制当前页面的网址。
+     *
+     * <p>复制的是 {@link #currentUrl()} 而不是地址栏里的文本：地址栏刚被全选过，
+     * 用户还没改，两者本应一致；而停在内置新标签页上时地址栏是空的（显示的是
+     * 提示语），照抄地址栏会复制出一个空串。
+     */
+    private void copyCurrentUrl() {
+        String url = shareableUrl();
+        if (url == null) {
+            toast(getString(R.string.url_no_site));
+            return;
+        }
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm == null) return;
+        cm.setPrimaryClip(ClipData.newPlainText("url", url));
+        toast(getString(R.string.url_copied));
+    }
+
+    /** 分享当前网站。分享的是网址，不是选中的文字。 */
+    private void shareCurrentUrl() {
+        String url = shareableUrl();
+        if (url == null) {
+            toast(getString(R.string.url_no_site));
+            return;
+        }
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, url);
+        String title = (web != null && web.getTitle() != null) ? web.getTitle() : "";
+        if (!title.isEmpty()) send.putExtra(Intent.EXTRA_SUBJECT, title);
+        startActivity(Intent.createChooser(send, getString(R.string.url_share_title)));
+    }
+
+    /**
+     * 当前可分享的网址；没有则返回 null。
+     *
+     * <p>返回 null 由调用方给一句提示，而不是静默：按钮点了没反应，
+     * 用户只会以为按钮坏了。
+     */
+    private String shareableUrl() {
+        String url = currentUrl();
+        return hasSiteUrl(url) ? url : null;
+    }
+
+    /**
+     * 这一页有没有一个「真实的网站地址」可用。
+     *
+     * <p>内置新标签页（{@code file:///android_asset/…}）、空白页（about:blank）、
+     * javascript: 与 data: 一律算没有 —— 收藏它们回不到有内容的那一页，
+     * 复制或分享给别人也打不开。
+     *
+     * <p>抽成静态方法是因为它有<b>三个</b>调用点（收藏 / 复制 / 分享）。
+     * 原先收藏那儿自己写了一份判断，比这里少一个 data: ——
+     * 同一件事写两遍，早晚会分叉，而分叉的那一刻没有任何东西会报错。
+     *
+     * <p>大小写不敏感：scheme 按 RFC 是不区分大小写的，而 WebView 回吐的
+     * URL 大小写并不保证。
+     */
+    static boolean hasSiteUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        String u = url.toLowerCase(Locale.ROOT);
+        return !(u.startsWith("file:") || u.startsWith("about:")
+            || u.startsWith("javascript:") || u.startsWith("data:"));
+    }
+
+    /** dp 转 px。PopupWindow 的偏移只认像素。 */
+    private int dp(int v) {
+        return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v,
+            getResources().getDisplayMetrics()));
     }
 
     /**
@@ -1290,6 +1460,9 @@ public final class MainActivity extends Activity {
      */
     private void go(String raw) {
         if (TextUtils.isEmpty(raw)) return;
+        // 已经导航走了，浮层说的还是上一页的地址。这里必须收 ——
+        // 点「首页」这一类按钮不会让地址栏失焦，浮层自己不会消失。
+        dismissUrlActions();
         String url = applyHttps(raw);
         Tab t = current();
         if (t != null) t.url = url;
@@ -3824,6 +3997,11 @@ public final class MainActivity extends Activity {
         // 还得清 Cookie 与缓存，但那样连用户自己都察觉不到代价 ——
         // 下次打开登录态、深色模式偏好全没了，这跟人们对无痕的预期并不一致。
         saveSessionNow();
+
+        // 切走时收掉地址栏浮层。它挂在 WindowManager 上，不属于 Activity 的
+        // 视图树，留着不会自动消失 —— 用户去别的应用转一圈回来，
+        // 会看到它还原样悬在地址栏下面（而地址栏可能已经不是那一页了）。
+        dismissUrlActions();
     }
 
     @Override

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  地址栏点开后弹出的两个动作：复制 / 分享该网站。
+
+  为什么是贴在地址栏下方的浮层（PopupWindow），而不是项目里那套 openSheet：
+  openSheet 是从屏幕底部滑上来的大面板，而这两个动作说的是**地址栏里那串东西**，
+  入口在顶部、面板从底部冒出来，视线要横穿整屏。浮层贴在下拉方向，
+  点开地址栏、看动作、点一下，全程在拇指够得到的那一小块区域里。
+
+  高度 44dp 是触控下限，宽度由内容决定（两个按钮一行，约 190dp）。
+  中间那条 1dp 竖线只是分隔，两个按钮本身各自带 selectableItemBackground，
+  所以是「两个可点区域」而不是「一张卡上停着两个词」。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/bg_url_actions"
+    android:padding="4dp">
+
+    <LinearLayout
+        android:id="@+id/urlActCopy"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:background="?android:attr/selectableItemBackground"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginEnd="7dp"
+            android:src="@drawable/ic_copy"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/url_act_copy"
+            android:textSize="13sp"
+            android:textColor="@color/text"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="20dp"
+        android:layout_gravity="center_vertical"
+        android:background="@color/border" />
+
+    <LinearLayout
+        android:id="@+id/urlActShare"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:background="?android:attr/selectableItemBackground"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginEnd="7dp"
+            android:src="@drawable/ic_share"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/url_act_share"
+            android:textSize="13sp"
+            android:textColor="@color/text"
+            android:maxLines="1" />
+    </LinearLayout>
+</LinearLayout>

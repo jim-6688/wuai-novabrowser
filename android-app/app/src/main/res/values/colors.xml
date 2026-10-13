@@ -13,6 +13,11 @@
     <color name="brand_strong">#2E56D9</color>
     <color name="accent">#00B8A2</color>
 
+    <!-- 星标（收藏）。金色是「收藏」这个动作在全平台的通识色，
+         不借用 warn —— warn 是语义色，哪天警告要换个颜色，
+         收藏星会跟着一起变，而这两件事毫无关系。 -->
+    <color name="star">#F5A623</color>
+
     <!-- 内核标识色。shell.css 的 engine 系列 -->
     <color name="engine_chromium">#3D6BFF</color>
     <color name="engine_gecko">#FF7139</color>

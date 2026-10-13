@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  分享。一个点分出去两条线到另外两个点 —— 与「复制」那两张纸不同，
+  这个形状在移动端是通识的分享记号。
+
+  三条边的端点都从圆的边上出发，不是圆心到圆心：圆心出发的线会从圆里穿出来，
+  在圆内留下一段多余的笔画。端点是算出来的（圆心沿连线方向各退 1.9）。
+
+  用于地址栏点开后的「分享该网站」按钮。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp" android:height="18dp"
+    android:viewportWidth="20" android:viewportHeight="20">
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:pathData="M4.3,10 a1.9,1.9 0 1,0 0.01,0 z" />
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:pathData="M15.7,4.7 a1.9,1.9 0 1,0 0.01,0 z" />
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:pathData="M15.7,15.3 a1.9,1.9 0 1,0 0.01,0 z" />
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M5.95,9.2 L14.05,5.5" />
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M5.95,10.8 L14.05,14.5" />
+</vector>

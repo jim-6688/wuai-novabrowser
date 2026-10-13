@@ -66,6 +66,15 @@
     <string name="omnibox_hint">搜索或输入网址</string>
     <string name="omnibox_new_tab">新标签页</string>
 
+    <!-- 点开地址栏后弹出的两个动作 -->
+    <string name="url_act_copy">复制</string>
+    <string name="url_act_share">分享该网站</string>
+    <string name="url_copied">已复制网址</string>
+    <string name="url_share_title">分享该网站</string>
+    <!-- 内置新标签页、空白页这类没有「网站」可言的页面上点这两个按钮时说的话。
+         不说「操作失败」—— 什么都没坏，只是这一页没有网址。 -->
+    <string name="url_no_site">这一页没有网址</string>
+
     <!-- 新标签页的三种取值，对应设置里「新标签页」那一行。
          「内置」＝随包自带的这一页（品牌区 + 快捷方式九宫格），
          它与桌面端共用 src/renderer/newtab.html 一份源。 -->

@@ -82,37 +82,45 @@
             </LinearLayout>
 
             <!-- 首页按钮。放在地址栏左侧而不是底栏：
-                 底栏六格是硬约束 —— 320dp 机型上每格已经贴着 44px 触控下限，
-                 加第七格会掉到线下；而工具栏这里原本只有一个只读的内核标识，
+                 底栏是五格硬约束 —— 320dp 机型上每格已经贴着 44px 触控下限，
+                 加第六格会掉到线下；而工具栏这里原本只有一个只读的内核标识，
                  位置是空的，地址栏让出 34dp 之后还剩 200dp 以上。
-                 这也是 UC / QQ / 夸克们的惯例位置：回家键挨着地址栏，不占拇指动线。 -->
+                 这也是 UC / QQ / 夸克们的惯例位置：回家键挨着地址栏，不占拇指动线。
+
+                 34dp → 40dp、padding 8dp → 9dp（图标本体 22dp）：
+                 顶栏行高随之从 6+34+6=46dp 变成 6+40+6=52dp，
+                 正好等于设计板 .mtoolbar 的 52px —— 代码这边一直矮了 6dp。 -->
             <ImageButton
                 android:id="@+id/btnHome"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginEnd="2dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/content_desc_home"
                 android:scaleType="centerInside"
-                android:padding="8dp"
+                android:padding="9dp"
                 android:src="@drawable/ic_home" />
 
             <!-- 收藏（书签）按钮。和首页键挨着，都在地址栏左侧：
-                 两个「一抬拇指就够到」的入口，不挤占底栏六格的触控预算。
+                 两个「一抬拇指就够到」的入口，不挤占底栏的触控预算。
                  图标随当前页是否收藏在描边 / 实心之间切换。 -->
             <ImageButton
                 android:id="@+id/btnStar"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginEnd="2dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/content_desc_star"
                 android:scaleType="centerInside"
-                android:padding="8dp"
+                android:padding="9dp"
                 android:src="@drawable/ic_star" />
 
-            <!-- 地址栏 -->
+            <!-- 地址栏。id 是给「复制 / 分享」那个浮层的锚点用的：
+                 PopupWindow 要挂在一个 View 上定位，而浮层该贴的是**整个地址栏**
+                 而不是里面那个 EditText —— 拿 EditText 当锚点，它的光标与
+                 padding 会让浮层偏出去几个 dp。 -->
             <FrameLayout
+                android:id="@+id/omniboxWrap"
                 android:layout_width="0dp"
                 android:layout_height="34dp"
                 android:layout_weight="1">
@@ -131,9 +139,13 @@
                     android:maxLines="1"
                     android:inputType="textUri|textNoSuggestions"
                     android:imeOptions="actionGo|flagNoExtractUi"
-                    android:selectAllOnFocus="false" />
+                    android:selectAllOnFocus="true" />
 
-                <!-- 刷新 / 停止：同一个位置两种形态，跟桌面端 .ow-refresh 同理 -->
+                <!-- 刷新 / 停止：同一个位置两种形态，跟桌面端 .ow-refresh 同理。
+                     padding 8dp → 6dp：它被地址栏的 34dp 卡着抬不高，
+                     只能把边距压掉，图标本体才跟旁边那三个 40dp 按钮一样是 22dp。
+                     点开地址栏后这个按钮会被「复制 / 分享」浮层盖住，无妨 ——
+                     那时用户要的是地址，不是刷新。 -->
                 <ImageButton
                     android:id="@+id/btnReload"
                     android:layout_width="34dp"
@@ -143,7 +155,7 @@
                     android:src="@drawable/ic_reload"
                     android:contentDescription="@string/content_desc_reload"
                     android:scaleType="centerInside"
-                    android:padding="8dp" />
+                    android:padding="6dp" />
             </FrameLayout>
 
             <!-- AI 助手。放在地址栏右侧（刷新键再往右），和首页/收藏一样是
@@ -151,13 +163,13 @@
                  选一个在新标签页打开对应网页版对话，不丢当前页。 -->
             <ImageButton
                 android:id="@+id/btnAi"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:layout_marginStart="4dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="6dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/content_desc_ai"
                 android:scaleType="centerInside"
-                android:padding="8dp"
+                android:padding="9dp"
                 android:src="@drawable/ic_ai" />
         </LinearLayout>
 
@@ -188,8 +200,8 @@
             android:alpha="0">
 
             <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
                 android:layout_marginEnd="8dp"
                 android:src="@drawable/ic_search"
                 android:contentDescription="@string/search_hint" />

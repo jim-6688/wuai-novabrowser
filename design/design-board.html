@@ -327,6 +327,16 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
 
 /* 移动端外壳 */
 .mtoolbar{height:52px;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--surface);border-bottom:1px solid var(--border)}
+/* 顶栏图标：40px 容器，与 App 端的 40dp 对齐（原来这里画 30px、实现里是 34dp，
+   两边都比真机该有的小一号）。图标本体随之 22px。 */
+.mtoolbar > .uibtn{width:40px;height:40px}
+/* 彩色：首页蓝 / 收藏金 / 刷新青。这三个原先共用一个灰，要靠读形状才分得清
+   哪一格是哪个 —— 而它们的形状本来就都是描边小图形。
+   用 :nth-child 定位是因为它们同结构、没有各自的类名；AI 那一格是渐变，
+   写不进 color，改用图标自己的 inline 渐变。 */
+.mtoolbar > .uibtn:first-child{color:var(--brand)}
+.mtoolbar > .uibtn:nth-child(2){color:var(--star)}
+.mtoolbar > .uibtn:nth-child(4){color:var(--accent)}
 .mbar{display:flex;height:54px;background:var(--surface);border-top:1px solid var(--border)}
 .mbar div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;color:var(--text-3)}
 .mbar div svg{width:19px;height:19px}
@@ -1421,13 +1431,15 @@ td code{font-size:11px}
 <section>
   <div class="sec-head">
     <span class="sec-no">06</span>
-    <h2>移动端 · 十二屏</h2>
+    <h2>移动端 · 十三屏</h2>
     <span class="sec-note">376 × 660 画框（≈ 390 × 844 的等比）。同一套代码，靠 <code>[data-layout=mobile]</code> 切换骨架。
       底栏<b>五格</b>：主操作（标签）居中凸起，左右各两格；原来的「下载」与「阅读」并成一格<b>工具</b>（有任务在跑时那一格变成「工具 N」并点亮品牌色，见 L）。
       1.1.0 起<b>内核选择器已删除</b>——APK 内零个 <code>.so</code>，只有一档真内核，
       只有一个选项的列表不是选择器，是装饰。内核信息改为<b>只读</b>（J 帧），看得见但点不动。
       最后那屏 <b>S（新标签页）是两端共用的一页</b> —— 它唯一的源文件在 <code>src/renderer/newtab.html</code>，
-      移动端那份是逐字节同步出来的产物，所以它既属于这一节、也不属于这一节。</span>
+      移动端那份是逐字节同步出来的产物，所以它既属于这一节、也不属于这一节。
+      <b>T（地址栏点开）记的是顶栏那一行的新规格</b>：图标改彩色、整体放大到 40dp，
+      点开地址栏即全选并在下方弹出复制 / 分享。</span>
   </div>
 
   <div class="frames">
@@ -1444,12 +1456,18 @@ td code{font-size:11px}
               <span class="lk"><svg viewBox="0 0 16 16"><path d="M4.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/><rect x="3" y="7" width="10" height="6.5" rx="1.6"/></svg></span>
               <span class="url" style="font-size:14px"><b>52ta.top</b></span>
             </div>
-            <div class="uibtn" style="border:1px solid var(--border)"><svg viewBox="0 0 20 20"><path d="M3.5 6h13M3.5 10h13M3.5 14h13"/></svg></div>
+            <div class="uibtn" title="刷新"><svg viewBox="0 0 20 20"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6"/><path d="M16.8 2.6v3h-3"/></svg></div>
+            <div class="uibtn" title="AI"><svg viewBox="0 0 20 20">
+              <defs><linearGradient id="aiGradA" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/></linearGradient></defs>
+              <path d="M1.6 16.4L5.1 5.2l3.5 11.2M3.2 12.5h3.8" stroke="url(#aiGradA)" fill="none"/>
+              <path d="M11.8 5.2v11.2" stroke="url(#aiGradA)" fill="none"/>
+              <path d="M16.9 1C17.17 2.52 18.38 3.73 19.9 4c-1.52.27-2.73 1.48-3 3-.27-1.52-1.48-2.73-3-3 1.52-.27 2.73-1.48 3-3z" fill="url(#aiGradA)" stroke="none"/>
+            </svg></div>
           </div>
           <div class="vp" style="flex:1">
             <div style="text-align:center;padding:0 20px">
               <div class="h3" style="font-size:16px">52ta.top</div>
-              <p style="font-size:11px">首页按钮在<b>地址栏左侧</b>，旁边多一个<b>收藏星标</b>按钮（已收藏变实心）；不在底栏：底栏每格在 320dp 机型上已贴 44px 触控下限，再加一格会掉到线下。<br />内核标识 <b>CR</b> 只读（点开只能看，不能切）<br />移动端 UA：Android / iOS<br />底栏第三格标签 · 第四格<b>工具</b>（下载与阅读并成一格，有任务在跑时显示「工具 N」）<br />顶部下拉即刷新（见 R）</p>
+              <p style="font-size:11px">首页按钮在<b>地址栏左侧</b>，旁边多一个<b>收藏星标</b>按钮（已收藏变实心）；不在底栏：底栏每格在 320dp 机型上已贴 44px 触控下限，再加一格会掉到线下。地址栏右侧依次是<b>刷新</b>与 <b>AI</b>（图标已改彩色、放大到 40dp，规格见 T）。<br />内核标识 <b>CR</b> 只读（点开只能看，不能切）<br />移动端 UA：Android / iOS<br />底栏第三格标签 · 第四格<b>工具</b>（下载与阅读并成一格，有任务在跑时显示「工具 N」）<br />顶部下拉即刷新（见 R）</p>
             </div>
           </div>
           <div class="mbar">
@@ -2015,7 +2033,13 @@ td code{font-size:11px}
               <span class="lk"><svg viewBox="0 0 16 16"><path d="M4.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/><rect x="3" y="7" width="10" height="6.5" rx="1.6"/></svg></span>
               <span class="url" style="font-size:14px;color:var(--text-4)">新标签页</span>
             </div>
-            <div class="uibtn" style="border:1px solid var(--border)"><svg viewBox="0 0 20 20"><path d="M3.5 6h13M3.5 10h13M3.5 14h13"/></svg></div>
+            <div class="uibtn" title="刷新"><svg viewBox="0 0 20 20"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6"/><path d="M16.8 2.6v3h-3"/></svg></div>
+            <div class="uibtn" title="AI"><svg viewBox="0 0 20 20">
+              <defs><linearGradient id="aiGradB" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/></linearGradient></defs>
+              <path d="M1.6 16.4L5.1 5.2l3.5 11.2M3.2 12.5h3.8" stroke="url(#aiGradB)" fill="none"/>
+              <path d="M11.8 5.2v11.2" stroke="url(#aiGradB)" fill="none"/>
+              <path d="M16.9 1C17.17 2.52 18.38 3.73 19.9 4c-1.52.27-2.73 1.48-3 3-.27-1.52-1.48-2.73-3-3 1.52-.27 2.73-1.48 3-3z" fill="url(#aiGradB)" stroke="none"/>
+            </svg></div>
           </div>
           <div class="vp" style="flex:1">
             <div style="width:100%;padding:0 20px">
@@ -2046,6 +2070,59 @@ td code{font-size:11px}
             <div><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg><span>后退</span></div>
             <div><svg viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg><span>前进</span></div>
             <div class="pri"><svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M6.5 2.5h7"/></svg><span>1</span></div>
+            <div><svg viewBox="0 0 20 20"><path d="M4 6h14M4 10h14M4 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><span>工具</span></div>
+            <div><svg viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h12"/></svg><span>菜单</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 地址栏点开：全选 + 复制 / 分享 -->
+    <div class="frame-wrap">
+      <div class="frame-cap"><b>T · 地址栏点开（新增）</b> · 点一下地址栏：<b>网址默认全选</b>，同时在地址栏正下方弹出<b>复制</b>与<b>分享该网站</b>。<br />这两个动作走贴住地址栏的浮层、不走底部弹层：它们说的是<b>地址栏里那串东西</b>，入口在顶部而面板从底部冒上来，视线要横跨整屏。<br />顶栏这一行同时改彩色（首页蓝 / 收藏金 / 刷新青 / AI 渐变）—— 原先四个入口共用一个灰，只能靠读形状分辨。<b>AI 补上「AI」两个字母</b>：星形是行业通用记号，但它自己说明不了任何事，用户得先知道「这个记号属于 AI」才认得出来；而这个按钮点开的是六家在线服务商的列表，它不是在说「这一页很智能」。<br />按钮容器 34dp → <b>40dp</b>、图标 20dp → <b>22dp</b>；顶栏行高随之 46dp → <b>52dp</b>，正好等于这一行原本就画着的 52px。</div>
+      <div class="frame mb">
+        <div class="screen">
+          <div class="mtoolbar">
+            <div class="uibtn" title="首页"><svg viewBox="0 0 20 20"><path d="M3.4 9.4L10 3.6l6.6 5.8"/><path d="M5.2 8.6v7.6h9.6V8.6"/><path d="M8.6 16.2v-4.4h2.8v4.4"/></svg></div>
+            <div class="uibtn" title="收藏"><svg viewBox="0 0 20 20"><path d="M10 2.6l2.3 4.7 5.2.8-3.8 3.7.9 5.2L10 14.8 5.4 17l.9-5.2L2.5 8.1l5.2-.8z"/></svg></div>
+            <div class="omni focus" style="flex:1">
+              <span class="eng ro">CR</span>
+              <span class="lk"><svg viewBox="0 0 16 16"><path d="M4.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/><rect x="3" y="7" width="10" height="6.5" rx="1.6"/></svg></span>
+              <span class="url" style="font-size:13px"><b style="background:var(--brand-soft);border-radius:3px;padding:1px 3px;color:var(--text)">https://52ta.top/all/?q=</b></span>
+            </div>
+            <div class="uibtn" title="刷新"><svg viewBox="0 0 20 20"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6"/><path d="M16.8 2.6v3h-3"/></svg></div>
+            <div class="uibtn" title="AI"><svg viewBox="0 0 20 20">
+              <defs><linearGradient id="aiGradC" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/></linearGradient></defs>
+              <path d="M1.6 16.4L5.1 5.2l3.5 11.2M3.2 12.5h3.8" stroke="url(#aiGradC)" fill="none"/>
+              <path d="M11.8 5.2v11.2" stroke="url(#aiGradC)" fill="none"/>
+              <path d="M16.9 1C17.17 2.52 18.38 3.73 19.9 4c-1.52.27-2.73 1.48-3 3-.27-1.52-1.48-2.73-3-3 1.52-.27 2.73-1.48 3-3z" fill="url(#aiGradC)" stroke="none"/>
+            </svg></div>
+          </div>
+          <div class="vp" style="flex:1;display:block;padding:0">
+            <div style="position:absolute;top:6px;left:108px;display:flex;align-items:center;background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;padding:4px;box-shadow:var(--shadow-2)">
+              <div style="display:flex;align-items:center;gap:7px;padding:0 14px;height:40px">
+                <svg viewBox="0 0 20 20" style="width:18px;height:18px;color:var(--brand)"><path d="M6.5 6.5V3.2a.7.7 0 0 1 .7-.7h6.6l3.5 3.5v7.8a.7.7 0 0 1-.7.7h-2.1"/><path d="M3.5 6.5h8.6a.7.7 0 0 1 .7.7v10.1a.7.7 0 0 1-.7.7H3.5a.7.7 0 0 1-.7-.7V7.2a.7.7 0 0 1 .7-.7z"/></svg>
+                <span style="font-size:13px;color:var(--text)">复制</span>
+              </div>
+              <span style="width:1px;height:20px;background:var(--border)"></span>
+              <div style="display:flex;align-items:center;gap:7px;padding:0 14px;height:40px">
+                <svg viewBox="0 0 20 20" style="width:18px;height:18px;color:var(--accent)"><circle cx="4.3" cy="10" r="1.9"/><circle cx="15.7" cy="4.7" r="1.9"/><circle cx="15.7" cy="15.3" r="1.9"/><path d="M5.95 9.2l8.1-3.7M5.95 10.8l8.1 3.7"/></svg>
+                <span style="font-size:13px;color:var(--text)">分享该网站</span>
+              </div>
+            </div>
+            <div style="padding:64px 16px 0">
+              <div style="height:13px;width:70%;border-radius:4px;background:var(--surface-3);margin-bottom:9px"></div>
+              <div style="height:13px;width:92%;border-radius:4px;background:var(--surface-3);margin-bottom:9px"></div>
+              <div style="height:13px;width:55%;border-radius:4px;background:var(--surface-3);margin-bottom:9px"></div>
+              <div style="height:84px;border-radius:8px;background:var(--surface-2);margin:16px 0"></div>
+              <div style="height:13px;width:84%;border-radius:4px;background:var(--surface-3);margin-bottom:9px"></div>
+              <div style="height:13px;width:66%;border-radius:4px;background:var(--surface-3)"></div>
+            </div>
+          </div>
+          <div class="mbar">
+            <div><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg><span>后退</span></div>
+            <div><svg viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg><span>前进</span></div>
+            <div class="pri"><svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M6.5 2.5h7"/></svg><span>2</span></div>
             <div><svg viewBox="0 0 20 20"><path d="M4 6h14M4 10h14M4 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><span>工具</span></div>
             <div><svg viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h12"/></svg><span>菜单</span></div>
           </div>

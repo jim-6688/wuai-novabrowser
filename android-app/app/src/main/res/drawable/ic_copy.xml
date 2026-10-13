@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  复制。两张纸：前面一张完整的圆角方块，后面一张只露出右上角的折角。
+  不画后面那张的完整轮廓 —— 两张纸重叠时完整的方框会与前一张交叉，
+  交点处一横一竖看着像画错了。只留折角，重叠关系反而清楚。
+
+  用于地址栏点开后的「复制」按钮。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp" android:height="18dp"
+    android:viewportWidth="20" android:viewportHeight="20">
+    <!-- 后一张纸：只画可见的 L 形轮廓 -->
+    <path android:strokeColor="@color/brand" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M6.5,6.5 V3.2 a0.7,0.7 0 0 1 0.7,-0.7 h6.6 l3.5,3.5 v7.8 a0.7,0.7 0 0 1 -0.7,0.7 h-2.1" />
+    <!-- 前一张纸 -->
+    <path android:strokeColor="@color/brand" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M3.5,6.5 h8.6 a0.7,0.7 0 0 1 0.7,0.7 v10.1 a0.7,0.7 0 0 1 -0.7,0.7 h-8.6 a0.7,0.7 0 0 1 -0.7,-0.7 v-10.1 a0.7,0.7 0 0 1 0.7,-0.7 z" />
+</vector>

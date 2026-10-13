@@ -11,6 +11,10 @@
   --brand-soft: rgba(61, 107, 255, 0.12);
   --accent: #00B8A2;
 
+  /* 星标（收藏）。与移动端 colors.xml 的 star 对应 ——
+     不借用 warn：警告色哪天要调，收藏星不该跟着变。 */
+  --star: #F5A623;
+
   /* 内核标识色 */
   --engine-chromium: #3D6BFF;
   --engine-gecko: #FF7139;

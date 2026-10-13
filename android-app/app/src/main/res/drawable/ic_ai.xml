@@ -1,18 +1,78 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  AI 助手按钮图标：一枚四角星（sparkle）+ 右上角一枚小星。
-  这是各类 AI 产品通用的「智能/生成」记号，比放一个字母 "AI" 更耐看，
-  也跟工具栏其它线性图标（首页/收藏/刷新）的笔画量级接近，摆在一起不打架。
-  实心填充，靠 vector 的 tint（text_3）上色。
+  AI 助手按钮图标：字母「AI」+ 右上角一枚小四角星。
+
+  为什么从「一颗星」改成「AI 两个字」：星形是各类 AI 产品的通用记号，
+  但它自己说明不了任何事 —— 用户得先知道「这个记号属于 AI」才认得出来。
+  而这个按钮点开的是六家**在线服务商**的列表，它不是一个抽象的「智能」功能，
+  是「去问 AI」。把字母写上去，成本是两个字母，省掉的是每个新用户的一次试探。
+
+  小星留着：它在这里已经不是主体，而是「生成 / 对话」这个语义的尾巴，
+  顺便把方形字母的右上角填出一点弧度，构图不那么板。
+
+  颜色：品牌渐变（蓝 → 青绿），与 App 图标同一组渐变端点。
+  这是全顶栏唯一一个用渐变而不是纯色的图标 —— 它也是那一行里
+  唯一一个「去别的地方做一件事」的入口，不是当前页面的某个状态。
+  viewport 20×20 上从左下蓝到右上青绿，右上那颗星正好落在最亮的
+  那一端上。
+
+  渐变只能挂在 path 上（通过 aapt:attr 把 strokeColor / fillColor
+  换成 <gradient>），所以字母和星各写一份 —— 一个描边、一个填充，
+  合不成同一个 path。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="20dp" android:height="20dp"
-    android:viewportWidth="20" android:viewportHeight="20"
-    android:tint="@color/text_3">
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="22dp" android:height="22dp"
+    android:viewportWidth="20" android:viewportHeight="20">
+
+    <!-- 字母 A：两条斜线 + 一横。横杠 3.2→7.0 是量出来的 ——
+         斜面在 y=12.5 处的实际宽度是 2.82→7.38，横杠两端各收 0.4，
+         否则两个圆头端点会从斜线外面探出去。 -->
     <path
-        android:fillColor="#000"
-        android:pathData="M10,2.1 C10.7,6.1 13.9,9.3 17.9,10 C13.9,10.7 10.7,13.9 10,17.9 C9.3,13.9 6.1,10.7 2.1,10 C6.1,9.3 9.3,6.1 10,2.1 Z" />
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M1.6,16.4 L5.1,5.2 L8.6,16.4 M3.2,12.5 H7.0">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="18"
+                android:endX="20" android:endY="2">
+                <item android:offset="0" android:color="@color/brand" />
+                <item android:offset="1" android:color="@color/accent" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 字母 I：一竖。和 A 之间留 3.2 —— 描边字体没有字距一说，
+         间距得自己给，靠紧了两个字母会连成一块。 -->
     <path
-        android:fillColor="#000"
-        android:pathData="M15.6,2.4 C15.8,3.5 16.5,4.2 17.6,4.4 C16.5,4.6 15.8,5.3 15.6,6.4 C15.4,5.3 14.7,4.6 13.6,4.4 C14.7,4.2 15.4,3.5 15.6,2.4 Z" />
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:pathData="M11.8,5.2 V16.4">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="18"
+                android:endX="20" android:endY="2">
+                <item android:offset="0" android:color="@color/brand" />
+                <item android:offset="1" android:color="@color/accent" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 右上角小星：中心 (16.9, 4.0)、半径 3.0，由原图标那颗半径 7.9 的大星
+         等比缩来，所以四角星的比例与原来一致。
+         最左 13.9，与 I 的描边外沿（12.7）留 1.2 的间隙。 -->
+    <path
+        android:pathData="M16.9,1.0 C17.17,2.52 18.38,3.73 19.9,4.0 C18.38,4.27 17.17,5.48 16.9,7.0 C16.63,5.48 15.42,4.27 13.9,4.0 C15.42,3.73 16.63,2.52 16.9,1.0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="18"
+                android:endX="20" android:endY="2">
+                <item android:offset="0" android:color="@color/brand" />
+                <item android:offset="1" android:color="@color/accent" />
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>
