@@ -2,8 +2,8 @@
 <!--
   主界面。结构与桌面端 [data-layout="mobile"] 下的 shell.html 一致：
     顶：工具栏（内核标识 + 首页 + 地址栏 + 刷新）
-    中：WebView（外面套一个容器承载加载进度与提示条）
-    底：六宫格底栏（.mobilebar）
+    中：WebView（外面套一个容器承载加载进度与提示条）+ 下滑时浮现的胶囊搜索框
+    底：五格底栏（.mobilebar）
 
   刻意不给任何硬编码颜色，全部走 @color/*，这样 values-night 一换就整体变深色。
 -->
@@ -140,7 +140,21 @@
             android:scaleType="centerInside"
             android:padding="8dp"
             android:src="@drawable/ic_ai" />
-    </LinearLayout>
+        </LinearLayout>
+
+    <!-- ============ 更新提示条 ============ -->
+    <!--
+      夹在顶栏与网页之间：它说的是「应用本身」的状态，不是当前这个网页的状态，
+      所以不该挤进网页区内部；而挂到最上面或最下面，又会被系统栏 / 底栏的
+      视觉重量压住。放在这里，它是顶栏的自然延伸。
+
+      include 必须显式写 id：不写的话拿不到这一条的引用。它内部所有子 View 的 id
+      都挂在同一个命名空间里，很容易误以为 findViewById(R.id.updateBar) 能直接拿到 ——
+      拿不到，那样返回的是 null，而这个错要到真机上「更新条死活不出现」才会被发现。
+    -->
+    <include
+        layout="@layout/bar_update"
+        android:id="@+id/updateBar" />
 
     <!-- ============ 网页区 ============ -->
     <FrameLayout
@@ -213,9 +227,84 @@
             android:paddingTop="4dp"
             android:paddingBottom="4dp"
             android:visibility="gone" />
+
+        <!--
+          下滑时浮现的胶囊搜索框（搜 52ta.top 导航）。
+          它放在「网页区 FrameLayout」内部、而不是底栏那一行里：
+          底栏是纵向 LinearLayout 的一行，没法让两套东西在同一处叠着做淡入淡出。
+          放在网页区底部、用 layout_gravity=bottom 叠在 WebView 之上，才能和底栏做
+          「一个淡出、一个淡入」的交接。
+
+          关于 layout_marginBottom：这里只需要 10dp 的呼吸位，不是 54dp。
+          因为本 FrameLayout 整个就位于底栏那一行的上方 —— 底栏 54dp 的高度不在这块区域内，
+          再让 54dp 出来等于把搜索框凭空抬高一大截。
+
+          初始 gone + alpha=0：不进场时它不该吃掉任何触摸。
+        -->
+        <LinearLayout
+            android:id="@+id/searchCapsule"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_gravity="bottom"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="10dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_search_capsule"
+            android:elevation="6dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:visibility="gone"
+            android:alpha="0">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginEnd="8dp"
+                android:src="@drawable/ic_search"
+                android:contentDescription="@string/search_hint" />
+
+            <EditText
+                android:id="@+id/capsuleInput"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="@string/search_hint"
+                android:textColor="@color/text"
+                android:textColorHint="@color/text_4"
+                android:textSize="14sp"
+                android:maxLines="1"
+                android:inputType="textUri|textNoSuggestions"
+                android:imeOptions="actionSearch|flagNoExtractUi" />
+        </LinearLayout>
+
+        <!--
+          强制更新时盖在网页上的遮罩。
+
+          为什么需要这一层：「强制」如果只体现在「× 按钮不见了」，用户照样可以
+          刷一整天的网页，只是上面多挂了一行字 —— 那叫提示，不叫强制。
+          把网页区盖住、把「继续用旧版」这条路堵上，才对得起 mandatory 这个标记。
+
+          它只盖网页区，不盖顶栏和底栏：地址栏还能看出当前在哪个站，
+          底栏还能退出应用。要挡住的是「继续用」，不是「把人关起来」。
+
+          颜色直接写 #A6000000 而不走 @color 令牌：这是一层纯黑遮罩，
+          深浅两个主题下都该是同样的黑，走令牌反而要维护两份等值的颜色
+          （statusStrip 那处的硬编码也是同一个道理）。
+        -->
+        <View
+            android:id="@+id/updateGuard"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#A6000000"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone" />
     </FrameLayout>
 
-    <!-- ============ 六宫格底栏 ============ -->
+    <!-- ============ 五格底栏 ============ -->
     <LinearLayout
         android:id="@+id/mobileBar"
         android:layout_width="match_parent"
@@ -225,9 +314,9 @@
         android:elevation="8dp">
 
         <!--
-          五个按钮用 <include> 复用同一份布局。include 上必须显式写 id：
-          不写的话被包含布局的根 id（btnBox）会原样冒上来，六个一模一样的 id，
-          findViewById 只会拿到第一个 —— 那就是「五个按钮全绑成同一个动作」这种
+          四格按钮用 <include> 复用同一份布局。include 上必须显式写 id：
+          不写的话被包含布局的根 id（btnBox）会原样冒上来，四个一模一样的 id，
+          findViewById 只会拿到第一个 —— 那就是「几个按钮全绑成同一个动作」这种
           能编译能运行、只是完全不对的 bug。
         -->
         <include layout="@layout/item_mb_back" android:id="@+id/item_mb_back" />
@@ -265,11 +354,10 @@
                 android:textColor="#FFFFFF" />
         </LinearLayout>
 
-        <!-- 原来这一格是「内核」。移动版没有内核可选（只有系统 WebView 真内置），
-        空出来的位置给了下载 —— 下载是浏览器的高频动作，而内核不是。
-        六格数量不变，拇指动线也不用重新适应。 -->
-        <include layout="@layout/item_mb_download" android:id="@+id/item_mb_download" />
-        <include layout="@layout/item_mb_read" android:id="@+id/item_mb_read" />
+        <!-- 「工具」格合并了原来的「下载」与「阅读」两格：320dp 机型上底栏每格
+        已经贴着 44px 触控下限，减格比加格更值当。有下载任务在跑时，这一格的文字会被
+        updateDownloadBadge() 改成「工具 N」并换上品牌色底，提醒「它还在动」。 -->
+        <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools" />
         <include layout="@layout/item_mb_menu" android:id="@+id/item_mb_menu" />
     </LinearLayout>
 </LinearLayout>

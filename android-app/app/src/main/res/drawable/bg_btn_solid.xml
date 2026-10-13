@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  任务行里的主按钮（打开 / 继续 / 暂停 / 重试）。
+  品牌色实底 —— 一行三个按钮里只能有一个是实心的，否则用户不知道该点哪个。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/brand" />
+    <corners android:radius="8dp" />
+</shape>

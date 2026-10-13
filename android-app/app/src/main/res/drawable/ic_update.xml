@@ -1,0 +1,24 @@
+<!--
+  更新图标：一个指向托盘的箭头（同 Material 的 download / system_update）。
+
+  为什么不用「循环箭头」那种更常见的更新符号：那类图标的缺口方向、箭头角度
+  差几度就会显得歪，而这个工程的图标全是 20dp 画布上的手写 path ——
+  一个画歪的循环箭头会一直歪在那里。向下的箭头加一条底线没有这个风险，
+  而且和「后台正在下载更新包」这件事对得更直。
+
+  颜色由根节点的 tint 决定，path 一律 strokeColor="#000"（与 ic_back / ic_tools 同一套写法）。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/brand">
+    <path android:strokeColor="#000" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M10,3.2 L10,13.4" />
+    <path android:strokeColor="#000" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M6.2,9.8 L10,13.6 L13.8,9.8" />
+    <path android:strokeColor="#000" android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:pathData="M4.4,16.8 L15.6,16.8" />
+</vector>

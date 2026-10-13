@@ -68,6 +68,22 @@ public final class NovaSettings {
     /** 更新订阅时是否自动（关掉则只手动点） */
     public boolean rulesAutoUpdate = false;
 
+    // ---- 新增：应用更新
+    /**
+     * 发现新版是否直接后台下载。
+     *
+     * <p>默认开 —— 这就是「主流浏览器」的做法：发现新版不再问「要不要下载」，
+     * 直接下完再告诉你「重启即可」。关掉它才退回逐个询问的老行为。
+     */
+    public boolean updateAuto = true;
+    /**
+     * 是否只在 Wi-Fi 下自动下载更新包。
+     *
+     * <p>默认开。一个用户没主动要的下载却吃掉几百 MB 流量，是这类「自动更新」
+     * 最容易招骂的地方 —— 而更新包本身只有几 MB，等一个 Wi-Fi 的代价很小。
+     */
+    public boolean updateWifiOnly = true;
+
     // ---- 新增：隐私与浏览
     /** 无痕模式：退出时不留会话 */
     public boolean incognito = false;
@@ -111,8 +127,27 @@ public final class NovaSettings {
             new SearchTemplate("baidu", "百度", "https://www.baidu.com/s?wd=%s"),
             new SearchTemplate("bing", "必应", "https://www.bing.com/search?q=%s"),
             new SearchTemplate("google", "Google", "https://www.google.com/search?q=%s"),
+            NAV_52TA,
         };
     }
+
+    /**
+     * 吾爱导航（52ta.top）搜索模板。
+     *
+     * <p>它同时兼两个角色：一是可以像别的模板一样在设置里被选为地址栏的搜索引擎，
+     * 二是底部胶囊搜索框<b>固定</b>用它（与用户选了哪个搜索引擎无关）。
+     *
+     * <p>做成公开静态常量而不是每次都从 {@link #templates()} 里捞：
+     * 胶囊搜索框只要「那一个」模板，直接引用常量最直白；而且网址格式
+     * （{@code action="/all/"} + {@code name="q"}）全工程只有这一处字面量，
+     * 站点改了只改这里。
+     *
+     * <p>注意：把 {@code NAV_52TA} 放进 {@link #templates()} 并<b>不</b>改变默认值 ——
+     * {@code searchTemplateId} 默认仍是 {@code baidu}，而 {@link #searchTemplate()}
+     * 的兜底取的是 {@code templates()[0]}，也就是百度。
+     */
+    public static final SearchTemplate NAV_52TA =
+        new SearchTemplate("nav52ta", "吾爱导航", "https://52ta.top/all/?q=%s");
 
     public SearchTemplate searchTemplate() {
         if ("custom".equals(searchTemplateId) && !customSearch.trim().isEmpty()) {
@@ -159,6 +194,8 @@ public final class NovaSettings {
         m.put("pluginsEnabled", String.valueOf(pluginsEnabled));
         m.put("pluginConfirm", String.valueOf(pluginConfirm));
         m.put("rulesAutoUpdate", String.valueOf(rulesAutoUpdate));
+        m.put("updateAuto", String.valueOf(updateAuto));
+        m.put("updateWifiOnly", String.valueOf(updateWifiOnly));
         m.put("incognito", String.valueOf(incognito));
         m.put("clearOnExit", String.valueOf(clearOnExit));
         m.put("customUA", customUA);
@@ -197,6 +234,10 @@ public final class NovaSettings {
         s.pluginsEnabled = bool(m.get("pluginsEnabled"), s.pluginsEnabled);
         s.pluginConfirm = bool(m.get("pluginConfirm"), s.pluginConfirm);
         s.rulesAutoUpdate = bool(m.get("rulesAutoUpdate"), s.rulesAutoUpdate);
+        // 这两个默认都是 true：老配置里没有这两个键，bool() 会走 fallback，
+        // 于是升级上来的用户直接就获得了「后台自动下载」的新行为 —— 这正是本轮的目的。
+        s.updateAuto = bool(m.get("updateAuto"), s.updateAuto);
+        s.updateWifiOnly = bool(m.get("updateWifiOnly"), s.updateWifiOnly);
         s.incognito = bool(m.get("incognito"), s.incognito);
         s.clearOnExit = bool(m.get("clearOnExit"), s.clearOnExit);
         if (m.get("customUA") != null) s.customUA = m.get("customUA");

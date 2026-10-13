@@ -44,7 +44,7 @@
                     <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
                 </div>
                 <div class="hero-meta">
-                    <span id="verLatest">最新版本 1.2.2（5）</span>
+                    <span id="verLatest">最新版本 1.2.3（6）</span>
                     <span id="verDate">更新于 2026-10-13</span>
                     <span><i></i>Android 7.0 及以上</span>
                     <span><i></i>无内置内核 · 零个 .so</span>
@@ -77,8 +77,8 @@
                             <span class="tb">←</span>
                             <span class="tb">→</span>
                             <span class="tb tabs">7</span>
+                            <span class="tb tool"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><b>工具</b></span>
                             <span class="tb">☰</span>
-                            <span class="tb">⇩</span>
                         </div>
                     </div>
                 </div>
@@ -123,7 +123,7 @@
                 <div class="card">
                     <div class="fico g">↑</div>
                     <h3>应用内自动更新</h3>
-                    <p>启动时静默检查，有新版才提示；官网与 Gitee Releases <b>双下载源互为兜底</b>，一条路断了另一条还在。</p>
+                    <p>有新版不用先点「下载」：直接在后台下好，界面上只留一句「重启更新」。下载包带 <b>sha256 校验</b>，官网与 Gitee Releases <b>双源互为兜底</b>。</p>
                 </div>
             </div>
         </div>
@@ -135,50 +135,143 @@
             <div class="sec-head">
                 <span class="kicker">INTERFACE</span>
                 <h2>重新设计后的样子</h2>
-                <p>蓝与绿，来自应用图标的渐变。下面这些界面由代码直接绘制，与 App 实际配色一一对应。</p>
+                <p>蓝与绿，来自应用图标的渐变。下面的界面由代码直接绘制，颜色取自 App 的令牌表——
+                   下滑时浮出的搜索胶囊、并成五格的底栏、按连接分格的下载进度，都在这里。</p>
             </div>
 
             <div class="shots">
-                <!-- 下载管理 -->
+                <!-- 下载管理（按设计板的下载页重做：一格进度 = 一条连接） -->
                 <div class="shot">
                     <div class="phone">
                         <div class="screen">
                             <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
-                            <div class="sbody">
-                                <div class="p-head"><b>下载管理</b><span>2 个进行中</span></div>
-                                <div class="card-s">
-                                    <div class="row-s">
-                                        <span class="ic" style="background:linear-gradient(135deg,#3D6BFF,#5B84FF)">📦</span>
-                                        <div class="meta"><b>novabrowser-v2.zip</b><span>248.2 MB · 4 线程 · 2.4 MB/s</span></div>
-                                        <span style="color:var(--accent-strong);font-weight:700;font-size:10px">62%</span>
+                            <div class="sbody pane">
+                                <div class="pg">
+                                    <div class="p-head"><b>下载</b><span>清除已完成</span></div>
+
+                                    <div class="eng">
+                                        <div class="eng-top"><b>多线程下载引擎</b><span class="pill">8 线程</span></div>
+                                        <div class="stat3">
+                                            <div><b>1</b><span>进行中</span></div>
+                                            <div><b>0</b><span>已完成</span></div>
+                                            <div><b>1</b><span>失败</span></div>
+                                        </div>
                                     </div>
-                                    <div class="prog"><i style="width:62%"></i></div>
-                                </div>
-                                <div class="card-s">
-                                    <div class="row-s">
-                                        <span class="ic" style="background:linear-gradient(135deg,#00B8A2,#34D399)">🎬</span>
-                                        <div class="meta"><b>media-1080p.mp4</b><span>96.5 MB · 8 线程 · 5.1 MB/s</span></div>
-                                        <span style="color:var(--accent-strong);font-weight:700;font-size:10px">87%</span>
+
+                                    <div class="glabel">进行中<span>1 项</span></div>
+                                    <div class="tcard">
+                                        <div class="trow">
+                                            <div class="trow-top"><b>novabrowser-v2.zip</b><span class="pill">下载中</span></div>
+                                            <div class="segs"><i class="dn"></i><i class="dn"></i><i class="dn"></i><i class="dn"></i><i class="dn"></i><i style="--f:62%"></i><i style="--f:9%"></i><i></i></div>
+                                            <div class="tmeta"><span>186.4 MB / 248.2 MB（75%）</span><em>8 条连接</em></div>
+                                            <div class="b3"><span class="pri">暂停</span><span>分片详情</span><span class="dg">取消</span></div>
+                                        </div>
                                     </div>
-                                    <div class="prog"><i style="width:87%"></i></div>
-                                </div>
-                                <div class="card-s">
-                                    <div class="row-s">
-                                        <span class="ic" style="background:var(--surface-2);color:var(--text-3)">🎵</span>
-                                        <div class="meta"><b>podcast-ep12.mp3</b><span>已完成 · 32.1 MB</span></div>
-                                        <span class="sw2 on"></span>
+
+                                    <div class="glabel">已结束<span>1 项</span></div>
+                                    <div class="tcard">
+                                        <div class="trow">
+                                            <div class="trow-top"><b>assets-pack.7z</b><span class="pill dg">失败</span></div>
+                                            <div class="segs"><i class="dn"></i><i style="--f:18%"></i><i></i></div>
+                                            <div class="tmeta"><span>已下载 4.6 MB / 128.0 MB</span><em>3 条连接</em></div>
+                                            <div class="note-dg">服务器返回 416，已退回单连接。</div>
+                                            <div class="b3"><span class="pri">重试</span><span>详情</span><span class="dg">删除</span></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="tbar">
-                                <span class="tb">←</span><span class="tb">→</span>
+                                <span class="tb">←</span>
+                                <span class="tb">→</span>
                                 <span class="tb tabs">7</span>
-                                <span class="tb">☰</span><span class="tb" style="color:var(--brand)">⇩</span>
+                                <span class="tb tool on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><b>工具 2</b></span>
+                                <span class="tb">☰</span>
                             </div>
                         </div>
                     </div>
-                    <div class="cap"><b>多线程下载</b><span>分片并行 · 断点续传</span></div>
+                    <div class="cap"><b>下载管理</b><span>一格 = 一条连接 · 进行中与已结束分组</span></div>
                 </div>
+
+                <!-- 下滑浮出胶囊搜索框 -->
+                <div class="shot">
+                    <div class="phone">
+                        <div class="screen">
+                            <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
+                            <div class="sbody pane">
+                                <div class="pg">
+                                    <div class="pskel">
+                                        <i class="h w2"></i>
+                                        <i class="w4"></i><i class="w3"></i>
+                                        <div class="ph"></div>
+                                        <i class="w4"></i><i class="w1"></i><i class="w5"></i><i class="w4"></i><i class="w3"></i><i class="w2"></i>
+                                        <i class="h w1"></i>
+                                        <i class="w4"></i><i class="w3"></i><i class="w5"></i><i class="w4"></i><i class="w1"></i>
+                                        <div class="ph"></div>
+                                        <i class="w4"></i><i class="w2"></i>
+                                    </div>
+                                </div>
+                                <div class="capsule-wrap">
+                                    <div class="capsule">
+                                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="4.2"/><path d="M12.4 12.4l4 4"/></svg>
+                                        <span>输入关键词搜索</span>
+                                        <i class="caret"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cap"><b>下滑即搜</b><span>页面下滑时底栏隐去、浮出搜索胶囊</span></div>
+                </div>
+
+                <!-- 标签总览 -->
+                <div class="shot">
+                    <div class="phone">
+                        <div class="screen">
+                            <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
+                            <div class="sbody pane">
+                                <div class="pg">
+                                    <div class="p-head"><b>标签</b><span>共 6 个标签</span></div>
+                                    <div class="tabgrid">
+                                        <div class="tabcard act">
+                                            <div class="shot-b"></div><span class="x">✕</span>
+                                            <div class="tl"><b>吾爱Nova · 新标签页</b><span>nova.52ta.top</span></div>
+                                        </div>
+                                        <div class="tabcard">
+                                            <div class="shot-b"></div><span class="x">✕</span>
+                                            <div class="tl"><b>一篇讲 Range 分片的文章</b><span>zhuanlan.zhihu.com</span></div>
+                                        </div>
+                                        <div class="tabcard">
+                                            <div class="shot-b"></div><span class="x">✕</span>
+                                            <div class="tl"><b>Gitee · i-adore-the-nova-browser</b><span>gitee.com</span></div>
+                                        </div>
+                                        <div class="tabcard">
+                                            <div class="shot-b"></div><span class="x">✕</span>
+                                            <div class="tl"><b>52ta.top 吾爱导航</b><span>52ta.top</span></div>
+                                        </div>
+                                        <div class="tabcard">
+                                            <div class="shot-b"></div><span class="x">✕</span>
+                                            <div class="tl"><b>WebView 调试与远程端口</b><span>developer.android.com</span></div>
+                                        </div>
+                                        <div class="tabcard">
+                                            <div class="shot-b"></div><span class="x">✕</span>
+                                            <div class="tl"><b>知乎 · 发现</b><span>zhihu.com</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="newtab">新建标签页</div>
+                                </div>
+                            </div>
+                            <div class="tbar">
+                                <span class="tb">←</span>
+                                <span class="tb">→</span>
+                                <span class="tb tabs">6</span>
+                                <span class="tb tool"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><b>工具</b></span>
+                                <span class="tb">☰</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cap"><b>标签总览</b><span>点卡片切换 · 点 × 只关这一张</span></div>
+                </div>
+
 
                 <!-- 广告拦截 -->
                 <div class="shot">
@@ -215,7 +308,8 @@
                             <div class="tbar">
                                 <span class="tb">←</span><span class="tb">→</span>
                                 <span class="tb tabs">7</span>
-                                <span class="tb" style="color:var(--brand)">☰</span><span class="tb">⇩</span>
+                                <span class="tb tool"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><b>工具</b></span>
+                                <span class="tb" style="color:var(--brand)">☰</span>
                             </div>
                         </div>
                     </div>
@@ -257,7 +351,8 @@
                             <div class="tbar">
                                 <span class="tb">←</span><span class="tb">→</span>
                                 <span class="tb tabs">7</span>
-                                <span class="tb">☰</span><span class="tb">⇩</span>
+                                <span class="tb tool"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><b>工具</b></span>
+                                <span class="tb">☰</span>
                             </div>
                         </div>
                     </div>
@@ -300,7 +395,8 @@
                             <div class="tbar">
                                 <span class="tb">←</span><span class="tb">→</span>
                                 <span class="tb tabs">7</span>
-                                <span class="tb">☰</span><span class="tb">⇩</span>
+                                <span class="tb tool"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><b>工具</b></span>
+                                <span class="tb">☰</span>
                             </div>
                         </div>
                     </div>
@@ -355,17 +451,17 @@
             </div>
             <div class="dl-box">
                 <div class="dl-version">
-                    <strong id="dlVer">v1.2.2</strong>
+                    <strong id="dlVer">v1.2.3</strong>
                     <span id="dlStamp">更新于 2026-10-13</span>
                 </div>
-                <p class="dl-note" id="dlNote">安装包大小约 332 KB。安装前请在系统设置中允许来自此来源的应用。</p>
+                <p class="dl-note" id="dlNote">安装包大小约 353 KB。安装前请在系统设置中允许来自此来源的应用。</p>
                 <div class="dl-list" id="dlBtns">
-                    <a class="btn btn-primary btn-lg" href="download/nova-1.2.2.apk" download>官网直链 · v1.2.2</a>
-                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.2/nova-1.2.2.apk" download>Gitee Releases · v1.2.2</a>
+                    <a class="btn btn-primary btn-lg" href="download/nova-1.2.3.apk" download>官网直链 · v1.2.3</a>
+                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.3/nova-1.2.3.apk" download>Gitee Releases · v1.2.3</a>
                 </div>
                 <ul class="dl-facts" id="dlFacts">
-                    <li><span>版本</span><span>1.2.2</span></li>
-                    <li><span>版本码</span><span>4</span></li>
+                    <li><span>版本</span><span>1.2.3</span></li>
+                    <li><span>版本码</span><span>6</span></li>
                     <li><span>更新日期</span><span>2026-10-13</span></li>
                 </ul>
             </div>

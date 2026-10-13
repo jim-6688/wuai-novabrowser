@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  失败原因条。对应设计板的 .dlnote（surface_3 底 + 左侧 2px 警示色竖条）。
+
+  竖条只圆左侧两个角：底块本身是 8dp 圆角矩形，如果竖条是直角，
+  它的左上/左下会从底块的圆角里探出去两个小尖角。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/surface_3" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+    <item
+        android:width="3dp"
+        android:gravity="left">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/danger" />
+            <corners
+                android:topLeftRadius="8dp"
+                android:bottomLeftRadius="8dp" />
+        </shape>
+    </item>
+</layer-list>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  状态胶囊的底：只有一圈描边，填充是透明的。
+  对应设计板的 .dlpill（透明底 + 1px 边框 + 与边框同色的文字）。
+
+  为什么五个状态共用一张：胶囊的颜色要跟着任务状态走，如果按状态各写一份
+  （pill_brand / pill_ok / pill_danger ...），加一种状态就要加一个文件。
+  这里靠 setBackgroundTintList 在运行时上色 —— GradientDrawable 的 tint 会同时
+  作用在描边上，而 solid 是透明色，乘完还是透明，于是只有边框被染色。
+
+  用 @color/border_strong 作默认色而不是某个品牌色：万一忘了染色，
+  它长得像一个中性标签，不会变成一个看起来像是出错的彩色胶囊。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/border_strong" />
+    <corners android:radius="999dp" />
+</shape>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  下载面板空态用的图标：一个向下的箭头落进托盘。
+
+  与其它线性图标同一套画法（纯描边、圆头线帽、颜色交给 android:tint），
+  只是画布放大到 44dp —— 空态图标要撑起一块留白，20dp 放在那里会像漏了一个小字。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="44dp" android:height="44dp"
+    android:viewportWidth="44" android:viewportHeight="44"
+    android:tint="@color/text_4">
+    <path android:strokeColor="#000" android:strokeWidth="2.4"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M22,8 L22,27" />
+    <path android:strokeColor="#000" android:strokeWidth="2.4"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M15,20 L22,27 L29,20" />
+    <path android:strokeColor="#000" android:strokeWidth="2.4"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M9,33 L9,35 A2,2 0 0,0 11,37 L33,37 A2,2 0 0,0 35,35 L35,33" />
+</vector>

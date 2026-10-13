@@ -5,16 +5,20 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -39,6 +43,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -79,6 +84,28 @@ public final class MainActivity extends Activity {
     private RuleUpdater ruleUpdater;
     /** 应用内自动更新。同样懒建 —— 大多数会话里用户根本不会去点它。 */
     private UpdateManager updateManager;
+
+    // ---- 更新流程的界面状态。判断全交给 UpdateFlow，这里只存「当前是哪一档」。
+    /** 正在处理的那个版本清单；为 null 表示没有更新在进行。 */
+    private UpdateManager.Manifest pendingUpdate;
+    /** 更新走到了哪一步。 */
+    private UpdateFlow.Phase updatePhase = UpdateFlow.Phase.IDLE;
+    /** 下载百分比；-1 表示总长未知。 */
+    private int updatePercent = -1;
+    /** 失败原因（给人看的一句话）。 */
+    private String updateError = "";
+    /** 已下载好的安装包，点「重启更新」时交给系统安装器。 */
+    private File updateApk;
+    /**
+     * 用户是否手动关掉了更新条。
+     *
+     * <p>它只在 UpdateFlow 判定「这条可以关」时才可能为 true ——
+     * 强制更新的快照里 {@code closable} 是 false，那个 × 根本不会出现，
+     * 所以这个标记不可能把强制更新一起关掉。
+     */
+    private boolean updateDismissed;
+    /** 更新条本身。每次 mountMain 都要重新取（setContentView 会重建整棵树）。 */
+    private View updateBar;
 
     /** 已装用户脚本。装/删/启停后要重设一遍，否则改动不生效。 */
     private List<UserScript.Installed> scripts = new ArrayList<>();
@@ -128,6 +155,19 @@ public final class MainActivity extends Activity {
     private TextView engineLabel;
     private View engineDot;
     private View engineChip;
+    /** 五格底栏。下滑时整条淡出，让位给胶囊搜索框。 */
+    private View mobileBar;
+    /** 下滑浮现的胶囊搜索框。 */
+    private View searchCapsule;
+    /** 胶囊搜索框里的输入框。 */
+    private EditText capsuleInput;
+    /**
+     * 滚动 → 底栏/胶囊 的状态机（纯逻辑，见 {@link BottomBarReveal}）。
+     * 每次重新装配主界面都 reset 一次，保证状态机与 XML 初态一致。
+     */
+    private final BottomBarReveal reveal = new BottomBarReveal();
+    /** 上一次真正应用到界面上的状态，用来避免每个滚动帧都重复启动动画。 */
+    private BottomBarReveal.State shownReveal = BottomBarReveal.State.SHOW_BAR;
 
     // ------------------------------------------------------------ 生命周期
 
@@ -251,10 +291,13 @@ public final class MainActivity extends Activity {
      * 检查更新。
      *
      * <p>清单一律从官网 {@link UpdateManager#UPDATE_URL} 取，因为那是 App 与官网
- * 共用的唯一版本来源 —— 在 App 里再抄一份版本号，迟早会对不上。
+     * 共用的唯一版本来源 —— 在 App 里再抄一份版本号，迟早会对不上。
      *
      * <p>{@code interactive} 决定「没查到 / 已是最新」要不要出声：
      * 启动时自动查的那次必须完全静默，用户主动点的才反馈。
+     *
+     * <p>查到新版之后<b>不再问「要不要下载」</b>，直接进 {@link #beginUpdate}。
+     * 为什么不做那一问，见 {@link UpdateFlow} 的类说明。
      */
     private void checkUpdate(final boolean interactive) {
         if (updateManager == null) updateManager = new UpdateManager(this);
@@ -264,11 +307,249 @@ public final class MainActivity extends Activity {
                 return;
             }
             if (!m.newerThan(BuildConfig.VERSION_CODE)) {
+                // 已经是最新：把上一次留下的更新条和包一起收掉。
+                // 不收的话，用户装完新版回来会看到「新版本 x.y.z 已就绪」还挂在上面。
+                clearUpdate();
                 if (interactive) toast("已是最新版本 " + m.version);
                 return;
             }
-            showUpdateSheet(m);
+            beginUpdate(m, interactive);
         });
+    }
+
+    /**
+     * 进入更新流程。
+     *
+     * <p>三条分支的顺序不能调换：
+     * <ol>
+     *   <li>同一个版本正在处理中 → 什么都不做。用户随手点一次「检查更新」，
+     *       就把已经下了 80% 的包清掉重下，是最没道理的一种骚扰。</li>
+     *   <li>上次已经下好（下载完但没装成，比如中途退出了应用）→ 直接进「已就绪」，
+     *       不再重下一遍。用户看到的是「明明下过了，怎么又在下载」就是漏了这条。</li>
+     *   <li>该下就下。只有「仅 Wi-Fi」这条设置拦着时，才停在等待态。</li>
+     * </ol>
+     */
+    private void beginUpdate(final UpdateManager.Manifest m, boolean interactive) {
+        if (pendingUpdate != null && pendingUpdate.versionCode == m.versionCode
+                && updatePhase != UpdateFlow.Phase.IDLE
+                && updatePhase != UpdateFlow.Phase.FAILED) {
+            renderUpdate();
+            return;
+        }
+
+        pendingUpdate = m;
+        updateDismissed = false;
+        updateError = "";
+        if (updateManager == null) updateManager = new UpdateManager(this);
+
+        File ready = updateManager.readyPackage(m);
+        if (ready != null) {
+            updateApk = ready;
+            updatePhase = UpdateFlow.Phase.READY;
+            updatePercent = 100;
+            updateManager.prune(ready);
+            renderUpdate();
+            return;
+        }
+
+        if (!settings.updateAuto) {
+            // 用户关掉了自动下载：退回「问一句再下」的老行为。
+            updatePhase = UpdateFlow.Phase.IDLE;
+            renderUpdate();
+            showUpdateSheet(m);
+            return;
+        }
+
+        if (settings.updateWifiOnly && !onWifi()) {
+            updatePhase = UpdateFlow.Phase.WAITING;
+            renderUpdate();
+            return;
+        }
+
+        startUpdateDownload();
+    }
+
+    /** 发起下载。 */
+    private void startUpdateDownload() {
+        if (pendingUpdate == null) return;
+        if (updateManager == null) updateManager = new UpdateManager(this);
+
+        updatePhase = UpdateFlow.Phase.DOWNLOADING;
+        updatePercent = -1;
+        updateError = "";
+        renderUpdate();
+
+        // 延后 60ms 再开工。下载是同步阻塞在 IO 线程里跑的，而 renderUpdate()
+        // 只是把「正在下载」这一帧交给下一帧去画 —— 立刻开工会让提示条比
+        // 网络请求还晚出现，用户点完「重试」会有一小段什么都没发生的空档。
+        View anchor = updateBar != null ? updateBar : findViewById(android.R.id.content);
+        if (anchor != null) {
+            anchor.postDelayed(this::launchUpdateFetch, 60);
+        } else {
+            launchUpdateFetch();
+        }
+    }
+
+    private void launchUpdateFetch() {
+        final UpdateManager.Manifest m = pendingUpdate;
+        if (m == null || updateManager == null) return;
+        updateManager.fetch(m,
+            (got, total) -> {
+                updatePercent = UpdateFlow.percentOf(got, total);
+                renderUpdate();
+            },
+            (apk, error) -> {
+                if (apk != null) {
+                    updateApk = apk;
+                    updatePhase = UpdateFlow.Phase.READY;
+                    updatePercent = 100;
+                    // 下好即清掉别的残包：更新目录里只该留这一个文件。
+                    updateManager.prune(apk);
+                } else {
+                    updatePhase = UpdateFlow.Phase.FAILED;
+                    updateError = error == null ? "" : error;
+                }
+                renderUpdate();
+            });
+    }
+
+    /**
+     * 把当前状态画到更新条上。
+     *
+     * <p>这里只做赋值：显示什么、按钮写什么、能不能关，全部由 {@link UpdateFlow}
+     * 算好。一旦在这里写 if，就等于把状态判断拆到了两个地方，早晚会对不上。
+     */
+    private void renderUpdate() {
+        if (updateBar == null) return;
+        // 下载回调仍会回到主线程，但 Activity 可能已经走了。这时再碰那些 View
+        // 没有意义（updateBar 指向的还是已经 detach 的旧视图），提前退出。
+        if (isFinishing() || isDestroyed()) return;
+
+        boolean mandatory = pendingUpdate != null
+            && pendingUpdate.mustUpdate(BuildConfig.VERSION_CODE);
+        UpdateFlow.Snapshot s = UpdateFlow.of(updatePhase,
+            pendingUpdate == null ? "" : pendingUpdate.version,
+            updatePercent, mandatory, updateError);
+
+        boolean show = s.visible && !(updateDismissed && s.closable);
+        updateBar.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (!show) {
+            setUpdateGuard(false);
+            return;
+        }
+
+        TextView title = updateBar.findViewById(R.id.updateTitle);
+        TextView detail = updateBar.findViewById(R.id.updateDetail);
+        TextView action = updateBar.findViewById(R.id.updateAction);
+        ImageButton close = updateBar.findViewById(R.id.updateClose);
+        ImageView icon = updateBar.findViewById(R.id.updateIcon);
+        ProgressBar bar = updateBar.findViewById(R.id.updateProgress);
+
+        title.setText(s.title);
+        // 底色故意做得安静（见 bg_update_bar 的说明），所以「轻重缓急」只能靠
+        // 标题与图标这两处来表达：失败和强制更新染成警示色，其余用常规色。
+        title.setTextColor(color(s.warn ? R.color.danger : R.color.text));
+        if (icon != null) {
+            icon.setImageTintList(ColorStateList.valueOf(
+                color(s.warn ? R.color.danger : R.color.brand)));
+        }
+
+        if (s.detail == null || s.detail.isEmpty()) {
+            detail.setVisibility(View.GONE);
+        } else {
+            detail.setVisibility(View.VISIBLE);
+            detail.setText(s.detail);
+        }
+
+        if (bar != null) {
+            bar.setVisibility(s.progressVisible ? View.VISIBLE : View.GONE);
+            if (s.progressVisible) {
+                // 总长未知时给一个极小的非零值：0 和「刚要开始」看起来一模一样，
+                // 而一条永远停在 0 的进度条比没有进度条更让人怀疑是不是卡死了。
+                bar.setProgress(s.percent > 0 ? s.percent : 2);
+            }
+        }
+
+        if (s.action == null) {
+            action.setVisibility(View.GONE);
+        } else {
+            action.setVisibility(View.VISIBLE);
+            action.setText(s.action);
+            action.setOnClickListener(v -> onUpdateAction());
+        }
+
+        close.setVisibility(s.closable ? View.VISIBLE : View.GONE);
+        if (s.closable) {
+            close.setOnClickListener(v -> {
+                updateDismissed = true;
+                renderUpdate();
+            });
+        }
+
+        setUpdateGuard(s.blocking);
+    }
+
+    /** 更新条上那个主按钮的唯一入口。文案与含义都由当前阶段决定。 */
+    private void onUpdateAction() {
+        switch (updatePhase) {
+            case READY:
+                if (updateManager == null) updateManager = new UpdateManager(this);
+                String err = updateManager.install(updateApk);
+                if (err != null) toast(err);
+                break;
+            case WAITING:
+            case FAILED:
+                // 等待态点它是「不想等 Wi-Fi 了」，失败态点它是「再来一次」，
+                // 两者都是重新发起下载。
+                startUpdateDownload();
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * 强制更新时挡住网页区。
+     *
+     * <p>只挡网页，不挡顶栏与底栏：地址栏还能看出当前在哪个站，还能退出应用。
+     * 要拦的是「继续用旧版」，不是「把人关在这个界面里」。
+     */
+    private void setUpdateGuard(boolean on) {
+        View guard = findViewById(R.id.updateGuard);
+        if (guard == null) return;
+        guard.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+
+    /**
+     * 当前是否连在 Wi-Fi 上。
+     *
+     * <p>判断不出来时返回 true：「仅 Wi-Fi」是一省流量的偏好，不是安全边界，
+     * 为它把更新卡死并不划算。
+     */
+    @SuppressWarnings("deprecation")
+    private boolean onWifi() {
+        try {
+            ConnectivityManager cm =
+                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return true;
+            NetworkInfo ni = cm.getActiveNetworkInfo();
+            return ni != null && ni.isConnected()
+                && ni.getType() == ConnectivityManager.TYPE_WIFI;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    /** 收掉更新条与磁盘上的更新包。只在「确认没有更新」时才调。 */
+    private void clearUpdate() {
+        pendingUpdate = null;
+        updateApk = null;
+        updatePhase = UpdateFlow.Phase.IDLE;
+        updatePercent = -1;
+        updateError = "";
+        updateDismissed = false;
+        if (updateManager != null) updateManager.prune(null);
+        renderUpdate();
     }
 
     /** 新版提示。清单给了两个地址时，第二个作为备用写在正文里。 */
@@ -286,7 +567,11 @@ public final class MainActivity extends Activity {
                 .append(m.downloads.get(1).url);
         }
         new NovaAlert(this, must ? "需要更新" : "发现新版本", sb.toString())
-            .positive("下载 " + m.version, () -> downloadUpdate(m))
+            .positive("下载 " + m.version, () -> {
+                // 这条路只在「自动下载更新」被用户关掉时才会走到（见 beginUpdate）。
+                pendingUpdate = m;
+                startUpdateDownload();
+            })
             .negative(must ? "退出" : "以后再说",
                 must ? this::finishAffinity : null)
             .show();
@@ -302,16 +587,6 @@ public final class MainActivity extends Activity {
             for (String line : m.changelog) sb.append("\n\n· ").append(line);
         }
         return sb.toString();
-    }
-
-    private void downloadUpdate(UpdateManager.Manifest m) {
-        if (updateManager == null) updateManager = new UpdateManager(this);
-        long id = updateManager.download(m);
-        if (id < 0) {
-            toast("无法开始下载，检查一下存储空间或网络");
-        } else {
-            toast("开始下载，完成后点通知里的文件即可安装");
-    }
     }
 
     /**
@@ -381,6 +656,9 @@ public final class MainActivity extends Activity {
         engineLabel = findViewById(R.id.engineLabel);
         engineDot = findViewById(R.id.engineDot);
         engineChip = findViewById(R.id.engineChip);
+        mobileBar = findViewById(R.id.mobileBar);
+        searchCapsule = findViewById(R.id.searchCapsule);
+        capsuleInput = findViewById(R.id.capsuleInput);
 
         // 重新 inflate 出来的进度条是全新的：XML 没写 visibility，默认 visible、progress=0。
         // 而复用的 WebView 此刻早已加载完（空闲）—— 不把进度条复位的话，
@@ -395,11 +673,27 @@ public final class MainActivity extends Activity {
         setupStarButton();
         setupAiButton();
         setupOmnibox();
+        // 滚动显隐。状态机复位成「底栏可见」，与新 inflate 出来的 XML 初态对齐 ——
+        // 否则从「胶囊」状态返回主界面时，界面显示的是底栏、状态机却以为是胶囊，
+        // 之后要再滚一次才会发现不同步。
+        //
+        // 把当前真实位置一起传进去当基准：从弹层返回时页面可能已经滚过一段，
+        // 若基准仍是 0，接下来的首个滚动回调会被当成「从 0 猛滚过来」而误弹胶囊
+        // （reset 还会把首个样本判为「仅定基准」，见 BottomBarReveal）。
+        reveal.reset(web != null ? web.getScrollY() : 0);
+        shownReveal = BottomBarReveal.State.SHOW_BAR;
+        setupScrollReveal();
         applyEngine();
         syncChrome();
         syncNoImageChip();
 
         applySurfaceTheme();
+
+        // 更新条在新树里是一个全新的实例，必须重新取回来；顺带按当前状态重画一遍 ——
+        // 否则从弹层返回时，正在下载的进度会停在进弹层前的那一帧上。
+        updateBar = findViewById(R.id.updateBar);
+        renderUpdate();
+
         mainViewMounted = true;
     }
 
@@ -538,7 +832,10 @@ public final class MainActivity extends Activity {
         web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
             if (url == null) return;
             DownloadTrigger trig = new DownloadTrigger(registry.mediaExts(), true);
-            DownloadTrigger.Verdict v = trig.judge(contentDisposition, url, false);
+            // mimetype 一定要传进去：它是最可靠的信号，也是「点 .php / 无后缀下载地址
+            // 没反应」的正解。旧代码把它丢掉了，于是 /down.php?id=1 这种地址
+            // 会被「页面后缀」规则直接否决，用户点了毫无反馈。
+            DownloadTrigger.Verdict v = trig.judge(contentDisposition, mimetype, url, false);
             if (!v.trigger) return;
             // 服务器明说是附件时，Content-Disposition 里往往带着真实文件名
             // （`filename="report.zip"` 或 RFC 5987 的 `filename*=UTF-8''...`）。
@@ -615,10 +912,11 @@ public final class MainActivity extends Activity {
         bindMb(R.id.item_mb_forward, R.drawable.ic_forward, R.string.mb_forward, v -> {
             if (web.canGoForward()) web.goForward();
         });
-        bindMb(R.id.item_mb_download, R.drawable.ic_download, R.string.mb_download,
-            v -> showDownloadSheet());
-        bindMb(R.id.item_mb_read, R.drawable.ic_read, R.string.mb_read,
-            v -> showReadSheet());
+        // 「下载」与「阅读」两格合并成一格「工具」：底栏从六格缩到五格。
+        // 两件事本质都是「对网页的加工」，合到一个面板里，底栏能少一格、
+        // 320dp 机型上剩下的格子也就没那么贴着触控下限了。
+        bindMb(R.id.item_mb_tools, R.drawable.ic_tools, R.string.mb_tools,
+            v -> showToolsSheet());
         bindMb(R.id.item_mb_menu, R.drawable.ic_menu, R.string.mb_menu,
             v -> showMenuSheet());
 
@@ -695,9 +993,17 @@ public final class MainActivity extends Activity {
         go(settings.homepage);
     }
 
-    /** 底栏下载按钮上的红点：有任务在跑就显示数量。 */
+    /**
+     * 底栏「工具」格上的角标：有下载任务在跑就显示数量。
+     *
+     * <p>「下载」格被合并进「工具」之后，这个提醒不能丢 —— 否则任务在后台跑，
+     * 界面上没有任何迹象。改成把「工具 N」写在工具格的文字上、并给品牌色底，
+     * 效果和原来一样：一眼看到「有个东西还在动，点进去看看」。
+     *
+     * <p>函数名与调用点一律保留（被 syncChrome 和下载回调调用），只是作用的 id 换了。
+     */
     private void updateDownloadBadge() {
-        View badge = findViewById(R.id.item_mb_download);
+        View badge = findViewById(R.id.item_mb_tools);
         if (badge == null) return;
         TextView text = badge.findViewById(R.id.btnText);
         if (text == null) return;
@@ -713,10 +1019,22 @@ public final class MainActivity extends Activity {
             }
         }
         text.setText(active_ > 0
-            ? getString(R.string.mb_download) + " " + active_
-            : getString(R.string.mb_download));
-        // 有任务在跑时给个品牌色的底，提醒「它还在动」
-        badge.setBackgroundResource(active_ > 0 ? R.drawable.seg_on : 0);
+            ? getString(R.string.mb_tools) + " " + active_
+            : getString(R.string.mb_tools));
+        // 有任务在跑时给个品牌色的底，提醒「它还在动」。
+        if (active_ > 0) {
+            badge.setBackgroundResource(R.drawable.seg_on);
+        } else {
+            // 恢复时要还原成 XML 里那个 ?android:attr/selectableItemBackground，而不是 0。
+            // setBackgroundResource(0) 会把这格的水波纹点击反馈永久抹掉（且不可逆：
+            // 布局只在 mountMain 时重建，一次「有任务→无任务」之后这格就再也没有点击反馈了）。
+            // 直接写资源名不行（那是主题属性不是固定资源），得通过主题解析回它的真实 id。
+            TypedValue tv = new TypedValue();
+            if (getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
+                    && tv.resourceId != 0) {
+                badge.setBackgroundResource(tv.resourceId);
+            }
+        }
     }
 
     private void bindMb(int boxId, int iconRes, int textRes, OnTap cb) {
@@ -724,6 +1042,86 @@ public final class MainActivity extends Activity {
         ((ImageView) box.findViewById(R.id.btnIcon)).setImageResource(iconRes);
         ((TextView) box.findViewById(R.id.btnText)).setText(textRes);
         box.setOnClickListener(v -> cb.tap(v));
+    }
+
+    /**
+     * 网页滚动时切换「底栏 / 胶囊搜索框」。
+     *
+     * <p>判断本身全在 {@link BottomBarReveal} 里（纯逻辑，可单测），这里只负责
+     * 把状态变化翻译成动画。刻意只在<b>状态真正变化</b>时才调 {@code applyReveal}：
+     * onScrollChange 一秒里会来很多帧，每帧都启动一次 ViewPropertyAnimator
+     * 会把动画队列冲乱，表现就是底栏抖个不停。
+     *
+     * <p>WebView 是复用的同一个实例，所以这里重复 set listener 也不会有多份
+     * —— set 是覆盖语义，跟 add 不一样。
+     */
+    private void setupScrollReveal() {
+        if (web == null) return;
+        web.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+            BottomBarReveal.State s = reveal.onScroll(scrollY);
+            if (s != shownReveal) {
+                shownReveal = s;
+                applyReveal(s, true);
+            }
+        });
+
+        if (capsuleInput != null) {
+            capsuleInput.setOnEditorActionListener((v, actionId, event) -> {
+                boolean submit = actionId == EditorInfo.IME_ACTION_SEARCH
+                    || actionId == EditorInfo.IME_ACTION_GO
+                    || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                        && event.getAction() == KeyEvent.ACTION_DOWN);
+                if (!submit) return false;
+                String q = capsuleInput.getText().toString().trim();
+                if (q.isEmpty()) return true;
+                hideKeyboard();
+                // 从别的状态进来时先保证主界面装着，再跳转；已经在主界面就直接 go。
+                if (!mainViewMounted) mountMain();
+                // 固定走 52ta.top 导航搜索，与用户选中的搜索引擎无关。
+                // URL 编码由 SearchTemplate.build 内部用 UTF-8 处理（见其注释）。
+                go(NovaSettings.NAV_52TA.build(q));
+                capsuleInput.setText("");
+                // 跳完把底栏恢复常态：别让用户落在一个「只有搜索框、没有底栏」的界面。
+                // 用当前位置作基准，并让首个滚动回调只定基准、不判定，避免跳转瞬间误弹。
+                reveal.reset(web != null ? web.getScrollY() : 0);
+                if (shownReveal != BottomBarReveal.State.SHOW_BAR) {
+                    shownReveal = BottomBarReveal.State.SHOW_BAR;
+                    applyReveal(BottomBarReveal.State.SHOW_BAR, true);
+                }
+                return true;
+            });
+        }
+    }
+
+    /**
+     * 把状态落到界面：底栏与胶囊是互斥的，一个淡入另一个就淡出。
+     *
+     * @param s       目标状态
+     * @param animate 是否播放 300ms 动画；装配阶段不需要动画
+     */
+    private void applyReveal(BottomBarReveal.State s, boolean animate) {
+        final View bar = mobileBar;
+        final View cap = searchCapsule;
+        if (bar == null || cap == null) return;
+        boolean showBar = s == BottomBarReveal.State.SHOW_BAR;
+        int duration = animate ? 300 : 0;
+        // 高度拿不到（还没 layout）时用布局里写死的尺寸兜底，否则位移量会是 0，
+        // 动画看起来就像没动。54dp / 44dp 分别对应 mobileBar 与 searchCapsule。
+        float density = getResources().getDisplayMetrics().density;
+        int barH = bar.getHeight() > 0 ? bar.getHeight() : Math.round(54 * density);
+        int capH = cap.getHeight() > 0 ? cap.getHeight() : Math.round(44 * density);
+
+        if (showBar) {
+            bar.setVisibility(View.VISIBLE);
+            bar.animate().alpha(1f).translationY(0f).setDuration(duration).start();
+            cap.animate().alpha(0f).translationY(capH).setDuration(duration)
+                .withEndAction(() -> cap.setVisibility(View.GONE)).start();
+        } else {
+            cap.setVisibility(View.VISIBLE);
+            cap.animate().alpha(1f).translationY(0f).setDuration(duration).start();
+            bar.animate().alpha(0f).translationY(barH).setDuration(duration)
+                .withEndAction(() -> bar.setVisibility(View.INVISIBLE)).start();
+        }
     }
 
     // ------------------------------------------------------------ 地址栏
@@ -887,6 +1285,41 @@ public final class MainActivity extends Activity {
         syncChrome();
     }
 
+    /**
+     * 按<b>对象引用</b>关标签。
+     *
+     * <p>为什么不直接用位置下标：标签总览是一个 {@code GridView}，它会复用 item 视图。
+     * 视图的 {@code OnClickListener} 只能捕获「绑定时那一刻的下标」，而一次关闭之后
+     * 后面的下标会整体前移；在「点 × 就地 notifyDataSetChanged」这种边改边刷的场景里，
+     * 那个捕获到的下标就不再指向用户刚点的那张卡 —— 于是可能关错项，甚至连锁误关。
+     * 改成捕获 {@link Tab} 对象本身、关的时候再按引用重新定位，位置怎么漂移都只会关这一张。
+     *
+     * <p>找不到（已经被别的路径关掉了）就直接返回：让「重复点同一个 ×」变成无害的。
+     */
+    private void closeTabByRef(Tab ref) {
+        int idx = indexOfTabRef(tabs, ref);
+        if (idx < 0) return;
+        closeTab(idx);
+    }
+
+    /**
+     * 按引用找下标，找不到返回 -1。
+     *
+     * <p>抽成静态纯函数是为了能单测 —— 这段「按引用定位」的逻辑正是这次修复的核心，
+     * 而它在真机上要靠 GridView 复用才会暴露，写单测才能钉住。
+     *
+     * <p>用 {@code ==} 而不是 {@code equals}：这里要的是「同一张卡的同一个对象」，
+     * 而不是「两个内容相等的标签」。将来 {@code Tab} 就算重写了 {@code equals}，
+     * 这里也不会因为「两个空白主页标签相等」而关错。
+     */
+    static int indexOfTabRef(List<Tab> list, Tab ref) {
+        if (list == null || ref == null) return -1;
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i) == ref) return i;
+        }
+        return -1;
+    }
+
     private void captureScroll() {
         Tab t = current();
         if (t != null) t.scrollY = web.getScrollY();
@@ -962,7 +1395,12 @@ public final class MainActivity extends Activity {
     }
 
     private void syncChrome() {
-        ((TextView) findViewById(R.id.mbTabCount)).setText(String.valueOf(tabs.size()));
+        // 必须判空：关闭标签是在「标签总览」弹层开着的时候发生的，而那时
+        // setContentView 换掉的是弹层根布局，里面根本没有 mbTabCount。
+        // 不判空的话 closeTab 末尾这一行会 NPE —— 表现是「点一下 × 应用闪退」，
+        // 而且 tabs.remove 已经执行过了，界面和状态从此对不上。
+        TextView count = findViewById(R.id.mbTabCount);
+        if (count != null) count.setText(String.valueOf(tabs.size()));
         updateDownloadBadge();
     }
 
@@ -1212,6 +1650,22 @@ public final class MainActivity extends Activity {
         return getResources().getColor(res);
     }
 
+    /**
+     * 下载状态色阶到颜色令牌。
+     *
+     * <p>集中在一处取值，是为了「同一个状态在列表里和统计里是同一个颜色」——
+     * 分两处写的话，改了一处忘了另一处，界面就会自相矛盾。
+     */
+    private int toneColor(DownloadUi.Tone tone) {
+        switch (tone) {
+            case BRAND:  return color(R.color.brand);
+            case OK:     return color(R.color.ok);
+            case WARN:   return color(R.color.warn);
+            case DANGER: return color(R.color.danger);
+            default:     return color(R.color.text_3);
+        }
+    }
+
     /** 深浅色下给网页区换个底色，否则夜间模式会留一条刺眼的白边。 */
     private void applySurfaceTheme() {
         boolean night = (getResources().getConfiguration().uiMode
@@ -1456,6 +1910,29 @@ public final class MainActivity extends Activity {
 
         ((TextView) sheet.findViewById(R.id.aboutVer))
             .setText("吾爱Nova浏览器 " + getString(R.string.app_version));
+    }
+
+    /**
+     * 工具栏面板：原来底栏的「下载」「阅读」两格合并到这里。
+     *
+     * <p>两行的动作都先 {@link #mountMain()} 再开对应面板 —— 与主菜单里那两行的写法
+     * 完全一致。不先装主界面的话，「从工具面板直接跳到下载面板」时当前 content view
+     * 还是旧面板，新面板的 {@code setContentView} 会把它顶掉，而 WebView 仍被搬来搬去，
+     * 容易在返回时白屏（原因见 mountMain 的注释）。
+     */
+    private void showToolsSheet() {
+        View sheet = openSheet(getString(R.string.sheet_tools), R.layout.sheet_tools);
+
+        // 副标题直接用 downloadSummary()，和主菜单里的下载入口保持一致：
+        // 同一件事的说明文字只有一个来源，改一处两边都变。
+        menuRow(sheet, R.id.toolDownloads, "下载", downloadSummary(), () -> {
+            mountMain();
+            showDownloadSheet();
+        }, true);
+        menuRow(sheet, R.id.toolRead, "阅读增强", "无图模式 / 自动拼页", () -> {
+            mountMain();
+            showReadSheet();
+        }, true);
     }
 
     private void toggleAdblock() {
@@ -2027,60 +2504,125 @@ public final class MainActivity extends Activity {
         updateDownloadBadge();
     }
 
+    /**
+     * 刷新下载面板。
+     *
+     * <p>列表按「进行中 / 已结束」分成两组、各自一张卡片。旧版是一条条平铺，
+     * 已完成的文件会把还在跑的那条挤到看不见的地方 —— 而这个面板最要紧的信息
+     * 恰恰是「还在跑的那条到哪了」。
+     */
     private void refreshDownloadList(View sheet) {
         if (sheet == null || downloader == null) return;
-        TextView stat = sheet.findViewById(R.id.dlStat);
-        LinearLayout list = sheet.findViewById(R.id.dlList);
-        if (stat == null || list == null) return;
+        LinearLayout runningList = sheet.findViewById(R.id.dlRunningList);
+        LinearLayout doneList = sheet.findViewById(R.id.dlDoneList);
+        if (runningList == null || doneList == null) return;
 
-        list.removeAllViews();
         List<DownloadTask> all = downloader.tasks();
 
         int running = 0, done = 0, failed = 0;
-        long runningBytes = 0;
+        List<DownloadTask> active = new ArrayList<>();
+        List<DownloadTask> settled = new ArrayList<>();
         for (DownloadTask t : all) {
-            switch (t.state) {
-                case RUNNING: case PROBING: case MERGING: case QUEUED:
-                    running++;
-                    runningBytes += t.received();
-                    break;
-                case DONE: done++; break;
-                case FAILED: failed++; break;
-                default: break;
+            if (!t.state.isTerminal()) {
+                running++;
+                active.add(t);
+            } else {
+                settled.add(t);
+                // 「取消」不计入失败：那是用户自己点的，标成红的会让人以为出了问题。
+                if (t.state == DownloadTask.State.DONE) done++;
+                else if (t.state == DownloadTask.State.FAILED) failed++;
             }
         }
 
-        ((View) sheet.findViewById(R.id.dlEmpty))
-            .setVisibility(all.isEmpty() ? View.VISIBLE : View.GONE);
+        setStatText(sheet, R.id.dlStatRunning, running);
+        setStatText(sheet, R.id.dlStatDone, done);
+        setStatText(sheet, R.id.dlStatFailed, failed);
 
-        if (all.isEmpty()) {
-            stat.setText("并行 " + settings.downloadThreads + " 线程"
-                + (settings.downloadThreads > 1 ? "（服务器不支持分片时会自动退回单线程）" : ""));
-        } else {
-            stat.setText("进行中 " + running + " · 已完成 " + done + " · 失败 " + failed
-                + "　已下载 " + DownloadTask.human(runningBytes));
-        }
+        // 引擎卡上的线程数来自设置，不写死在布局里 —— 写死就会和设置页对不上。
+        TextView engPill = sheet.findViewById(R.id.dlEngPill);
+        if (engPill != null) engPill.setText(settings.downloadThreads + " 线程");
+
+        View empty = sheet.findViewById(R.id.dlEmpty);
+        if (empty != null) empty.setVisibility(all.isEmpty() ? View.VISIBLE : View.GONE);
 
         // 新的在上：用户最关心的是刚点的那个，不是三天前的。
-        List<DownloadTask> sorted = new ArrayList<>(all);
-        java.util.Collections.reverse(sorted);
-        for (DownloadTask t : sorted) list.addView(downloadRow(list, t));
+        java.util.Collections.reverse(active);
+        java.util.Collections.reverse(settled);
+        fillDownloadGroup(sheet, R.id.dlGroupRunning, R.id.dlRunningList, "进行中", active);
+        fillDownloadGroup(sheet, R.id.dlGroupDone, R.id.dlDoneList, "已结束", settled);
     }
 
+    /** 统计格里的数字。取不到就什么都不做，不让一处布局改动把整块界面拖崩。 */
+    private void setStatText(View root, int id, int value) {
+        TextView v = root.findViewById(id);
+        if (v != null) v.setText(String.valueOf(value));
+    }
+
+    /**
+     * 把一组任务填进它的卡片，并同步分组标题。
+     *
+     * <p>空组整块隐藏（标题 + 卡片），而不是留一个「进行中（0）」的空框 ——
+     * 一张空的带边框卡片看起来像加载失败。
+     */
+    private void fillDownloadGroup(View sheet, int labelId, int listId,
+                                   String name, List<DownloadTask> tasks) {
+        TextView label = sheet.findViewById(labelId);
+        LinearLayout list = sheet.findViewById(listId);
+        if (label == null || list == null) return;
+
+        list.removeAllViews();
+        boolean has = !tasks.isEmpty();
+        label.setVisibility(has ? View.VISIBLE : View.GONE);
+        list.setVisibility(has ? View.VISIBLE : View.GONE);
+        if (!has) return;
+
+        label.setText(name + "（" + tasks.size() + "）");
+        for (DownloadTask t : tasks) list.addView(downloadRow(list, t));
+
+        // 最后一行不画分隔线。用 INVISIBLE 而不是 GONE：GONE 会让最后一行贴着
+        // 卡片的圆角收尾，看着像被切掉一块；INVISIBLE 保留那 13dp 的底部留白。
+        View last = list.getChildAt(list.getChildCount() - 1);
+        View divider = last == null ? null : last.findViewById(R.id.dlDivider);
+        if (divider != null) divider.setVisibility(View.INVISIBLE);
+    }
+
+    /**
+     * 一条任务行。
+     *
+     * <p>该显示什么、该是什么颜色，全部问 {@link DownloadUi}；这里只负责把结果搬进视图。
+     * 判定留在那个纯逻辑类里，才能在本地 JVM 上单测 —— 界面代码是测不了的。
+     */
     private View downloadRow(LinearLayout parent, final DownloadTask t) {
         View row = LayoutInflater.from(this).inflate(R.layout.item_download, parent, false);
-        ((TextView) row.findViewById(R.id.dlName)).setText(t.fileName);
-        ((TextView) row.findViewById(R.id.dlState)).setText(t.statusLine());
 
-        ProgressBar bar = row.findViewById(R.id.dlBar);
-        int p = t.percent();
-        if (p < 0) {
-            // 总长未知：转成不确定态，而不是显示 0% —— 0% 看起来像卡死。
-            bar.setIndeterminate(t.state == DownloadTask.State.RUNNING);
-            bar.setProgress(0);
+        ((TextView) row.findViewById(R.id.dlName)).setText(t.fileName);
+
+        // 状态胶囊：文字与描边同色。bg_pill 是「透明填充 + 描边」，
+        // tint 会把两者一起染色，而透明的填充乘完仍是透明，所以只有描边显色。
+        TextView pill = row.findViewById(R.id.dlPill);
+        int tone = toneColor(DownloadUi.tone(t));
+        pill.setText(DownloadUi.pill(t));
+        pill.setTextColor(tone);
+        pill.setBackgroundTintList(ColorStateList.valueOf(tone));
+
+        ((SegmentedProgressBar) row.findViewById(R.id.dlBar))
+            .setSegments(DownloadUi.segments(t));
+
+        // 三段元信息。已完成的任务不再报连接数（对已经落盘的文件没意义），
+        // 换成「存在哪」—— 那才是用户接下来要关心的地方。
+        ((TextView) row.findViewById(R.id.dlMeta1)).setText(DownloadUi.progress(t));
+        ((TextView) row.findViewById(R.id.dlMeta2)).setText(
+            t.state == DownloadTask.State.DONE
+                ? DownloadUi.location(t) : DownloadUi.connections(t));
+        ((TextView) row.findViewById(R.id.dlMeta3)).setText(
+            historyTime(t.createdAt, System.currentTimeMillis()));
+
+        TextView note = row.findViewById(R.id.dlNote);
+        if (t.state == DownloadTask.State.FAILED) {
+            note.setVisibility(View.VISIBLE);
+            note.setText(TextUtils.isEmpty(t.error) ? "下载失败，未拿到具体原因" : t.error);
         } else {
-            bar.setIndeterminate(false);
-            bar.setProgress(p);
+            note.setVisibility(View.GONE);
         }
 
         TextView primary = row.findViewById(R.id.dlPrimary);
@@ -2097,14 +2639,8 @@ public final class MainActivity extends Activity {
                     downloader.pause(t);
                     refreshDownloadList(openSheetView);
                 });
-                second.setText(t.chunks.size() > 1
-                    ? t.chunks.size() + " 个分片" : "单线程");
-                second.setOnClickListener(v -> {
-                    // 分片信息没什么可操作的，明确告诉用户，而不是给一个死按钮。
-                    toast(t.chunks.size() > 1
-                        ? "共 " + t.chunks.size() + " 个分片并行下载中"
-                        : "该服务器不支持分片，已用单线程下载");
-                });
+                second.setText("详情");
+                second.setOnClickListener(v -> showDownloadDetail(t));
                 cancel.setText("取消");
                 cancel.setOnClickListener(v -> {
                     downloader.cancel(t);
@@ -2119,19 +2655,8 @@ public final class MainActivity extends Activity {
                     downloader.resume(t);
                     refreshDownloadList(openSheetView);
                 });
-                // 失败时第二个按钮是「复制错误」—— 出错后用户要能把它带出去问人。
                 second.setText("详情");
-                second.setOnClickListener(v -> new NovaAlert(this, t.fileName,
-                        "状态：" + t.state.label + "\n"
-                        + (t.error.isEmpty() ? "（无附加信息）" : t.error) + "\n\n"
-                        + "已下载：" + DownloadTask.human(t.received()) + "\n"
-                        + "总大小：" + (t.totalBytes > 0
-                            ? DownloadTask.human(t.totalBytes) : "未知")
-                        + "\n服务器分片支持：" + (t.rangeSupported ? "是" : "否")
-                        + "\n临时分片：" + t.tempFiles().size() + " 个")
-                    .positive("复制链接", () -> copyToClipboard(t.url))
-                    .negative("关闭", null)
-                    .show());
+                second.setOnClickListener(v -> showDownloadDetail(t));
                 cancel.setText("删除");
                 cancel.setOnClickListener(v -> {
                     downloader.remove(t);
@@ -2171,6 +2696,27 @@ public final class MainActivity extends Activity {
                 break;
         }
         return row;
+    }
+
+    /**
+     * 任务详情。
+     *
+     * <p>三种状态下都给同一个入口，不再只在失败时才有：正在下载的任务里，
+     * 「服务端到底认不认 Range」是用户唯一能自己解释「为什么这么慢」的线索。
+     */
+    private void showDownloadDetail(final DownloadTask t) {
+        new NovaAlert(this, t.fileName,
+                "状态：" + t.state.label + "\n"
+                + (t.error.isEmpty() ? "（无附加信息）" : t.error) + "\n\n"
+                + "已下载：" + DownloadTask.human(t.received()) + "\n"
+                + "总大小：" + (t.totalBytes > 0
+                    ? DownloadTask.human(t.totalBytes) : "未知")
+                + "\n服务器分片支持：" + (t.rangeSupported ? "是" : "否")
+                + "\n连接数：" + t.chunks.size() + "\n"
+                + "临时分片：" + t.tempFiles().size() + " 个")
+            .positive("复制链接", () -> copyToClipboard(t.url))
+            .negative("关闭", null)
+            .show();
     }
 
     private java.io.File downloadDir() {
@@ -2521,6 +3067,36 @@ public final class MainActivity extends Activity {
                 })
                 .show());
 
+        // ---- 应用更新
+        setRow(sheet, R.id.setUpdateAuto, "自动下载更新",
+            "开着：发现新版直接后台下载，下完只提示「重启更新」；关着：每次先问一句再下",
+            null, settings.updateAuto, false, () -> {
+                settings.updateAuto = !settings.updateAuto;
+                store.save(settings);
+                mountMain();
+                showSettings();
+                // 从「手动」切成「自动」：如果刚才已经查到了新版却没下，现在就该下。
+                // 少了这一步，用户打开开关后会以为「它怎么还是没动」。
+                if (settings.updateAuto && pendingUpdate != null
+                        && updatePhase == UpdateFlow.Phase.IDLE) {
+                    beginUpdate(pendingUpdate, false);
+                }
+            });
+
+        setRow(sheet, R.id.setUpdateWifi, "仅在 Wi-Fi 下下载更新",
+            "更新包只有几 MB，但一个用户没主动要的下载不该吃掉移动流量",
+            null, settings.updateWifiOnly, false, () -> {
+                settings.updateWifiOnly = !settings.updateWifiOnly;
+                store.save(settings);
+                mountMain();
+                showSettings();
+                // 正在等 Wi-Fi 时把这个开关关掉，就该立刻开始下 ——
+                // 否则用户盯着「等待 Wi-Fi」的提示条，怎么点开关它都不动。
+                if (!settings.updateWifiOnly && updatePhase == UpdateFlow.Phase.WAITING) {
+                    startUpdateDownload();
+                }
+            });
+
         // ---- 关于
         ((TextView) sheet.findViewById(R.id.setEngineNow)).setText(engineInfo());
 
@@ -2832,10 +3408,14 @@ public final class MainActivity extends Activity {
             switchTab(position);
         });
         grid.setOnItemLongClickListener((parent, v, position, id) -> {
-            closeTab(position);
-            adapter.notifyDataSetChanged();
-            ((TextView) sheet.findViewById(R.id.tabTotal)).setText(
-                "共 " + tabs.size() + " 个标签");
+            // 长按同样是「按引用关」：position 来自网格派发，同样会在关闭后失效，
+            // 于是这里也只是用它取一次对象，真正的定位交给 closeTabByRef。
+            if (position >= 0 && position < tabs.size()) {
+                closeTabByRef(tabs.get(position));
+                adapter.notifyDataSetChanged();
+                ((TextView) sheet.findViewById(R.id.tabTotal)).setText(
+                    "共 " + tabs.size() + " 个标签");
+            }
             return true;
         });
 
@@ -2878,9 +3458,13 @@ public final class MainActivity extends Activity {
 
             // 单独关闭。点这张卡片的 × 只关它自己；点卡片其它地方仍是切换
             // （网格的 OnItemClickListener 管那个，× 是 clickable 子视图会吃掉自己的触摸）。
+            //
+            // 关键：捕获的是 t（这一格的 Tab 对象），不是 i（绑定时的下标）。
+            // GridView 复用 item 视图，而关闭后又立刻 notifyDataSetChanged ——
+            // 下标会在这一刻整体前移，缓存 i 会关错项。按引用关（closeTabByRef）免疫这种漂移。
             ImageButton close = row.findViewById(R.id.tabClose);
             close.setOnClickListener(v -> {
-                closeTab(i);
+                closeTabByRef(t);
                 notifyDataSetChanged();
                 if (total != null) total.setText("共 " + tabs.size() + " 个标签");
             });
@@ -2975,6 +3559,18 @@ public final class MainActivity extends Activity {
         if (mainViewMounted && openSheetView == null) {
             reloadScripts();
         }
+
+        // 强制更新：每次回到前台都重新亮一次提示条。
+        //
+        // 用户可能刚从系统安装器回来却没装成（点了取消），也可能是在某个弹层里
+        // 把它关掉了。强制更新如果只显示一次、之后就被用户甩掉，那 mandatory
+        // 这个标记就等于没写。这里宁可多显示一次，也不能留这个口子。
+        if (pendingUpdate != null
+                && pendingUpdate.mustUpdate(BuildConfig.VERSION_CODE)) {
+            updateDismissed = false;
+            if (updateBar == null) updateBar = findViewById(R.id.updateBar);
+            renderUpdate();
+        }
     }
 
     @Override
@@ -2987,6 +3583,12 @@ public final class MainActivity extends Activity {
         if (ruleUpdater != null) {
             ruleUpdater.shutdown();
             ruleUpdater = null;
+        }
+        if (updateManager != null) {
+            // 下载到一半被中断不会留下坏文件：写的是 .part，改名那一步没走到，
+            // 下次启动 readyPackage() 也认不出它，会被当成「没有下过」重来一遍。
+            updateManager.shutdown();
+            updateManager = null;
         }
         for (Tab t : tabs) t.releaseSnapshot();
         if (web != null) {

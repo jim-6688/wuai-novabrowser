@@ -47,5 +47,22 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!--
+          把自己下载好的更新包交给系统安装器的那条通道。
+
+          exported="false" + grantUriPermissions="true" 是这一对的标准写法：
+          平时谁也读不到里面的东西，只有在安装那一刻由我们临时把读权限授予安装器。
+          安装器是另一个进程 —— 而 Android 7.0 起不允许把 file:// 地址交给别的应用
+          （会直接抛 FileUriExposedException），所以这一步没法绕过。
+
+          权限校验的实现在 ApkProvider 里：只放行 update 目录下的 .apk，
+          文件名含 / 或 .. 一律拒绝。
+        -->
+        <provider
+            android:name=".ApkProvider"
+            android:authorities="top.wuai.nova.apk"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

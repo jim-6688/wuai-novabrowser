@@ -7,6 +7,9 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 设置页补齐后新增的两个判断的单测。
  *
@@ -201,5 +204,69 @@ public class MainActivityTest {
         // 老数据或解析失败的记录没有时间戳，显示 "今天 00:00" 是在骗人
         assertEquals("", MainActivity.historyTime(0, System.currentTimeMillis()));
         assertEquals("", MainActivity.historyTime(-1, System.currentTimeMillis()));
+    }
+
+    // ------------------------------------------------------ 标签「按引用关闭」
+    //
+    // 标签总览用 GridView，会复用 item 视图。× 的点击回调如果捕获「绑定时的下标」，
+    // 在关闭 + notifyDataSetChanged 造成下标前移之后就会关错项。修复是改成捕获
+    // Tab 对象本身、关的时候按引用重新定位 —— 下面就是钉住这个定位逻辑的测试。
+
+    @Test
+    public void 按引用定位得到正确下标() {
+        List<Tab> tabs = new ArrayList<>();
+        Tab a = new Tab("https://a.com/");
+        Tab b = new Tab("https://b.com/");
+        Tab c = new Tab("https://c.com/");
+        tabs.add(a);
+        tabs.add(b);
+        tabs.add(c);
+        assertEquals(0, MainActivity.indexOfTabRef(tabs, a));
+        assertEquals(1, MainActivity.indexOfTabRef(tabs, b));
+        assertEquals(2, MainActivity.indexOfTabRef(tabs, c));
+    }
+
+    @Test
+    public void 内容相等的两个标签不会认错() {
+        // 两个空白主页标签内容一模一样；按下标之外的任何「值比较」都会认错，
+        // 按引用（==）才能分清它们是两个不同的标签。
+        List<Tab> tabs = new ArrayList<>();
+        Tab home1 = new Tab("about:blank");
+        Tab home2 = new Tab("about:blank");
+        Tab other = new Tab("https://x.com/");
+        tabs.add(other);
+        tabs.add(home1);
+        tabs.add(home2);
+        assertEquals(1, MainActivity.indexOfTabRef(tabs, home1));
+        assertEquals(2, MainActivity.indexOfTabRef(tabs, home2));
+        // 关掉 home1，home2 前移到下标 1，但按引用仍能定位到它自己
+        tabs.remove(MainActivity.indexOfTabRef(tabs, home1));
+        assertEquals(1, MainActivity.indexOfTabRef(tabs, home2));
+    }
+
+    @Test
+    public void 下标漂移后仍能对上原对象() {
+        List<Tab> tabs = new ArrayList<>();
+        Tab a = new Tab("https://a.com/");
+        Tab b = new Tab("https://b.com/");
+        Tab c = new Tab("https://c.com/");
+        tabs.add(a);
+        tabs.add(b);
+        tabs.add(c);
+        assertEquals(1, MainActivity.indexOfTabRef(tabs, b));
+        // 关掉 a 之后 b 从下标 1 漂到 0：缓存的下标会失效，缓存的引用不会
+        tabs.remove(MainActivity.indexOfTabRef(tabs, a));
+        assertEquals(0, MainActivity.indexOfTabRef(tabs, b));
+    }
+
+    @Test
+    public void 找不到引用返回负一而不是抛异常() {
+        // 重复点同一个 × 时对象已经不在了，应返回 -1（调用方据此直接返回），
+        // 绝不能抛 —— 抛在点击回调里就是一次闪退。
+        List<Tab> tabs = new ArrayList<>();
+        tabs.add(new Tab("https://a.com/"));
+        assertEquals(-1, MainActivity.indexOfTabRef(tabs, new Tab("https://a.com/")));
+        assertEquals(-1, MainActivity.indexOfTabRef(tabs, null));
+        assertEquals(-1, MainActivity.indexOfTabRef(null, new Tab("x")));
     }
 }

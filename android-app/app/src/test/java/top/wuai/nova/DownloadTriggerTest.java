@@ -111,6 +111,116 @@ public class DownloadTriggerTest {
         assertFalse(trig().judge("inline", "https://x.com/a.mp4", false).trigger);
     }
 
+    // ------------------------------------------------------------ 响应 MIME 档
+    //
+    // 这一档是「网页上点击下载无反应」的正面修复。真实下载地址大量长成
+    // /down.php?id=1 或 /getfile?f=x 这种「像页面、其实是文件」的样子，
+    // 只靠 URL 后缀会被 .php / 无后缀两条分支先后否决。
+
+    @Test
+    public void octetStream让伪静态下载地址触发() {
+        // .php 后缀本来会被「页面后缀」否决，octet-stream 必须把它救回来
+        DownloadTrigger.Verdict v = trig().judge(
+            null, "application/octet-stream", "https://x.com/down.php?id=123", false);
+        assertTrue("octet-stream 是文件，应触发", v.trigger);
+        assertTrue("理由里要能看出走的是 MIME 档", v.reason.contains("octet-stream"));
+    }
+
+    @Test
+    public void 无后缀接口路径靠MIME触发() {
+        // 无扩展名、不含关键词 —— 旧逻辑必否决，现在靠 MIME 触发
+        assertTrue(trig().judge(
+            null, "application/octet-stream", "https://x.com/getfile?f=abc", false).trigger);
+        assertTrue(trig().judge(
+            null, "application/octet-stream", "https://x.com/api/v2/file/91823", false).trigger);
+    }
+
+    @Test
+    public void APK的MIME触发() {
+        // Android 安装包。这里同时给了 URL 后缀与 MIME，两条路都该认为它是文件。
+        DownloadTrigger.Verdict v = trig().judge(null,
+            "application/vnd.android.package-archive", "https://x.com/app.apk", false);
+        assertTrue(v.trigger);
+        assertEquals("apk", v.ext);
+    }
+
+    @Test
+    public void 压缩包与文档MIME触发() {
+        assertTrue(trig().judge(null, "application/zip", "https://x.com/a", false).trigger);
+        assertTrue(trig().judge(null, "application/x-rar-compressed", "https://x.com/a", false).trigger);
+        assertTrue(trig().judge(null, "application/x-7z-compressed", "https://x.com/a", false).trigger);
+        assertTrue(trig().judge(null, "application/pdf", "https://x.com/a", false).trigger);
+        assertTrue(trig().judge(null,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "https://x.com/a", false).trigger);
+        assertTrue(trig().judge(null,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "https://x.com/a", false).trigger);
+        assertTrue(trig().judge(null,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "https://x.com/a", false).trigger);
+    }
+
+    @Test
+    public void 媒体前缀MIME触发() {
+        assertTrue(trig().judge(null, "video/mp4", "https://x.com/v", false).trigger);
+        assertTrue(trig().judge(null, "audio/mpeg", "https://x.com/v", false).trigger);
+    }
+
+    @Test
+    public void MIME大小写与参数不影响判定() {
+        // 服务器写大写、带 charset 都很常见，不规整就会漏判
+        assertTrue(trig().judge(null, "Application/Octet-Stream",
+            "https://x.com/down.php?id=1", false).trigger);
+        assertFalse("text/html 带参数也要被认出来并否决", trig().judge(
+            null, "Text/HTML; charset=utf-8", "https://x.com/a.mp4", false).trigger);
+    }
+
+    @Test
+    public void 网页MIME即使后缀命中也不触发() {
+        // SPA 的路由长成 /download/page 这种样子，响应是网页 —— 绝不能当成下载
+        assertFalse(trig().judge(null, "text/html", "https://x.com/page", false).trigger);
+        assertFalse("后缀命中也要被 MIME 否决",
+            trig().judge(null, "text/html", "https://x.com/a.mp4", false).trigger);
+        assertFalse(trig().judge(null, "application/xhtml+xml",
+            "https://x.com/a.pdf", false).trigger);
+        assertFalse(trig().judge(null, "text/css", "https://x.com/a.zip", false).trigger);
+    }
+
+    @Test
+    public void 纯文本MIME既不自己触发也不否决后缀() {
+        // text/plain 是两用的：接口返回的纯文本不该下，用户点的 .txt 文件该下。
+        // 所以它不表态，把判断交回 URL 后缀。
+        assertFalse("无后缀 + text/plain 不猜",
+            trig().judge(null, "text/plain", "https://x.com/api/thing", false).trigger);
+        assertTrue(".txt 后缀仍然要触发",
+            trig().judge(null, "text/plain", "https://x.com/a.txt", false).trigger);
+    }
+
+    @Test
+    public void attachment优先级高于网页MIME() {
+        // 服务器既说了是附件，就一定下 —— 这是最硬的证据
+        assertTrue(trig().judge("attachment; filename=\"a.zip\"", "text/html",
+            "https://x.com/x", false).trigger);
+    }
+
+    @Test
+    public void 旧签名仍然可用() {
+        // 三参版本转发到四参版本，不带 MIME 的调用点行为不变
+        assertTrue(trig().judge(null, "https://x.com/a/b.mp4", false).trigger);
+        assertFalse(trig().judge(null, "https://x.com/p.php", false).trigger);
+        assertTrue(trig().judge("attachment; filename=\"x.bin\"",
+            "https://x.com/a/b", false).trigger);
+    }
+
+    @Test
+    public void 规整MIME() {
+        assertEquals("text/html", DownloadTrigger.normalizeMime("Text/HTML; charset=utf-8"));
+        assertEquals("application/octet-stream", DownloadTrigger.normalizeMime(" APPLICATION/OCTET-STREAM "));
+        assertEquals("", DownloadTrigger.normalizeMime(null));
+        assertEquals("", DownloadTrigger.normalizeMime("  "));
+    }
+
     // ------------------------------------------------------------ 工具
 
     @Test

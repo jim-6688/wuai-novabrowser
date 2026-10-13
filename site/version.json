@@ -1,27 +1,30 @@
 {
-  "version": "1.2.2",
-  "versionCode": 5,
+  "version": "1.2.3",
+  "versionCode": 6,
   "channel": "release",
   "updatedAt": "2026-10-13",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "全新视觉：品牌配色改为蓝与绿，应用图标渐变同步重绘（星芒与轨道环不变）",
-    "界面强调色、主按钮渐变、底栏标签徽章随新品牌色更新",
-    "更新地址指向正式域名 nova.52ta.top，并保留一个兜底地址"
+    "修复网页内点击下载无反应：下载判定改为四档（响应头 → MIME → 后缀 → 关键词），不再静默丢弃可下载的链接",
+    "修复关闭单个标签页时闪退：弹层根布局取不到标签计数控件导致的空指针",
+    "底栏由六格精简为五格，「下载」与「阅读」合并为「工具」",
+    "网页下滑时底栏浮出胶囊搜索框，默认走 52ta.top 导航搜索",
+    "下载面板重做：分段进度条一格对应一条连接，配色随任务状态变化",
+    "更新方式改为后台静默下载，校验完成后一键重启安装"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.2.2.apk",
-      "size": 339994,
-      "sha256": "974a5b0106f239f0e8c41ebc75b2d1b9a33c4f6615a47a2d03880893dd1a711b"
+      "url": "download/nova-1.2.3.apk",
+      "size": 361874,
+      "sha256": "62a63e1c6be354085ff3ac842ccfc68f49942ff0a9aeb909e844c8751fc102c9"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.2/nova-1.2.2.apk",
-      "size": 339994,
-      "sha256": "974a5b0106f239f0e8c41ebc75b2d1b9a33c4f6615a47a2d03880893dd1a711b"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.3/nova-1.2.3.apk",
+      "size": 361874,
+      "sha256": "62a63e1c6be354085ff3ac842ccfc68f49942ff0a9aeb909e844c8751fc102c9"
     }
   ]
 }

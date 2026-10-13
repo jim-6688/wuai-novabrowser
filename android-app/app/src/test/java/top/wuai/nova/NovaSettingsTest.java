@@ -137,15 +137,34 @@ public class NovaSettingsTest {
     // ------------------------------------------------------------ 搜索模板
 
     @Test
-    public void 三个预设模板() {
+    public void 预设模板含百度必应谷歌与吾爱导航() {
         NovaSettings.SearchTemplate[] t = NovaSettings.templates();
-        assertEquals(3, t.length);
+        // 本轮新增了「吾爱导航」一档：它既能被用户选作地址栏搜索引擎，
+        // 也是底部胶囊搜索框固定使用的模板。
+        assertEquals(4, t.length);
         assertEquals("baidu", t[0].id);
         assertEquals("bing", t[1].id);
         assertEquals("google", t[2].id);
+        assertEquals("nav52ta", t[3].id);
         for (NovaSettings.SearchTemplate x : t) {
             assertTrue(x.id + " 模板里没有 %s", x.url.contains("%s"));
         }
+    }
+
+    @Test
+    public void 吾爱导航模板指向52ta并编码关键词() {
+        // 表单 action="/all/" + name="q"，已核实
+        assertEquals("https://52ta.top/all/?q=nova", NovaSettings.NAV_52TA.build("nova"));
+        // 关键词必须 UTF-8 编码：中文直接拼进 URL 会被当成乱码
+        String out = NovaSettings.NAV_52TA.build("吾爱 导航");
+        assertTrue("中文关键词必须被百分号编码", out.startsWith("https://52ta.top/all/?q=%"));
+        assertFalse("编码后不应出现空格", out.contains(" "));
+    }
+
+    @Test
+    public void 新增模板不改变默认搜索引擎() {
+        // 默认仍是 baidu；加模板不能顺手把默认值改了
+        assertEquals("baidu", new NovaSettings().searchTemplate().id);
     }
 
     @Test

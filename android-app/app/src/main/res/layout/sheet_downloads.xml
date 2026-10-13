@@ -1,109 +1,290 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  下载列表。每一项一个 include，理由和底栏一样：五项结构完全相同，
-  手抄五遍只会让改样式的人漏掉其中几个。
+  下载面板。按设计板的移动端下载页（L 帧）重做，自上而下：
 
-  刻意做成「状态 + 进度条 + 三个动作」而不是一个纯列表：
-  下载失败时用户要能立刻看到原因并重试，而不是只看到一条灰色的条目。
+    引擎卡（线程数 + 进行中/已完成/失败三格统计）
+    → 空态（没有任务时）
+    → 「进行中」分组卡片
+    → 「已结束」分组卡片
+    → 底部两个动作
+
+  三处与旧版的实质区别：
+
+  1. 根容器是 SheetPanel，把弹层高度压在可用空间的 82%。
+     旧版根是 LinearLayout(wrap_content)，里面那个「0dp + weight=1」的列表会被分到
+     整屏剩下的全部高度 —— 于是只有两行内容的下载面板也铺满整屏，下半截全是空白。
+     这正是「显示像个半成品」最直接的来源。
+
+  2. 列表按「进行中 / 已结束」分成两组，各自一张卡片。
+     旧版是一条条平铺，已完成的文件和正在下载的混在一起，
+     用户每次都要从头往下找那条还在跑的。
+
+  3. 空态有图标、有标题、有引导，不再是两行居中的小字。
+
+  整个内容区套一个 wrap_content 的 ScrollView：任务少时它自然收缩到内容高度
+  （弹层就矮矮一条），任务多时被 SheetPanel 的 82% 卡住并开始滚动。
+  底部的两个动作放在滚动区里面，是因为 LinearLayout 会按顺序把剩余高度分给
+  靠前的子 View —— 放在外面的话，列表一长它们就被挤成 0 高。
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<top.wuai.nova.SheetPanel xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingBottom="16dp">
+    android:paddingBottom="12dp">
 
     <include layout="@layout/sheet_head" />
 
-    <!-- 统计条：进行中 / 已完成 / 失败各多少，一眼看出有没有卡住的东西。 -->
-    <TextView
-        android:id="@+id/dlStat"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textColor="@color/text_3"
-        android:textSize="12sp"
-        android:lineSpacingExtra="2dp"
-        android:paddingStart="20dp"
-        android:paddingEnd="20dp"
-        android:paddingBottom="10dp" />
-
-    <!-- 空态。列表为空时占住位置，否则「什么都没有」和「还没加载出来」看起来一样。 -->
-    <LinearLayout
-        android:id="@+id/dlEmpty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:paddingStart="32dp"
-        android:paddingEnd="32dp"
-        android:paddingTop="28dp"
-        android:paddingBottom="28dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="还没有下载任务"
-            android:textColor="@color/text_2"
-            android:textSize="14sp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:gravity="center"
-            android:text="在网页里点下载链接，或在菜单里用「下载链接」直接粘贴地址"
-            android:textColor="@color/text_4"
-            android:textSize="11.5sp"
-            android:lineSpacingExtra="3dp" />
-    </LinearLayout>
-
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:minHeight="160dp"
-        android:maxHeight="420dp">
+        android:layout_height="wrap_content">
 
         <LinearLayout
-            android:id="@+id/dlList"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp" />
+            android:orientation="vertical">
+
+            <!-- 引擎卡：线程数是全局设置，三格统计是本面板的概览。 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/bg_engine_card"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="11dp"
+                android:paddingBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="多线程下载引擎"
+                        android:textColor="@color/text"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold" />
+
+                    <!-- 线程数胶囊。文字在代码里写（settings.downloadThreads），
+                         因为它随时可改，写死在布局里就会和设置页对不上。 -->
+                    <TextView
+                        android:id="@+id/dlEngPill"
+                        android:layout_width="wrap_content"
+                        android:layout_height="20dp"
+                        android:background="@drawable/bg_pill"
+                        android:gravity="center"
+                        android:minWidth="52dp"
+                        android:paddingStart="9dp"
+                        android:paddingEnd="9dp"
+                        android:textColor="@color/brand"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="10dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_stat_cell"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp">
+
+                        <TextView
+                            android:id="@+id/dlStatRunning"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="进行中"
+                            android:textColor="@color/text_4"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_stat_cell"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp">
+
+                        <TextView
+                            android:id="@+id/dlStatDone"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="已完成"
+                            android:textColor="@color/text_4"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_stat_cell"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp">
+
+                        <TextView
+                            android:id="@+id/dlStatFailed"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="失败"
+                            android:textColor="@color/text_4"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 空态。有图标、有标题、有「怎么开始」的一句话 ——
+                 旧版只有两行居中灰字，和「加载失败」长得一模一样。 -->
+            <LinearLayout
+                android:id="@+id/dlEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp"
+                android:paddingTop="34dp"
+                android:paddingBottom="26dp">
+
+                <ImageView
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_dl_empty" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="还没有下载任务"
+                    android:textColor="@color/text_2"
+                    android:textSize="13.5sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="7dp"
+                    android:gravity="center"
+                    android:lineSpacingExtra="3dp"
+                    android:text="在网页里点下载链接，或点下面的「粘贴地址下载」直接开始。\n服务端不支持分片时会自动退回单连接。"
+                    android:textColor="@color/text_4"
+                    android:textSize="11.5sp" />
+            </LinearLayout>
+
+            <!-- 进行中（含排队与暂停 —— 暂停的任务要留在这里，否则用户找不到它） -->
+            <TextView
+                android:id="@+id/dlGroupRunning"
+                style="@style/SectionHead"
+                android:paddingTop="16dp"
+                android:paddingBottom="8dp" />
+
+            <LinearLayout
+                android:id="@+id/dlRunningList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/bg_task_card" />
+
+            <!-- 已结束（完成 / 失败 / 取消） -->
+            <TextView
+                android:id="@+id/dlGroupDone"
+                style="@style/SectionHead"
+                android:paddingTop="16dp"
+                android:paddingBottom="8dp" />
+
+            <LinearLayout
+                android:id="@+id/dlDoneList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/bg_task_card" />
+
+            <!-- 底部动作。清已完成是次要动作（描边），粘贴地址是主要动作（实心）——
+                 这个面板的第一用途是「我想下个东西」，不是「我要清理」。 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginTop="18dp">
+
+                <TextView
+                    android:id="@+id/dlClear"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="5dp"
+                    android:gravity="center"
+                    android:background="@drawable/bg_btn_outline"
+                    android:text="清除已完成"
+                    android:textColor="@color/text_2"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/dlPaste"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="5dp"
+                    android:gravity="center"
+                    android:background="@drawable/bg_btn_solid"
+                    android:text="粘贴地址下载"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
     </ScrollView>
-
-    <!-- 底部动作：清已完成 / 粘贴地址下载 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="12dp">
-
-        <TextView
-            android:id="@+id/dlClear"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:gravity="center"
-            android:background="@drawable/row"
-            android:text="清除已完成"
-            android:textColor="@color/text_2"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/dlPaste"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:gravity="center"
-            android:background="@drawable/bg_primary_btn"
-            android:text="粘贴地址下载"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-</LinearLayout>
+</top.wuai.nova.SheetPanel>

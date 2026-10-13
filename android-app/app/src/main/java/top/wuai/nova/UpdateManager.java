@@ -1,17 +1,24 @@
 package top.wuai.nova;
 
-import android.app.DownloadManager;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Environment;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -27,14 +34,28 @@ import java.util.concurrent.Executors;
  * 版本号只写一处，就不会出现「官网写着 1.1.0、下载下来却是 1.0.0」这种事 ——
  * 那类不一致最难查，因为两端看起来都对。
  *
- * <h3>为什么用 DownloadManager 而不是自己的 Downloader</h3>
+ * <h3>为什么改成自己下载，而不是交给 DownloadManager</h3>
  *
- * <p>自己的 {@link Downloader} 是为「网页里嗅探到的媒体文件」设计的：分片、断点续传、
- * 落到应用私有目录。而装 APK 最终要让系统安装器能<b>读到</b>那个文件 ——
- * 私有目录里的文件别的应用读不到，得再垫一层 ContentProvider 才能对外给 content:// URI。
+ * <p>最初这版把下载交给系统 DownloadManager，看中的是「免费的通知栏进度」与
+ * 「不写存储权限也能落公共下载目录」。但要做成<b>后台静默下载 + 重启更新</b>
+ * （见 {@link UpdateFlow}）时，它的两个短板就变成了拦路石：
  *
- * <p>DownloadManager 直接写公共下载目录，天然带系统通知栏进度，也省掉这一层。
- * APK 只有几百 KB，分片带不来什么收益，不值得为此多一条容易出错的路径。
+ * <ul>
+ *   <li>进度只能靠轮询 {@code DownloadManager.query()} 或监听它的完成广播。
+ *       前者要么太密（每次查询都是一次跨进程调用）要么太疏（进度条一顿一顿）；
+ *       后者要动态注册一个接收器，还得为部分版本补上 {@code RECEIVER_NOT_EXPORTED}，
+ *       平白多出一条很容易写错的平台分支。</li>
+ *   <li>它对「校验完整性」提供不了任何帮助。而清单里的 {@code sha256} 本来就该被用上 ——
+ *       一个下了一半的 APK 被送去安装，用户看到的是「应用未安装」，
+ *       没人能从这句提示里猜到真正的原因。</li>
+ * </ul>
+ *
+ * <p>自己下一个几 MB 的包并不难：一个 {@code HttpURLConnection}，边读边报进度，
+ * 读完算一遍 sha256，最后把 {@code .part} 改名成 {@code .apk} 落盘。
+ * 进度是真实字节数算出来的，校验是顺手做的，全程没有一次额外的跨进程调用。
+ *
+ * <p>代价是应用被杀就中断。这个代价可以接受：包只有几 MB，下次启动重下即可；
+ * 而「下次启动发现上次已经下好」这条路径也做了（见 {@link #readyPackage}）。
  *
  * <h3>静默约定</h3>
  *
@@ -161,6 +182,16 @@ public final class UpdateManager {
     }
 
     /**
+     * 退出时关掉 IO 线程池。
+     *
+     * <p>它跑的是普通优先级的非守护线程，留着没有任何意义 ——
+     * 下载到一半被中断也不会留下坏文件（写的是 {@code .part}，改名那一步没走到）。
+     */
+    public void shutdown() {
+        io.shutdownNow();
+    }
+
+    /**
      * 异步检查更新。
      *
      * <p>失败一律回调 {@code null}，由调用方决定「静默」还是「提示」，
@@ -283,45 +314,264 @@ public final class UpdateManager {
         return base + (url.startsWith("/") ? url.substring(1) : url);
     }
 
+    // ------------------------------------------------------------ 下载与安装
+
     /**
-     * 交给系统下载器。
+     * 更新包目录名（相对 {@code filesDir}）。
      *
-     * <p>用 DownloadManager 的另一个理由：它自己就有写公共下载目录的权限，
-     * 我们不用为了装一个 APK 去申请存储权限 —— 少一个权限弹窗，
-     * 就少一个用户在安装前被劝退的机会。
+     * <p>放应用私有目录而不是公共下载目录：这份文件是<b>中间产物</b>，装完就该消失。
+     * 落公共目录会在用户相册旁边留下一个陌生文件，还要额外申请存储权限才能写。
      */
-    public long download(Manifest m) {
-        Link link = m == null ? null : m.primary();
-        if (link == null) return -1;
+    public static final String UPDATE_DIR = "update";
+
+    /** 下载进度回调。运行在主线程。 */
+    public interface Progress {
+        /**
+         * @param got   已下载字节
+         * @param total 总字节；{@code <= 0} 表示服务器没给（总长未知）
+         */
+        void onProgress(long got, long total);
+    }
+
+    /** 下载结束回调。运行在主线程。 */
+    public interface Done {
+        /**
+         * @param apk   已下载并通过校验的安装包；失败时为 {@code null}
+         * @param error 失败原因（给人看的一句话）；成功时为 {@code null}
+         */
+        void onDone(File apk, String error);
+    }
+
+    /** 更新包目录。 */
+    public File updateDir() {
+        return new File(ctx.getFilesDir(), UPDATE_DIR);
+    }
+
+    /** 某个版本对应安装包的文件名。下载、就绪检测、清理三处必须用同一个规则。 */
+    static String apkName(String version) {
+        String v = version == null ? "" : version.trim();
+        // 版本号是从网络清单里读来的。虽然清单是我们自己发的，但只要有一次手误
+        // 写成 "1.2/3"，拼出来的就是一份跨目录的路径 —— ApkProvider 会在安装那一步
+        // 拒绝它，但那时留下的已经是一个「下载完了却装不上」的谜案了。
+        // 所以在这里先把不属于版本号的字符剔掉。
+        v = v.replaceAll("[^A-Za-z0-9._-]", "");
+        // 连着两个点在路径里表示「上一层目录」，而它恰好能由版本号里的杂质拼出来。
+        while (v.contains("..")) v = v.replace("..", ".");
+        if (v.isEmpty() || ".".equals(v)) v = "latest";
+        return "nova-" + v + ".apk";
+    }
+
+    /**
+     * 上次已经下好、且校验通过的更新包；没有则返回 {@code null}。
+     *
+     * <p>这个方法存在的原因很具体：用户下载完、正准备重启时退出了应用
+     * （或者安装被系统打断）。没有它，下次启动会把已经下好的包当成不存在、
+     * 从头再下一遍 —— 用户看到的是「明明下过了，怎么又在下载」。
+     */
+    public File readyPackage(Manifest m) {
+        if (m == null) return null;
+        File f = new File(updateDir(), apkName(m.version));
+        if (!f.isFile() || f.length() <= 0) return null;
+
+        Link link = m.primary();
+        if (link != null) {
+            // 大小先粗筛：对不上多半是上次没下完的残包，不必白算一遍 sha256。
+            if (link.size > 0 && f.length() != link.size) return null;
+            if (!link.sha256.isEmpty()) {
+                try {
+                    if (!sha256(f).equalsIgnoreCase(link.sha256)) return null;
+                } catch (Exception e) {
+                    return null;
+                }
+            }
+        }
+        return f;
+    }
+
+    /**
+     * 后台下载更新包。进度与结果都回到主线程。
+     *
+     * <p>失败不抛异常，而是把原因塞进 {@link Done#onDone} 的第二个参数 ——
+     * 调用方需要的是「给用户看的一句话」，不是堆栈。
+     */
+    public void fetch(final Manifest m, final Progress p, final Done d) {
+        io.execute(() -> {
+            File apk = null;
+            String err = null;
+            try {
+                apk = downloadApk(m, p);
+            } catch (Exception e) {
+                err = describe(e);
+            }
+            final File f = apk;
+            final String msg = err;
+            main.post(() -> d.onDone(f, msg));
+        });
+    }
+
+    /**
+     * 真正下载的地方。
+     *
+     * <p>先写 {@code .part} 再改名，是为了让「下到一半」这件事对别人不可见：
+     * 如果直接写 {@code .apk}，中途被杀就会留下一个同名但残缺的文件，
+     * 而 {@link #readyPackage} 只看文件名是判断不出它坏没坏的
+     * （清单里没给 sha256 时尤其如此）。
+     */
+    private File downloadApk(Manifest m, Progress p) throws Exception {
+        if (m == null) throw new IOException("没有版本信息");
+        Link link = m.primary();
+        if (link == null) throw new IOException("更新清单里没有可用的下载地址");
+
+        File dir = updateDir();
+        if (!dir.isDirectory() && !dir.mkdirs()) {
+            throw new IOException("无法创建更新目录");
+        }
+
+        File part = new File(dir, apkName(m.version) + ".part");
+        File dst = new File(dir, apkName(m.version));
+        // 上次的残包先清掉。不做断点续传：清单里的 sha256 是整包校验，
+        // 续传得额外维护分片状态，而包只有几 MB，不值得。
+        if (part.exists()) part.delete();
+
+        String abs = absolute(m.baseUrl, link.url);
+        HttpURLConnection c = (HttpURLConnection) new URL(abs).openConnection();
+        c.setInstanceFollowRedirects(true);
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(30000);
+        c.setRequestProperty("Accept",
+            "application/vnd.android.package-archive,application/octet-stream,*/*");
         try {
-            DownloadManager dm =
-                (DownloadManager) ctx.getSystemService(Context.DOWNLOAD_SERVICE);
-            if (dm == null) return -1;
-            String abs = absolute(m.baseUrl, link.url);
-            DownloadManager.Request rq = new DownloadManager.Request(Uri.parse(abs));
-            rq.setTitle("吾爱Nova浏览器 " + m.version);
-            rq.setDescription("下载完成后点通知即可安装");
-            rq.setNotificationVisibility(
-                DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            rq.setMimeType("application/vnd.android.package-archive");
-            rq.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,
-                fileNameOf(abs));
-            return dm.enqueue(rq);
-        } catch (Exception e) {
-            return -1;
+            int code = c.getResponseCode();
+            if (code >= 400) throw new IOException("服务器返回 HTTP " + code);
+
+            long total = c.getContentLength();
+            if (total <= 0) total = link.size; // 清单里写了大小就拿它兜底
+
+            try (InputStream in = c.getInputStream();
+                 FileOutputStream out = new FileOutputStream(part)) {
+                byte[] buf = new byte[16384];
+                long got = 0;
+                int last = -2; // -2 与任何真实百分比都不同，保证首帧一定会被报出去
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                    got += n;
+                    // 按百分比节流：每读一块就回调，会把主线程淹没在无意义的刷新里。
+                    int pct = UpdateFlow.percentOf(got, total);
+                    if (pct != last) {
+                        last = pct;
+                        if (p != null) p.onProgress(got, total);
+                    }
+                }
+                out.flush();
+            }
+        } finally {
+            c.disconnect();
+        }
+
+        if (!link.sha256.isEmpty()) {
+            String got = sha256(part);
+            if (!got.equalsIgnoreCase(link.sha256)) {
+                part.delete();
+                throw new IOException("更新包校验没通过，可能没下完整");
+            }
+        }
+
+        if (dst.exists() && !dst.delete()) {
+            part.delete();
+            throw new IOException("旧的更新包删不掉");
+        }
+        if (!part.renameTo(dst)) {
+            part.delete();
+            throw new IOException("更新包保存失败");
+        }
+        return dst;
+    }
+
+    /** 清掉除 {@code keep} 以外的更新包（含上次没下完的 {@code .part}）。 */
+    public void prune(File keep) {
+        File[] all = updateDir().listFiles();
+        if (all == null) return;
+        String keepPath = keep == null ? null : keep.getAbsolutePath();
+        for (File f : all) {
+            if (keepPath != null && keepPath.equals(f.getAbsolutePath())) continue;
+            f.delete();
         }
     }
 
-    /** 从地址里取文件名；取不到就给个默认名。 */
-    static String fileNameOf(String url) {
-        String s = url;
-        int q = s.indexOf('?');
-        if (q >= 0) s = s.substring(0, q);
-        int h = s.indexOf('#');
-        if (h >= 0) s = s.substring(0, h);
-        int slash = s.lastIndexOf('/');
-        String name = slash >= 0 ? s.substring(slash + 1) : "";
-        return name.isEmpty() ? "nova.apk" : name;
+    /**
+     * 交给系统安装器。
+     *
+     * <p>这里只能「拉起安装器」，做不到真正的静默安装 —— Android 不允许普通应用
+     * 直接覆盖安装自己（那等于给了应用绕过用户确认改自己代码的能力）。
+     * 所以「重启更新」这个动作在系统里的真实含义是：用户点一下 →
+     * 系统弹出安装确认 → 装完应用以新版本重新启动。
+     *
+     * @return {@code null} 表示已成功拉起；否则是给人看的一句话原因
+     */
+    public String install(File apk) {
+        if (apk == null || !apk.isFile() || apk.length() <= 0) {
+            return "更新包不见了，请重新下载";
+        }
+
+        // Android 8.0 起，安装来自其他应用的 APK 需要用户先授权「安装未知应用」。
+        // 不先查这一下，startActivity 会静默失败 —— 用户只看到「点了没反应」，
+        // 而这恰恰是最难自查的一类现象。所以这里主动把人送到那个开关面前。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            PackageManager pm = ctx.getPackageManager();
+            if (pm != null && !pm.canRequestPackageInstalls()) {
+                try {
+                    Intent s = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + ctx.getPackageName()));
+                    s.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(s);
+                    return "请先允许「吾爱Nova浏览器」安装应用，再点一次「重启更新」";
+                } catch (Exception e) {
+                    return "请在系统设置里允许本应用安装其他应用";
+                }
+            }
+        }
+
+        Intent i = new Intent(Intent.ACTION_VIEW);
+        i.setDataAndType(ApkProvider.uriFor(apk), "application/vnd.android.package-archive");
+        // 安装器是另一个进程，读权限必须显式授予，否则它拿到的是 permission denied。
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            ctx.startActivity(i);
+            return null;
+        } catch (Exception e) {
+            return "没有找到能安装应用的程序";
+        }
+    }
+
+    /** 整文件的 sha256，小写十六进制。 */
+    static String sha256(File f) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        try (InputStream in = new FileInputStream(f)) {
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0) md.update(buf, 0, n);
+        }
+        StringBuilder sb = new StringBuilder(64);
+        for (byte b : md.digest()) {
+            sb.append(Character.forDigit((b >> 4) & 0xf, 16));
+            sb.append(Character.forDigit(b & 0xf, 16));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 把异常翻译成一句能给人看的话。
+     *
+     * <p>本类自己抛的那几个 {@link IOException}，消息本来就是写给用户看的
+     * （「更新包校验没通过，可能没下完整」），直接透传即可；
+     * 系统抛的那些 {@code failed to connect to ... / Read timed out}
+     * 对用户没有任何帮助，所以只在没有消息时退回一句中性描述。
+     */
+    private static String describe(Exception e) {
+        String msg = e == null ? null : e.getMessage();
+        if (msg != null && !msg.trim().isEmpty()) return msg.trim();
+        return "网络中断，稍后会自动重试";
     }
 
     // ------------------------------------------------------ 极简 JSON 扫描

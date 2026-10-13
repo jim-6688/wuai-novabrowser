@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 底栏按钮模板。与桌面端 .mb-btn 同构：图标在上、10sp 文案在下、等分宽度。 -->
+<!-- 底栏按钮模板。与桌面端 .mb-btn 同构：图标在上、10sp 文案在下、等分宽度。
+     与 item_mb_back / item_mb_menu 等是同一份结构 —— 底栏每一格都必须长得一样，
+     否则等分宽度下会出现「有的格子图标偏上、有的偏下」的错位。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/btnBox"
     android:layout_width="0dp"
@@ -15,7 +17,7 @@
         android:id="@+id/btnIcon"
         android:layout_width="19dp"
         android:layout_height="19dp"
-        android:contentDescription="@string/mb_menu"
+        android:contentDescription="@string/mb_tools"
         android:scaleType="fitCenter" />
 
     <TextView

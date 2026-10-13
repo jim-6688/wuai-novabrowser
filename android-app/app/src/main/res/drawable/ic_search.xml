@@ -1,0 +1,16 @@
+<!--
+  放大镜。胶囊搜索框左侧用。
+
+  与其它线性图标同一套画法：20dp 画布、纯描边（strokeColor 用 #000，实际颜色由
+  根节点的 android:tint 决定）、圆头线帽。圆 + 一段斜柄是「搜索」最通用的形状。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:pathData="M9,9 a4.2,4.2 0 1,0 0.01,0 z" />
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M12.4,12.4 L16.4,16.4" />
+</vector>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  更新提示条的底。
+
+  用 surface_2 + 底部一条 1dp 分隔线，而不是品牌色的浅底：
+  这条东西可能连续几十分钟挂在地址栏下面（下载中），一个高饱和的底色
+  会持续抢网页内容的注意力，用户很快就会去点那个 ×，然后更新就再没人管了。
+  需要它被注意到的地方交给左边的图标（品牌色）和进度条，底色保持安静。
+
+  分隔线只画在底边：它的上方是顶栏、下方是网页，只有下面这条边界需要交代。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/surface_2" />
+        </shape>
+    </item>
+    <item
+        android:height="1dp"
+        android:gravity="bottom">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/border" />
+        </shape>
+    </item>
+</layer-list>

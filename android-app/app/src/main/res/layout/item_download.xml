@@ -1,92 +1,174 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  一个下载任务。四个信息层，从上到下就是用户的疑问顺序：
-    文件名 → 现在什么状态 → 进度到哪 → 我能按什么。
+  一条下载任务。自上而下是用户的疑问顺序：
+    这是什么文件 → 现在到哪一步 → 跑到哪了 → 我能按什么。
 
-  进度条用的是 determinate（max=100），因为总长未知时要显示「已下载 X」而不是
-  一个永不前进的条 —— 那看起来像卡死。
+  与旧版的区别有三处，都是「显示像个半成品」的直接原因：
+
+  1. 进度不再是一个整体的细进度条，而是 SegmentedProgressBar（一格 = 一条连接）。
+     多线程下载里最该被看见的是「哪几条收完了、哪条在拖」，整体百分比看不出来。
+
+  2. 多了状态胶囊。旧版把状态混在下面那行灰字里（「下载中 · 62%（4.96 MB / 8.00 MB）」），
+     一屏五条任务全是同样的灰，扫不出哪条出事了。现在状态有颜色。
+
+  3. 三个按钮从「三块同样重的灰底」改成「一个品牌实心 + 两个描边」。
+     旧版三个一样重，用户得逐个读字才知道该点哪个。
+
+  根布局不设底色 —— 底色由外层的分组卡片（bg_task_card）提供，
+  一组任务共用一张卡，行与行之间靠最下面那条分隔线分开。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@drawable/row"
-    android:layout_marginBottom="8dp"
-    android:paddingStart="12dp"
-    android:paddingEnd="12dp"
-    android:paddingTop="11dp"
-    android:paddingBottom="11dp">
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="12dp">
 
-    <TextView
-        android:id="@+id/dlName"
+    <!-- 文件名 + 状态胶囊 -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/text"
-        android:textSize="13.5sp"
-        android:maxLines="1"
-        android:ellipsize="middle" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-    <TextView
-        android:id="@+id/dlState"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
-        android:textColor="@color/text_3"
-        android:textSize="11.5sp"
-        android:lineSpacingExtra="2dp"
-        android:maxLines="3"
-        android:ellipsize="end" />
+        <!-- 中间省略：文件名两头都有信息（前缀常是版本、后缀是类型），
+             只留头会把「.apk / .zip」这种最要紧的尾巴切掉。 -->
+        <TextView
+            android:id="@+id/dlName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/text"
+            android:textSize="13.5sp"
+            android:maxLines="1"
+            android:ellipsize="middle" />
 
-    <ProgressBar
+        <TextView
+            android:id="@+id/dlPill"
+            android:layout_width="wrap_content"
+            android:layout_height="20dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_pill"
+            android:gravity="center"
+            android:minWidth="46dp"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:textColor="@color/text_3"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <!-- 一格 = 一条连接。总长未知时整格铺一层很淡的品牌色。 -->
+    <top.wuai.nova.SegmentedProgressBar
         android:id="@+id/dlBar"
-        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:layout_marginTop="7dp"
-        android:max="100"
-        android:progressTint="@color/brand"
-        android:progressBackgroundTint="@color/surface_3" />
+        android:layout_height="6dp"
+        android:layout_marginTop="9dp" />
 
-    <!-- 动作行。三个按钮固定占位，按状态换文案而不是让它们时有时无 ——
+    <!-- 元信息：进度 / 连接形态 / 时间，三段都在同一行且数字用等宽字形 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="8dp">
+
+        <TextView
+            android:id="@+id/dlMeta1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/text_4"
+            android:textSize="10.5sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/dlMeta2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="@color/text_4"
+            android:textSize="10.5sp" />
+
+        <TextView
+            android:id="@+id/dlMeta3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="@color/text_4"
+            android:textSize="10.5sp" />
+    </LinearLayout>
+
+    <!-- 失败原因。只有失败时才有内容，其余状态整条 gone。
+         失败是唯一「不点一下看不懂」的状态 —— 光一个红色的「失败」胶囊，
+         用户不知道是该重试还是该换个源。 -->
+    <TextView
+        android:id="@+id/dlNote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:visibility="gone"
+        android:background="@drawable/bg_note_danger"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:textColor="@color/danger"
+        android:textSize="10.5sp"
+        android:lineSpacingExtra="2dp" />
+
+    <!-- 动作行。三个位置固定，按状态换文案而不是让它们时有时无 ——
          元素位置会跳是移动端最难受的一类问题。 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="9dp">
+        android:layout_marginTop="10dp">
 
         <TextView
             android:id="@+id/dlPrimary"
             android:layout_width="0dp"
-            android:layout_height="32dp"
+            android:layout_height="34dp"
             android:layout_weight="1"
-            android:layout_marginEnd="4dp"
             android:gravity="center"
-            android:background="@drawable/btn_mini"
-            android:textColor="@color/text_2"
-            android:textSize="12sp" />
+            android:background="@drawable/bg_btn_solid"
+            android:textColor="#FFFFFF"
+            android:textSize="12.5sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/dlSecond"
             android:layout_width="0dp"
-            android:layout_height="32dp"
+            android:layout_height="34dp"
             android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
+            android:layout_marginStart="8dp"
             android:gravity="center"
-            android:background="@drawable/btn_mini"
+            android:background="@drawable/bg_btn_outline"
             android:textColor="@color/text_2"
-            android:textSize="12sp" />
+            android:textSize="12.5sp" />
 
         <TextView
             android:id="@+id/dlCancel"
             android:layout_width="0dp"
-            android:layout_height="32dp"
+            android:layout_height="34dp"
             android:layout_weight="1"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="8dp"
             android:gravity="center"
-            android:background="@drawable/btn_mini"
+            android:background="@drawable/bg_btn_outline"
             android:textColor="@color/danger"
-            android:textSize="12sp" />
+            android:textSize="12.5sp" />
     </LinearLayout>
+
+    <!-- 行分隔线。左右各 -14dp 负边距，为的是让它跨过上面那 14dp 的内边距、
+         从卡片的一边连到另一边 —— 不然线是断在内容区里的，看着像画歪了。
+         最后一行的那条由 refreshDownloadList 隐藏掉。 -->
+    <View
+        android:id="@+id/dlDivider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="-14dp"
+        android:layout_marginEnd="-14dp"
+        android:layout_marginTop="12dp"
+        android:background="@color/border" />
 </LinearLayout>

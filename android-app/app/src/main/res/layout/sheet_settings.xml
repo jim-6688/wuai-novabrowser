@@ -120,6 +120,14 @@
             <include layout="@layout/item_menu" android:id="@+id/setClearCache" />
             <include layout="@layout/item_menu" android:id="@+id/setClear" />
 
+            <!-- ============ 应用更新 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="应用更新" />
+
+            <include layout="@layout/item_menu" android:id="@+id/setUpdateAuto" />
+            <include layout="@layout/item_menu" android:id="@+id/setUpdateWifi" />
+
             <!-- ============ 关于 ============ -->
             <TextView
                 style="@style/SectionHead"

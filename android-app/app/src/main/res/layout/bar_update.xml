@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  更新提示条。挂在顶栏与网页之间，整条由 MainActivity 按 UpdateFlow 算出的快照驱动，
+  这里只声明「有哪些零件」，不写死任何一句文案或可见性 ——
+  文案与显隐都要随「等待 Wi-Fi / 下载中 / 已就绪 / 失败」四种状态走，
+  写进布局就等于把状态判断复制到了两个地方，早晚会对不上。
+
+  初态一律 gone：查更新是异步的，启动时这一条不该哪怕闪一下。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/updateBar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_update_bar"
+    android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="9dp"
+        android:paddingBottom="9dp">
+
+        <ImageView
+            android:id="@+id/updateIcon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="10dp"
+            android:src="@drawable/ic_update"
+            android:contentDescription="@string/update_icon_desc" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/updateTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <!-- 副标题：进度百分比 / 失败原因 / 等待说明都落在这里。
+                 默认 gone，由代码按快照决定是否出现。 -->
+            <TextView
+                android:id="@+id/updateDetail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:visibility="gone"
+                android:textColor="@color/text_3"
+                android:textSize="11.5sp"
+                android:lineSpacingExtra="2dp"
+                android:maxLines="2"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+        <!-- 主按钮。文案随状态变（立即下载 / 重启更新 / 重试），
+             没有动作的状态（下载中）它整块不出现。 -->
+        <TextView
+            android:id="@+id/updateAction"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_btn_solid"
+            android:gravity="center"
+            android:minWidth="78dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:textColor="@color/surface"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone" />
+
+        <!-- 关掉提示条。强制更新时整块不出现（UpdateFlow 的 closable 决定），
+             所以这里不可能出现「用户把强制更新关掉」这种事。 -->
+        <ImageButton
+            android:id="@+id/updateClose"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="2dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:padding="7dp"
+            android:src="@drawable/ic_close"
+            android:contentDescription="@string/update_close_desc"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- 细进度条。只有「下载中」才出现；高度 3dp 与设计板里的进度条令牌一致。 -->
+    <ProgressBar
+        android:id="@+id/updateProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:max="100"
+        android:progress="0"
+        android:progressTint="@color/brand"
+        android:progressBackgroundTint="@color/surface_3"
+        android:visibility="gone" />
+</LinearLayout>

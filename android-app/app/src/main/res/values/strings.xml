@@ -4,18 +4,28 @@
          改这里不会改到桌面端，两边要一起改。 -->
     <string name="app_name">吾爱Nova浏览器</string>
     <!-- 版本号单点。原先散在若干个字符串字面量里，改版本要改四处，漏一处就对不上。 -->
-    <string name="app_version">1.2.2</string>
+    <string name="app_version">1.2.3</string>
 
-    <!-- 底栏。顺序与桌面端 shell.html 的 mobilebar 一致。
-         「内核」那一格换成了「下载」：移动版只有系统 WebView 真内置，
-         给一个只有一个选项的按钮叫「内核选择」等于用假选择骗用户。 -->
+    <!-- 底栏。现在是五格：后退 / 前进 / 标签 / 工具 / 菜单。
+         「内核」那一格早已换掉（移动版只有系统 WebView 真内置，
+         给一个只有一个选项的按钮叫「内核选择」等于用假选择骗用户）；
+         「下载」「阅读」两格本轮合并成「工具」。 -->
     <string name="mb_back">后退</string>
     <string name="mb_forward">前进</string>
     <string name="mb_tabs">标签</string>
     <string name="mb_engine">内核</string>
-    <string name="mb_read">阅读</string>
     <string name="mb_menu">菜单</string>
-    <string name="mb_download">下载</string>
+    <string name="mb_tools">工具</string>
+
+    <!-- 下滑浮现的胶囊搜索框。提交恒走 52ta.top 的导航搜索，输入网址也会被
+         当成关键词搜 —— 所以 hint 只说「关键词」，不写「或输入网址」（那会骗用户）。 -->
+    <string name="search_hint">输入关键词搜索</string>
+
+    <!-- 更新提示条。条上的正文（标题 / 副标题 / 按钮）全部由 UpdateFlow 算出来，
+         不进这里 —— 那是会随状态变的文案，写成资源就得在代码里按状态挑资源 id，
+         等于把状态判断拆到两处。这里只留两个给读屏软件用的说明。 -->
+    <string name="update_icon_desc">更新</string>
+    <string name="update_close_desc">暂时隐藏更新提示</string>
 
     <!-- 状态条 -->
     <string name="status_idle">就绪</string>
@@ -34,6 +44,7 @@
     <string name="sheet_engine">浏览器内核</string>
     <string name="sheet_read">阅读增强</string>
     <string name="sheet_menu">菜单</string>
+    <string name="sheet_tools">工具栏</string>
     <string name="sheet_settings">设置</string>
     <string name="sheet_about">关于</string>
     <string name="sheet_search">搜索引擎</string>

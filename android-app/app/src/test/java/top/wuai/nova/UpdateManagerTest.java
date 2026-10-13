@@ -2,12 +2,14 @@ package top.wuai.nova;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -194,5 +196,55 @@ public class UpdateManagerTest {
             "1.0.0", 2, "2026-01-01", false, 1,
             new ArrayList<String>(), new ArrayList<UpdateManager.Link>(), null);
         assertEquals(UpdateManager.UPDATE_URL, m.baseUrl);
+    }
+
+    // -------------------------------------------- 下载与校验（都不依赖 Android）
+
+    @Test
+    public void 安装包文件名由版本号决定() {
+        assertEquals("nova-1.2.3.apk", UpdateManager.apkName("1.2.3"));
+        assertEquals("nova-1.2.3.apk", UpdateManager.apkName("  1.2.3  "));
+        // 版本号拿不到时不能拼出 "nova-.apk"：那个名字会被所有版本共用，
+        // 于是新包会静默覆盖掉旧包，而下一次「就绪检测」就分不清谁是谁了。
+        assertEquals("nova-latest.apk", UpdateManager.apkName(null));
+        assertEquals("nova-latest.apk", UpdateManager.apkName(""));
+        assertEquals("nova-latest.apk", UpdateManager.apkName("   "));
+    }
+
+    @Test
+    public void 版本号里的路径字符会被剔掉() {
+        // 清单是网络上读来的。这条挡的是「一个手误的版本号把文件写到别的目录去」。
+        assertEquals("nova-1.23.apk", UpdateManager.apkName("1.2/3"));
+        assertFalse(UpdateManager.apkName("a\\b").contains("\\"));
+
+        String evil = UpdateManager.apkName("../evil");
+        assertFalse("文件名里不该有路径分隔符", evil.contains("/"));
+        assertFalse("连续两个点表示上一层目录，必须被压掉", evil.contains(".."));
+    }
+
+    @Test
+    public void sha256算的是整包内容() throws Exception {
+        File f = File.createTempFile("nova-sha", ".bin");
+        try {
+            // 空文件：先挡住「读不到内容也照样返回一个看起来合法的摘要」。
+            assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                UpdateManager.sha256(f));
+
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(f)) {
+                out.write("abc".getBytes("UTF-8"));
+            }
+            assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                UpdateManager.sha256(f));
+
+            // 多一个字节就该完全不同 —— 这条挡住的是「只算了开头几个块」的实现。
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(f, true)) {
+                out.write('d');
+            }
+            assertNotEquals("abcd 的摘要不该等于 abc 的摘要",
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                UpdateManager.sha256(f));
+        } finally {
+            f.delete();
+        }
     }
 }
