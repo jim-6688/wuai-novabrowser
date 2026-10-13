@@ -44,7 +44,7 @@
                     <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
                 </div>
                 <div class="hero-meta">
-                    <span id="verLatest">最新版本 1.2.4（7）</span>
+                    <span id="verLatest">最新版本 1.2.5（8）</span>
                     <span id="verDate">更新于 2026-10-13</span>
                     <span><i></i>Android 7.0 及以上</span>
                     <span><i></i>无内置内核 · 零个 .so</span>
@@ -192,18 +192,11 @@
                     <div class="cap"><b>下载管理</b><span>一格 = 一条连接 · 进行中与已结束分组</span></div>
                 </div>
 
-                <!-- 滚动态：顶栏那一行换成胶囊搜索框（底栏同时隐去） -->
+                <!-- 滚动态：顶栏整行收起，底栏那一行换成胶囊搜索框 -->
                 <div class="shot">
                     <div class="phone">
                         <div class="screen">
                             <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
-                            <div class="mobrow">
-                                <div class="capsule">
-                                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="4.2"/><path d="M12.4 12.4l4 4"/></svg>
-                                    <span>输入关键词搜索</span>
-                                    <i class="caret"></i>
-                                </div>
-                            </div>
                             <div class="sbody pane">
                                 <div class="pg">
                                     <div class="pskel">
@@ -218,9 +211,18 @@
                                     </div>
                                 </div>
                             </div>
+                            <!-- 滚动态下顶栏整行收起，所以这台手机顶部没有地址栏那一行；
+                                 搜索框落在底栏那一行的位置（原本是五格底栏）。 -->
+                            <div class="mobrow">
+                                <div class="capsule">
+                                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="4.2"/><path d="M12.4 12.4l4 4"/></svg>
+                                    <span>输入关键词搜索</span>
+                                    <i class="caret"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="cap"><b>滚动态 · 顶栏即搜索</b><span>向下滚动时底栏整条隐去，顶栏那一行由地址栏换成胶囊搜索框；滚回顶部即还原。页面停在顶部时往下拉还有 <strong>刷新球</strong>，滑到完全露出来松手就刷新</span></div>
+                    <div class="cap"><b>滚动态 · 底栏即搜索</b><span>向下滚动时顶栏整行收起、把那一行的高度还给网页，底栏那一行则由五格换成胶囊搜索框；滚回顶部即还原。页面停在顶部时往下拉还有 <strong>刷新球</strong>，滑到完全露出来松手就刷新</span></div>
                 </div>
 
                 <!-- 标签总览 -->
@@ -451,17 +453,17 @@
             </div>
             <div class="dl-box">
                 <div class="dl-version">
-                    <strong id="dlVer">v1.2.4</strong>
+                    <strong id="dlVer">v1.2.5</strong>
                     <span id="dlStamp">更新于 2026-10-13</span>
                 </div>
-                <p class="dl-note" id="dlNote">安装包大小约 384 KB。安装前请在系统设置中允许来自此来源的应用。</p>
+                <p class="dl-note" id="dlNote">安装包大小约 385 KB。安装前请在系统设置中允许来自此来源的应用。</p>
                 <div class="dl-list" id="dlBtns">
-                    <a class="btn btn-primary btn-lg" href="download/nova-1.2.4.apk" download>官网直链 · v1.2.4</a>
-                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.4/nova-1.2.4.apk" download>Gitee Releases · v1.2.4</a>
+                    <a class="btn btn-primary btn-lg" href="download/nova-1.2.5.apk" download>官网直链 · v1.2.5</a>
+                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.5/nova-1.2.5.apk" download>Gitee Releases · v1.2.5</a>
                 </div>
                 <ul class="dl-facts" id="dlFacts">
-                    <li><span>版本</span><span>1.2.4</span></li>
-                    <li><span>版本码</span><span>7</span></li>
+                    <li><span>版本</span><span>1.2.5</span></li>
+                    <li><span>版本码</span><span>8</span></li>
                     <li><span>更新日期</span><span>2026-10-13</span></li>
                 </ul>
             </div>

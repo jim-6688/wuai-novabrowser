@@ -1,29 +1,27 @@
 {
-  "version": "1.2.4",
-  "versionCode": 7,
+  "version": "1.2.5",
+  "versionCode": 8,
   "channel": "release",
   "updatedAt": "2026-10-13",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "新增内置新标签页：品牌区 + 常去站点快捷方式，快捷方式按访问频率自动生成，长按可删",
-    "新增页面下拉刷新；网页下滑时顶栏那一行换成胶囊搜索框",
-    "顶栏图标改彩色且点击区域更大，AI 图标补上「AI」字样",
-    "点开地址栏即全选网址，正下方弹出「复制」与「分享该网站」",
-    "随包内置一条用户脚本（网页限制解除），装完即生效"
+    "修：新建标签页此前打不开内置新标签页（被当成外部地址交给了系统，结果什么都没加载），现在正常；「空白页」那一档同样修好",
+    "下载不再先弹确认框，识别到附件类文件直接进下载队列",
+    "服务端不支持分片时自动改用单连接下载，不再直接失败；顺带修好断点续传可能写出坏文件、且状态仍显示「完成」的问题"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.2.4.apk",
-      "size": 393548,
-      "sha256": "c90e6b6c3ec522791712235a6a8ee3c9f3bad2d3f6edc6bf7c684853a5868272"
+      "url": "download/nova-1.2.5.apk",
+      "size": 394488,
+      "sha256": "4c0dca2a698d65e8c2abcab21d44d339a7b274ab445e045b7a886805334a0cc9"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.4/nova-1.2.4.apk",
-      "size": 393548,
-      "sha256": "c90e6b6c3ec522791712235a6a8ee3c9f3bad2d3f6edc6bf7c684853a5868272"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.5/nova-1.2.5.apk",
+      "size": 394488,
+      "sha256": "4c0dca2a698d65e8c2abcab21d44d339a7b274ab445e045b7a886805334a0cc9"
     }
   ]
 }
