@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   主界面。结构与桌面端 [data-layout="mobile"] 下的 shell.html 一致：
-    顶：工具栏（内核标识 + 首页 + 地址栏 + 刷新）
-    中：WebView（外面套一个容器承载加载进度与提示条）+ 下滑时浮现的胶囊搜索框
-    底：五格底栏（.mobilebar）
+    顶：工具栏（内核标识 + 首页 + 地址栏 + 刷新 + AI）；滚动时整行换成胶囊搜索框
+    中：WebView（容器 RefreshHost 负责下拉刷新）+ 加载进度 + 提示条
+    底：五格底栏（.mobilebar）；滚动时整体隐去
 
   刻意不给任何硬编码颜色，全部走 @color/*，这样 values-night 一换就整体变深色。
 -->
@@ -14,133 +14,201 @@
     android:background="@color/bg"
     android:fitsSystemWindows="true">
 
-    <!-- ============ 顶部工具栏 ============ -->
-    <LinearLayout
+    <!-- ============ 顶部工具栏（两态叠放） ============
+         同一行里叠着两套内容，滚动时交叉淡入淡出：
+           常态 = topBar        —— 内核标识 + 首页 + 收藏 + 地址栏 + AI
+           滚动 = searchCapsule —— 整行顶掉地址栏那一行，变成胶囊搜索框
+
+         为什么叠着、而不是让两套轮流「显示/隐藏」：
+         顶部这一行的高度必须恒定。若两套内容上下相接，切换时行高会变，
+         下面的网页就被整体推一下 —— 滚动中看过去就是页面在抖。
+         两个子 View 都放在这一行里、互相覆盖，「行高 = 最高的那个」恒定不变。
+
+         胶囊高度刻意做成 34dp（与地址栏 omnibox 齐平），不是网页区时期那个 44dp：
+         只要它不高于 topBar 的 46dp，就算它在 GONE 与 VISIBLE 之间切换，
+         本 FrameLayout 的高度也永远不会变 —— 行高跳动从结构上被排除。
+    -->
+    <FrameLayout
+        android:id="@+id/topRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
         android:background="@color/surface"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
         android:elevation="1dp">
 
-        <!-- 内核标识：小圆点 + 当前引擎名。
-             它现在是**只读**的，不可点。
-             以前这里挂着一个选择动作，但移动版实际只有系统 WebView 一档真的内置
-             （其余两档是没带内核的、或只换 UA 的兼容层）——
-             给一个只有一个选项的按钮叫「内核选择」，等于用一个假选择骗用户。
-             所以动作去掉，标识留着：随时能看到自己跑在哪一档上，这一条还是有用的。 -->
         <LinearLayout
-            android:id="@+id/engineChip"
-            android:layout_width="wrap_content"
+            android:id="@+id/topBar"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:paddingStart="6dp"
-            android:paddingEnd="8dp"
+            android:paddingEnd="6dp"
             android:paddingTop="6dp"
             android:paddingBottom="6dp">
 
-            <View
-                android:id="@+id/engineDot"
-                android:layout_width="8dp"
-                android:layout_height="8dp"
-                android:layout_marginEnd="5dp"
-                android:background="@drawable/dot" />
-
-            <TextView
-                android:id="@+id/engineLabel"
+            <!-- 内核标识：小圆点 + 当前引擎名。
+                 它现在是**只读**的，不可点。
+                 以前这里挂着一个选择动作，但移动版实际只有系统 WebView 一档真的内置
+                 （其余两档是没带内核的、或只换 UA 的兼容层）——
+                 给一个只有一个选项的按钮叫「内核选择」，等于用一个假选择骗用户。
+                 所以动作去掉，标识留着：随时能看到自己跑在哪一档上，这一条还是有用的。 -->
+            <LinearLayout
+                android:id="@+id/engineChip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/mb_engine"
-                android:textSize="11sp"
-                android:textColor="@color/text_2"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="6dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <View
+                    android:id="@+id/engineDot"
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:layout_marginEnd="5dp"
+                    android:background="@drawable/dot" />
+
+                <TextView
+                    android:id="@+id/engineLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/mb_engine"
+                    android:textSize="11sp"
+                    android:textColor="@color/text_2"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+            </LinearLayout>
+
+            <!-- 首页按钮。放在地址栏左侧而不是底栏：
+                 底栏六格是硬约束 —— 320dp 机型上每格已经贴着 44px 触控下限，
+                 加第七格会掉到线下；而工具栏这里原本只有一个只读的内核标识，
+                 位置是空的，地址栏让出 34dp 之后还剩 200dp 以上。
+                 这也是 UC / QQ / 夸克们的惯例位置：回家键挨着地址栏，不占拇指动线。 -->
+            <ImageButton
+                android:id="@+id/btnHome"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginEnd="2dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/content_desc_home"
+                android:scaleType="centerInside"
+                android:padding="8dp"
+                android:src="@drawable/ic_home" />
+
+            <!-- 收藏（书签）按钮。和首页键挨着，都在地址栏左侧：
+                 两个「一抬拇指就够到」的入口，不挤占底栏六格的触控预算。
+                 图标随当前页是否收藏在描边 / 实心之间切换。 -->
+            <ImageButton
+                android:id="@+id/btnStar"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginEnd="2dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/content_desc_star"
+                android:scaleType="centerInside"
+                android:padding="8dp"
+                android:src="@drawable/ic_star" />
+
+            <!-- 地址栏 -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="34dp"
+                android:layout_weight="1">
+
+                <EditText
+                    android:id="@+id/urlBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/omnibox"
+                    android:hint="搜索或输入网址"
+                    android:textSize="14sp"
+                    android:textColor="@color/text"
+                    android:textColorHint="@color/text_4"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="46dp"
+                    android:maxLines="1"
+                    android:inputType="textUri|textNoSuggestions"
+                    android:imeOptions="actionGo|flagNoExtractUi"
+                    android:selectAllOnFocus="false" />
+
+                <!-- 刷新 / 停止：同一个位置两种形态，跟桌面端 .ow-refresh 同理 -->
+                <ImageButton
+                    android:id="@+id/btnReload"
+                    android:layout_width="34dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="end"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_reload"
+                    android:contentDescription="@string/content_desc_reload"
+                    android:scaleType="centerInside"
+                    android:padding="8dp" />
+            </FrameLayout>
+
+            <!-- AI 助手。放在地址栏右侧（刷新键再往右），和首页/收藏一样是
+                 「一抬拇指就够到」的入口。点它弹出常用 AI 服务商列表，
+                 选一个在新标签页打开对应网页版对话，不丢当前页。 -->
+            <ImageButton
+                android:id="@+id/btnAi"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="4dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/content_desc_ai"
+                android:scaleType="centerInside"
+                android:padding="8dp"
+                android:src="@drawable/ic_ai" />
         </LinearLayout>
 
-        <!-- 首页按钮。放在地址栏左侧而不是底栏：
-             底栏六格是硬约束 —— 320dp 机型上每格已经贴着 44px 触控下限，
-             加第七格会掉到线下；而工具栏这里原本只有一个只读的内核标识，
-             位置是空的，地址栏让出 34dp 之后还剩 200dp 以上。
-             这也是 UC / QQ / 夸克们的惯例位置：回家键挨着地址栏，不占拇指动线。 -->
-        <ImageButton
-            android:id="@+id/btnHome"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginEnd="2dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/content_desc_home"
-            android:scaleType="centerInside"
-            android:padding="8dp"
-            android:src="@drawable/ic_home" />
+    <!--
+      滚动时顶掉地址栏那一行的胶囊搜索框。
 
-        <!-- 收藏（书签）按钮。和首页键挨着，都在地址栏左侧：
-             两个「一抬拇指就够到」的入口，不挤占底栏六格的触控预算。
-             图标随当前页是否收藏在描边 / 实心之间切换。 -->
-        <ImageButton
-            android:id="@+id/btnStar"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginEnd="2dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/content_desc_star"
-            android:scaleType="centerInside"
-            android:padding="8dp"
-            android:src="@drawable/ic_star" />
+      为什么从网页区底部搬到顶栏：它出现在底部时，手指刚划完的地方正好被它压住，
+      而「搜索」这个动作和地址栏是同一件事，放在地址栏的位置上，视线不用来回找。
+      刻意用 surface + 品牌色描边，与常态的 omnibox（surface_2 灰底无边框）区分开 ——
+      一眼能看出「现在这一格是搜索状态」。
 
-        <!-- 地址栏 -->
-        <FrameLayout
-            android:layout_width="0dp"
+      初始 gone + alpha=0：不进场时它不该吃掉任何触摸。
+      位移由代码给（见 MainActivity#applyReveal），从本行上沿滑进来。
+    -->
+        <LinearLayout
+            android:id="@+id/searchCapsule"
+            android:layout_width="match_parent"
             android:layout_height="34dp"
-            android:layout_weight="1">
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_search_capsule"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:visibility="gone"
+            android:alpha="0">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginEnd="8dp"
+                android:src="@drawable/ic_search"
+                android:contentDescription="@string/search_hint" />
 
             <EditText
-                android:id="@+id/urlBar"
-                android:layout_width="match_parent"
+                android:id="@+id/capsuleInput"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:background="@drawable/omnibox"
-                android:hint="搜索或输入网址"
-                android:textSize="14sp"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="@string/search_hint"
                 android:textColor="@color/text"
                 android:textColorHint="@color/text_4"
-                android:paddingStart="12dp"
-                android:paddingEnd="46dp"
+                android:textSize="14sp"
                 android:maxLines="1"
                 android:inputType="textUri|textNoSuggestions"
-                android:imeOptions="actionGo|flagNoExtractUi"
-                android:selectAllOnFocus="false" />
-
-            <!-- 刷新 / 停止：同一个位置两种形态，跟桌面端 .ow-refresh 同理 -->
-            <ImageButton
-                android:id="@+id/btnReload"
-                android:layout_width="34dp"
-                android:layout_height="match_parent"
-                android:layout_gravity="end"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_reload"
-                android:contentDescription="@string/content_desc_reload"
-                android:scaleType="centerInside"
-                android:padding="8dp" />
-        </FrameLayout>
-
-        <!-- AI 助手。放在地址栏右侧（刷新键再往右），和首页/收藏一样是
-             「一抬拇指就够到」的入口。点它弹出常用 AI 服务商列表，
-             选一个在新标签页打开对应网页版对话，不丢当前页。 -->
-        <ImageButton
-            android:id="@+id/btnAi"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginStart="4dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/content_desc_ai"
-            android:scaleType="centerInside"
-            android:padding="8dp"
-            android:src="@drawable/ic_ai" />
+                android:imeOptions="actionSearch|flagNoExtractUi" />
         </LinearLayout>
+    </FrameLayout>
 
     <!-- ============ 更新提示条 ============ -->
     <!--
@@ -170,13 +238,58 @@
           于是每开关一次弹层就泄漏一个 —— WebView 持有的是 native 内存，
           攒几十个就能把进程拖崩。
 
-          这里只留一个空容器，实例由 MainActivity 持有并搬进搬出：
+          这个容器本身是 {@link top.wuai.nova.RefreshHost}，不是裸 FrameLayout：
+          下拉刷新要靠触摸事件拦截，而拦截必须在「包着 WebView 的那一层」做
+          （理由见 RefreshHost 的类注释）。实例仍由 MainActivity 持有并搬进搬出：
           既杜绝了泄漏，也保住了页面本身（滚动位置、表单、正在播放的音频）。
         -->
-        <FrameLayout
+        <top.wuai.nova.RefreshHost
             android:id="@+id/webHost"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent">
+
+            <!--
+              下拉刷新的指示器。
+
+              用「球」而不是「箭头」：它要从网页上沿滑下来，圆形在任何高度都成立；
+              箭头形状在滑动途中会被读成「一个没对齐的图标」。
+
+              隐藏时整体移到本容器上沿之外（负位移），靠 FrameLayout 的裁剪看不见 ——
+              而不是用 visibility 切换。用 visibility 的话就没法做出「跟着手指滑下来」
+              这件事，那正是下拉刷新唯一的进度反馈。
+
+              小 spinner 与箭头互斥：拉的过程中显示箭头（跟着手指转），
+              真开始刷新了换成系统 spinner（由系统负责转，不用自己写动画）。
+            -->
+            <FrameLayout
+                android:id="@+id/refreshBall"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_gravity="top|center_horizontal"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_refresh_ball"
+                android:elevation="4dp"
+                android:visibility="gone"
+                android:alpha="0">
+
+                <ImageView
+                    android:id="@+id/refreshArrow"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_reload"
+                    android:contentDescription="@string/content_desc_pull_refresh" />
+
+                <ProgressBar
+                    android:id="@+id/refreshSpinner"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="@color/brand"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </top.wuai.nova.RefreshHost>
 
         <!-- 加载进度。高度 2dp 是桌面端进度条高度令牌 bar-h 的对应值，
              粗了会跟内容抢注意力，细到看不见又等于没有。 -->
@@ -227,58 +340,6 @@
             android:paddingTop="4dp"
             android:paddingBottom="4dp"
             android:visibility="gone" />
-
-        <!--
-          下滑时浮现的胶囊搜索框（搜 52ta.top 导航）。
-          它放在「网页区 FrameLayout」内部、而不是底栏那一行里：
-          底栏是纵向 LinearLayout 的一行，没法让两套东西在同一处叠着做淡入淡出。
-          放在网页区底部、用 layout_gravity=bottom 叠在 WebView 之上，才能和底栏做
-          「一个淡出、一个淡入」的交接。
-
-          关于 layout_marginBottom：这里只需要 10dp 的呼吸位，不是 54dp。
-          因为本 FrameLayout 整个就位于底栏那一行的上方 —— 底栏 54dp 的高度不在这块区域内，
-          再让 54dp 出来等于把搜索框凭空抬高一大截。
-
-          初始 gone + alpha=0：不进场时它不该吃掉任何触摸。
-        -->
-        <LinearLayout
-            android:id="@+id/searchCapsule"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:layout_gravity="bottom"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="10dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_search_capsule"
-            android:elevation="6dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:visibility="gone"
-            android:alpha="0">
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginEnd="8dp"
-                android:src="@drawable/ic_search"
-                android:contentDescription="@string/search_hint" />
-
-            <EditText
-                android:id="@+id/capsuleInput"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@null"
-                android:hint="@string/search_hint"
-                android:textColor="@color/text"
-                android:textColorHint="@color/text_4"
-                android:textSize="14sp"
-                android:maxLines="1"
-                android:inputType="textUri|textNoSuggestions"
-                android:imeOptions="actionSearch|flagNoExtractUi" />
-        </LinearLayout>
 
         <!--
           强制更新时盖在网页上的遮罩。

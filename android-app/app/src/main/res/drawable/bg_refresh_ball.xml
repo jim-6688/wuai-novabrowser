@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  下拉刷新指示器的圆底。
+
+  做成 34dp 的圆（不是 999dp 的胶囊）：它是从网页上沿滑下来的一颗球，
+  圆形在任何高度看着都是同一个东西；换成圆角矩形，滑动途中会被读成
+  「一个没对齐的条」。
+
+  surface + 1dp border 都用令牌，不硬编码颜色：values-night 一换就整体变深色。
+  描边是必需的 —— 网页底色可能是白的，浅色主题下没有描边的白球会直接消失。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/surface" />
+    <stroke android:width="1dp" android:color="@color/border" />
+</shape>

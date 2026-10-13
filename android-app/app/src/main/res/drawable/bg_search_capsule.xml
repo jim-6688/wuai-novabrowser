@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  下滑浮现的胶囊搜索框背景。
+  滚动时顶掉地址栏那一行的胶囊搜索框背景。
 
-  圆角做成 full 的一半（22dp，正好是 44dp 高的一半）→ 两端是标准半圆胶囊，
-  视觉上和「地址栏 / 底部工具条」区分开，一眼能看出这是一次临时搜索，不是常驻 chrome。
+  圆角 17dp = 高度 34dp 的一半 → 两端是标准半圆胶囊。
+  高度必须与 omnibox 的 34dp 齐平：这一格是「地址栏位置上的搜索状态」，
+  比地址栏矮一点点会看起来像没对齐。
 
-  surface + 1dp border 都用令牌，不硬编码颜色：values-night 一换就整体变深色，
+  底色用 surface 而不是 omnibox 的 surface_2，并换成品牌色描边：
+  常态的地址栏是灰底无边框的，描边一出来就知道「现在这一格是搜索」，
+  而不用去读里面的字。
+
+  全部走令牌，不硬编码颜色：values-night 一换就整体变深色，
   这是本工程布局的硬规矩（statusStrip 的历史硬编码是例外，不模仿）。
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/surface" />
-    <corners android:radius="22dp" />
-    <stroke android:width="1dp" android:color="@color/border" />
+    <corners android:radius="17dp" />
+    <stroke android:width="1.5dp" android:color="@color/brand" />
 </shape>

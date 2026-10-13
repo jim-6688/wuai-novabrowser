@@ -155,12 +155,20 @@ public final class MainActivity extends Activity {
     private TextView engineLabel;
     private View engineDot;
     private View engineChip;
-    /** 五格底栏。下滑时整条淡出，让位给胶囊搜索框。 */
+    /** 五格底栏。滚动时整条淡出。 */
     private View mobileBar;
-    /** 下滑浮现的胶囊搜索框。 */
+    /** 顶部那一行。里面叠着 {@link #topBar} 与 {@link #searchCapsule} 两套内容。 */
+    private View topRow;
+    /** 顶栏常态：内核标识 + 首页 + 收藏 + 地址栏 + AI。滚动时被胶囊顶掉。 */
+    private View topBar;
+    /** 滚动时顶掉地址栏那一行的胶囊搜索框。 */
     private View searchCapsule;
     /** 胶囊搜索框里的输入框。 */
     private EditText capsuleInput;
+    /** 装着 WebView 的容器，负责下拉刷新（见 {@link RefreshHost}）。 */
+    private RefreshHost refreshHost;
+    /** 刷新卡死时的兜底。正常由 onPageFinished / onReceivedError 先收掉。 */
+    private final Runnable refreshTimeout = this::finishPullRefresh;
     /**
      * 滚动 → 底栏/胶囊 的状态机（纯逻辑，见 {@link BottomBarReveal}）。
      * 每次重新装配主界面都 reset 一次，保证状态机与 XML 初态一致。
@@ -226,6 +234,10 @@ public final class MainActivity extends Activity {
             new NoImagePolicy(settings.noImageLevel(), registry.mediaExts()));
         interceptor.setAdblockEnabled(settings.adblockEnabled);
 
+        // 内置用户脚本：首次启动装上，之后不再检查（卸载了也不会复活）。
+        // 必须排在 loadScripts 之前 —— 否则第一次启动会先读到空列表，
+        // 要等下次冷启动才看得到那条脚本，用户会以为内置没生效。
+        BuiltinScripts.seed(store);
         scripts = store.loadScripts();
 
         try {
@@ -657,8 +669,11 @@ public final class MainActivity extends Activity {
         engineDot = findViewById(R.id.engineDot);
         engineChip = findViewById(R.id.engineChip);
         mobileBar = findViewById(R.id.mobileBar);
+        topRow = findViewById(R.id.topRow);
+        topBar = findViewById(R.id.topBar);
         searchCapsule = findViewById(R.id.searchCapsule);
         capsuleInput = findViewById(R.id.capsuleInput);
+        refreshHost = findViewById(R.id.webHost);
 
         // 重新 inflate 出来的进度条是全新的：XML 没写 visibility，默认 visible、progress=0。
         // 而复用的 WebView 此刻早已加载完（空闲）—— 不把进度条复位的话，
@@ -683,6 +698,7 @@ public final class MainActivity extends Activity {
         reveal.reset(web != null ? web.getScrollY() : 0);
         shownReveal = BottomBarReveal.State.SHOW_BAR;
         setupScrollReveal();
+        setupPullRefresh();
         applyEngine();
         syncChrome();
         syncNoImageChip();
@@ -782,6 +798,9 @@ public final class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 progress.setVisibility(View.GONE);
+                // 下拉刷新的球收回去。放在这里而不是 onPageStarted：那时页面刚开始加载，
+                // 球一收就等于「刷完了」，而屏幕上其实还是一片白。
+                finishPullRefresh();
                 Tab t = current();
                 if (t != null) {
                     t.url = url;
@@ -814,6 +833,9 @@ public final class MainActivity extends Activity {
                 // 全报出来会刷成一堆红，把真正的错误埋掉。
                 if (req != null && req.isForMainFrame()) {
                     progress.setVisibility(View.GONE);
+                    // 刷新失败也要收球。不收的话，一次拉不到页面的刷新会让它一直转，
+                    // 用户唯一能做的事就是杀进程。
+                    finishPullRefresh();
                     showStatus("页面加载失败：" + describeError(err));
                 }
             }
@@ -1045,7 +1067,7 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 网页滚动时切换「底栏 / 胶囊搜索框」。
+     * 网页滚动时切换「顶栏 / 底栏」。
      *
      * <p>判断本身全在 {@link BottomBarReveal} 里（纯逻辑，可单测），这里只负责
      * 把状态变化翻译成动画。刻意只在<b>状态真正变化</b>时才调 {@code applyReveal}：
@@ -1094,7 +1116,14 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 把状态落到界面：底栏与胶囊是互斥的，一个淡入另一个就淡出。
+     * 把状态落到界面。一次切换里同时发生两件事：
+     *
+     * <ul>
+     *   <li><b>顶栏</b>：常态的地址栏那一行（{@code topBar}）与胶囊搜索框
+     *       交叉淡入淡出，胶囊从本行上沿滑进来、滑出去。两套内容叠在同一行里，
+     *       行高恒定 —— 行高一变，下面的网页就会被整体推一下（见布局里的注释）。</li>
+     *   <li><b>底栏</b>：滚动时整条向下淡出，把那 54dp 还给网页。</li>
+     * </ul>
      *
      * @param s       目标状态
      * @param animate 是否播放 300ms 动画；装配阶段不需要动画
@@ -1102,26 +1131,104 @@ public final class MainActivity extends Activity {
     private void applyReveal(BottomBarReveal.State s, boolean animate) {
         final View bar = mobileBar;
         final View cap = searchCapsule;
-        if (bar == null || cap == null) return;
+        final View top = topBar;
+        if (bar == null || cap == null || top == null) return;
         boolean showBar = s == BottomBarReveal.State.SHOW_BAR;
         int duration = animate ? 300 : 0;
         // 高度拿不到（还没 layout）时用布局里写死的尺寸兜底，否则位移量会是 0，
-        // 动画看起来就像没动。54dp / 44dp 分别对应 mobileBar 与 searchCapsule。
+        // 动画看起来就像没动。54dp / 46dp 分别对应 mobileBar 与 topRow。
         float density = getResources().getDisplayMetrics().density;
         int barH = bar.getHeight() > 0 ? bar.getHeight() : Math.round(54 * density);
-        int capH = cap.getHeight() > 0 ? cap.getHeight() : Math.round(44 * density);
+        int rowH = topRow != null && topRow.getHeight() > 0
+            ? topRow.getHeight() : Math.round(46 * density);
 
         if (showBar) {
+            // 地址栏那一行回来
+            top.setVisibility(View.VISIBLE);
+            top.animate().alpha(1f).setDuration(duration).start();
+            // 胶囊向上滑出行外。位移取的是整个「行高」而不是它自己的高度：
+            // 它要从本行上沿出去，只移自身高度的话会卡在行里露一条边。
+            cap.animate().alpha(0f).translationY(-rowH).setDuration(duration)
+                .withEndAction(() -> settleReveal(cap, View.GONE,
+                    BottomBarReveal.State.SHOW_BAR))
+                .start();
+            // 底栏从下方滑回来
             bar.setVisibility(View.VISIBLE);
             bar.animate().alpha(1f).translationY(0f).setDuration(duration).start();
-            cap.animate().alpha(0f).translationY(capH).setDuration(duration)
-                .withEndAction(() -> cap.setVisibility(View.GONE)).start();
         } else {
             cap.setVisibility(View.VISIBLE);
+            // 先摆到行外，再滑进来。少了这一步，第一帧它已经在终点上，
+            // 看起来是「啪」一下出现，而不是滑进来。
+            cap.setTranslationY(-rowH);
             cap.animate().alpha(1f).translationY(0f).setDuration(duration).start();
+            top.animate().alpha(0f).setDuration(duration)
+                .withEndAction(() -> settleReveal(top, View.INVISIBLE,
+                    BottomBarReveal.State.SHOW_CAPSULE))
+                .start();
             bar.animate().alpha(0f).translationY(barH).setDuration(duration)
-                .withEndAction(() -> bar.setVisibility(View.INVISIBLE)).start();
+                .withEndAction(() -> settleReveal(bar, View.INVISIBLE,
+                    BottomBarReveal.State.SHOW_CAPSULE))
+                .start();
         }
+    }
+
+    /**
+     * 动画收尾：把淡出的那一套真正藏起来。
+     *
+     * <p>收尾前必须复核一次状态。这 300ms 里页面可能已经被拉回顶部，
+     * 状态也翻回了 {@code SHOW_BAR} —— 照着老目标收尾的话，就会把刚回来的地址栏
+     * 又藏起来，而胶囊同时被另一条动画藏起来，顶栏空成一片。
+     * 这不是理论问题：动画的结束回调不保证在状态翻转之前跑完。
+     *
+     * @param v        要藏的那个 View
+     * @param hideAs   {@link View#GONE} 或 {@link View#INVISIBLE}
+     * @param expected 只有当前状态仍是它，才动手
+     */
+    private void settleReveal(View v, int hideAs, BottomBarReveal.State expected) {
+        if (shownReveal != expected) return;
+        v.setVisibility(hideAs);
+        if (hideAs == View.GONE) v.setTranslationY(0f);
+    }
+
+    /**
+     * 下拉刷新。
+     *
+     * <p>判定在 {@link PullToRefresh}、触摸拦截在 {@link RefreshHost}，
+     * 这里只回答两件事：页面在不在顶部，以及「刷新」具体做什么。
+     */
+    private void setupPullRefresh() {
+        if (refreshHost == null) return;
+        refreshHost.setPage(new RefreshHost.Page() {
+            @Override
+            public boolean atTop() {
+                // scrollY 可能是负数（过卷的回弹），所以判 <= 0 而不是 == 0。
+                return web == null || web.getScrollY() <= 0;
+            }
+
+            @Override
+            public void refresh() {
+                if (web == null) return;
+                web.reload();
+                // 兜底。有些站点会一直挂着不停加载（长轮询、广告轮播），
+                // onPageFinished 迟迟不来，球就会一直转下去 ——
+                // 一个永远转着的刷新指示器，看起来就是浏览器卡死了。
+                main.removeCallbacks(refreshTimeout);
+                main.postDelayed(refreshTimeout, 15000);
+            }
+        });
+    }
+
+    /**
+     * 收尾一次下拉刷新。页面加载完、加载失败、等超时，三条路都汇到这里。
+     *
+     * <p>先判 {@code isRefreshing()} 再动：这三条路之间会互相抢先
+     * （超时先到、页面随后才加载完就必然会踩一次），
+     * 不判的话第二次收尾会把已经收好的球再收一遍，白播一次动画。
+     */
+    private void finishPullRefresh() {
+        main.removeCallbacks(refreshTimeout);
+        if (refreshHost == null || !refreshHost.isRefreshing()) return;
+        refreshHost.finishRefresh();
     }
 
     // ------------------------------------------------------------ 地址栏
@@ -2212,7 +2319,9 @@ public final class MainActivity extends Activity {
             + "装的是 .user.js，不是 Chrome 扩展 —— Android 没有提供扩展宿主，装不了扩展。"
             + "脚本按 @match 声明的地址注入页面。\n"
             + "不支持 @grant 特权（跨域请求、读取 Cookie 等），"
-            + "声明了会在装上后明确标出。");
+            + "声明了会在装上后明确标出。\n"
+            + "随包内置一条口碑最好的脚本（网页限制解除），用不上可以停用或卸载 ——"
+            + "卸载后不会再自己回来。");
 
         refreshPluginPanel(sheet);
 
@@ -2254,7 +2363,18 @@ public final class MainActivity extends Activity {
         ((TextView) row.findViewById(R.id.plName)).setText(s.displayName());
         ((TextView) row.findViewById(R.id.plDesc)).setText(s.meta.summary());
 
-        StringBuilder m = new StringBuilder("适用：");
+        // 内置的那几条要标出来：它是浏览器替用户装上的，而用户从没做过这个决定，
+        // 列表里就得看得出哪些不是自己装的，否则清理时会把自己的和内置的混在一起删。
+        BuiltinScripts.Item builtin = BuiltinScripts.itemOf(s.id, store);
+        TextView badge = row.findViewById(R.id.plBadge);
+        if (builtin != null) {
+            badge.setVisibility(View.VISIBLE);
+            badge.setText(R.string.plugin_builtin);
+        }
+
+        StringBuilder m = new StringBuilder();
+        if (builtin != null) m.append(builtin.credit).append('\n');
+        m.append("适用：");
         for (String x : s.meta.match) m.append('\n').append(x);
         for (String x : s.meta.include) m.append('\n').append(x);
         ((TextView) row.findViewById(R.id.plMatch)).setText(m.toString());
@@ -3576,6 +3696,9 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         stopPolling();
+        // 下拉刷新的超时兜底。它握着一个 Runnable 贴着 this，不在销毁前摘掉，
+        // 那 15 秒内 Activity 就走不干净。
+        main.removeCallbacks(refreshTimeout);
         if (downloader != null) {
             downloader.shutdown();
             downloader = null;

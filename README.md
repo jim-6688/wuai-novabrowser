@@ -49,7 +49,7 @@ npm run check:design     # 设计稿体检：class 是否都定义 / 画框是�
 npm run mobile:sync       # 把桌面端的拼页算法与名单同步给移动版
 npm run mobile:check      # 同步门禁：桌面端改了但没同步会在这里报错
 npm run mobile:build      # 门禁 + 构建 debug APK
-npm run mobile:test       # 移动版 186 项单元测试（纯 JVM，不需要设备）
+npm run mobile:test       # 移动版 385 项单元测试（纯 JVM，不需要设备）
 
 cd android-app && ./gradlew assembleRelease   # 出可安装的 release APK
 ```
@@ -109,7 +109,7 @@ novabrowser/
 │  ├─ app/build.gradle      AGP 8.7.3 / minSdk 24 / targetSdk 35 / Java 17
 │  ├─ keystore/nova-dev.jks ★ 开发签名（明文口令，仅供本地构建，正式分发务必换掉）
 │  ├─ app/src/main/java/top/wuai/nova/
-│  │  ├─ MainActivity.java  ★ 界面与接线（2416 行）：工具栏 / 六宫格底栏 / 弹层 / 标签总览
+│  │  ├─ MainActivity.java  ★ 界面与接线（3734 行）：工具栏两态 / 五格底栏 / 弹层 / 标签总览
 │  │  ├─ NoImagePolicy.java ★ 无图判定（三档，按后缀猜，边界全部写明）
 │  │  ├─ RequestInterceptor.java ★ 请求拦截：宿主黑名单 + 无图 + 43 字节透明 GIF
 │  │  ├─ AutoPage.java      ★ 自动拼页接线（不含算法，算法从桌面端同步过来）
@@ -127,8 +127,8 @@ novabrowser/
 │  │  ├─ Tab.java           ★ 标签数据（与 WebView 分离，含缩略图生命周期）
 │  │  └─ NovaAlert.java     对话框薄包装（支持自定义内容区）
 │  ├─ app/src/main/assets/  ★ 三份同步产物 + SYNC.json（门禁校验用）
-│  ├─ app/src/main/res/     29 个 drawable（15 个图标矢量）+ 25 个布局 + 令牌
-│  └─ app/src/test/java/    ★ 186 项单元测试（11 个类，纯 JVM，不实例化 Android 组件）
+│  ├─ app/src/main/res/     41 个 drawable（18 个图标矢量）+ 28 个布局 + 令牌
+│  └─ app/src/test/java/    ★ 385 项单元测试（23 个类，纯 JVM，不实例化 Android 组件）
 ├─ dist/                    ★ 构建产物：release.apk（装机用）/ debug.apk
 ├─ screenshots/            ★ 真实渲染截图（npm run shots 生成）
 └─ tools/
@@ -946,7 +946,8 @@ META-INF/            0.1 KB       ← 签名
 **结论：移动端不提供内核选择。** 只有一档真内核时，选择器是「假选择」——
 它假装你能选，实际怎么点都是同一个。1.1.0 起这个选择器已删除：
 
-- 底栏那一格换成**下载**（六格布局与拇指动线不变）
+- 那一格先换成**下载**（1.1.0），下载与阅读再**并成一格「工具」**（1.2.3，底栏由六格收成五格，
+  每格才守得住 44px 触控下限；有任务在跑时标签变成「工具 N」并点亮品牌色）
 - 工具栏的内核标识**保留但改为只读**：点开只能看现在跑在什么上面、真实版本号多少，**不能切**
 - 设置页「关于」里写明「本应用不内置内核，由系统内核（Chromium）渲染」
 
@@ -1061,6 +1062,49 @@ Android 侧读一行拆一行就够了，于是不用引 JSON 库，
 所以 WebView 单独持有，重新 inflate 之后**把原来的实例搬回容器**。
 这比 `saveState`/`restoreState` 可靠：后者对第三方 Cookie、JS 状态、媒体播放都保不住。
 
+### 滚动态：顶栏两态与下拉刷新
+
+向下滚动时，底部五格栏**整条隐去**（把 54dp 还给网页），同时**顶栏那一行由地址栏
+换成胶囊搜索框**。搜索与地址栏本来就是同一件事，落在同一行上，视线不用来回找；
+向上滚一段或滚回顶部，两者一起还原。
+
+两套内容**叠在同一个 `FrameLayout` 里**（`topRow`），而不是上下相接 —— 行高必须恒定。
+行高一变，下面的网页就会被整体推一下，滚动中看过去就是页面在抖。
+胶囊做成 34dp（与地址栏 `omnibox` 齐平）也不是随手取的：只要它不高于常态那一行的 46dp，
+它在 `GONE` 与 `VISIBLE` 之间怎么切，行高都不会变 —— **跳动从结构上被排除**，
+而不是靠调动画掩盖。
+
+判定在 `BottomBarReveal.java`（纯类，20 项测试），动画在 `MainActivity#applyReveal`。
+动画收尾前会**复核一次状态**：那 300ms 里页面可能已经被拉回顶部，
+照老目标收尾就会把刚回来的地址栏又藏起来、而胶囊同时被另一条动画藏起来，顶栏空成一片。
+
+**下拉刷新**是手写的，没有引 `SwipeRefreshLayout`：
+
+| 层面 | 在哪 | 干什么 |
+|---|---|---|
+| 判定 | `PullToRefresh.java`（纯类，21 项测试） | 起手资格、起手容差、阈值、两段阻尼、松手判定、中断与收尾 |
+| 触摸 | `RefreshHost.java`（自定义 FrameLayout） | 拦截下拉、渲染刷新球、把「松手」转成一次刷新 |
+| 接线 | `MainActivity#setupPullRefresh` | 页面在不在顶部、刷新做什么（`web.reload()`） |
+
+三处不好绕的地方：
+
+- **必须无视 WebView 发来的 `requestDisallowInterceptTouchEvent(true)`。**
+  它在手指按下后就会发这一句（「别拦我，我要自己滚」），拦掉的正是下拉刷新赖以工作的
+  那套拦截 —— 照单全收的话 `onInterceptTouchEvent` 从此不再被调用，下拉刷新整体失效，
+  而且失效得毫无声息，只是「怎么拉都没反应」。androidx 的 SwipeRefreshLayout 对
+  「不支持嵌套滚动的子 View」（WebView 正好是）做的就是同一件事。
+- **位移是绝对量而不是增量。** 拦截那一帧，同一个 MOVE 会走 `onInterceptTouchEvent`
+  与 `onTouchEvent` 两条路各调一次；按增量累加就会把这一帧算成两倍位移。
+- **刷新球的行程与阈值刻意对齐。** `TRIGGER_DP(52) × SLOPE_BEFORE(0.85) ≈ 44dp`，
+  正好等于球从屏幕外滑到既定位置的距离（球 34dp + 上边距 10dp）。
+  于是「球完全露出来」与「可以松手了」是同一个瞬间，不必额外解释。
+  单测里钉住了这条等式 —— 改任一个常量都会先红。
+
+收尾走三条路（`onPageFinished` / `onReceivedError` / 15 秒超时兜底），
+且收尾前先判 `isRefreshing()`：这三条会互相抢先，判一下才不会白播第二次收场动画。
+被中断（来电、弹窗、多指）走的是 `cancel()` 而不是 `release()` ——
+把「被打断」当成「松手」，一次来电就能刷出一个新页面。
+
 ### 内核：只有一档真内核，所以没有选择器
 
 | 档位 | 真身 | 1.1.0 能不能选 |
@@ -1121,19 +1165,27 @@ Android 的 release 包**默认没有 `INTERNET` 权限**（模板只在 `src/de
 构建不报错，启动不报错，只是每页都白屏。同理 `usesCleartextTraffic="true"`
 必须开，否则 API 28+ 默认拒绝 http 明文，等于把一半中文站点挡在门外。
 
-### 186 项单元测试
+### 385 项单元测试
 
 ```
 cd android-app && ./gradlew testDebugUnitTest
 ```
 
 ```
-AutoPageTest          18      DownloadTaskTest      23      DownloadTriggerTest  15
-EngineCatalogTest     14      MainActivityTest       7      NoImagePolicyTest     19
-NovaSettingsTest      23      RuleSetTest           22      TabTest               10
-UserScriptTest        27      BookmarkStoreTest     8
-------------------------------------------------------------------
-合计 186 项，失败 0，跳过 0
+ApkProviderTest             7   MainActivityTabRefEdgeTest  6
+AutoPageTest               18   MainActivityTest           28
+BookmarkStoreTest           8   NoImagePolicyTest          19
+BottomBarRevealEdgeTest    10   NovaSettingsCapsuleTest     9
+BottomBarRevealTest        10   NovaSettingsTest           25
+BuiltinScriptsTest         14   PullToRefreshTest          21
+DownloadTaskTest           23   RuleSetTest                22
+DownloadTriggerEdgeTest    12   TabTest                    10
+DownloadTriggerTest        26   UpdateFlowTest             21
+DownloadUiTest             19   UpdateManagerTest          16
+EngineCatalogTest          14   UserScriptTest             30
+HistoryStoreTest           17
+--------------------------------------------------------------
+合计 385 项（23 个测试类），失败 0，跳过 0
 ```
 
 只测纯逻辑，**不实例化任何 Android 组件**（这也是它们被拆成纯逻辑的原因）。
@@ -1169,13 +1221,20 @@ UserScriptTest        27      BookmarkStoreTest     8
 ### 尚未实现（如实说明）
 
 - **没有真机 / 模拟器验证。** 本机装了 Android SDK 但没有系统镜像，也没有 emulator，
-  所以以上全部是「编译通过 + 178 项单元测试通过 + `aapt2` / `apksigner` 静态校验」，
+  所以以上全部是「编译通过 + 385 项单元测试通过 + `aapt2` / `apksigner` 静态校验」，
   **没有在真机或模拟器上跑过**。UI 接线、WebView 生命周期、真实网络请求、
   多线程下载在真实服务器上的行为 —— 这些只有跑起来才暴露的问题，现在都还没暴露。
   这是当前最大的未知项，不是可以忽略的小注脚。
-  **本轮新增的「主题切换」「加载图片开关」「订阅自动更新」同样只过了编译与单测** ——
+  **「主题切换」「加载图片开关」「订阅自动更新」同样只过了编译与单测** ——
   主题走 `recreate()` 之后的会话恢复、`setBlockNetworkImage` 在各家 ROM 上的实际效果，
   都要装上真机才算数。
+- **手势类的改动尤其没法离线验证。** 顶栏两态切换与下拉刷新都只测到了「判定」那一层
+  （`BottomBarReveal` / `PullToRefresh` 是纯类，边界在单测里钉死了），
+  但它们真正的成败在**触摸事件的走向**上：`RefreshHost` 的
+  `onInterceptTouchEvent` 与 WebView 的抢与被抢、无视
+  `requestDisallowInterceptTouchEvent` 之后 WebView 会不会有副作用、
+  各家 ROM 上的 `getScaledTouchSlop()` 手感 —— 这一层只有真机能回答。
+  静态能给的保证只有一条：**逻辑判定没有边界错误**，不是「手势一定跟手」。
 - **下载存应用私有目录**（`filesDir/downloads`）。没有接 `FileProvider` 或 `MediaStore`，
   所以系统「用其他应用打开」不可用，只给了「复制路径」。
 - **用户脚本只有 `document-end`**，做不到真正的 document-start；不支持 `@grant` 特权 API。
@@ -1190,22 +1249,25 @@ UserScriptTest        27      BookmarkStoreTest     8
 `design/design-board.html`，包含：设计令牌、内核语义的视觉编码、组件四态、
 PC 主界面（画框 A / B）与侧边面板（画框 C / D）、
 **全屏设置页（E）**、**下载页多线程分段进度（F）**、**媒体嗅探与置信度分层（G）**，
-以及移动端**十屏**：
+以及移动端**十一屏**：
 
-| 画框 | 内容 | 1.1.0 的变化 |
+| 画框 | 内容 | 变化 |
 |---|---|---|
-| H | 主界面 | 底栏第四格换成**下载**（带进行中角标）；内核标识改为**只读态**（虚线描边 + 无下拉箭头） |
+| H | 主界面 | 底栏并成**五格**（原「下载」「阅读」合一格**工具**，有任务在跑时显示「工具 N」）；内核标识为**只读态**（虚线描边 + 无下拉箭头） |
+| **R** | **滚动态与下拉刷新（新增）** | 向下滚动后底栏整条隐去、**顶栏那一行由地址栏换成胶囊搜索框**（同高 52px，行高不变）；页面在顶部时往下拉唤出**刷新球**，球完全露出来即可松手 |
 | I | 标签页总览 | — |
 | **J** | **内核信息（只读）** | **原「内核选择」弹层整个改成只读**：不提供切换，写明「零个 `.so`、不内置内核」、真实 系统内核版本号、以及 GeckoView / CEF / Chrome 扩展三条平台边界 |
 | **K** | **设置页（七个分组）** | **从「顶部横向胶囊条」改成七个分组从上到下排**；取值就地显示，不另开选择页 |
 | **L** | **下载弹层** | 从桌面版布局的移植改成底栏弹层；一格进度 = 一条连接，退化成单连接时**格数变 1 并写明原因** |
-| M / N | 阅读增强弹层、自动拼页运行中 | 底栏内核格同步换成下载格 |
+| M / N | 阅读增强弹层、自动拼页运行中 | 底栏并格后入口收进「工具」那一格 |
 | **O** | **拦截规则订阅弹层（新增）** | 四个预置源 + 自定义订阅；订阅与内置**并存**；**三道落盘防线**写在界面上 |
 | **P** | **篡改猴弹层（新增）** | 第一句就写「这是用户脚本，不是 Chrome 扩展」；三条硬边界（document-end / 无 `@grant` / 无 `@match` 拒装） |
 
-设计规则表也补了四条 1.1.0 的正反对照：
+设计规则表也补了 1.1.0 之后的五条正反对照：
 **只有一档时不给选择器**、**下载分片能力按实测判不按头猜**、
-**规则订阅更新失败不许毁掉现状**、**篡改猴先讲清它不是 Chrome 扩展**。
+**规则订阅更新失败不许毁掉现状**、**篡改猴先讲清它不是 Chrome 扩展**、
+以及 R 帧背后的两条 —— **顶栏两态必须同高**（行高一变，网页就被整体推一下）、
+**刷新球的行程要与阈值对齐**（球完全露出来＝可以松手）。
 
 样式与 `src/renderer/shell.css` **共用同一套 token**，改设计稿等于改产品。
 
@@ -1270,8 +1332,8 @@ PC 主界面（画框 A / B）与侧边面板（画框 C / D）、
     合并前校验缺片、临时文件合并后 rename；下载触发三档优先级且主文档与页面资源永不触发；
     进度通知节流（变化 >128KB 才通知，否则界面忙于回调反而卡）
 - **移动版 1.1.0 收尾的三项**：
-  - **首页按钮**：放工具栏地址栏左侧，**不放底栏** —— 底栏六格是硬约束（320dp 机型上每格已经
-    贴着 44px 触控下限，第七格会掉到线下），而工具栏这里原本只有一个只读内核标识，位置是空的。
+  - **首页按钮**：放工具栏地址栏左侧，**不放底栏** —— 底栏格数是硬约束（320dp 机型上每格已经
+    贴着 44px 触控下限，再加一格会掉到线下），而工具栏这里原本只有一个只读内核标识，位置是空的。
     与菜单里的「首页」共用同一个 `goHome()`，不写两份
   - **设置页补齐**：补上五个「配置里有字段、界面没有行」的半吊子项 —— 广告拦截总开关、
     篡改猴总开关、订阅自动更新、加载图片、下载记录上限。其中 `rulesAutoUpdate` 与 `loadImages`
@@ -1299,7 +1361,7 @@ PC 主界面（画框 A / B）与侧边面板（画框 C / D）、
 - 原生桥接模式下的广告拦截（宿主网络栈不经过 Electron session，需宿主侧代理 —— 已在 native/README 说明）
 - 移动端原生容器（Capacitor / WebView 壳）—— 接口已就绪，差一个容器实现
 - **移动版的一切尚未在真机 / 模拟器上跑过** —— 见第十三节「尚未实现」第一条。
-  当前所有保证都止于「编译 + 178 项单测 + 静态校验」，这是最大的未知项
+  当前所有保证都止于「编译 + 385 项单测 + 静态校验」，这是最大的未知项
 - **移动版下载存私有目录**，未接 `FileProvider` / `MediaStore`，系统「用其他应用打开」不可用
 - **移动版用户脚本只有 `document-end`**，做不到真正的 document-start；无 `@grant` 特权 API；
   界面已写明，不假装是完整 Tampermonkey

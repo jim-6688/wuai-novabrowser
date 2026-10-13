@@ -38,6 +38,9 @@
     <string name="content_desc_reload">刷新 / 停止加载</string>
     <string name="content_desc_star">收藏当前页面 / 取消收藏</string>
     <string name="content_desc_ai">AI 助手</string>
+    <!-- 下拉刷新的指示器球。它是纯装饰性的（刷新本身由手指动作触发，
+         没有任何可点的东西），这条说明只给读屏软件用。 -->
+    <string name="content_desc_pull_refresh">下拉刷新</string>
 
     <!-- 弹层标题 -->
     <string name="sheet_tabs">标签页</string>

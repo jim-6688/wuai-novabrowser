@@ -1,7 +1,14 @@
 package top.wuai.nova;
 
 /**
- * 吾爱Nova浏览器 · 「滚动 → 底栏 / 胶囊搜索框 谁该出现」的判定。
+ * 吾爱Nova浏览器 · 「滚动 → 顶栏 / 底栏 谁该出现」的判定。
+ *
+ * <h3>两个状态到底改了什么</h3>
+ *
+ * <p>切到 {@link State#SHOW_CAPSULE} 时同时发生两件事：底部那条五格栏整条淡出
+ * （把那 54dp 还给网页），而<b>顶栏那一行由地址栏换成胶囊搜索框</b> ——
+ * 搜索这件事与地址栏本来就是同一件事，落在同一行上，视线不用来回找。
+ * 切回 {@link State#SHOW_BAR} 时两者都还原。
  *
  * <h3>为什么抽成纯类</h3>
  *
@@ -12,12 +19,12 @@ package top.wuai.nova;
  *
  * <h3>三条阈值规则</h3>
  * <ol>
- *   <li><b>向下累计超过 {@link #DOWN_THRESHOLD}</b>：藏底栏、浮出胶囊搜索框。
+ *   <li><b>向下累计超过 {@link #DOWN_THRESHOLD}</b>：藏底栏、顶栏换成胶囊搜索框。
  *       用「累计」而不是「单帧位移」：手指一抖就是几十像素，单帧判定必闪。</li>
- *   <li><b>向上累计超过 {@link #UP_THRESHOLD}</b>：恢复底栏、收起胶囊。
+ *   <li><b>向上累计超过 {@link #UP_THRESHOLD}</b>：恢复底栏与地址栏。
  *       这个阈值刻意比下滚的小 —— 让 chrome（后退/前进/标签）更容易回来，
  *       是想回来时立刻就能回来，而把它推走需要一次干脆的下滑。</li>
- *   <li><b>进入顶部区（{@code scrollY <= }{@link #TOP_ZONE}）</b>：无条件恢复底栏。
+ *   <li><b>进入顶部区（{@code scrollY <= }{@link #TOP_ZONE}）</b>：无条件恢复。
  *       人在页面开头时最可能想做导航动作，这时把底栏藏起来只会让人以为界面坏了。</li>
  * </ol>
  *
@@ -31,15 +38,15 @@ package top.wuai.nova;
  */
 public final class BottomBarReveal {
 
-    /** 两种状态：底栏可见，或胶囊搜索框可见。二者互斥。 */
+    /** 两种状态：常态（底栏 + 地址栏），或滚动态（无底栏 + 顶栏胶囊搜索框）。 */
     public enum State {
-        /** 五格底栏可见（常态）。 */
+        /** 五格底栏与地址栏可见（常态）。 */
         SHOW_BAR,
-        /** 底栏隐藏，底部浮出胶囊搜索框。 */
+        /** 底栏隐藏，顶栏那一行换成胶囊搜索框。 */
         SHOW_CAPSULE
     }
 
-    /** 向下累计超过它 → 浮出胶囊。120px 约等于一次「有意识的下滑启动」。 */
+    /** 向下累计超过它 → 换成胶囊。120px 约等于一次「有意识的下滑启动」。 */
     public static final int DOWN_THRESHOLD = 120;
     /** 向上累计超过它 → 恢复底栏。比下滚阈值小，让 chrome 更容易回来。 */
     public static final int UP_THRESHOLD = 60;

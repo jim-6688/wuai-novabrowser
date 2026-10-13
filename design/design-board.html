@@ -333,6 +333,32 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
 .mbar div.pri{flex:0 0 56px;margin:6px 4px;border:1.5px solid var(--brand);border-radius:var(--r-md);color:var(--brand)}
 .mbar div.pri span{font-size:12px;font-weight:700}
 
+/* 滚动状态下的顶栏：那一行整行换成胶囊搜索框（R 帧）。
+   高度仍是 52px、与 .mtoolbar 完全一致 —— 行高一变，下面的网页就会被整体推一下。
+   描边用品牌色，与常态的 omnibox（灰底无边框）区分开：不用读字就知道这一格是搜索。 */
+.tcapsule{height:34px;display:flex;align-items:center;gap:8px;padding:0 12px;
+          border:1.5px solid var(--brand);border-radius:var(--r-pill);background:var(--surface);
+          font-size:11.5px;color:var(--text-4)}
+.tcapsule svg{width:14px;height:14px;flex:0 0 14px;color:var(--text-3)}
+.tcapsule .caret{width:1.5px;height:13px;border-radius:2px;background:var(--brand)}
+
+/* 下拉刷新的球：从网页上沿滑下来（R 帧）。
+   圆形而不是圆角矩形 —— 它移动途中要在任何高度都读成同一颗球。 */
+.pullball{position:absolute;top:10px;left:50%;transform:translateX(-50%);
+          width:34px;height:34px;border-radius:50%;background:var(--surface);
+          border:1px solid var(--border-strong);display:grid;place-items:center;box-shadow:var(--shadow-1)}
+.pullball svg{width:17px;height:17px;color:var(--text-3)}
+
+/* R 帧里那张「正在读的网页」的配图占位（网页骨架里的图块） */
+.pb-ph{height:54px;margin:10px 0 8px;border-radius:10px;background:linear-gradient(135deg,#E7EFFC,#E4F5F1)}
+
+/* R 帧底部的说明块。滚动态与下拉刷新都是「没有常驻入口」的行为，
+   画框里画不出来全部规则，必须把阈值与文件出处写清楚。 */
+.rtip{padding:11px 14px 14px;font-size:10px;color:var(--text-3);line-height:1.75;
+      background:var(--surface);border-top:1px solid var(--border)}
+.rtip b{color:var(--text);font-weight:600;margin-right:5px}
+.rtip code{font-size:9.5px}
+
 .tgrid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;align-content:start}
 .tcard{border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:12px;min-height:104px;
        display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow-1)}
@@ -1397,7 +1423,7 @@ td code{font-size:11px}
     <span class="sec-no">06</span>
     <h2>移动端 · 十一屏</h2>
     <span class="sec-note">376 × 660 画框（≈ 390 × 844 的等比）。同一套代码，靠 <code>[data-layout=mobile]</code> 切换骨架。
-      底栏六宫格：主操作（标签）居中凸起，<b>阅读</b>是第五格，<b>下载</b>是第六格（原内核格，见 J）。
+      底栏<b>五格</b>：主操作（标签）居中凸起，左右各两格；原来的「下载」与「阅读」并成一格<b>工具</b>（有任务在跑时那一格变成「工具 N」并点亮品牌色，见 L）。
       1.1.0 起<b>内核选择器已删除</b>——APK 内零个 <code>.so</code>，只有一档真内核，
       只有一个选项的列表不是选择器，是装饰。内核信息改为<b>只读</b>（J 帧），看得见但点不动。</span>
   </div>
@@ -1405,7 +1431,7 @@ td code{font-size:11px}
   <div class="frames">
     <!-- 主界面 -->
     <div class="frame-wrap">
-      <div class="frame-cap"><b>H · 主界面</b> · 底栏六格（主操作居中凸起）；第四格是<b>下载</b>（带进行中角标），不再是内核；工具栏地址栏左侧多一个<b>首页</b>和一个<b>收藏（星标）</b>按钮</div>
+      <div class="frame-cap"><b>H · 主界面</b> · 底栏<b>五格</b>（主操作居中凸起）；中间两格分别是<b>工具</b>（带进行中角标）与<b>菜单</b>，不再是内核；工具栏地址栏左侧多一个<b>首页</b>和一个<b>收藏（星标）</b>按钮。向下滚动后这一屏会变成 R 帧的样子</div>
       <div class="frame mb">
         <div class="screen">
           <div class="mtoolbar">
@@ -1421,16 +1447,60 @@ td code{font-size:11px}
           <div class="vp" style="flex:1">
             <div style="text-align:center;padding:0 20px">
               <div class="h3" style="font-size:16px">52ta.top</div>
-              <p style="font-size:11px">首页按钮在<b>地址栏左侧</b>，旁边多一个<b>收藏星标</b>按钮（已收藏变实心）；不在底栏：底栏六格是硬约束，320dp 机型上每格已贴 44px 触控下限，第七格会掉到线下。<br />内核标识 <b>CR</b> 只读（点开只能看，不能切）<br />移动端 UA：Android / iOS<br />底栏第五格阅读 · 第六格菜单</p>
+              <p style="font-size:11px">首页按钮在<b>地址栏左侧</b>，旁边多一个<b>收藏星标</b>按钮（已收藏变实心）；不在底栏：底栏每格在 320dp 机型上已贴 44px 触控下限，再加一格会掉到线下。<br />内核标识 <b>CR</b> 只读（点开只能看，不能切）<br />移动端 UA：Android / iOS<br />底栏第三格标签 · 第四格<b>工具</b>（下载与阅读并成一格，有任务在跑时显示「工具 N」）<br />顶部下拉即刷新（见 R）</p>
             </div>
           </div>
           <div class="mbar">
             <div><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg><span>后退</span></div>
             <div><svg viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg><span>前进</span></div>
             <div class="pri"><svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M6.5 2.5h7"/></svg><span>3</span></div>
-            <div style="color:var(--brand)"><svg viewBox="0 0 20 20"><path d="M10 3v9m0 0l-3.5-3.5M10 12l3.5-3.5M4 15.5h12"/></svg><span>下载</span><i class="mbadge">2</i></div>
-            <div><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.2"/><path d="M2.5 10S5.5 5 10 5s7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5z"/></svg><span>阅读</span></div>
+            <div style="color:var(--brand)"><svg viewBox="0 0 20 20"><path d="M4 6h14M4 10h14M4 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><span>工具 2</span></div>
             <div><svg viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h12"/></svg><span>菜单</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 滚动态 + 下拉刷新 -->
+    <div class="frame-wrap">
+      <div class="frame-cap"><b>R · 滚动态与下拉刷新</b> · 向下滚动后底栏整条隐去，<b>顶栏那一行由地址栏换成胶囊搜索框</b>（同为 52px 高，行高不变）；滚回顶部即还原。页面停在顶部时往下拉唤出<b>刷新球</b>，拉到球完全露出来松手即刷新</div>
+      <div class="frame mb">
+        <div class="screen">
+          <div class="mtoolbar" style="gap:0;padding:0 8px">
+            <div class="tcapsule" style="flex:1">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="4.2"/><path d="M12.4 12.4l4 4"/></svg>
+              <span style="flex:1;color:var(--text-4)">输入关键词搜索</span>
+              <i class="caret"></i>
+            </div>
+          </div>
+          <div class="vp" style="display:block;padding:52px 14px 0">
+            <div class="npara" style="width:66%;height:11px;background:var(--border-strong)"></div>
+            <div class="npara w92"></div>
+            <div class="npara w80"></div>
+            <div class="pb-ph"></div>
+            <div class="npara w92"></div>
+            <div class="npara w45"></div>
+            <div class="npara w80"></div>
+            <div class="npara w62"></div>
+            <div class="npara w92"></div>
+            <div class="npara w80"></div>
+            <div class="pb-ph"></div>
+            <div class="npara w92"></div>
+            <div class="npara w62"></div>
+            <div class="npara" style="width:66%;height:11px;background:var(--border-strong)"></div>
+            <div class="npara w92"></div>
+            <div class="npara w80"></div>
+            <div class="npara w45"></div>
+            <div class="npara w92"></div>
+            <div class="npara w62"></div>
+            <div class="pullball">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(140deg)"><path d="M16.5 10 a6.5,6.5 0 1,1 -1.9,-4.6"/><path d="M16.8,2.6 V5.6 H13.8"/></svg>
+            </div>
+          </div>
+          <div class="rtip">
+            <b>滚动态</b><span>底栏隐去 · 顶栏换成胶囊搜索框</span><br />
+            <b>下拉刷新</b><span>球滑到完全露出来＝可以松手（52dp × 0.85 ≈ 44dp，正好是球的行程）</span><br />
+            <b>判定与拦截</b><span><code>PullToRefresh.java</code> · <code>RefreshHost.java</code></span>
           </div>
         </div>
       </div>
@@ -2229,7 +2299,8 @@ td code{font-size:11px}
           <td>只有一档时不给选择器</td><td class="do">✓</td>
           <td>
             移动端 APK 内<b>零个 <code>.so</code></b>，只有系统内核 一档真内核。
-            1.1.0 起<b>删除内核选择器</b>，底栏那一格换成<b>下载</b>（六格布局与拇指动线不变），
+            1.1.0 起<b>删除内核选择器</b>，那一格换成<b>下载</b>；1.2.3 起下载与阅读<b>并成一格「工具」</b>
+            （底栏由六格收成五格，每格才守得住 44px 触控下限），
             工具栏的内核标识保留但标成<b>只读</b>（虚线描边 + 无下拉箭头）——
             <b>看得见当前跑在什么上面</b>，能读到真实系统内核版本号，但点不动。
             设置页「关于」里写明「本应用不内置内核，由系统内核 渲染」。
@@ -2317,8 +2388,13 @@ td code{font-size:11px}
     的三层结构（标题 / 副标题 / 右侧取值 + 箭头）与 <code>MainActivity.setRow()</code>；
     只读内核标识 <code>.eng.ro</code> → <code>res/layout/activity_main.xml</code> 的
     <code>engineChip</code>（已去掉 <code>selectableItemBackground</code>）；
-    底栏下载格与角标 <code>.mbadge</code> → <code>res/layout/item_mb_download.xml</code> +
+    底栏工具格与角标 <code>.mbadge</code> → <code>res/layout/item_mb_tools.xml</code> +
     <code>MainActivity.updateDownloadBadge()</code>；
+    <b>滚动态顶栏胶囊 <code>.tcapsule</code>（R 帧）</b> → <code>searchCapsule</code>
+    （与 <code>topBar</code> 同处 <code>topRow</code> 这个 FrameLayout 里，交叉淡入淡出；
+    判定在 <code>BottomBarReveal.java</code>，动画在 <code>MainActivity#applyReveal</code>）；
+    <b>下拉刷新球 <code>.pullball</code>（R 帧）</b> → <code>RefreshHost.java</code>
+    （容器 + 触摸拦截 + 指示器）+ <code>PullToRefresh.java</code>（阈值与阻尼，纯类可单测）；
     下载弹层 → <code>sheet_downloads.xml</code> + <code>downloadRow()</code>；
     规则订阅 → <code>sheet_rules.xml</code> + <code>RuleSet.java</code> / <code>RuleUpdater.java</code>；
     插件 → <code>sheet_plugins.xml</code> + <code>UserScript.java</code>；

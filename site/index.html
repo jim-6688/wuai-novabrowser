@@ -108,7 +108,7 @@
                 <div class="card">
                     <div class="fico">⚙</div>
                     <h3>篡改猴用户脚本</h3>
-                    <p>按网址规则注入用户脚本，行为与 Tampermonkey 一类扩展同源；装错了也可以一键停用。</p>
+                    <p>按网址规则注入用户脚本，行为与 Tampermonkey 一类扩展同源；装错了也可以一键停用。已内置一条口碑脚本「网页限制解除」，开箱即用。</p>
                 </div>
                 <div class="card">
                     <div class="fico g">◐</div>
@@ -136,7 +136,7 @@
                 <span class="kicker">INTERFACE</span>
                 <h2>重新设计后的样子</h2>
                 <p>蓝与绿，来自应用图标的渐变。下面的界面由代码直接绘制，颜色取自 App 的令牌表——
-                   下滑时浮出的搜索胶囊、并成五格的底栏、按连接分格的下载进度，都在这里。</p>
+                   向下滚动时顶栏换成搜索胶囊、并成五格的底栏、按连接分格的下载进度、页面顶部下拉即刷新，都在这里。</p>
             </div>
 
             <div class="shots">
@@ -192,11 +192,18 @@
                     <div class="cap"><b>下载管理</b><span>一格 = 一条连接 · 进行中与已结束分组</span></div>
                 </div>
 
-                <!-- 下滑浮出胶囊搜索框 -->
+                <!-- 滚动态：顶栏那一行换成胶囊搜索框（底栏同时隐去） -->
                 <div class="shot">
                     <div class="phone">
                         <div class="screen">
                             <div class="sbar"><b>14:30</b><span>5G ▮ 86%</span></div>
+                            <div class="mobrow">
+                                <div class="capsule">
+                                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="4.2"/><path d="M12.4 12.4l4 4"/></svg>
+                                    <span>输入关键词搜索</span>
+                                    <i class="caret"></i>
+                                </div>
+                            </div>
                             <div class="sbody pane">
                                 <div class="pg">
                                     <div class="pskel">
@@ -210,17 +217,10 @@
                                         <i class="w4"></i><i class="w2"></i>
                                     </div>
                                 </div>
-                                <div class="capsule-wrap">
-                                    <div class="capsule">
-                                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="4.2"/><path d="M12.4 12.4l4 4"/></svg>
-                                        <span>输入关键词搜索</span>
-                                        <i class="caret"></i>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="cap"><b>下滑即搜</b><span>页面下滑时底栏隐去、浮出搜索胶囊</span></div>
+                    <div class="cap"><b>滚动态 · 顶栏即搜索</b><span>向下滚动时底栏整条隐去，顶栏那一行由地址栏换成胶囊搜索框；滚回顶部即还原。页面停在顶部时往下拉还有 <strong>刷新球</strong>，滑到完全露出来松手就刷新</span></div>
                 </div>
 
                 <!-- 标签总览 -->
