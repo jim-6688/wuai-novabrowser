@@ -1,27 +1,31 @@
 {
-  "version": "1.2.5",
-  "versionCode": 8,
+  "version": "1.3.0",
+  "versionCode": 9,
   "channel": "release",
-  "updatedAt": "2026-10-13",
+  "updatedAt": "2026-10-14",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修：新建标签页此前打不开内置新标签页（被当成外部地址交给了系统，结果什么都没加载），现在正常；「空白页」那一档同样修好",
-    "下载不再先弹确认框，识别到附件类文件直接进下载队列",
-    "服务端不支持分片时自动改用单连接下载，不再直接失败；顺带修好断点续传可能写出坏文件、且状态仍显示「完成」的问题"
+    "新增 5 套主题配色（默认蓝 / 青绿 / 粉紫 / 暖橙 / 纯黑），设置里一键切换",
+    "顶栏重构：收藏移到地址栏右侧、工具入顶栏；底栏改为四格（后退/主页/标签/刷新）并加大加粗",
+    "工具面板新增：翻译网页（有道）、阅读模式、观影模式、AI 助手",
+    "网页字号调节 + 网页标识（UA）预设：自动 / 电脑版 / 手机版",
+    "渲染进程崩溃自动恢复，不再白屏卡死",
+    "应用更新装完自动重启，不用手动重开",
+    "启动进主页，新建标签才进内置新标签页；内置主页新增搜索框；默认书签 6 条"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.2.5.apk",
-      "size": 394488,
-      "sha256": "4c0dca2a698d65e8c2abcab21d44d339a7b274ab445e045b7a886805334a0cc9"
+      "url": "download/nova-1.3.0.apk",
+      "size": 408440,
+      "sha256": "cafb788ec881d083aff36d46939f111c55090b9168edf66cf3e318d2cafce799"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.5/nova-1.2.5.apk",
-      "size": 394488,
-      "sha256": "4c0dca2a698d65e8c2abcab21d44d339a7b274ab445e045b7a886805334a0cc9"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.3.0/nova-1.3.0.apk",
+      "size": 408440,
+      "sha256": "cafb788ec881d083aff36d46939f111c55090b9168edf66cf3e318d2cafce799"
     }
   ]
 }

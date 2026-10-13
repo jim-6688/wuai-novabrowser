@@ -190,7 +190,8 @@ function manyHosts(n) {
 
   check('收不到数据时退回内置兜底（不能白屏）', (() => {
     const list = Page.rank(Page.parseData(Page.FALLBACK), Page.MAX_SHORTCUTS);
-    return list.length === 7;
+    // 兜底是 6 条（书签/导航/播放器/浏览器/百度/DeepSeek），第 8 格留给「＋添加」。
+    return list.length === 6;
   })());
 
   /* ================================================================ [B] */

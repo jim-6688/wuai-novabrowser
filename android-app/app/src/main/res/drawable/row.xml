@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 弹层里的列表行底。8dp 对应设计令牌 r-sm。 -->
+<!-- 弹层里的列表行底。8dp 对应设计令牌 r-sm。
+
+     用 surface（白）浮在灰蓝的弹层底（card.xml 的 bg）上，
+     与 bg_menu_group 的分组卡片同一套「灰底 + 白卡」层级。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/surface_2" />
+    <solid android:color="@color/surface" />
     <corners android:radius="8dp" />
 </shape>

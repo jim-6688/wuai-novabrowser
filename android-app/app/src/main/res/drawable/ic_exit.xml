@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <!-- 退出：门框 + 向右的箭头。 -->
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M12,3.2 H7 C5.9,3.2 5,4.1 5,5.2 V14.8 C5,15.9 5.9,16.8 7,16.8 H12" />
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M14.4,10 H9 M12.4,7.8 L14.6,10 L12.4,12.2" />
+</vector>

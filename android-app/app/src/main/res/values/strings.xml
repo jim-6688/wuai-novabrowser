@@ -4,16 +4,16 @@
          改这里不会改到桌面端，两边要一起改。 -->
     <string name="app_name">吾爱Nova浏览器</string>
     <!-- 版本号单点。原先散在若干个字符串字面量里，改版本要改四处，漏一处就对不上。 -->
-    <string name="app_version">1.2.5</string>
+    <string name="app_version">1.3.0</string>
 
     <!-- 底栏。现在是五格：后退 / 前进 / 标签 / 工具 / 菜单。
          「内核」那一格早已换掉（移动版只有系统 WebView 真内置，
          给一个只有一个选项的按钮叫「内核选择」等于用假选择骗用户）；
          「下载」「阅读」两格本轮合并成「工具」。 -->
     <string name="mb_back">后退</string>
-    <string name="mb_forward">前进</string>
+    <string name="mb_home">主页</string>
+    <string name="mb_reload">刷新</string>
     <string name="mb_tabs">标签</string>
-    <string name="mb_engine">内核</string>
     <string name="mb_menu">菜单</string>
     <string name="mb_tools">工具</string>
 
@@ -97,4 +97,9 @@
     <string name="sheet_history">历史</string>
     <string name="history_empty">还没有浏览记录。只记录 http/https 网页，无痕模式下不记。</string>
     <string name="history_visits">%1$d 次</string>
+
+    <string name="zoom_small">小</string>
+    <string name="zoom_default">默认</string>
+    <string name="zoom_large">大</string>
+    <string name="zoom_xl">特大</string>
 </resources>

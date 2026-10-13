@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <!-- 下载：向下箭头 + 底部托盘。 -->
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M10,3.2 V12.4 M6.6,9.2 L10,12.6 L13.4,9.2" />
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M4.5,14.6 H15.5" />
+</vector>

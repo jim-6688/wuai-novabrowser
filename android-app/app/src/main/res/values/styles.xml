@@ -13,7 +13,8 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textColor">@color/text_4</item>
-        <item name="android:textSize">11.5sp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:letterSpacing">0.06</item>
         <item name="android:paddingStart">20dp</item>
         <item name="android:paddingEnd">20dp</item>
@@ -26,6 +27,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textColor">@color/text_3</item>
         <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:paddingStart">20dp</item>
         <item name="android:paddingEnd">20dp</item>
         <item name="android:paddingBottom">6dp</item>

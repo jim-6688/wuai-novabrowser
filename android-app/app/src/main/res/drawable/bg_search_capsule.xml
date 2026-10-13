@@ -2,21 +2,20 @@
 <!--
   滚动态的胶囊搜索框背景。它现在落在**底栏那一行**（见 activity_main.xml 的 bottomRow）。
 
-  圆角 20dp = 高度 40dp 的一半 → 两端是标准半圆胶囊。
-  高度 40dp 而不是原先在顶栏时的 34dp：底部是拇指的自然落点，放大一点更好按；
-  而 40dp < 54dp（底栏行高），所以它在 GONE 与 VISIBLE 之间怎么切，
-  那一行的高度都不会变 —— 网页不会被推一下。
+  圆角 = 高度的一半 → 两端是标准半圆胶囊。
+  高度由 activity_main.xml 里的 searchCapsule 定，这里只画形状。
 
-  底色用 surface 而不是 omnibox 的 surface_2，并换成品牌色描边：
-  常态的地址栏是灰底无边框的，描边一出来就知道「现在这一格是搜索」，
-  而不用去读里面的字。
+  悬浮感：底色改用半透明 surface（透出底下的网页），描边保留品牌色，
+  让这一格「浮在页面上」而不是「嵌在底栏里」。阴影不在 shape 里画（shape
+  不支持 elevation），而是由 activity_main.xml 里的 searchCapsule 用
+  android:elevation 抬起 —— 两者配合才有悬浮的感觉。
 
   全部走令牌，不硬编码颜色：values-night 一换就整体变深色，
   这是本工程布局的硬规矩（statusStrip 的历史硬编码是例外，不模仿）。
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/surface" />
-    <corners android:radius="20dp" />
-    <stroke android:width="1.5dp" android:color="@color/brand" />
+    <solid android:color="@color/surface_translucent" />
+    <corners android:radius="18dp" />
+    <stroke android:width="1dp" android:color="@color/brand" />
 </shape>

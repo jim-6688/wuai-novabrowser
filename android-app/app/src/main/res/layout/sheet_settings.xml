@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  设置页。从「一个首页输入框 + 三行」扩成六个分组。
+  设置页。从「一个首页输入框 + 三行」扩成八个分组，每个分组包进一张卡片
+  （bg_menu_group），与主菜单/工具面板是同一套视觉语言 —— 这是去掉
+  「毛坯房感」的关键：不再是二十来行灰字平铺。
 
-  分组而不是一长条列表：移动端屏幕纵向就那么长，二十来行平铺的话用户要上下划很久
-  才能看完，而其中大半项是「设一次就再也不动」的（搜索引擎、缓存）。
-  分组头可点，默认只展开当前用得上的那两组。
+  分组头 SectionHead 悬在卡片上方；组内的可点行用 divider_row 分隔；
+  「首页地址」这类输入框和「关于」这类纯信息块也放进各自卡片里。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -31,143 +32,264 @@
                 style="@style/SectionHead"
                 android:text="通用" />
 
-            <TextView
-                style="@style/RowTitle"
-                android:text="首页地址" />
-
-            <EditText
-                android:id="@+id/setHomepage"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
                 android:layout_marginStart="12dp"
                 android:layout_marginEnd="12dp"
-                android:background="@drawable/omnibox"
-                android:hint="https://"
-                android:importantForAutofill="no"
-                android:inputType="textUri"
-                android:maxLines="1"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:textColor="@color/text"
-                android:textColorHint="@color/text_4"
-                android:textSize="14sp" />
+                android:background="@drawable/bg_menu_group">
 
-            <include layout="@layout/item_menu" android:id="@+id/setNewTab" />
-            <include layout="@layout/item_menu" android:id="@+id/setSearch" />
-            <include layout="@layout/item_menu" android:id="@+id/setTheme" />
-            <include layout="@layout/item_menu" android:id="@+id/setUA" />
+                <TextView
+                    style="@style/RowTitle"
+                    android:text="首页地址" />
+
+                <EditText
+                    android:id="@+id/setHomepage"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_marginBottom="6dp"
+                    android:background="@drawable/omnibox"
+                    android:hint="https://"
+                    android:importantForAutofill="no"
+                    android:inputType="textUri"
+                    android:maxLines="1"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:textColor="@color/text"
+                    android:textColorHint="@color/text_4"
+                    android:textSize="14sp" />
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setNewTab" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setSearch" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setTheme" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setAccent" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setUA" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setFont" />
+            </LinearLayout>
 
             <!-- ============ 阅读增强 ============ -->
             <TextView
                 style="@style/SectionHead"
                 android:text="阅读增强" />
 
-            <include layout="@layout/item_menu" android:id="@+id/setNoImage" />
-            <include layout="@layout/item_menu" android:id="@+id/setAutoPage" />
-            <include layout="@layout/item_menu" android:id="@+id/setLoadImages" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_menu_group">
+
+                <include layout="@layout/item_menu" android:id="@+id/setNoImage" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setAutoPage" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setLoadImages" />
+            </LinearLayout>
 
             <!-- ============ 广告拦截 ============ -->
             <TextView
                 style="@style/SectionHead"
                 android:text="广告拦截" />
 
-            <!-- 总开关放第一行：它管着下面全部，包括随包内置的那份名单。 -->
-            <include layout="@layout/item_menu" android:id="@+id/setAdblock" />
-            <include layout="@layout/item_menu" android:id="@+id/setRules" />
-            <TextView
-                android:id="@+id/setRulesSub"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="@color/text_4"
-                android:textSize="11.5sp"
-                android:lineSpacingExtra="3dp"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:paddingBottom="10dp" />
+                android:orientation="vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_menu_group">
 
-            <include layout="@layout/item_menu" android:id="@+id/setRulesAuto" />
+                <!-- 总开关放第一行：它管着下面全部，包括随包内置的那份名单。 -->
+                <include layout="@layout/item_menu" android:id="@+id/setAdblock" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setRules" />
+                <TextView
+                    android:id="@+id/setRulesSub"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_4"
+                    android:textSize="11.5sp"
+                    android:lineSpacingExtra="3dp"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="20dp"
+                    android:paddingBottom="10dp" />
+                <include layout="@layout/item_menu" android:id="@+id/setRulesAuto" />
+            </LinearLayout>
 
             <!-- ============ 插件 ============ -->
             <TextView
                 style="@style/SectionHead"
                 android:text="插件" />
 
-            <!-- 总开关同样放第一行。关掉它已装脚本全部停用，但不用逐个卸载。 -->
-            <include layout="@layout/item_menu" android:id="@+id/setPluginsOn" />
-            <include layout="@layout/item_menu" android:id="@+id/setPlugins" />
-            <include layout="@layout/item_menu" android:id="@+id/setPluginConfirm" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_menu_group">
+
+                <!-- 总开关同样放第一行。关掉它已装脚本全部停用，但不用逐个卸载。 -->
+                <include layout="@layout/item_menu" android:id="@+id/setPluginsOn" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setPlugins" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setPluginConfirm" />
+            </LinearLayout>
 
             <!-- ============ 下载 ============ -->
             <TextView
                 style="@style/SectionHead"
                 android:text="下载" />
 
-            <include layout="@layout/item_menu" android:id="@+id/setThreads" />
-            <include layout="@layout/item_menu" android:id="@+id/setAutoDownload" />
-            <include layout="@layout/item_menu" android:id="@+id/setDlNotify" />
-            <include layout="@layout/item_menu" android:id="@+id/setHistoryMax" />
-            <include layout="@layout/item_menu" android:id="@+id/setOpenFolder" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_menu_group">
+
+                <include layout="@layout/item_menu" android:id="@+id/setThreads" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setAutoDownload" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setDlNotify" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setHistoryMax" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setOpenFolder" />
+            </LinearLayout>
 
             <!-- ============ 隐私 ============ -->
             <TextView
                 style="@style/SectionHead"
                 android:text="隐私与浏览" />
 
-            <include layout="@layout/item_menu" android:id="@+id/setIncognito" />
-            <include layout="@layout/item_menu" android:id="@+id/setClearOnExit" />
-            <include layout="@layout/item_menu" android:id="@+id/setForceHttps" />
-            <include layout="@layout/item_menu" android:id="@+id/setRestore" />
-            <include layout="@layout/item_menu" android:id="@+id/setClearCache" />
-            <include layout="@layout/item_menu" android:id="@+id/setClear" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_menu_group">
+
+                <include layout="@layout/item_menu" android:id="@+id/setIncognito" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setClearOnExit" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setForceHttps" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setRestore" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setClearCache" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setClear" />
+            </LinearLayout>
 
             <!-- ============ 应用更新 ============ -->
             <TextView
                 style="@style/SectionHead"
                 android:text="应用更新" />
 
-            <include layout="@layout/item_menu" android:id="@+id/setUpdateAuto" />
-            <include layout="@layout/item_menu" android:id="@+id/setUpdateWifi" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_menu_group">
+
+                <include layout="@layout/item_menu" android:id="@+id/setUpdateAuto" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setUpdateWifi" />
+            </LinearLayout>
 
             <!-- ============ 关于 ============ -->
             <TextView
                 style="@style/SectionHead"
                 android:text="关于" />
 
-            <TextView
-                android:id="@+id/setEngineNow"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="@color/text_2"
-                android:textSize="12.5sp"
-                android:lineSpacingExtra="4dp"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
+                android:orientation="vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_menu_group"
                 android:paddingTop="6dp"
-                android:paddingBottom="4dp" />
+                android:paddingBottom="6dp">
 
-            <TextView
-                android:id="@+id/setStat"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_3"
-                android:textSize="11.5sp"
-                android:lineSpacingExtra="4dp"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:paddingBottom="4dp" />
+                <TextView
+                    android:id="@+id/setEngineNow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_2"
+                    android:textSize="12.5sp"
+                    android:lineSpacingExtra="4dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="4dp" />
 
-            <TextView
-                android:id="@+id/setListSize"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_4"
-                android:textSize="11.5sp"
-                android:lineSpacingExtra="4dp"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:paddingBottom="8dp" />
+                <TextView
+                    android:id="@+id/setStat"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_3"
+                    android:textSize="11.5sp"
+                    android:lineSpacingExtra="4dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="4dp" />
 
-            <include layout="@layout/item_menu" android:id="@+id/setAbout" />
+                <TextView
+                    android:id="@+id/setListSize"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_4"
+                    android:textSize="11.5sp"
+                    android:lineSpacingExtra="4dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="4dp" />
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row"
+                    android:layout_marginStart="16dp" />
+                <include layout="@layout/item_menu" android:id="@+id/setAbout" />
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

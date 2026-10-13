@@ -29,7 +29,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/surface"
-        android:elevation="1dp">
+        android:elevation="4dp">
+
+        <!-- 顶栏底部分隔线：让工具栏与网页区有明显的视觉分界，不再「白成一片」。 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_gravity="bottom"
+            android:background="@color/border" />
 
         <LinearLayout
             android:id="@+id/topBar"
@@ -42,74 +49,21 @@
             android:paddingTop="6dp"
             android:paddingBottom="6dp">
 
-            <!-- 内核标识：小圆点 + 当前引擎名。
-                 它现在是**只读**的，不可点。
-                 以前这里挂着一个选择动作，但移动版实际只有系统 WebView 一档真的内置
-                 （其余两档是没带内核的、或只换 UA 的兼容层）——
-                 给一个只有一个选项的按钮叫「内核选择」，等于用一个假选择骗用户。
-                 所以动作去掉，标识留着：随时能看到自己跑在哪一档上，这一条还是有用的。 -->
-            <LinearLayout
-                android:id="@+id/engineChip"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingStart="6dp"
-                android:paddingEnd="8dp"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
-
-                <View
-                    android:id="@+id/engineDot"
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:layout_marginEnd="5dp"
-                    android:background="@drawable/dot" />
-
-                <TextView
-                    android:id="@+id/engineLabel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/mb_engine"
-                    android:textSize="11sp"
-                    android:textColor="@color/text_2"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-            </LinearLayout>
-
-            <!-- 首页按钮。放在地址栏左侧而不是底栏：
-                 底栏是五格硬约束 —— 320dp 机型上每格已经贴着 44px 触控下限，
-                 加第六格会掉到线下；而工具栏这里原本只有一个只读的内核标识，
-                 位置是空的，地址栏让出 34dp 之后还剩 200dp 以上。
-                 这也是 UC / QQ / 夸克们的惯例位置：回家键挨着地址栏，不占拇指动线。
-
-                 34dp → 40dp、padding 8dp → 9dp（图标本体 22dp）：
-                 顶栏行高随之从 6+34+6=46dp 变成 6+40+6=52dp，
-                 正好等于设计板 .mtoolbar 的 52px —— 代码这边一直矮了 6dp。 -->
+            <!-- 应用 logo：占最左侧的品牌位，点它打开主菜单（书签/历史/工具/设置等汇总）。
+                 原来这里是「圆点 + CR」的内核标识 —— 它信息量低（用户既看不懂也没得点），
+                 还占了地址栏左侧唯一的空位。换成 logo 之后：
+                 · 有品牌感，一眼知道自己在用 Nova；
+                 · 给了顶栏一个真实的交互入口（主菜单），而不是一个假按钮。 -->
             <ImageButton
-                android:id="@+id/btnHome"
+                android:id="@+id/btnLogo"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginEnd="2dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/content_desc_home"
+                android:contentDescription="@string/sheet_menu"
                 android:scaleType="centerInside"
-                android:padding="9dp"
-                android:src="@drawable/ic_home" />
-
-            <!-- 收藏（书签）按钮。和首页键挨着，都在地址栏左侧：
-                 两个「一抬拇指就够到」的入口，不挤占底栏的触控预算。
-                 图标随当前页是否收藏在描边 / 实心之间切换。 -->
-            <ImageButton
-                android:id="@+id/btnStar"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="2dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/content_desc_star"
-                android:scaleType="centerInside"
-                android:padding="9dp"
-                android:src="@drawable/ic_star" />
+                android:padding="7dp"
+                android:src="@mipmap/ic_launcher" />
 
             <!-- 地址栏。id 是给「复制 / 分享」那个浮层的锚点用的：
                  PopupWindow 要挂在一个 View 上定位，而浮层该贴的是**整个地址栏**
@@ -131,42 +85,40 @@
                     android:textColor="@color/text"
                     android:textColorHint="@color/text_4"
                     android:paddingStart="12dp"
-                    android:paddingEnd="46dp"
+                    android:paddingEnd="12dp"
                     android:maxLines="1"
                     android:inputType="textUri|textNoSuggestions"
                     android:imeOptions="actionGo|flagNoExtractUi"
                     android:selectAllOnFocus="true" />
-
-                <!-- 刷新 / 停止：同一个位置两种形态，跟桌面端 .ow-refresh 同理。
-                     padding 8dp → 6dp：它被地址栏的 34dp 卡着抬不高，
-                     只能把边距压掉，图标本体才跟旁边那三个 40dp 按钮一样是 22dp。
-                     点开地址栏后这个按钮会被「复制 / 分享」浮层盖住，无妨 ——
-                     那时用户要的是地址，不是刷新。 -->
-                <ImageButton
-                    android:id="@+id/btnReload"
-                    android:layout_width="34dp"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="end"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:src="@drawable/ic_reload"
-                    android:contentDescription="@string/content_desc_reload"
-                    android:scaleType="centerInside"
-                    android:padding="6dp" />
             </FrameLayout>
 
-            <!-- AI 助手。放在地址栏右侧（刷新键再往右），和首页/收藏一样是
-                 「一抬拇指就够到」的入口。点它弹出常用 AI 服务商列表，
-                 选一个在新标签页打开对应网页版对话，不丢当前页。 -->
+            <!-- 收藏（书签）按钮。放在地址栏右侧，与「工具」并排 ——
+                 收藏是最高频的单手动作，不该埋在菜单里。图标随当前页是否收藏
+                 在描边 / 实心之间切换。 -->
             <ImageButton
-                android:id="@+id/btnAi"
+                android:id="@+id/btnStar"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="4dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/content_desc_ai"
+                android:contentDescription="@string/content_desc_star"
                 android:scaleType="centerInside"
                 android:padding="9dp"
-                android:src="@drawable/ic_ai" />
+                android:src="@drawable/ic_star" />
+
+            <!-- 工具。原 AI 按钮的位置（地址栏右侧再往右）：
+                 AI 助手收进工具面板，这里挂「工具」—— 下载 / 阅读 / 翻译 /
+                 观影 / 篡改猴 / 广告拦截 / AI 助手 全在一个面板里。 -->
+            <ImageButton
+                android:id="@+id/btnTools"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="2dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/mb_tools"
+                android:scaleType="centerInside"
+                android:padding="9dp"
+                android:src="@drawable/ic_tools" />
         </LinearLayout>
 
     </FrameLayout>
@@ -361,7 +313,7 @@
               能编译能运行、只是完全不对的 bug。
             -->
             <include layout="@layout/item_mb_back" android:id="@+id/item_mb_back" />
-            <include layout="@layout/item_mb_forward" android:id="@+id/item_mb_forward" />
+            <include layout="@layout/item_mb_home" android:id="@+id/item_mb_home" />
 
             <!-- 中间那个是主按钮：标签数写在图里，尺寸也更大（56dp），
                  跟 Chrome/Safari 的习惯一致 —— 底栏里最重要的操作要一眼可辨。 -->
@@ -395,11 +347,9 @@
                     android:textColor="#FFFFFF" />
             </LinearLayout>
 
-            <!-- 「工具」格合并了原来的「下载」与「阅读」两格：320dp 机型上底栏每格
-            已经贴着 44px 触控下限，减格比加格更值当。有下载任务在跑时，这一格的文字会被
-            updateDownloadBadge() 改成「工具 N」并换上品牌色底，提醒「它还在动」。 -->
-            <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools" />
-            <include layout="@layout/item_mb_menu" android:id="@+id/item_mb_menu" />
+            <!-- 「工具」格已搬去顶栏（btnTools），下载角标提醒也随之挂到顶栏。
+                 底栏这里改成「刷新」—— 前进格去掉后，四格：后退 / 主页 / 标签 / 刷新。 -->
+            <include layout="@layout/item_mb_reload" android:id="@+id/item_mb_reload" />
         </LinearLayout>
 
         <!--
@@ -417,21 +367,23 @@
         <LinearLayout
             android:id="@+id/searchCapsule"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="36dp"
             android:layout_gravity="center_vertical"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:background="@drawable/bg_search_capsule"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
+            android:elevation="6dp"
             android:visibility="gone"
             android:alpha="0">
 
             <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:id="@+id/capsuleSearch"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_marginEnd="8dp"
                 android:src="@drawable/ic_search"
                 android:contentDescription="@string/search_hint" />

@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 弹层卡片底。16dp 对应设计令牌 r-lg。 -->
+<!-- 弹层卡片底。16dp 对应设计令牌 r-lg。
+
+     底色用 bg（浅灰蓝）而不是 surface（白）：这样弹层内的白色分组卡片
+     （bg_menu_group 用 surface）才能「浮」在灰底上，形成「灰底 + 白卡」的
+     分层对比 —— 这是 iOS / 安卓原生设置页的经典层级，也是去掉「像网页、
+     一片白」的关键。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/surface" />
+    <solid android:color="@color/bg" />
     <corners android:radius="16dp" />
 </shape>

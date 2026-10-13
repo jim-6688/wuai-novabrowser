@@ -24,6 +24,9 @@ public final class NovaSettings {
      */
     public static final String K_THEME = "theme";
 
+    /** 主题配色键。与 K_THEME 并存：K_THEME 管深浅，这一个管主色相。 */
+    public static final String K_ACCENT_THEME = "accentTheme";
+
     public String homepage = "https://52ta.top/";
     /**
      * 新标签页打开什么。三个取值：
@@ -47,10 +50,15 @@ public final class NovaSettings {
      */
     public String defaultEngine = "chromium";
     public boolean restoreSession = true;
-    /** auto | desktop | mobile */
+    /** auto | desktop | mobile —— 网页 UA 预设。auto=跟随系统（手机 UA），
+        desktop=电脑版 UA，mobile=强制手机 UA。与 customUA 独立：customUA 非空时压过它。 */
     public String layout = "auto";
+    /** 网页文字缩放，100 = 不变。走 WebSettings.setTextZoom。 */
+    public int textZoom = 100;
     /** system | light | dark */
     public String theme = "system";
+    /** 主题配色 id（见 {@link ThemeCatalog}），默认蓝。与 theme 的深浅正交。 */
+    public String accentTheme = ThemeCatalog.DEFAULT_ID;
     public boolean adblockEnabled = true;
     /** off | image | image-av */
     public String noImage = "off";
@@ -192,6 +200,7 @@ public final class NovaSettings {
         m.put("restoreSession", String.valueOf(restoreSession));
         m.put("layout", layout);
         m.put(K_THEME, theme);
+        m.put(K_ACCENT_THEME, accentTheme);
         m.put("adblockEnabled", String.valueOf(adblockEnabled));
         m.put("noImage", noImage);
         m.put("autoPage", String.valueOf(autoPage));
@@ -210,6 +219,8 @@ public final class NovaSettings {
         m.put("incognito", String.valueOf(incognito));
         m.put("clearOnExit", String.valueOf(clearOnExit));
         m.put("customUA", customUA);
+        m.put("layout", layout);
+        m.put("textZoom", String.valueOf(textZoom));
         m.put("loadImages", String.valueOf(loadImages));
         m.put("forceHttps", String.valueOf(forceHttps));
         return m;
@@ -228,6 +239,8 @@ public final class NovaSettings {
         s.restoreSession = bool(m.get("restoreSession"), s.restoreSession);
         s.layout = oneOf(m.get("layout"), new String[]{"auto", "desktop", "mobile"}, s.layout);
         s.theme = oneOf(m.get(K_THEME), new String[]{"system", "light", "dark"}, s.theme);
+        s.accentTheme = ThemeCatalog.known(m.get(K_ACCENT_THEME))
+            ? m.get(K_ACCENT_THEME) : ThemeCatalog.DEFAULT_ID;
         s.adblockEnabled = bool(m.get("adblockEnabled"), s.adblockEnabled);
         s.noImage = NoImagePolicy.Level.fromId(m.get("noImage")).id;
         s.autoPage = bool(m.get("autoPage"), s.autoPage);
@@ -253,6 +266,7 @@ public final class NovaSettings {
         s.incognito = bool(m.get("incognito"), s.incognito);
         s.clearOnExit = bool(m.get("clearOnExit"), s.clearOnExit);
         if (m.get("customUA") != null) s.customUA = m.get("customUA");
+        s.textZoom = clamp(intOf(m.get("textZoom"), s.textZoom), 50, 200);
         s.loadImages = bool(m.get("loadImages"), s.loadImages);
         s.forceHttps = bool(m.get("forceHttps"), s.forceHttps);
         return s;

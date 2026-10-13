@@ -16,10 +16,20 @@
     android:clickable="true"
     android:focusable="true"
     android:minHeight="52dp"
-    android:paddingStart="20dp"
+    android:paddingStart="16dp"
     android:paddingEnd="16dp"
     android:paddingTop="11dp"
     android:paddingBottom="11dp">
+
+    <!-- 左侧图标。默认 gone：没有图标传进来的行不占地方。
+         20dp 与底栏/顶栏图标同尺幅，颜色统一走 @color/text_3。 -->
+    <ImageView
+        android:id="@+id/rowIcon"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginEnd="12dp"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
 
     <LinearLayout
         android:layout_width="0dp"
@@ -32,7 +42,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="@color/text"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
         <!-- 副标题。默认 gone：没有内容时不占地方，
              这样纯文字行的行高不会因为多一个空 TextView 而变高。 -->
@@ -43,7 +54,7 @@
             android:visibility="gone"
             android:layout_marginTop="2dp"
             android:textColor="@color/text_4"
-            android:textSize="11.5sp"
+            android:textSize="12sp"
             android:lineSpacingExtra="2dp"
             android:maxLines="2"
             android:ellipsize="end" />
@@ -60,6 +71,7 @@
         android:background="@drawable/seg_track"
         android:textColor="@color/text_2"
         android:textSize="12sp"
+        android:textStyle="bold"
         android:paddingStart="13dp"
         android:paddingEnd="13dp"
         android:layout_marginStart="12dp" />

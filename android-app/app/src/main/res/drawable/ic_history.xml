@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <!-- 历史：钟面 + 指针。 -->
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M10,3.2 A6.8,6.8 0 1,0 10,16.8 A6.8,6.8 0 1,0 10,3.2 Z" />
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M10,6.4 V10 L13,12.2" />
+</vector>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  观影模式图标：一个带播放三角的屏幕，表示「沉浸式观影 / 全屏视频」。
+  描边风格与工具面板其他图标一致。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M3,4 H17 V15 H3 Z" />
+    <path android:fillColor="#000"
+        android:pathData="M8,7 L13,9.5 L8,12 Z" />
+</vector>

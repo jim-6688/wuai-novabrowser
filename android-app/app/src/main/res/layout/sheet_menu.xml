@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  主菜单。按「浏览 / 工具 / 应用」三组分，每组只放真正属于它的高频动作。
-  下载与阅读增强从「浏览」挪到了「工具」：它们更像「对网页的加工能力」，
-  而不是「去哪」的导航；首页 / 书签 / 广告拦截才是导航与拦截。
+  主菜单。按「浏览 / 工具 / 应用」三组分，每组包进一张卡片（bg_menu_group）。
+
+  加工能力（下载 / 阅读 / 篡改猴 / 广告拦截）都收敛进「工具」一个入口，
+  这里只留「去哪 / 看什么」和「应用级」动作，避免一屏平铺十几行。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -17,27 +18,66 @@
         android:paddingTop="2dp"
         android:text="浏览" />
 
-    <include layout="@layout/item_menu" android:id="@+id/menuHome" />
-    <include layout="@layout/item_menu" android:id="@+id/menuBookmarks" />
-    <include layout="@layout/item_menu" android:id="@+id/menuHistory" />
-    <include layout="@layout/item_menu" android:id="@+id/menuAdblock" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/bg_menu_group">
+
+        <include layout="@layout/item_menu" android:id="@+id/menuHome" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/menuBookmarks" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/menuHistory" />
+    </LinearLayout>
 
     <TextView
         style="@style/SectionHead"
         android:text="工具" />
 
-    <include layout="@layout/item_menu" android:id="@+id/menuRead" />
-    <include layout="@layout/item_menu" android:id="@+id/menuDownloads" />
-    <include layout="@layout/item_menu" android:id="@+id/menuPlugins" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/bg_menu_group">
+
+        <include layout="@layout/item_menu" android:id="@+id/menuTools" />
+    </LinearLayout>
 
     <TextView
         style="@style/SectionHead"
         android:text="应用" />
 
-    <include layout="@layout/item_menu" android:id="@+id/menuUpdate" />
-    <include layout="@layout/item_menu" android:id="@+id/menuSettings" />
-    <include layout="@layout/item_menu" android:id="@+id/menuAbout" />
-    <include layout="@layout/item_menu" android:id="@+id/menuExit" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/bg_menu_group">
+
+        <include layout="@layout/item_menu" android:id="@+id/menuUpdate" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/menuSettings" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/menuAbout" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/menuExit" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/aboutVer"

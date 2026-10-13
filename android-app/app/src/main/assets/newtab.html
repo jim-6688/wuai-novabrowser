@@ -101,6 +101,37 @@ body {
 }
 .brand p { margin: 0; color: var(--text-3); font-size: 13px; }
 
+/* ---------------------------------------------------------------- 搜索框 */
+/* 内置主页的搜索框，与下滑胶囊共用同一个搜索目标（native 侧 navSearch），
+   但样式独立：这里落在页面正文里，用灰底圆角，不用透明悬浮那套。 */
+.search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 18px;
+    padding: 0 14px;
+    height: 42px;
+    border-radius: 21px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+}
+.search svg {
+    flex: none;
+    width: 18px; height: 18px;
+    color: var(--text-4);
+}
+.search input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+}
+.search input::placeholder { color: var(--text-4); }
+
 /* ------------------------------------------------------------ 快捷方式 */
 .quicks {
     display: grid;
@@ -278,6 +309,16 @@ body.editing .qk:active .thumb i { transform: none; }
         <p>吾爱Nova · 新标签页</p>
     </div>
 
+    <form class="search" id="search" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m21 21-4.3-4.3" />
+        </svg>
+        <input id="q" type="search" inputmode="search" autocomplete="off"
+               enterkeyhint="search" placeholder="搜索或输入网址" />
+    </form>
+
     <nav class="quicks" id="quicks" aria-label="快捷方式"></nav>
     <p class="hint" id="hint">长按图标可删除</p>
 </main>
@@ -435,13 +476,12 @@ var NovaNtp = (function () {
 
     /** 候选为空时的兜底：官网宣传图里那七个，顺序也一样。
         收不到原生数据时（同步出错、注入失败）也得有一屏能看的东西，不能白屏。 */
-    var FALLBACK = '主页\thttps://52ta.top/\t0\tp\n'
-        + '知乎\thttps://www.zhihu.com/\t0\tp\n'
-        + '哔哩\thttps://www.bilibili.com/\t0\tp\n'
-        + '微博\thttps://weibo.com/\t0\tp\n'
-        + 'Gitee\thttps://gitee.com/\t0\tp\n'
-        + '贴吧\thttps://tieba.baidu.com/\t0\tp\n'
-        + '豆瓣\thttps://www.douban.com/\t0\tp';
+    var FALLBACK = '主页\thttps://www.52ta.top/\t0\tp\n'
+        + '导航\thttps://52ta.top/\t0\tp\n'
+        + '播放器\thttps://misuc.52ta.top/\t0\tp\n'
+        + '浏览器\thttps://nova.52ta.top/\t0\tp\n'
+        + '百度\thttps://www.baidu.com/\t0\tp\n'
+        + 'DeepSeek\thttps://chat.deepseek.com/\t0\tp';
 
     /** 拼一条回传原生的命令。参数一律 encodeURIComponent，
         否则名称里的空格和中文会把命令拆坏。 */
@@ -620,6 +660,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
     // 回车即保存：这个表单只有两栏，再让用户去点按钮是多余的
     document.getElementById('f-url').addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter') document.getElementById('f-save').click();
+    });
+    // 主页搜索框：提交即回传 nova://shortcut/search?q=…，交给原生走 navSearch。
+    // 空输入不跳，避免误触回车把页面拽走。
+    document.getElementById('search').addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var q = document.getElementById('q').value.trim();
+        if (!q) return;
+        location.href = NovaNtp.cmdUrl('search', { q: q });
     });
     document.addEventListener('keydown', function (ev) {
         if (ev.key === 'Escape') { if (sheet.classList.contains('on')) close(); else unedit(); }

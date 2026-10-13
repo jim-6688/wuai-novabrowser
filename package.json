@@ -61,13 +61,20 @@
       "icon": "assets/icon/nova.ico",
       "target": [
         {
-          "target": "zip",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
         }
       ],
-      "artifactName": "nova-pc-${version}-win-x64.${ext}"
+      "artifactName": "nova-pc-${version}-win-x64-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "吾爱Nova浏览器"
     }
   },
   "devDependencies": {

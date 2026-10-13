@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   工具栏面板。底栏「工具」格弹出的底部面板，结构与 sheet_menu 一致
-  （拖柄 + 标题 + 分区标题 + 可点行），这样它和主菜单长得是同一套东西，
-  用户不需要重新认一遍。
+  （拖柄 + 标题 + 分区标题 + 可点行），这样它和主菜单长得是同一套东西。
 
-  下载与阅读增强本来在底栏各占一格，移到这里合并成一个入口：
-  320dp 机型上底栏每格已经贴着 44px 触控下限，减格比加格更值当。
-  主菜单里那两个入口保持不动，两条路径都能到。
+  所有「对网页加工」的能力都收拢到这里：下载 / 阅读增强 / 篡改猴 / 广告拦截。
+  主菜单里不再逐项列它们，只留「工具」一个入口，两条路径都能到。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -21,6 +19,38 @@
         android:paddingTop="2dp"
         android:text="网页工具" />
 
-    <include layout="@layout/item_menu" android:id="@+id/toolDownloads" />
-    <include layout="@layout/item_menu" android:id="@+id/toolRead" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/bg_menu_group">
+
+        <include layout="@layout/item_menu" android:id="@+id/toolDownloads" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/toolRead" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/toolTranslate" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/toolMovie" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/toolAi" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/toolPlugins" />
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@drawable/divider_row"
+            android:layout_marginStart="48dp" />
+        <include layout="@layout/item_menu" android:id="@+id/toolAdblock" />
+    </LinearLayout>
 </LinearLayout>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  翻译网页图标：中文「文」的变形 + 右下一个「A」，表示「把网页文字翻成另一种语言」。
+  用描边风格与工具面板其他图标（ic_read / ic_download 等）保持一致。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M3,3 H10.5 M6.75,3 V17 M3,8 H10.5 M3,13 H9" />
+    <path android:strokeColor="#000" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M13,11.5 L17,6 L15.6,17 Z" />
+</vector>

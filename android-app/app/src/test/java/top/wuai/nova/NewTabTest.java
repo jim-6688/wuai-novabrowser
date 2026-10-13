@@ -220,6 +220,14 @@ public class NewTabTest {
     }
 
     @Test
+    public void 解析搜索命令() {
+        NewTab.Cmd c = NewTab.parse("nova://shortcut/search?q=%E6%90%9C%E7%B4%A2");
+        assertNotNull(c);
+        assertEquals(NewTab.OP_SEARCH, c.op);
+        assertEquals("搜索", c.get("q"));
+    }
+
+    @Test
     public void 不是新标签页命令的一律返回空() {
         assertNull(NewTab.parse(null));
         assertNull(NewTab.parse(""));

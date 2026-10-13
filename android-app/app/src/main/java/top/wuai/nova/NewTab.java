@@ -40,6 +40,7 @@ public final class NewTab {
     /** 日志与命令里用的操作名。 */
     public static final String OP_ADD = "add";
     public static final String OP_REMOVE = "remove";
+    public static final String OP_SEARCH = "search";
 
     /** 一次最多送多少条候选过去。页面只显示 7 格，送 30 条是为了让「按访问次数排序」
         真的有意义 —— 只送最近几条的话，一个很久以前被访问过上百次的站点永远进不了视野。 */
@@ -254,7 +255,7 @@ public final class NewTab {
             query = rest.substring(q + 1);
         }
         op = op.trim();
-        if (!OP_ADD.equals(op) && !OP_REMOVE.equals(op)) return null;
+        if (!OP_ADD.equals(op) && !OP_REMOVE.equals(op) && !OP_SEARCH.equals(op)) return null;
 
         Map<String, String> params = new LinkedHashMap<>();
         if (query != null) {

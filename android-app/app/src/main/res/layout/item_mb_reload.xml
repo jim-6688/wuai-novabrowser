@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 底栏「刷新」格。与 item_mb_back 同构，字体 12sp + 加粗（本轮统一加大加粗）。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/btnBox"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="?android:attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true">
+
+    <ImageView
+        android:id="@+id/btnIcon"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:contentDescription="@string/content_desc_reload"
+        android:scaleType="fitCenter" />
+
+    <TextView
+        android:id="@+id/btnText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_2"
+        android:maxLines="1" />
+</LinearLayout>

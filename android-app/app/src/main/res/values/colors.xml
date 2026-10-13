@@ -28,6 +28,10 @@
     <color name="warn">#FF9F0A</color>
     <color name="danger">#FF4D4F</color>
 
+    <!-- 半透明表面。滚动胶囊搜索框用：透出底下网页，营造「浮在页面上」的悬浮感。
+         alpha 0xE6 ≈ 90%，既看得清输入内容、又不会完全遮住后面的页面。 -->
+    <color name="surface_translucent">#E6FFFFFF</color>
+
     <!-- 浅色中性 -->
     <color name="bg">#F6F7FB</color>
     <color name="surface">#FFFFFF</color>

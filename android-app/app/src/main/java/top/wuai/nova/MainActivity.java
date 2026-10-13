@@ -38,6 +38,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -153,6 +154,9 @@ public final class MainActivity extends Activity {
     /** WebView 的 client 只绑一次 —— 它是同一个实例，重复绑定会让回调跑多遍。 */
     private boolean webClientBound;
 
+    /** 观影/沉浸模式是否开启（隐藏顶栏底栏，只留网页）。 */
+    private boolean cinemaMode;
+
     // ------------------------------------------------------------ 视图
 
     private WebView web;
@@ -160,9 +164,8 @@ public final class MainActivity extends Activity {
     private ProgressBar progress;
     private TextView statusStrip;
     private TextView noImageChip;
-    private TextView engineLabel;
-    private View engineDot;
-    private View engineChip;
+    /** 顶栏最左侧的应用 logo，点它打开主菜单。 */
+    private View btnLogo;
     /** 五格底栏。滚动时整条淡出，位置上换成 {@link #searchCapsule}。 */
     private View mobileBar;
     /** 顶栏那一行。滚动时整行收起，把这 52dp 还给网页。 */
@@ -171,6 +174,8 @@ public final class MainActivity extends Activity {
     private View searchCapsule;
     /** 胶囊搜索框里的输入框。 */
     private EditText capsuleInput;
+    /** 胶囊搜索框里的放大镜图标。可点击：点它等同提交搜索（与软键盘搜索键一致）。 */
+    private View capsuleSearch;
     /**
      * 地址栏点开后贴在它下面的「复制 / 分享该网站」浮层。
      *
@@ -684,13 +689,12 @@ public final class MainActivity extends Activity {
         progress = findViewById(R.id.progress);
         statusStrip = findViewById(R.id.statusStrip);
         noImageChip = findViewById(R.id.noImageChip);
-        engineLabel = findViewById(R.id.engineLabel);
-        engineDot = findViewById(R.id.engineDot);
-        engineChip = findViewById(R.id.engineChip);
+        btnLogo = findViewById(R.id.btnLogo);
         mobileBar = findViewById(R.id.mobileBar);
         topRow = findViewById(R.id.topRow);
         searchCapsule = findViewById(R.id.searchCapsule);
         capsuleInput = findViewById(R.id.capsuleInput);
+        capsuleSearch = findViewById(R.id.capsuleSearch);
         refreshHost = findViewById(R.id.webHost);
 
         // 重新 inflate 出来的进度条是全新的：XML 没写 visibility，默认 visible、progress=0。
@@ -702,9 +706,8 @@ public final class MainActivity extends Activity {
 
         setupWebView();
         setupBottomBar();
-        setupHomeButton();
         setupStarButton();
-        setupAiButton();
+        setupToolsButton();
         setupOmnibox();
         // 滚动显隐。状态机复位成「底栏可见」，与新 inflate 出来的 XML 初态对齐 ——
         // 否则从「胶囊」状态返回主界面时，界面显示的是底栏、状态机却以为是胶囊，
@@ -717,11 +720,12 @@ public final class MainActivity extends Activity {
         shownReveal = BottomBarReveal.State.SHOW_BAR;
         setupScrollReveal();
         setupPullRefresh();
-        applyEngine();
+        setupLogoButton();
         syncChrome();
         syncNoImageChip();
 
         applySurfaceTheme();
+        applyAccentTheme();
 
         // 更新条在新树里是一个全新的实例，必须重新取回来；顺带按当前状态重画一遍 ——
         // 否则从弹层返回时，正在下载的进度会停在进弹层前的那一帧上。
@@ -757,6 +761,13 @@ public final class MainActivity extends Activity {
         s.setLoadWithOverviewMode(true);
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        // 渲染优先级调到高：滚动、手势、视频等重交互场景下，让 GPU 合成器
+        // 优先服务 WebView，减少掉帧。代价是可能挤占同进程其他 UI 的预算，
+        // 但对一个「以页面为主体」的浏览器来说这是值得的。
+        s.setRenderPriority(WebSettings.RenderPriority.HIGH);
+        // 混合内容：http 页面里的 https 子资源照常加载，https 页面里的 http
+        // 子资源按目标 SDK 默认会被拦。打开兼容模式，老站点（大量混用协议）才不白屏。
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
 
         // 内置新标签页走 file:///android_asset/newtab.html，这里刻意**不**去动
         // setAllowFileAccess：它从 targetSdk 31 起默认就是 false，而按官方的定义
@@ -774,6 +785,9 @@ public final class MainActivity extends Activity {
         // UA 切换：兼容层就是靠这一行实现的（换成一个老 IE 的 UA）。
         // 必须在 loadUrl 之前设置，否则第一次页面协商已经带着旧 UA 发出去了。
         applyUserAgent();
+
+        // 字号：textZoom 设置同样在 loadUrl 之前应用。
+        applyTextZoom();
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
@@ -864,6 +878,17 @@ public final class MainActivity extends Activity {
                     showStatus("页面加载失败：" + describeError(err));
                 }
             }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                // 渲染进程崩了（个别站点、GPU 驱动、内存压力都可能触发）。
+                // 此时这个 WebView 已不可用 —— 继续操作它只会再崩一次。
+                // 正确做法是销毁旧实例、重建一个新的，再把用户正在看的页面恢复回来。
+                recoverFromRenderGone(detail);
+                // 返回 true 表示「这个 WebView 已经没救了，请不要再碰它」。
+                // 返回 false 会让系统去做它的兜底（可能同样以崩溃收场）。
+                return true;
+            }
         });
 
         /**
@@ -919,7 +944,6 @@ public final class MainActivity extends Activity {
                     // 那时不该再指望 onPageFinished 一定跑过。
                     saveSessionNow();
                 }
-                engineLabel.setContentDescription(title);
             }
         });
     }
@@ -965,6 +989,52 @@ public final class MainActivity extends Activity {
         return "错误码 " + code;
     }
 
+    /**
+     * 渲染进程崩溃后的自救：销毁旧 WebView，重建一个，恢复到用户正在看的页面。
+     *
+     * <p>为什么不能只是 {@code reload}：渲染进程一没，这个 WebView 实例连同它的
+     * native 渲染树整个失效，reload 只会再撞一次。必须走「换新实例」的路。
+     *
+     * <p>为什么能复用 {@code mountMain}：它本来就是「把（可能是新建的）WebView
+     * 装进容器并重跑 setupWebView」的入口。这里先把 {@code web} 置空、{@code
+     * webClientBound} 复位，mountMain 就会在 {@code keep == null} 分支里新建一个
+     * WebView，再因为 client 标志已复位而重新挂上全新的 WebViewClient。
+     *
+     * <p>恢复的目标页取 {@code current().url}（标签本来要去哪），而不是临时抓
+     * {@code view.getUrl()}：后者在崩溃瞬间可能已经拿不到，而标签数据是持久的。
+     */
+    private void recoverFromRenderGone(RenderProcessGoneDetail detail) {
+        // 先把要恢复的地址记住。current() 可能为空（极端情况下标签还没建好），
+        // 那就回落到内置新标签页，保证重建后不是一个白屏。
+        Tab t = current();
+        final String resumeUrl = (t != null && !TextUtils.isEmpty(t.url))
+                ? t.url
+                : newTabTarget();
+
+        WebView gone = web;
+        if (gone != null && gone.getParent() instanceof ViewGroup) {
+            ((ViewGroup) gone.getParent()).removeView(gone);
+        }
+        if (gone != null) {
+            // destroy 里会清掉内部 handler 的队列、停掉加载，尽量把 native 资源还回去。
+            gone.destroy();
+        }
+
+        // 关键的两步复位：让 mountMain 走「新建」分支，让 setupWebView 重新挂 client。
+        web = null;
+        webClientBound = false;
+
+        // 重新装主界面（会 new 一个 WebView 并注入），然后回到崩溃前的页面。
+        mountMain();
+        if (web != null) web.loadUrl(resumeUrl);
+
+        // 给用户一个明确的、不吓人的提示：崩溃是页面/系统的问题，不是浏览器的锅。
+        boolean wasInForeground = detail != null && detail.didCrash();
+        toast(wasInForeground
+                ? "页面渲染进程异常，已自动恢复"
+                : "页面渲染进程被系统回收，已自动恢复");
+    }
+
     // ------------------------------------------------------------ 底栏
 
     private interface OnTap { void tap(View v); }
@@ -973,43 +1043,47 @@ public final class MainActivity extends Activity {
         bindMb(R.id.item_mb_back, R.drawable.ic_back, R.string.mb_back, v -> {
             if (web.canGoBack()) web.goBack();
         });
-        bindMb(R.id.item_mb_forward, R.drawable.ic_forward, R.string.mb_forward, v -> {
-            if (web.canGoForward()) web.goForward();
+        // 主页：从底栏「工具」格挪过来（工具已搬去顶栏）。回家键是高频动作，
+        // 放底栏比放顶栏更贴拇指动线。
+        bindMb(R.id.item_mb_home, R.drawable.ic_home, R.string.mb_home, v -> goHome());
+        // 刷新：原来内嵌在地址栏里，本轮随布局重构挪到底栏第四格。
+        bindMb(R.id.item_mb_reload, R.drawable.ic_reload, R.string.mb_reload, v -> {
+            reloadOrStop();
         });
-        // 「下载」与「阅读」两格合并成一格「工具」：底栏从六格缩到五格。
-        // 两件事本质都是「对网页的加工」，合到一个面板里，底栏能少一格、
-        // 320dp 机型上剩下的格子也就没那么贴着触控下限了。
-        bindMb(R.id.item_mb_tools, R.drawable.ic_tools, R.string.mb_tools,
-            v -> showToolsSheet());
-        bindMb(R.id.item_mb_menu, R.drawable.ic_menu, R.string.mb_menu,
-            v -> showMenuSheet());
 
         findViewById(R.id.mbTabs).setOnClickListener(v -> showTabSheet());
-        // 工具栏那个内核标识现在只读，不挂点击 —— 移动版没有内核可选了，
-        // 挂一个只能弹「你其实只有这一个」的提示，等于用一次点击骗一次用户。
     }
 
     /**
-     * 首页按钮。回首页是高频动作，值得在工具栏占一个位置。
+     * 刷新 / 停止。判据用 WebView 自己的进度，不用进度条的可见性：
+     * mountMain 每次从弹层返回都会重新 inflate 布局，新 ProgressBar 在 XML 里
+     * 没写 visibility、默认是 visible，于是「空闲」也会被误判成「正在加载」，
+     * 点了只会 stopLoading、什么都不发生 —— 这就是「刷新按钮无效」的根因。
+     * 更早的版本还多加了一个 web.canGoBack()，那个跟「停不停」毫无关系，一并去掉。
      *
-     * <p>和菜单里的「首页」共用 {@link #goHome()}：两处各写一份的话，
-     * 以后改「新标签页打开还是当前页打开」就要记着改两处。
+     * <p>从地址栏挪到底栏后，逻辑收进这一个方法，底栏「刷新」格直接调用。
      */
-    private void setupHomeButton() {
-        findViewById(R.id.btnHome).setOnClickListener(v -> goHome());
+    private void reloadOrStop() {
+        if (web == null) return;
+        if (web.getProgress() < 100) {
+            web.stopLoading();
+        } else {
+            web.reload();
+        }
     }
 
     /**
      * 收藏（书签）按钮。点一下切换「当前页是否收藏」，图标在描边 / 实心之间换。
      * 状态靠当前 url 判断，所以每次页面加载完都要重算一次（见 {@link #updateStarState()}）。
+     * 位置从地址栏左侧挪到了右侧，动作不变。
      */
     private void setupStarButton() {
         findViewById(R.id.btnStar).setOnClickListener(v -> toggleBookmark());
     }
 
-    /** AI 助手按钮：弹出常用 AI 服务商列表。 */
-    private void setupAiButton() {
-        findViewById(R.id.btnAi).setOnClickListener(v -> showAiSheet());
+    /** 工具按钮：地址栏右侧，弹「工具」面板（下载 / 阅读 / 翻译 / 观影 / AI 等）。 */
+    private void setupToolsButton() {
+        findViewById(R.id.btnTools).setOnClickListener(v -> showToolsSheet());
     }
 
     /** 切换当前页收藏状态。 */
@@ -1058,19 +1132,17 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 底栏「工具」格上的角标：有下载任务在跑就显示数量。
+     * 顶栏「工具」按钮上的下载角标：有任务在跑时把图标换成下载图标。
      *
      * <p>「下载」格被合并进「工具」之后，这个提醒不能丢 —— 否则任务在后台跑，
-     * 界面上没有任何迹象。改成把「工具 N」写在工具格的文字上、并给品牌色底，
-     * 效果和原来一样：一眼看到「有个东西还在动，点进去看看」。
+     * 界面上没有任何迹象。工具格从底栏（带文字）挪到顶栏（纯图标）后，
+     * 文字角标写不下，改用图标切换：有活动任务时显示下载图标，否则恢复工具图标。
      *
      * <p>函数名与调用点一律保留（被 syncChrome 和下载回调调用），只是作用的 id 换了。
      */
     private void updateDownloadBadge() {
-        View badge = findViewById(R.id.item_mb_tools);
-        if (badge == null) return;
-        TextView text = badge.findViewById(R.id.btnText);
-        if (text == null) return;
+        ImageButton tools = findViewById(R.id.btnTools);
+        if (tools == null) return;
         int active_ = 0;
         if (downloader != null) {
             for (DownloadTask t : downloader.tasks()) {
@@ -1082,23 +1154,8 @@ public final class MainActivity extends Activity {
                 }
             }
         }
-        text.setText(active_ > 0
-            ? getString(R.string.mb_tools) + " " + active_
-            : getString(R.string.mb_tools));
-        // 有任务在跑时给个品牌色的底，提醒「它还在动」。
-        if (active_ > 0) {
-            badge.setBackgroundResource(R.drawable.seg_on);
-        } else {
-            // 恢复时要还原成 XML 里那个 ?android:attr/selectableItemBackground，而不是 0。
-            // setBackgroundResource(0) 会把这格的水波纹点击反馈永久抹掉（且不可逆：
-            // 布局只在 mountMain 时重建，一次「有任务→无任务」之后这格就再也没有点击反馈了）。
-            // 直接写资源名不行（那是主题属性不是固定资源），得通过主题解析回它的真实 id。
-            TypedValue tv = new TypedValue();
-            if (getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
-                    && tv.resourceId != 0) {
-                badge.setBackgroundResource(tv.resourceId);
-            }
-        }
+        // 有任务在跑时换成下载图标，一眼看出「有个东西还在动，点进去看看」。
+        tools.setImageResource(active_ > 0 ? R.drawable.ic_download : R.drawable.ic_tools);
     }
 
     private void bindMb(int boxId, int iconRes, int textRes, OnTap cb) {
@@ -1136,25 +1193,47 @@ public final class MainActivity extends Activity {
                     || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                         && event.getAction() == KeyEvent.ACTION_DOWN);
                 if (!submit) return false;
-                String q = capsuleInput.getText().toString().trim();
-                if (q.isEmpty()) return true;
-                hideKeyboard();
-                // 从别的状态进来时先保证主界面装着，再跳转；已经在主界面就直接 go。
-                if (!mainViewMounted) mountMain();
-                // 固定走 52ta.top 导航搜索，与用户选中的搜索引擎无关。
-                // URL 编码由 SearchTemplate.build 内部用 UTF-8 处理（见其注释）。
-                go(NovaSettings.NAV_52TA.build(q));
-                capsuleInput.setText("");
-                // 跳完把底栏恢复常态：别让用户落在一个「只有搜索框、没有底栏」的界面。
-                // 用当前位置作基准，并让首个滚动回调只定基准、不判定，避免跳转瞬间误弹。
-                reveal.reset(web != null ? web.getScrollY() : 0);
-                if (shownReveal != BottomBarReveal.State.SHOW_BAR) {
-                    shownReveal = BottomBarReveal.State.SHOW_BAR;
-                    applyReveal(BottomBarReveal.State.SHOW_BAR, true);
-                }
+                submitCapsule();
                 return true;
             });
         }
+        // 放大镜图标同样能提交：软键盘的搜索键不是每个用户都找得到（有的输入法把它
+        // 收进二级菜单），点图标和敲搜索键走同一条 submitCapsule，行为完全一致。
+        if (capsuleSearch != null) {
+            capsuleSearch.setOnClickListener(v -> submitCapsule());
+        }
+    }
+
+    /**
+     * 提交胶囊搜索框里的内容。两条入口（软键盘搜索键 / 放大镜图标）共用，
+     * 保证「点搜索」和「敲回车」永远走同一段逻辑，不会出现一边能搜一边没反应。
+     */
+    private void submitCapsule() {
+        if (capsuleInput == null) return;
+        String q = capsuleInput.getText().toString().trim();
+        if (q.isEmpty()) return;
+        hideKeyboard();
+        // 从别的状态进来时先保证主界面装着，再跳转；已经在主界面就直接 go。
+        if (!mainViewMounted) mountMain();
+        navSearch(q);
+        capsuleInput.setText("");
+        // 跳完把底栏恢复常态：别让用户落在一个「只有搜索框、没有底栏」的界面。
+        // 用当前位置作基准，并让首个滚动回调只定基准、不判定，避免跳转瞬间误弹。
+        reveal.reset(web != null ? web.getScrollY() : 0);
+        if (shownReveal != BottomBarReveal.State.SHOW_BAR) {
+            shownReveal = BottomBarReveal.State.SHOW_BAR;
+            applyReveal(BottomBarReveal.State.SHOW_BAR, true);
+        }
+    }
+
+    /**
+     * 统一的「搜索」跳转：内置主页的搜索框、下滑胶囊的搜索框，都走这里。
+     * 复用地址栏同一条 resolveInput：像网址就直接跳（最快），不像网址就交给
+     * 用户选中的内置搜索引擎（默认百度）。不写死 52ta 导航 —— 那会绕开用户
+     * 对搜索引擎的选择，也丢掉了「网址直跳」这条更快的路。
+     */
+    private void navSearch(String q) {
+        go(settings.resolveInput(q));
     }
 
     /**
@@ -1286,20 +1365,9 @@ public final class MainActivity extends Activity {
         });
 
         /*
-         * 刷新 / 停止。判据用 WebView 自己的进度，不用进度条的可见性：
-         * mountMain 每次从弹层返回都会重新 inflate 布局，新 ProgressBar 在 XML 里
-         * 没写 visibility、默认是 visible，于是「空闲」也会被误判成「正在加载」，
-         * 点了只会 stopLoading、什么都不发生 —— 这就是「刷新按钮无效」的根因。
-         * 更早的版本还多加了一个 web.canGoBack()，那个跟「停不停」毫无关系，一并去掉。
+         * 刷新 / 停止按钮已从地址栏挪到底栏（item_mb_reload），
+         * 逻辑收进 {@link #reloadOrStop()} 供底栏那格复用。这里不再绑 btnReload。
          */
-        findViewById(R.id.btnReload).setOnClickListener(v -> {
-            if (web == null) return;
-            if (web.getProgress() < 100) {
-                web.stopLoading();
-            } else {
-                web.reload();
-            }
-        });
 
         /*
          * 点开地址栏：全选 + 弹出「复制 / 分享该网站」。
@@ -1673,6 +1741,13 @@ public final class MainActivity extends Activity {
             // 没真改动（这家本来就不在候选里）就不用重载 —— 否则一次误触
             // 会让页面白闪一下
             if (!store.ntpRemove(cmd.get("url"))) return;
+        } else if (NewTab.OP_SEARCH.equals(cmd.op)) {
+            // 内置主页的搜索框回传。与下滑胶囊共用同一个搜索目标（navSearch），
+            // 保证两处「搜索」跳的是同一个链接，不会一边搜 52ta 一边搜别的。
+            String q = cmd.get("q").trim();
+            if (q.isEmpty()) return;
+            navSearch(q);
+            return;
         } else {
             return;
         }
@@ -1842,7 +1917,10 @@ public final class MainActivity extends Activity {
         List<String> urls = null;
         if (settings.restoreSession) urls = store.loadSession();
         if (urls == null || urls.isEmpty()) {
-            tabs.add(new Tab(newTabTarget()));
+            // 启动首屏 = 主页，不是「新标签页」：用户打开 App 想看到的是
+            // 自己设的主页（默认 52ta.top 导航），内置新标签页只在「点新建标签页」时出现。
+            // 这里若用 newTabTarget() 会把启动和新建两个入口混成一个。
+            tabs.add(new Tab(settings.homepage));
             active = 0;
             web.loadUrl(tabs.get(0).url);
         } else {
@@ -2058,18 +2136,57 @@ public final class MainActivity extends Activity {
 
     private void applyUserAgent() {
         WebSettings s = web.getSettings();
-        // 自定义 UA 优先于一切 —— 它是用户明确要的，压过任何默认策略。
+        // 自定义 UA 优先于一切 —— 它是用户明确要的，压过任何预设。
         if (!settings.customUA.trim().isEmpty()) {
             s.setUserAgentString(settings.customUA.trim());
             return;
         }
-        // 用户把自定义 UA 清空时，UA 必须回到系统真实值。
-        // 漏了这一步就是那种「界面上写着默认、实际发出去还是 IE」的静默错。
-        String cur = s.getUserAgentString();
         String system = getSystemDefaultUA();
+        if ("desktop".equals(settings.layout)) {
+            // 电脑版 UA：取系统默认 UA 里的真实 Chrome 版本号，套一个桌面 Chrome 模板。
+            // 不写死版本 —— WebView 实际跑的就是那个版本，写死会造成「UA 说 80、内核是 100」的错位。
+            s.setUserAgentString(desktopUA(system));
+            return;
+        }
+        // mobile / auto 都是手机 UA（系统默认），auto 在移动端没有「按窗口宽度」一说，
+        // 一律等同手机。
+        String cur = s.getUserAgentString();
         if (!system.isEmpty() && !system.equals(cur)) {
             s.setUserAgentString(system);
         }
+    }
+
+    /**
+     * 由系统默认（手机）UA 构造一个桌面 Chrome UA。
+     *
+     * <p>做法是「借版本号、换平台标识」：从 {@code Chrome/x.y.z} 抠出版本号，
+     * 拼进桌面模板 {@code Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+     * (KHTML, like Gecko) Chrome/x.y.z Safari/537.36}。桌面 UA 不含 {@code Mobile}、
+     * {@code wv}、{@code Android}，站点据此返回桌面布局。
+     */
+    private String desktopUA(String systemUA) {
+        String chrome = "";
+        int i = systemUA.indexOf("Chrome/");
+        if (i >= 0) {
+            int j = i + 7;
+            while (j < systemUA.length()) {
+                char c = systemUA.charAt(j);
+                if (!(Character.isDigit(c) || c == '.')) break;
+                j++;
+            }
+            chrome = systemUA.substring(i + 7, j);
+        }
+        if (chrome.isEmpty()) chrome = "120.0.0.0";
+        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            + "(KHTML, like Gecko) Chrome/" + chrome + " Safari/537.36";
+    }
+
+    /**
+     * 把字号设置落到 WebView。textZoom 100 = 不变，50–200 范围（在 fromMap 里已夹）。
+     */
+    private void applyTextZoom() {
+        if (web == null) return;
+        web.getSettings().setTextZoom(settings.textZoom);
     }
 
     /**
@@ -2095,14 +2212,15 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** 是否在装桌面 UA 的兼容层。移动版不再提供内核选择，这里恒为 false。 */
-    private boolean applyEngine() {
-        engineLabel.setText("CR");
-        GradientDrawable dot = new GradientDrawable();
-        dot.setShape(GradientDrawable.OVAL);
-        dot.setColor(color(engine.active.colorRes));
-        engineDot.setBackground(dot);
-        return true;
+    /**
+     * 顶栏最左侧的应用 logo：点它打开主菜单。
+     *
+     * <p>这个位置原先是「圆点 + CR」的内核标识。移动版没有内核可选，那个标识
+     * 既没信息量（用户看不懂「CR」）也没得点，纯占位。换成 logo 后既补了品牌感，
+     * 又给了顶栏一个真实的入口 —— 和底栏的「菜单」格指向同一个 {@link #showMenuSheet()}。
+     */
+    private void setupLogoButton() {
+        btnLogo.setOnClickListener(v -> showMenuSheet());
     }
 
     private int color(int res) {
@@ -2131,6 +2249,73 @@ public final class MainActivity extends Activity {
         boolean night = (getResources().getConfiguration().uiMode
             & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         web.setBackgroundColor(color(night ? R.color.surface_dark : R.color.surface));
+    }
+
+    /**
+     * 主题配色：把「品牌主色」染到最显眼的几处。
+     *
+     * <p>主题切换只改色相、不改结构，所以这里不重建 Activity，只在装配时把
+     * 当前主题的三原色刷到界面上。要染的是「用户一眼看得到的品牌色」：
+     * 状态栏、底栏主按钮、胶囊搜索框描边、进度条。
+     *
+     * <p>XML 里那批 {@code @color/brand} 静态引用（图标、分段选中态等）保持默认蓝，
+     * 不逐一重染 —— 那些是「次级品牌色」，色相差一点用户感知很弱，逐一换反而
+     * 容易漏。真正的「这套主题是什么颜色」，由状态栏 + 主按钮 + 胶囊描边说了算。
+     */
+    private void applyAccentTheme() {
+        ThemeCatalog.Theme t = ThemeCatalog.byId(settings.accentTheme);
+        int brand = t.brand;
+        int strong = t.brandStrong;
+        int accent = t.accent;
+
+        // 状态栏 / 导航栏：主色铺底。浅色主题下状态栏文字用深色，深色用浅色。
+        boolean night = (getResources().getConfiguration().uiMode
+            & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(brand);
+            getWindow().setNavigationBarColor(brand);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                int flags = getWindow().getDecorView().getSystemUiVisibility();
+                // 状态栏文字反色与否，跟着深浅走，不跟着主色走。
+                if (night) {
+                    flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                } else {
+                    flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                }
+                getWindow().getDecorView().setSystemUiVisibility(flags);
+            }
+        }
+
+        // 底栏主按钮（标签数）：蓝绿渐变 → 当前主题的「主色→强调色」渐变。
+        View tabs = findViewById(R.id.mbTabs);
+        if (tabs != null) {
+            GradientDrawable g = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                new int[]{brand, accent});
+            g.setCornerRadius(dp(12));
+            tabs.setBackground(g);
+        }
+
+        // 胶囊搜索框描边：换成当前主色。
+        if (searchCapsule != null) {
+            GradientDrawable cap = new GradientDrawable();
+            cap.setShape(GradientDrawable.RECTANGLE);
+            cap.setCornerRadius(dp(18));
+            cap.setColor(color(R.color.surface_translucent));
+            cap.setStroke(1, brand);
+            searchCapsule.setBackground(cap);
+        }
+
+        // 进度条 tint 换成主色。
+        if (progress != null) {
+            progress.setProgressTintList(
+                android.content.res.ColorStateList.valueOf(brand));
+        }
+    }
+
+    /** dp → px，主题渐变圆角用。 */
+    private int dp(float v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
     }
 
     // ------------------------------------------------------------ 弹层
@@ -2312,9 +2497,10 @@ public final class MainActivity extends Activity {
     private void showMenuSheet() {
         View sheet = openSheet(getString(R.string.sheet_menu), R.layout.sheet_menu);
 
-        // ---- 浏览：导航与拦截
-        menuRow(sheet, R.id.menuHome, "首页", "回到首页", () -> goHome());
-        menuRow(sheet, R.id.menuBookmarks, "书签",
+        // ---- 浏览：导航与拦截。只放「去哪」与「看什么」，加工能力都进「工具」。
+        menuRow(sheet, R.id.menuHome, R.drawable.ic_home, "首页", "回到首页",
+            () -> goHome(), false);
+        menuRow(sheet, R.id.menuBookmarks, R.drawable.ic_bookmark, "书签",
             store.bookmarks().isEmpty() ? "未收藏"
                 : "已收藏 " + store.bookmarks().size() + " 条", () -> {
             mountMain();
@@ -2322,51 +2508,37 @@ public final class MainActivity extends Activity {
         }, true);
         // 无痕模式下副标题直接说明「不记录」。不写的话，用户开了无痕、
         // 进来发现历史停在几天前，只会以为这个功能坏了。
-        menuRow(sheet, R.id.menuHistory, getString(R.string.sheet_history),
+        menuRow(sheet, R.id.menuHistory, R.drawable.ic_history, getString(R.string.sheet_history),
             settings.incognito ? "无痕模式不记录"
                 : (store.history().isEmpty() ? "无记录"
                     : "最近 " + store.history().size() + " 条"), () -> {
             mountMain();
             showHistorySheet();
         }, true);
-        menuRow(sheet, R.id.menuAdblock, "广告拦截",
-            registry.hasUserRules()
-                ? "已订阅 · " + registry.totalHosts() + " 个域名"
-                : "内置 " + registry.adblockHosts().size() + " 个域名", () -> {
-            mountMain();
-            showRulesSheet();
-        }, true);
 
-        // ---- 工具：对网页的加工能力（下载 / 阅读 / 篡改猴）
-        menuRow(sheet, R.id.menuRead, "阅读增强", "无图模式 / 自动拼页", () -> {
+        // ---- 工具：对网页的加工能力（下载 / 阅读 / 篡改猴 / 广告拦截），
+        // 收敛成「工具」一个入口，不再在这里逐项平铺 —— 那是「毛坯房」的来源之一。
+        menuRow(sheet, R.id.menuTools, R.drawable.ic_tools, "工具",
+            "下载 / 阅读 / 篡改猴 / 广告拦截", () -> {
             mountMain();
-            showReadSheet();
-        }, true);
-        menuRow(sheet, R.id.menuDownloads, "下载", downloadSummary(), () -> {
-            mountMain();
-            showDownloadSheet();
-        }, true);
-        menuRow(sheet, R.id.menuPlugins, "篡改猴",
-            scripts.isEmpty() ? "未安装" : "已装 " + scripts.size() + " 个", () -> {
-            mountMain();
-            showPluginSheet();
+            showToolsSheet();
         }, true);
 
         // ---- 应用
-        menuRow(sheet, R.id.menuUpdate, "检查更新",
+        menuRow(sheet, R.id.menuUpdate, R.drawable.ic_update, "检查更新",
             "当前 " + getString(R.string.app_version),
-            () -> checkUpdate(true));
-        menuRow(sheet, R.id.menuSettings, "设置", null, () -> {
+            () -> checkUpdate(true), false);
+        menuRow(sheet, R.id.menuSettings, R.drawable.ic_settings, "设置", null, () -> {
             mountMain();
             showSettings();
         }, true);
-        menuRow(sheet, R.id.menuAbout, "关于", null, () -> {
+        menuRow(sheet, R.id.menuAbout, R.drawable.ic_about, "关于", null, () -> {
             mountMain();
             showAbout();
-        });
-        menuRow(sheet, R.id.menuExit, "退出", null, () -> {
+        }, true);
+        menuRow(sheet, R.id.menuExit, R.drawable.ic_exit, "退出", null, () -> {
             finishAffinity();
-        });
+        }, false);
 
         ((TextView) sheet.findViewById(R.id.aboutVer))
             .setText("吾爱Nova浏览器 " + getString(R.string.app_version));
@@ -2385,14 +2557,81 @@ public final class MainActivity extends Activity {
 
         // 副标题直接用 downloadSummary()，和主菜单里的下载入口保持一致：
         // 同一件事的说明文字只有一个来源，改一处两边都变。
-        menuRow(sheet, R.id.toolDownloads, "下载", downloadSummary(), () -> {
+        menuRow(sheet, R.id.toolDownloads, R.drawable.ic_download, "下载",
+            downloadSummary(), () -> {
             mountMain();
             showDownloadSheet();
         }, true);
-        menuRow(sheet, R.id.toolRead, "阅读增强", "无图模式 / 自动拼页", () -> {
+        menuRow(sheet, R.id.toolRead, R.drawable.ic_read, "阅读模式",
+            "无图模式 / 自动拼页", () -> {
             mountMain();
             showReadSheet();
         }, true);
+        menuRow(sheet, R.id.toolTranslate, R.drawable.ic_translate, "翻译网页",
+            "打开有道翻译（国内可用）", () -> {
+            mountMain();
+            translateCurrentPage();
+        }, false);
+        menuRow(sheet, R.id.toolMovie, R.drawable.ic_movie, "观影模式",
+            "隐藏工具栏 · 沉浸全屏", () -> {
+            mountMain();
+            toggleCinemaMode();
+        }, false);
+        menuRow(sheet, R.id.toolAi, R.drawable.ic_ai, "AI 助手",
+            "DeepSeek / 元宝 / 豆包 / Kimi 等在线对话", () -> {
+            mountMain();
+            showAiSheet();
+        }, true);
+        menuRow(sheet, R.id.toolPlugins, R.drawable.ic_plugin, "篡改猴",
+            scripts.isEmpty() ? "未安装" : "已装 " + scripts.size() + " 个", () -> {
+            mountMain();
+            showPluginSheet();
+        }, true);
+        menuRow(sheet, R.id.toolAdblock, R.drawable.ic_shield, "广告拦截",
+            registry.hasUserRules()
+                ? "已订阅 · " + registry.totalHosts() + " 个域名"
+                : "内置 " + registry.adblockHosts().size() + " 个域名", () -> {
+            mountMain();
+            showRulesSheet();
+        }, true);
+    }
+
+    /**
+     * 翻译网页：新标签打开有道翻译（国内可用、免翻墙、无需密钥）。
+     *
+     * <p>有道翻译网页版不支持像 Google 那样用 {@code ?u=} 直达整页翻译，
+     * 用户需要把网址粘进有道的输入框。这里直接打开有道翻译首页并给出提示，
+     * 是最稳的「零开发、国内可用」落地。当前页不丢（新标签打开）。
+     */
+    private void translateCurrentPage() {
+        String url = currentUrl();
+        if (!hasSiteUrl(url)) {
+            toast("当前页面无法翻译");
+            return;
+        }
+        newTab("https://fanyi.youdao.com/");
+        toast("已打开有道翻译，把网址粘进去即可整页翻译");
+    }
+
+    /**
+     * 观影 / 沉浸模式：隐藏顶栏和底栏，只留网页本身。
+     *
+     * <p>进入后靠「点网页任意位置」或系统返回键恢复 —— 这里做一个简单的开关：
+     * 再次点工具里的「观影模式」即退出。为避免和滚动显隐状态机打架，
+     * 这里直接 GONE 掉顶栏（topRow）和底栏那一行（bottomRow），
+     * 退出时 mountMain 重新装一遍主界面，状态自然复位。
+     */
+    private void toggleCinemaMode() {
+        cinemaMode = !cinemaMode;
+        if (cinemaMode) {
+            View top = topRow;
+            View bottom = findViewById(R.id.bottomRow);
+            if (top != null) top.setVisibility(View.GONE);
+            if (bottom != null) bottom.setVisibility(View.GONE);
+            toast("已进入观影模式，点工具→观影模式退出");
+        } else {
+            mountMain();
+        }
     }
 
     private void toggleAdblock() {
@@ -3310,9 +3549,17 @@ public final class MainActivity extends Activity {
                 recreate();
             });
 
-        setRow(sheet, R.id.setUA, "User-Agent 覆写", "留空则用系统默认。改 UA 会让部分网站认不出是手机",
-            settings.customUA.isEmpty() ? "默认" : "已自定义", false, true,
-            () -> promptUA());
+        setRow(sheet, R.id.setAccent, "主题配色", "默认蓝 / 青绿 / 粉紫 / 暖橙 / 纯黑",
+            accentLabel(), false, true,
+            () -> pickAccent());
+
+        setRow(sheet, R.id.setUA, "网页标识（UA）", "自动 = 手机版；电脑版适合只认桌面浏览器的老网站",
+            uaLabel(), false, true,
+            () -> pickUA());
+
+        setRow(sheet, R.id.setFont, "网页字号", "放大或缩小网页文字",
+            textZoomLabel(), false, true,
+            () -> pickTextZoom());
 
         // ---- 阅读增强
         setRow(sheet, R.id.setNoImage, "无图模式", null,
@@ -3610,6 +3857,34 @@ public final class MainActivity extends Activity {
         return "跟随系统";
     }
 
+    /** 主题配色当前档的显示名。 */
+    private String accentLabel() {
+        return ThemeCatalog.byId(settings.accentTheme).name;
+    }
+
+    /**
+     * 选主题配色。五套主题排成一张 picker，选中后立刻生效 —— 换色是运行时
+     * 动态染的，不用重建 Activity（和「深浅主题」的 recreate 不同）。
+     */
+    private void pickAccent() {
+        View sheet = openSheet("主题配色", R.layout.sheet_picker);
+        LinearLayout list = sheet.findViewById(R.id.pickerList);
+        ((TextView) sheet.findViewById(R.id.pickerNote)).setText(
+            "换一套主色。不影响深浅模式，只改状态栏、主按钮等品牌色。");
+
+        for (final ThemeCatalog.Theme t : ThemeCatalog.ALL) {
+            list.addView(pickerRow(list, t.name,
+                ThemeCatalog.hex(t),
+                t.id.equals(settings.accentTheme),
+                () -> {
+                    settings.accentTheme = t.id;
+                    store.save(settings);
+                    mountMain();
+                    toast("已切换「" + t.name + "」");
+                }));
+        }
+    }
+
     private void pickSearchEngine() {
         View sheet = openSheet(getString(R.string.sheet_search), R.layout.sheet_picker);
         LinearLayout list = sheet.findViewById(R.id.pickerList);
@@ -3719,9 +3994,52 @@ public final class MainActivity extends Activity {
             .show();
     }
 
-    private void promptUA() {
+    /** UA 预设的显示名。customUA 非空时优先显示「自定义」。 */
+    private String uaLabel() {
+        if (!settings.customUA.trim().isEmpty()) return "自定义";
+        if ("desktop".equals(settings.layout)) return "电脑版";
+        if ("mobile".equals(settings.layout)) return "手机版";
+        return "自动";
+    }
+
+    private void pickUA() {
+        View sheet = openSheet("网页标识（UA）", R.layout.sheet_picker);
+        LinearLayout list = sheet.findViewById(R.id.pickerList);
+        ((TextView) sheet.findViewById(R.id.pickerNote)).setText(
+            "决定网页把自己当手机还是当电脑。电脑版能让只认桌面浏览器的老网站打开，"
+            + "但页面会按桌面布局返回，需要缩放才能看。");
+
+        list.addView(pickerRow(list, "自动（手机版）",
+            "跟随系统默认，绝大多数网站的最佳选择",
+            "auto".equals(settings.layout) && settings.customUA.trim().isEmpty(),
+            () -> setUaMode("auto")));
+        list.addView(pickerRow(list, "电脑版",
+            "以桌面 Chrome 的身份访问，适合只认桌面浏览器的网站",
+            "desktop".equals(settings.layout) && settings.customUA.trim().isEmpty(),
+            () -> setUaMode("desktop")));
+        list.addView(pickerRow(list, "手机版",
+            "强制手机 UA（与自动等价，区别在于不随系统变）",
+            "mobile".equals(settings.layout) && settings.customUA.trim().isEmpty(),
+            () -> setUaMode("mobile")));
+        list.addView(pickerRow(list, "自定义…",
+            settings.customUA.isEmpty() ? "未设置" : settings.customUA,
+            !settings.customUA.trim().isEmpty(),
+            this::promptCustomUA));
+    }
+
+    private void setUaMode(String mode) {
+        settings.layout = mode;
+        settings.customUA = "";
+        store.save(settings);
+        applyUserAgent();
+        web.reload();
+        mountMain();
+        toast("网页标识已改为 " + uaLabel());
+    }
+
+    private void promptCustomUA() {
         EditText box = new EditText(this);
-        box.setHint("留空 = 使用系统默认");
+        box.setHint("完整的 UA 字符串");
         box.setSingleLine(true);
         box.setText(settings.customUA);
         box.setTextColor(color(R.color.text));
@@ -3733,9 +4051,8 @@ public final class MainActivity extends Activity {
         wrap.setPadding(pad, pad, pad, pad);
         wrap.addView(box, new FrameLayout.LayoutParams(-1, -2));
 
-        new NovaAlert(this, "User-Agent",
-            "把桌面版的 UA 填进来，部分只认桌面浏览器的老网站就能用了。"
-            + "代价是它们会按桌面布局返回页面，在手机屏上需要缩放才能看。")
+        new NovaAlert(this, "自定义 UA",
+            "填完整的 User-Agent 字符串。留空则回到自动（手机版）。")
             .custom(wrap)
             .negative("取消", null)
             .positive("保存", () -> {
@@ -3743,9 +4060,44 @@ public final class MainActivity extends Activity {
                 store.save(settings);
                 applyUserAgent();
                 web.reload();
-                toast(settings.customUA.isEmpty() ? "已恢复默认 UA" : "UA 已生效");
+                mountMain();
+                toast(settings.customUA.isEmpty() ? "已恢复自动" : "自定义 UA 已生效");
             })
             .show();
+    }
+
+    private String textZoomLabel() {
+        int z = settings.textZoom;
+        if (z < 100) return "小（" + z + "%）";
+        if (z > 100) return "大（" + z + "%）";
+        return "默认（100%）";
+    }
+
+    private void pickTextZoom() {
+        View sheet = openSheet("网页字号", R.layout.sheet_picker);
+        LinearLayout list = sheet.findViewById(R.id.pickerList);
+        ((TextView) sheet.findViewById(R.id.pickerNote)).setText(
+            "放大或缩小网页文字。只影响网页内容，不影响浏览器界面。");
+
+        int[][] levels = {
+            {85, R.string.zoom_small},
+            {100, R.string.zoom_default},
+            {115, R.string.zoom_large},
+            {130, R.string.zoom_xl}
+        };
+        for (final int[] lv : levels) {
+            final int z = lv[0];
+            list.addView(pickerRow(list, getString(lv[1]), z + "%",
+                settings.textZoom == z,
+                () -> {
+                    settings.textZoom = z;
+                    store.save(settings);
+                    applyTextZoom();
+                    mountMain();
+                    showSettings();
+                    toast("网页字号 " + z + "%");
+                }));
+        }
     }
 
     private void clearCache() {
@@ -3799,6 +4151,16 @@ public final class MainActivity extends Activity {
      */
     private void menuRow(View sheet, int id, String title, String sub, Runnable onTap,
                         boolean arrow) {
+        menuRow(sheet, id, 0, title, sub, onTap, arrow);
+    }
+
+    /**
+     * 一行菜单（带图标）。
+     *
+     * @param iconRes  左侧图标 drawable id；0 = 不显示图标
+     */
+    private void menuRow(View sheet, int id, int iconRes, String title, String sub,
+                         Runnable onTap, boolean arrow) {
         View row = sheet.findViewById(id);
         ((TextView) row.findViewById(R.id.rowTitle)).setText(title);
 
@@ -3808,6 +4170,14 @@ public final class MainActivity extends Activity {
         } else {
             subView.setVisibility(View.VISIBLE);
             subView.setText(sub);
+        }
+
+        ImageView icon = row.findViewById(R.id.rowIcon);
+        if (iconRes != 0) {
+            icon.setVisibility(View.VISIBLE);
+            icon.setImageResource(iconRes);
+        } else {
+            icon.setVisibility(View.GONE);
         }
 
         row.findViewById(R.id.rowValue).setVisibility(View.GONE);
@@ -3836,6 +4206,10 @@ public final class MainActivity extends Activity {
             subView.setVisibility(View.VISIBLE);
             subView.setText(sub);
         }
+
+        // 设置页行不带图标（图标会挤掉本来就紧张的横向空间，且设置项重在文字），
+        // 但把图标显式收掉，避免复用 item_menu 时残留。
+        row.findViewById(R.id.rowIcon).setVisibility(View.GONE);
 
         TextView val = row.findViewById(R.id.rowValue);
         if (onValue) {

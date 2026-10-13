@@ -64,5 +64,22 @@
             android:authorities="top.wuai.nova.apk"
             android:exported="false"
             android:grantUriPermissions="true" />
+
+        <!--
+          更新完成自动重启：监听系统「本应用已被替换」的隐式广播。
+
+          exported="false" 只挡其他应用显式发过来的 intent，不影响系统广播投递。
+          ACTION_PACKAGE_REPLACED 是 manifest 静态注册也能收到的隐式广播
+          （不受 Android 8 后台执行限制），所以哪怕装新版的瞬间旧进程被杀，
+          接收器照样能被拉起、把新版本打开。
+        -->
+        <receiver
+            android:name=".UpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
