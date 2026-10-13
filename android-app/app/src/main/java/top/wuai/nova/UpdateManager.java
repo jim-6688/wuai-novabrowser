@@ -45,13 +45,29 @@ import java.util.concurrent.Executors;
 public final class UpdateManager {
 
     /**
-     * 更新清单地址。
+     * 首选的更新清单地址（正式域名）。
      *
      * <p>换域名时<b>只需要改这一处</b>：清单里的官网直链故意写成相对路径，
      * 由 {@link #absolute(String)} 拿这里当基座拼出绝对地址。
      */
     public static final String UPDATE_URL =
-        "https://nova-browser-site.app.workbuddy.host/version.json";
+        "https://nova.52ta.top/version.json";
+
+    /**
+     * 依次尝试的清单地址，取第一个能读通的。
+     *
+     * <p>为什么不是一个地址而是一个列表：这是 App <b>唯一的自救通道</b>，
+     * 而它恰好挂在最脆弱的一根线上 —— 域名。证书过期、DNS 改错、CDN 欠费、
+     * 域名忘了续，任何一个都会让「检查更新」彻底哑掉。启动时那次检查是静默的，
+     * 所以用户不会收到任何提示，只会被永久钉在旧版本上，连为什么都不知道。
+     * 多留一个兜底地址，等于给这条唯一的通道上了双保险。
+     *
+     * <p>顺序有意义：正式域名在前，托管域名在后，正常情况下永远用不到后者。
+     */
+    public static final String[] UPDATE_URLS = {
+        UPDATE_URL,
+        "https://nova-browser-site.app.workbuddy.host/version.json",
+    };
 
     /** 清单体积上限。正常的清单只有几百字节，几十 KB 就肯定是抓错页面了。 */
     private static final int MAX_BYTES = 64 * 1024;
@@ -90,9 +106,18 @@ public final class UpdateManager {
         public final int minVersionCode;
         public final List<String> changelog;
         public final List<Link> downloads;
+        /**
+         * 这份清单是从哪个地址读来的。
+         *
+         * <p>清单里的官网直链写成相对路径，必须由读它的那个地址来补全 ——
+         * 记下来源而不是一律用首选域名，兜底地址读来的清单才能拼对下载链接，
+         * 否则会出现「提示有更新，一点下载就 404」这种最让人恼火的情况。
+         */
+        public final String baseUrl;
 
         Manifest(String version, int versionCode, String updatedAt, boolean mandatory,
-                 int minVersionCode, List<String> changelog, List<Link> downloads) {
+                 int minVersionCode, List<String> changelog, List<Link> downloads,
+                 String baseUrl) {
             this.version = version;
             this.versionCode = versionCode;
             this.updatedAt = updatedAt;
@@ -100,6 +125,7 @@ public final class UpdateManager {
             this.minVersionCode = minVersionCode;
             this.changelog = changelog;
             this.downloads = downloads;
+            this.baseUrl = baseUrl == null || baseUrl.isEmpty() ? UPDATE_URL : baseUrl;
         }
 
         /** 是否比当前版本新。 */
@@ -153,8 +179,28 @@ public final class UpdateManager {
         });
     }
 
+    /**
+     * 逐个地址试，取第一个能读通的清单。
+     *
+     * <p>只有「连不上 / 返回错误码 / 清单格式不对」才换下一个地址 ——
+     * 读到了一份<b>内容合法但版本更旧</b>的清单不算失败，那就该按它说的算：
+     * 没有更新。否则一个还停在旧版本的镜像站会让用户反复收到已经装过的版本。
+     */
     private Manifest fetch() throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(UPDATE_URL).openConnection();
+        java.io.IOException last = null;
+        for (String url : UPDATE_URLS) {
+            try {
+                Manifest m = fetchOne(url);
+                if (m != null) return m;
+            } catch (java.io.IOException e) {
+                last = e; // 这个地址不行，换下一个
+            }
+        }
+        throw last != null ? last : new java.io.IOException("没有可用的更新地址");
+    }
+
+    private Manifest fetchOne(String url) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setInstanceFollowRedirects(true);
         c.setConnectTimeout(10000);
         c.setReadTimeout(15000);
@@ -163,7 +209,7 @@ public final class UpdateManager {
             int code = c.getResponseCode();
             if (code >= 400) throw new java.io.IOException("HTTP " + code);
             String text = readAll(c.getInputStream(), MAX_BYTES);
-            Manifest m = parse(text);
+            Manifest m = parse(text, url);
             if (m == null || m.versionCode <= 0) {
                 throw new java.io.IOException("清单格式不对");
             }
@@ -195,6 +241,11 @@ public final class UpdateManager {
      * 清单结构固定且很浅，手写扫描足够，还能顺手容忍字段缺失和多余空格。
      */
     static Manifest parse(String json) {
+        return parse(json, UPDATE_URL);
+    }
+
+    /** 同 {@link #parse(String)}，但记住清单是从 baseUrl 读来的。 */
+    static Manifest parse(String json, String baseUrl) {
         if (json == null || json.trim().isEmpty()) return null;
         String version = str(json, "version");
         int code = (int) num(json, "versionCode");
@@ -203,7 +254,7 @@ public final class UpdateManager {
         if (min <= 0) min = 1;
         return new Manifest(version, code, str(json, "updatedAt"),
             bool(json, "mandatory"), min, strArray(json, "changelog"),
-            links(json));
+            links(json), baseUrl);
     }
 
     /**
@@ -213,11 +264,22 @@ public final class UpdateManager {
      * 这样换域名时清单文件一个字都不用改，基座由使用方自己拼。
      */
     public static String absolute(String url) {
+        return absolute(UPDATE_URL, url);
+    }
+
+    /**
+     * 同 {@link #absolute(String)}，但按 baseUrl 补基座。
+     *
+     * <p>兜底地址读来的清单必须用它自己的域名补全，不能一律用首选域名 ——
+     * 否则首选域名一挂，就会出现「提示有新版，一点下载就 404」。
+     */
+    public static String absolute(String baseUrl, String url) {
         if (url == null || url.isEmpty()) return url;
         String lower = url.toLowerCase(Locale.ROOT);
         if (lower.startsWith("http://") || lower.startsWith("https://")) return url;
-        int cut = UPDATE_URL.indexOf("/version.json");
-        String base = cut >= 0 ? UPDATE_URL.substring(0, cut + 1) : UPDATE_URL + "/";
+        if (baseUrl == null || baseUrl.isEmpty()) baseUrl = UPDATE_URL;
+        int cut = baseUrl.indexOf("/version.json");
+        String base = cut >= 0 ? baseUrl.substring(0, cut + 1) : baseUrl + "/";
         return base + (url.startsWith("/") ? url.substring(1) : url);
     }
 
@@ -235,7 +297,7 @@ public final class UpdateManager {
             DownloadManager dm =
                 (DownloadManager) ctx.getSystemService(Context.DOWNLOAD_SERVICE);
             if (dm == null) return -1;
-            String abs = absolute(link.url);
+            String abs = absolute(m.baseUrl, link.url);
             DownloadManager.Request rq = new DownloadManager.Request(Uri.parse(abs));
             rq.setTitle("吾爱Nova浏览器 " + m.version);
             rq.setDescription("下载完成后点通知即可安装");

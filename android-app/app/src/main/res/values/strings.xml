@@ -4,7 +4,7 @@
          改这里不会改到桌面端，两边要一起改。 -->
     <string name="app_name">吾爱Nova浏览器</string>
     <!-- 版本号单点。原先散在若干个字符串字面量里，改版本要改四处，漏一处就对不上。 -->
-    <string name="app_version">1.2.0</string>
+    <string name="app_version">1.2.1</string>
 
     <!-- 底栏。顺序与桌面端 shell.html 的 mobilebar 一致。
          「内核」那一格换成了「下载」：移动版只有系统 WebView 真内置，

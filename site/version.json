@@ -1,31 +1,31 @@
 {
-  "version": "1.2.0",
-  "versionCode": 3,
+  "version": "1.2.1",
+  "versionCode": 4,
   "channel": "release",
   "updatedAt": "2026-10-13",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
+    "更新地址切换到正式域名 nova.52ta.top，并保留一个兜底地址",
     "新增浏览历史：记录访问过的网页，支持搜索、单条删除与清空，上限 500 条",
-    "修复无痕模式形同虚设：会话在 onPageFinished、onReceivedTitle、closeTab 三处被无条件写盘，只有 onPause 做了判断",
+    "修复无痕模式形同虚设：会话在三处被无条件写盘，只有退出时做了判断",
     "修复「自动下载」「恢复上次会话」两个设置只存不用，切换后毫无变化",
     "修复分享链接进来会顶掉刚恢复的页面，且白加载一次",
     "修复新标签页绕过「强制 HTTPS」，开关显得时灵时不灵",
-    "修复官网下载按钮完全依赖 JS，脚本没跑起来时只剩一片空白",
-    "历史与会话都不再记录 about:blank、file:// 等本机地址"
+    "修复官网下载按钮完全依赖 JS，脚本没跑起来时只剩一片空白"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.2.0.apk",
-      "size": 329734,
-      "sha256": "c67b6243eaf1a1cb1fb30d70cbf2209d8ab41321742b2f1a98c449fc12646267"
+      "url": "download/nova-1.2.1.apk",
+      "size": 329962,
+      "sha256": "c3e0d42c9ed1bdfccb69b5d27f0a7f9c6baf7c2fd395dcc0aad5a19c30f30481"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.0/nova-1.2.0.apk",
-      "size": 329734,
-      "sha256": "c67b6243eaf1a1cb1fb30d70cbf2209d8ab41321742b2f1a98c449fc12646267"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.2.1/nova-1.2.1.apk",
+      "size": 329962,
+      "sha256": "c3e0d42c9ed1bdfccb69b5d27f0a7f9c6baf7c2fd395dcc0aad5a19c30f30481"
     }
   ]
 }
