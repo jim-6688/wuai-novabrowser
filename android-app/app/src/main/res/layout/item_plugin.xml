@@ -28,6 +28,23 @@
             android:maxLines="1"
             android:ellipsize="end" />
 
+        <!-- 「内置」徽章。只在随包发布的那几条上出现，默认不占位。
+             它有存在必要：内置脚本是浏览器替用户装上的，用户没做过这个决定，
+             列表里就必须看得出来哪些是自己装的、哪些不是 —— 否则想清理时
+             会把自己装的和内置的混在一起删。 -->
+        <TextView
+            android:id="@+id/plBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="20dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_pill"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:textColor="@color/accent"
+            android:textSize="10.5sp"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/plToggle"
             android:layout_width="wrap_content"
@@ -60,7 +77,7 @@
         android:layout_marginTop="4dp"
         android:textColor="@color/text_4"
         android:textSize="10.5sp"
-        android:maxLines="2"
+        android:maxLines="4"
         android:ellipsize="end" />
 
     <TextView

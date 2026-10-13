@@ -52,6 +52,9 @@
     <string name="sheet_downloads">下载</string>
     <string name="sheet_rules">广告拦截规则</string>
     <string name="sheet_plugins">篡改猴</string>
+
+    <!-- 「内置」徽章。内置脚本是浏览器替用户装上的，列表里要能一眼区分。 -->
+    <string name="plugin_builtin">内置</string>
     <string name="sheet_bookmarks">书签</string>
 
     <string name="action_new_tab">+ 新建标签页</string>

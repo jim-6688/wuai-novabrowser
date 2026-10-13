@@ -86,6 +86,49 @@ public class UserScriptTest {
     }
 
     @Test
+    public void grant_none_只是声明不用特权() {
+        // @grant none 是用户脚本里最常见的写法，意思是「我不需要任何特权」。
+        // 早先无条件把它收进 grants，于是几乎所有按规范写的脚本都被标成
+        // 「声明了 1 项未支持的权限」—— 警告本身是真的（我们确实没有 GM_*），
+        // 但它指向了一个不存在的问题：脚本压根什么都没请求过。
+        // 而误报的代价是用户学会忽略这个警告，真有特权的脚本也就一起被忽略了。
+        UserScript.Parsed p = UserScript.parse(
+            "// ==UserScript==\n"
+            + "// @name  x\n// @match *://*/*\n"
+            + "// @grant none\n// ==/UserScript==\n");
+        assertTrue(p.error, p.ok());
+        assertTrue("@grant none 不该被当成一项特权", p.meta.grants.isEmpty());
+        assertFalse(p.meta.needsPrivilegeWarning());
+        assertFalse("说明里不该出现「已忽略」", p.meta.description.contains("忽略"));
+    }
+
+    @Test
+    public void grant_的大小写和空白都要认() {
+        // 元数据是用户手写的，大小写与尾随空格都很常见。
+        UserScript.Parsed p = UserScript.parse(
+            "// ==UserScript==\n"
+            + "// @name  z\n// @match *://*/*\n"
+            + "// @grant   NONE  \n// ==/UserScript==\n");
+        assertTrue(p.error, p.ok());
+        assertTrue("NONE 与 none 等价", p.meta.grants.isEmpty());
+    }
+
+    @Test
+    public void grant_none_与真特权混写时只算后者() {
+        // 一个脚本里同时写 none 和具体特权是合法的（具体的那条胜出）。
+        // 这时不能因为见过 none 就把后面的真特权一起丢掉 —— 那等于把需要警告的
+        // 脚本放过去，而它恰恰是会在页面上静默失败的那种。
+        UserScript.Parsed p = UserScript.parse(
+            "// ==UserScript==\n"
+            + "// @name  y\n// @match *://*/*\n"
+            + "// @grant none\n// @grant GM_setValue\n// ==/UserScript==\n");
+        assertTrue(p.error, p.ok());
+        assertEquals(1, p.meta.grants.size());
+        assertEquals("GM_setValue", p.meta.grants.get(0));
+        assertTrue(p.meta.needsPrivilegeWarning());
+    }
+
+    @Test
     public void 空文件要报错而不是崩() {
         assertFalse(UserScript.parse(null).ok());
         assertFalse(UserScript.parse("").ok());

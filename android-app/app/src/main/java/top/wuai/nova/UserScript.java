@@ -176,7 +176,14 @@ public final class UserScript {
                 case "@include": m.include.add(val); break;
                 case "@exclude": m.exclude.add(val); break;
                 case "@require": m.require.add(val); break;
-                case "@grant": m.grants.add(val); break;
+                case "@grant":
+                    // @grant none 是「我不需要任何特权」的声明，它本身不是一项特权。
+                    // 无条件收进 grants 的话，几乎所有按规范写的脚本 —— 包括我们内置的
+                    // 那条 —— 都会被判成「声明了 1 项未支持的权限」：警告本身是真的
+                    // （我们确实不提供 GM_*），但它指向了一个不存在的问题，
+                    // 脚本压根什么都没有请求过。误报比不报更耗人。
+                    if (!"none".equalsIgnoreCase(val.trim())) m.grants.add(val);
+                    break;
                 default: break;   // 认识的元数据之外的键一律忽略，不报错
             }
         }

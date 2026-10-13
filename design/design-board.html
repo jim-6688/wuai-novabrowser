@@ -374,6 +374,7 @@ td code{font-size:11px}
 .dlpill.ok{color:var(--ok);border-color:var(--ok);background:none}
 .dlpill.bad{color:var(--danger);border-color:var(--danger);background:none}
 .dlpill.warn{color:var(--warn);border-color:var(--warn);background:none}
+.dlpill.acc{color:var(--accent);border-color:var(--accent);background:none}
 .dlstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
 .dlstat{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:var(--r-sm);background:var(--surface);border:1px solid var(--border)}
 .dlstat b{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
@@ -1554,7 +1555,7 @@ td code{font-size:11px}
               <div class="svgrp">篡改猴</div>
               <div class="svcard" style="margin-top:6px">
                 <div class="svrow"><span class="m"><span class="t">启用篡改猴</span><span class="s">关掉后已装脚本全部停用，不用逐个卸载</span></span><span class="sw2 on"></span></div>
-                <div class="svrow"><span class="m"><span class="t">篡改猴</span><span class="s">用户脚本（.user.js）· 已装 2 个</span></span><span class="chevonly"><svg class="chev" viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg></span></div>
+                <div class="svrow"><span class="m"><span class="t">篡改猴</span><span class="s">用户脚本（.user.js）· 已装 3 个</span></span><span class="chevonly"><svg class="chev" viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg></span></div>
                 <div class="svrow"><span class="m"><span class="t">安装前确认</span><span class="s">关掉后选中脚本文件即直接安装</span></span><span class="sw2 on"></span></div>
               </div>
 
@@ -1653,7 +1654,7 @@ td code{font-size:11px}
 
     <!-- 篡改猴面板 -->
     <div class="frame-wrap">
-      <div class="frame-cap"><b>P · 篡改猴（底部弹层）</b> · 明确写「不是 Chrome 扩展」；没有 <code>@match</code> 一律拒绝安装</div>
+      <div class="frame-cap"><b>P · 篡改猴（底部弹层）</b> · 明确写「不是 Chrome 扩展」；没有 <code>@match</code> 一律拒绝安装；随包内置一条口碑脚本，标「内置」徽章</div>
       <div class="frame mb">
         <div class="screen" style="position:relative">
           <div class="mtoolbar">
@@ -1678,8 +1679,9 @@ td code{font-size:11px}
                 用户脚本是 Kiwi、Firefox for Android 的通行做法。
               </div>
 
-              <div class="panel-label" style="margin-top:0">已安装（3）</div>
+              <div class="panel-label" style="margin-top:0">已安装（4）</div>
               <div class="svcard" style="margin:0">
+                <div class="svrow"><span class="m"><span class="t">网页限制解除 <i class="dlpill acc">内置</i></span><span class="s">网页限制解除 v1.2.4 · Cat73 · LGPLv3</span></span><span class="sw2 on"></span></div>
                 <div class="svrow"><span class="m"><span class="t">商品比价助手</span><span class="s">@match *://*.example.com/*</span></span><span class="sw2 on"></span></div>
                 <div class="svrow"><span class="m"><span class="t">页面留白清理</span><span class="s">@include .*\.example\.cn/.*</span></span><span class="sw2 on"></span></div>
                 <div class="svrow"><span class="m"><span class="t">自动展开评论区</span><span class="s">需要 @grant</span></span><span class="dlpill warn">受限</span></div>
@@ -1687,6 +1689,18 @@ td code{font-size:11px}
 
               <div class="panel-label">安装</div>
               <span class="btn wide">选择 .user.js 文件</span>
+
+              <div class="rsn">
+                <b>随包内置一条：网页限制解除（Cat73，LGPLv3）。</b><br />
+                挑它有两道门槛，顺序不能反：<br />
+                ① <b>引擎跑不跑得起来</b> —— <code>@grant</code> 必须为空。总安装量第一的
+                AC-Baidu（约 342 万）依赖 <code>GM_xmlhttpRequest</code>，在我们这儿只会静默失败，
+                <b>装了比不装更糟</b>：用户以为装了个好东西，实际什么都没发生，还怪浏览器有 bug。<br />
+                ② <b>口碑</b> —— 在过得了①的里面取最高的，即「网页限制解除」（约 222 万安装、
+                四千余条好评）。<br />
+                徽章标出来是必要的：这是<b>浏览器替用户做的决定</b>，列表里得看得出哪些不是自己装的。
+                卸载后不会再自己装回来（播种只做一次）。
+              </div>
 
               <div class="rsn">
                 <b>三条硬边界写在界面上，不藏着：</b><br />
@@ -1900,7 +1914,7 @@ td code{font-size:11px}
               </div>
 
               <div class="panel-label">它能做什么</div>
-              <div class="rsn" style="margin-top:0;border-left-color:var(--ok)">· 自动拼页：往上滑自动接上下一页，上限可调<br />· 无图模式：按网址后缀判断；另有更彻底的「加载图片」总开关<br />· 广告拦截：内置名单随包发布，可订阅外部规则<br />· 媒体嗅探：识别页面里的音视频，多线程分片下载<br />· 书签：地址栏星标一键收藏，底部面板管理、删除、清空<br />· 篡改猴（用户脚本）：装 <code>.user.js</code>，按 <code>@match</code> 注入页面<br />· 标签管理、会话恢复、无痕浏览</div>
+              <div class="rsn" style="margin-top:0;border-left-color:var(--ok)">· 自动拼页：往上滑自动接上下一页，上限可调<br />· 无图模式：按网址后缀判断；另有更彻底的「加载图片」总开关<br />· 广告拦截：内置名单随包发布，可订阅外部规则<br />· 媒体嗅探：识别页面里的音视频，多线程分片下载<br />· 书签：地址栏星标一键收藏，底部面板管理、删除、清空<br />· 篡改猴（用户脚本）：装 <code>.user.js</code>，按 <code>@match</code> 注入页面，随包内置一条「网页限制解除」<br />· 标签管理、会话恢复、无痕浏览</div>
 
               <div class="panel-label">它做不到什么</div>
               <div class="rsn" style="margin-top:0">· <b>不内置浏览器内核</b>：真内核最小 80MB，塞进来这个浏览器会变成 100MB 起步<br />· <b>广告拦截只按域名</b>：Android 的拦截接口不告诉我们要拦的是图片还是脚本，元素隐藏规则、路径规则在移动版用不了<br />· <b>篡改猴不是 Chrome 扩展</b>：系统内核没有扩展宿主，只支持用户脚本，且不支持跨域等特权<br />· <b>下载存在应用私有目录</b>：别的应用看不到这些文件，也还不能通过系统分享直接发出去</div>

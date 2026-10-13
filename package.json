@@ -18,7 +18,7 @@
     "filters:fetch": "bash tools/fetch-filters.sh",
     "filters:check": "node tools/check-filters.js",
     "filters": "bash tools/fetch-filters.sh && node tools/check-filters.js",
-    "test": "node tools/check-shell.js && node tools/test-engines.js && node tools/test-adblock.js && node tools/test-engine-menu.js && node tools/test-downloader.js && node tools/test-downloads-ui.js && node tools/test-sniffer.js && node tools/test-sniffer-ui.js && node tools/test-nomedia.js && node tools/test-autopage.js && node tools/test-mobile-ui.js",
+    "test": "node tools/check-shell.js && node tools/test-engines.js && node tools/test-adblock.js && node tools/test-engine-menu.js && node tools/test-downloader.js && node tools/test-downloads-ui.js && node tools/test-sniffer.js && node tools/test-sniffer-ui.js && node tools/test-nomedia.js && node tools/test-autopage.js && node tools/test-mobile-ui.js && node tools/test-builtin-userscript.js",
     "test:downloader": "node tools/test-downloader.js",
     "test:downloads-ui": "node tools/test-downloads-ui.js",
     "test:sniffer": "node tools/test-sniffer.js",

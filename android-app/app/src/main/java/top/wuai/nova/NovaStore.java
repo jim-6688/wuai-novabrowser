@@ -354,6 +354,64 @@ public final class NovaStore {
         return new java.io.File(ctx.getFilesDir(), "scripts");
     }
 
+    // -------------------------------------------------------- 内置脚本播种
+
+    /**
+     * 内置脚本的播种记录，{@code key=id} 一行一条。
+     *
+     * <p>记的是「播种过」，不是「当前装着」。这个差别很要紧：若按「当前装着」
+     * 判断，用户卸载完下次启动又会被装回来，那个卸载按钮就成了摆设。
+     *
+     * <p>与已装列表分开存，是因为它会比列表活得久 —— 卸载会把脚本从
+     * {@link #K_SCRIPTS} 里摘掉，但这里那行必须留着。
+     */
+    private static final String K_BUILTIN = "scripts.builtin";
+
+    /** 这个内置项播种过了吗？是则返回当时装上去的脚本 id，没播种过返回 null。 */
+    public String builtinSeededId(String key) {
+        if (key == null || key.isEmpty()) return null;
+        for (String line : seededLines()) {
+            int i = line.indexOf('=');
+            if (i > 0 && line.substring(0, i).equals(key)) return line.substring(i + 1);
+        }
+        return null;
+    }
+
+    /** 记下某个内置项已播种，连同它当时的脚本 id。 */
+    public void markBuiltinSeeded(String key, String id) {
+        if (key == null || key.isEmpty() || id == null || id.isEmpty()) return;
+        java.util.List<String> out = new ArrayList<>();
+        boolean replaced = false;
+        for (String line : seededLines()) {
+            int i = line.indexOf('=');
+            if (i > 0 && line.substring(0, i).equals(key)) {
+                out.add(key + "=" + id);
+                replaced = true;
+            } else {
+                out.add(line);
+            }
+        }
+        if (!replaced) out.add(key + "=" + id);
+        StringBuilder sb = new StringBuilder();
+        for (String t : out) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(t);
+        }
+        prefs.edit().putString(K_BUILTIN, sb.toString()).apply();
+    }
+
+    /** 读播种记录，返回 {@code key=id} 行列表。 */
+    private java.util.List<String> seededLines() {
+        java.util.List<String> out = new ArrayList<>();
+        String raw = prefs.getString(K_BUILTIN, "");
+        if (raw == null || raw.isEmpty()) return out;
+        for (String line : raw.split("\n")) {
+            String t = line.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
+
     // ------------------------------------------------------- 元数据的文本形态
 
     /**

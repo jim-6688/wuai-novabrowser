@@ -1,0 +1,11 @@
+# 内置用户脚本与它的许可证全文：逐字节保持上游原样，禁止任何换行转换。
+#
+# 为什么不靠约定而要写在这里：BuiltinScriptsTest 里有一条断言拿脚本的 sha256
+# 与清单里记录的值比对。若 git 在 checkout 时把 LF 换成 CRLF（core.autocrlf=true
+# 在 Windows 上是常见默认），字节就变了，那条断言只在 Windows 上红 ——
+# 一个「在别人机器上才复现」的失败，是最难查的一种。
+#
+# -text 的意思是「别当文本处理」，checkin/checkout 都不做转换。
+# 只在 user-scripts 目录下生效，不动仓库里其它文件的既有行为。
+android-app/app/src/main/assets/user-scripts/*.user.js -text
+android-app/app/src/main/assets/user-scripts/*.txt -text
