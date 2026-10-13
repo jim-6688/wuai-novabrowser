@@ -27,7 +27,10 @@ const EVENT_CHANNELS = [
   'sniff:update',
   'sniff:state',
   'mobile:stats',
-  'shell:viewport'
+  'shell:viewport',
+  /* 内置新标签页发来的动作（加 / 删快捷方式）。页面本身是本地文件、
+     上不了这座桥，它是跳一个 nova:// 地址被主进程拦下来转发的。 */
+  'ntp:command'
 ];
 
 const listeners = new Map();
@@ -82,6 +85,12 @@ contextBridge.exposeInMainWorld('nova', {
   history: {
     list: (limit) => ipcRenderer.invoke('history:list', limit),
     clear: () => ipcRenderer.invoke('history:clear')
+  },
+
+  /* --- 内置新标签页的快捷方式 --- */
+  ntp: {
+    addShortcut: (label, url) => ipcRenderer.invoke('ntp:shortcut:add', { label, url }),
+    removeShortcut: (url) => ipcRenderer.invoke('ntp:shortcut:remove', { url })
   },
 
   /* --- 下载（Nova 多线程引擎） --- */

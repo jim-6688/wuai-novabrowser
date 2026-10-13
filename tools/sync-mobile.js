@@ -106,13 +106,22 @@ function main() {
   for (const h of hostList) adLines.push(h);
   artifacts.push(write('adblock-hosts.txt', adLines.join('\n') + '\n'));
 
-  // ---------------------------------------------------------------- 4) 同步台账
+  // ---------------------------------------------------------------- 4) 新标签页
+  // 这一段与上面三段不同：前三个是「从源码生成产物」，这一段是**逐字节复制**。
+  // 所以不加任何头部注释 —— 加了就与源不同，而这一页恰恰要求两端字节一致
+  // （页内那几段纯逻辑由测试从文件里抽出来跑，两端必须跑的是同一段代码）。
+  // 「不要手改」这句话写在源文件自己的注释里。
+  const ntpSrc = path.join(ROOT, 'src', 'renderer', 'newtab.html');
+  artifacts.push(write('newtab.html', fs.readFileSync(ntpSrc)));
+
+  // ---------------------------------------------------------------- 5) 同步台账
   const sync = {
     _note: '源文件的 sha256，供 tools/check-mobile-sync.js 校验「源改了但产物没同步」',
     generatedFrom: [
       { source: 'src/renderer/autopage.js', sha256: sha(fs.readFileSync(autopageSrc)) },
       { source: 'src/main/sniffer.js', sha256: sha(fs.readFileSync(path.join(ROOT, 'src', 'main', 'sniffer.js'))) },
       { source: 'src/main/adblock-lists.js', sha256: sha(fs.readFileSync(path.join(ROOT, 'src', 'main', 'adblock-lists.js'))) },
+      { source: 'src/renderer/newtab.html', sha256: sha(fs.readFileSync(ntpSrc)) },
     ],
     artifacts,
   };

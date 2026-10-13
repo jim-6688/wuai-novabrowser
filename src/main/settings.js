@@ -12,7 +12,16 @@ const DEFAULT_HOMEPAGE = 'https://52ta.top/';
 
 const DEFAULTS = {
   homepage: DEFAULT_HOMEPAGE,
-  newTabPage: DEFAULT_HOMEPAGE,
+  /**
+   * 新建标签页打开什么。三种具名取值：
+   *   start     —— 随应用自带的这一页（品牌区 + 快捷方式九宫格）
+   *   homepage  —— 跟随上面的主页
+   *   blank     —— about:blank
+   * 除这三种之外的值一律当「自定义地址」直接用：这个键在桌面端历史上就是
+   * 一个自由地址，升级过来的人不该被悄悄改掉自己的设置。
+   * 语义与移动端 NovaSettings.newTabPage 对齐。
+   */
+  newTabPage: 'start',
   searchTemplate: 'https://www.baidu.com/s?wd=%s',
   defaultEngine: 'chromium',
   /** auto | desktop | mobile —— auto 由窗口宽度决定 */
@@ -95,6 +104,16 @@ const DEFAULTS = {
   ],
   history: [],
   /**
+   * 新标签页上用户手工增删的快捷方式。
+   *   added   —— 用户点「＋添加」加进来的（这些排在候选最前面）
+   *   removed —— 用户点 × 删掉的**归一化主机名**
+   *
+   * 为什么 removed 必须单独记一份：历史记录不会因为用户在新标签页上点了个 ×
+   * 就把那几条删掉。不记下来的话，下次生成候选时那家站点立刻又爬回来 ——
+   * 用户的感受是「这个 × 是假的」。与安卓端 NovaStore 的 ntp.* 两个键同义。
+   */
+  ntpShortcuts: { added: [], removed: [] },
+  /**
    * 下载任务快照（供界面重启后还原列表）。
    * 分片级游标不在这个文件里 —— 那由每个文件旁边的 <文件名>.novadl.json 负责，
    * 免得下载几次就把设置文件撑到几兆。
@@ -162,7 +181,25 @@ function patch(partial) {
   return cache;
 }
 
+/**
+ * 这个地址值不值得进历史。
+ *
+ * 只有 http/https 算数。少了这一道，内置新标签页自己会被记进历史 ——
+ * 它的地址是一条 `file:///…/newtab.html?theme=…&data=…`，于是历史列表里
+ * 多出一条几 KB 长、点进去毫无意义的条目；更糟的是它下一次又会作为
+ * 「访问过的站点」被选成新标签页的快捷方式候选，首页上凭空出现一个
+ * 指向自己的图标。about:blank 同理（它是空白页本身）。
+ *
+ * 与安卓端 HistoryStore.recordable 是同一条规则。
+ */
+function historyRecordable(url) {
+  if (!url) return false;
+  const s = String(url).trim().toLowerCase();
+  return s.indexOf('http://') === 0 || s.indexOf('https://') === 0;
+}
+
 function pushHistory(entry) {
+  if (!entry || !historyRecordable(entry.url)) return;
   const list = cache.history;
   // 连续同一 URL 去重
   if (list[0] && list[0].url === entry.url) {
@@ -199,6 +236,7 @@ module.exports = {
   get,
   patch,
   pushHistory,
+  historyRecordable,
   clearHistory,
   addBookmark,
   removeBookmark,

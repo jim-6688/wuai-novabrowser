@@ -122,7 +122,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:background="@drawable/omnibox"
-                    android:hint="搜索或输入网址"
+                    android:hint="@string/omnibox_hint"
                     android:textSize="14sp"
                     android:textColor="@color/text"
                     android:textColorHint="@color/text_4"

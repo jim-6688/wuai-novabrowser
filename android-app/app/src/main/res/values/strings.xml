@@ -60,6 +60,20 @@
     <string name="plugin_builtin">内置</string>
     <string name="sheet_bookmarks">书签</string>
 
+    <!-- 地址栏空的时候显示什么。默认是提示语；停在内置新标签页上时换成
+         「新标签页」—— 那一页的真身是一条又长又吓人的 file:///android_asset/…，
+         不适合摊在地址栏里。 -->
+    <string name="omnibox_hint">搜索或输入网址</string>
+    <string name="omnibox_new_tab">新标签页</string>
+
+    <!-- 新标签页的三种取值，对应设置里「新标签页」那一行。
+         「内置」＝随包自带的这一页（品牌区 + 快捷方式九宫格），
+         它与桌面端共用 src/renderer/newtab.html 一份源。 -->
+    <string name="ntp_start">内置</string>
+    <string name="ntp_homepage">首页</string>
+    <string name="ntp_blank">空白</string>
+    <string name="ntp_added">已添加</string>
+
     <string name="action_new_tab">+ 新建标签页</string>
     <string name="action_close_tab">关闭</string>
     <string name="action_close_all">全部关闭</string>

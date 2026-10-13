@@ -12,6 +12,19 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 const bridge = window.nova;
 
+/**
+ * 地址栏空着时那句提示，**开脚本时从 HTML 里抄一次**。
+ *
+ * 不在 JS 里再写一份字符串：写两份就等于两处都得记得改。也不能等第一次
+ * 用到时才抄 —— 停在内置新标签页上时这一格会被换成「新标签页」，
+ * 那时再抄下来的就是那个临时值，切回普通页面后提示语永远变成「新标签页」。
+ * （脚本在 body 末尾，这里拿得到 #omni-input。）
+ */
+const OMNI_DEFAULT_PLACEHOLDER = (() => {
+  const el = document.getElementById('omni-input');
+  return el ? (el.placeholder || '') : '';
+})();
+
 /* ------------------------------------------------------------------ *
  * 状态
  * ------------------------------------------------------------------ */
@@ -20,6 +33,12 @@ const state = {
   engines: [],
   engineMap: new Map(),
   settings: {},
+  /**
+   * 内置新标签页那个本地文件的地址，由主进程随 bootstrap 下发。
+   * 之所以不让外壳自己拼：Windows 的盘符、路径里的空格与中文都要转义，
+   * 而主进程那边有 pathToFileURL 这个现成的正确实现（见 NEWTAB_FILE_URL）。
+   */
+  newTabFileUrl: '',
   /** 出厂默认值，由主进程随 bootstrap 下发，供「恢复默认设置」使用 */
   defaults: null,
   extensions: [],
@@ -121,9 +140,76 @@ function searchUrl(q) {
   return tpl.replace('%s', encodeURIComponent(q));
 }
 
-/** 新建标签页打开的地址：优先 newTabPage，未设置时退回主页 */
+/**
+ * 这个地址是不是内置新标签页（含带参数的形式）。
+ *
+ * 与安卓端 NewTab.isNewTab 同一个角色。地址栏显示、命令回来之后的重载
+ * 都要问它 —— 少了这一道，用户点一下 × 就会把当前标签页从「某个网页」
+ * 强行导航回新标签页。
+ */
+function isNewTabUrl(url) {
+  return !!url && !!state.newTabFileUrl && url.indexOf(state.newTabFileUrl) === 0;
+}
+
+/**
+ * 新标签页的候选：用户自己加的 + 历史里的常去站点。
+ *
+ * 排序、去重、上限、截断全在 ntp.js 里（那一段能单独跑单测），这里只负责
+ * 把三个来源凑齐。history 直接在 settings 里 —— 主进程 bootstrap 下发的
+ * 就是整份配置。
+ */
+function newTabCandidates() {
+  const s = state.settings || {};
+  const sc = s.ntpShortcuts || {};
+  return NovaNtpHost.buildData({
+    added: sc.added,
+    removed: sc.removed,
+    history: s.history
+  });
+}
+
+/**
+ * 新建标签页打开的地址。
+ *
+ * 三种具名取值（内置 / 主页 / 空白）之外的值当**自定义地址**：这个键在
+ * 桌面端历史上就是一个自由地址，升级过来的人不该被悄悄改掉自己的设置。
+ * 语义与移动端 NovaSettings.newTabPage 对齐。
+ */
 function newTabUrl() {
-  return state.settings.newTabPage || state.settings.homepage;
+  const s = state.settings || {};
+  return NovaNtpHost.target(s.newTabPage, {
+    homepage: s.homepage,
+    base: state.newTabFileUrl,
+    // 用界面上实际的深浅色而不是设置项：主题只认 light/dark 两档，
+    // 而这里要的是「现在是什么色」，两者在跟随系统时可能差一步。
+    theme: document.documentElement.dataset.theme || s.theme || 'light',
+    data: newTabCandidates()
+  });
+}
+
+/** 「新标签页」当前档位的中文说法，给设置页那一行用。 */
+function ntpModeLabel() {
+  const s = state.settings || {};
+  const mode = NovaNtpHost.modeOf(s.newTabPage);
+  if (mode === 'start') return '内置页';
+  if (mode === 'blank') return '空白页';
+  if (mode === 'homepage') return '跟随主页';
+  // 自定义地址，但填的恰好就是主页 —— 说「跟随主页」比说「自定义地址」
+  // 更贴近用户看到的行为，也和「与主页相同」那个按钮的置灰状态一致。
+  return (s.newTabPage || s.homepage) === s.homepage ? '跟随主页' : '自定义地址';
+}
+
+/**
+ * 切「新标签页」那一档。三个具名取值都走这里，免得三处各写一遍 patch。
+ *
+ * 切完必须 refreshCurrent()：设置页那一行的高亮、旁边那句「当前：…」都
+ * 依赖 settings，不重渲染就还是旧样子 —— 看起来就是「点了没反应」。
+ */
+async function setNtpMode(mode) {
+  state.settings.newTabPage = mode;
+  await bridge.settings.patch({ newTabPage: mode });
+  refreshCurrent();
+  toast('新标签页：' + ntpModeLabel());
 }
 
 /** 输入框内容 → 真实 URL：像域名的当地址，否则当搜索词 */
@@ -557,7 +643,21 @@ function syncOmnibox() {
   const tab = activeTab();
   const input = $('#omni-input');
   if (document.activeElement === input) return;
-  input.value = tab ? tab.url : '';
+  // 内置新标签页的真身是一条 file:///…/newtab.html?theme=…&data=… 的地址，
+  // data 里塞着最多 30 条候选，能有好几 KB —— 直接摊在地址栏里既长又吓人，
+  // 显示成「新标签页」。
+  //
+  // 走 placeholder 而不是 value：写成 value 的话，用户点亮地址栏（会全选）
+  // 直接敲回车，敲出去的就是「新标签页」四个字，会被当成搜索词送出去。
+  // 空 value + placeholder 则与初始状态一致，用户看到的就是一个待输入的框。
+  // 与移动端 syncUrlBar 是同一条处理。
+  if (tab && isNewTabUrl(tab.url)) {
+    input.value = '';
+    input.placeholder = '新标签页';
+  } else {
+    input.value = tab ? tab.url : '';
+    input.placeholder = OMNI_DEFAULT_PLACEHOLDER;
+  }
   const lock = $('#omni-lock');
   const secure = tab && /^https:/i.test(tab.url);
   lock.classList.toggle('is-insecure', !secure);
@@ -1493,7 +1593,13 @@ const SEARCH_PRESETS = [
 
 function buildGeneral() {
   const s = state.settings;
-  const followsHome = (s.newTabPage || s.homepage) === s.homepage;
+  const ntpMode = NovaNtpHost.modeOf(s.newTabPage);
+  // 「与主页相同」那个按钮的置灰判据有两个来源：新的具名取值 homepage，
+  // 以及桌面端历史上的「自定义地址，但填的恰好就是主页」。两种都算跟随。
+  const followsHome = ntpMode === 'homepage' || (s.newTabPage || s.homepage) === s.homepage;
+  // 输入框就是「自定义地址」那一栏；档位是三种具名取值时它显示主页地址 ——
+  // 用户想从「内置」切回一个具体网址时，起点不该是一串 'start'。
+  const ntpAddress = ntpMode === 'custom' ? s.newTabPage : s.homepage;
   const sessCount = (s.session && Array.isArray(s.session.tabs)) ? s.session.tabs.length : 0;
 
   return `
@@ -1505,10 +1611,18 @@ function buildGeneral() {
     <div class="muted" style="padding-bottom:var(--sp-3)">点「主页」按钮、以及启动时的第一个标签页打开的地址。</div>
 
     <div class="panel-label">新标签页</div>
-    <div class="field"><input id="set-newtab" value="${esc(s.newTabPage || s.homepage)}" spellcheck="false" /></div>
+    <div class="panel-section">
+      <div class="segmented" id="set-newtab-mode">
+        <button data-act="newtab-builtin" class="${ntpMode === 'start' ? 'is-active' : ''}">内置</button>
+        <button data-act="newtab-homepage" class="${ntpMode === 'homepage' ? 'is-active' : ''}">主页</button>
+        <button data-act="newtab-blank" class="${ntpMode === 'blank' ? 'is-active' : ''}">空白</button>
+      </div>
+      <div class="muted" style="padding:var(--sp-2) 0 0">「内置」是随应用自带的一页：品牌区 + 快捷方式九宫格，按访问次数自动排；长按或右键图标可以删掉不要的。与移动端共用同一份源。</div>
+    </div>
+    <div class="field"><input id="set-newtab" value="${esc(ntpAddress)}" spellcheck="false" /></div>
     <div class="btn-row" style="padding-top:0">
       <button class="btn" data-act="newtab-same" ${followsHome ? 'disabled' : ''}>与主页相同</button>
-      <span class="lr-sub" style="align-self:center">当前：${followsHome ? '跟随主页' : '独立地址'}</span>
+      <span class="lr-sub" style="align-self:center">当前：${ntpModeLabel()}</span>
     </div>
 
     <div class="panel-label">默认内核</div>
@@ -1861,6 +1975,10 @@ function injectAutoPage(tab) {
   if (state.isPreview) return false;
   if (!mobilePref().autoPage) return false;
   if (!tab || !tab.webview) return false;
+  // 本地页面不注入。内置新标签页上没有「下一页」这回事，而注入的脚本
+  // 会先在 body 上做一遍正文容器打分 —— 白花几百毫秒，还可能因为
+  // 那一页的九宫格结构挑出一个莫名其妙的容器。about:blank 同理。
+  if (!/^https?:/i.test(tab.url || '')) return false;
   if (typeof tab.webview.executeJavaScript !== 'function') return false;
 
   const AP = window.NovaAutoPage;
@@ -2453,7 +2571,11 @@ function wireActions(root) {
   const newTab = root.querySelector('#set-newtab');
   if (newTab) {
     newTab.addEventListener('change', async () => {
-      const v = newTab.value.trim() || state.settings.homepage;
+      // 空着、或者填的就是主页地址 → 记成具名的 homepage，而不是把主页
+      // 地址原样存一份。存一份拷贝的话，以后改主页时这一栏不会跟着变，
+      // 用户会觉得「我明明设的是跟随主页」。
+      const raw = newTab.value.trim();
+      const v = (!raw || raw === state.settings.homepage) ? 'homepage' : raw;
       state.settings.newTabPage = v;
       await bridge.settings.patch({ newTabPage: v });
       refreshCurrent();
@@ -2714,12 +2836,11 @@ function wireActions(root) {
         state.bookmarks = await bridge.bookmarks.clear();
         refreshCurrent();
         toast('书签已清空');
-      } else if (act === 'newtab-same') {
-        state.settings.newTabPage = state.settings.homepage;
-        await bridge.settings.patch({ newTabPage: state.settings.homepage });
-        refreshCurrent();
-        toast('新标签页已与主页一致');
-      } else if (act === 'reset-stats') {
+      } else if (act === 'newtab-builtin') { await setNtpMode('start'); }
+      else if (act === 'newtab-homepage') { await setNtpMode('homepage'); }
+      else if (act === 'newtab-blank') { await setNtpMode('blank'); }
+      else if (act === 'newtab-same') { await setNtpMode('homepage'); }
+      else if (act === 'reset-stats') {
         state.adblock = await bridge.adblock.reset();
         refreshCurrent();
         toast('统计已重置');
@@ -3018,6 +3139,43 @@ function wireBridgeEvents() {
     else createTab(p.url, activeTab() ? activeTab().engineId : state.settings.defaultEngine);
   });
   bridge.on('shell:viewport', applyLayout);
+
+  // 内置新标签页发来的动作（加 / 删快捷方式）。
+  //
+  // 页面本身是本地文件，上不了 preload 那座桥 —— 它是跳一个
+  // nova://shortcut/… 的地址，被主进程从 will-navigate 上截下来转发的。
+  // 这里负责解析（规则在 ntp.js，与单测跑的是同一份），落盘交给主进程。
+  bridge.on('ntp:command', async (p) => {
+    const cmd = NovaNtpHost.parseCmd(p && p.url);
+    if (!cmd) return;
+    if (cmd.op === NovaNtpHost.OP_ADD) {
+      await bridge.ntp.addShortcut(cmd.get('label'), cmd.get('url'));
+      toast('已添加');
+    } else {
+      await bridge.ntp.removeShortcut(cmd.get('url'));
+    }
+    reloadNewTab(p.id);
+  });
+}
+
+/** 主进程的 webContents id → 标签页。两者毫无关系，只能在 dom-ready 时记下来。 */
+function tabByWcId(wcId) {
+  return state.tabs.find((t) => t.wcId != null && t.wcId === wcId) || null;
+}
+
+/**
+ * 重新加载某张标签页上的内置新标签页。
+ *
+ * 快捷方式那一屏是渲染时算好的（候选编在 URL 里），不重新导航的话，
+ * 用户点了 × 屏幕上什么都没少 —— 看起来就是「这个按钮坏了」。
+ *
+ * 判一次 isNewTabUrl：命令是异步绕回来处理的，这中间用户可能已经点了
+ * 某个磁贴跳走了，那时不该把他的页面拽回来。
+ */
+function reloadNewTab(wcId) {
+  const tab = tabByWcId(wcId);
+  if (!tab || !isNewTabUrl(tab.url)) return;
+  navigate(tab.id, newTabUrl());
 }
 
 /* ------------------------------------------------------------------ *
@@ -3030,6 +3188,7 @@ async function init() {
   state.engines = boot.engines;
   state.engineMap = new Map(boot.engines.map((e) => [e.id, e]));
   state.settings = boot.settings;
+  state.newTabFileUrl = boot.newTabFileUrl || '';
   state.extensions = boot.extensions || [];
   state.bookmarks = boot.settings.bookmarks || [];
   state.adblock = boot.adblock || state.adblock;

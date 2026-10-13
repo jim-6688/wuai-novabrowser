@@ -93,9 +93,17 @@ if (typeof window !== 'undefined' && !window.nova) {
     }
   ];
 
+  /* 内置新标签页的本地地址。预览里加载不了真实文件（没有 webview），
+     但地址的形状要是对的 —— 外壳会拿它拼 ?theme=…&data=… 并据此判断
+     「当前页是不是新标签页」。 */
+  const NEWTAB_FILE_URL = 'file:///preview/newtab.html';
+
   const DEFAULTS = {
     homepage: 'https://52ta.top/',
-    newTabPage: 'https://52ta.top/',
+    // 与 src/main/settings.js 的出厂值保持一致。这里要是还写成主页地址，
+    // 预览里看到的默认档位就跟真机不一样了。
+    newTabPage: 'start',
+    ntpShortcuts: { added: [], removed: [] },
     searchTemplate: 'https://www.baidu.com/s?wd=%s',
     defaultEngine: 'chromium',
     layout: 'auto',
@@ -334,7 +342,8 @@ if (typeof window !== 'undefined' && !window.nova) {
   const state = {
     settings: {
       homepage: 'https://52ta.top/',
-      newTabPage: 'https://52ta.top/',
+      newTabPage: 'start',
+      ntpShortcuts: { added: [], removed: [] },
       searchTemplate: 'https://www.baidu.com/s?wd=%s',
       defaultEngine: 'chromium',
       layout: 'auto',
@@ -480,6 +489,7 @@ if (typeof window !== 'undefined' && !window.nova) {
     bootstrap: async () => ({
       settings: state.settings,
       defaults: DEFAULTS,
+      newTabFileUrl: NEWTAB_FILE_URL,
       engines,
       extensions: state.extensions,
       adblock: state.adblock,
@@ -583,6 +593,31 @@ if (typeof window !== 'undefined' && !window.nova) {
     history: {
       list: async (limit = 200) => state.history.slice(0, limit),
       clear: async () => { state.history = []; return []; }
+    },
+
+    /* 内置新标签页的快捷方式。真的那份在主进程里，落的是设置文件的
+       ntpShortcuts；这里只演一遍「列表变了」的效果，好让预览里
+       点「× 删除」能看出反馈。 */
+    ntp: {
+      addShortcut: async (label, url) => {
+        const cur = state.settings.ntpShortcuts || { added: [], removed: [] };
+        const key = NovaNtpHost.hostKey(url);
+        state.settings.ntpShortcuts = {
+          added: cur.added.filter((a) => NovaNtpHost.hostKey(a.url) !== key)
+            .concat([{ label: label || key, url }]),
+          removed: cur.removed.filter((k) => k !== key)
+        };
+        return state.settings.ntpShortcuts;
+      },
+      removeShortcut: async (url) => {
+        const cur = state.settings.ntpShortcuts || { added: [], removed: [] };
+        const key = NovaNtpHost.hostKey(url);
+        state.settings.ntpShortcuts = {
+          added: cur.added.filter((a) => NovaNtpHost.hostKey(a.url) !== key),
+          removed: cur.removed.includes(key) ? cur.removed : cur.removed.concat([key])
+        };
+        return state.settings.ntpShortcuts;
+      }
     },
 
     /* 下载：预览模式下不真的联网，但把状态机走全，方便评审交互 */
@@ -701,6 +736,14 @@ if (typeof window !== 'undefined' && !window.nova) {
       listeners.get(channel).add(fn);
       return () => listeners.get(channel).delete(fn);
     },
+
+    /**
+     * 手动触发一条事件。真机上没有这个口子 —— 事件都有各自的真实来源
+     * （导航、下载、嗅探……），而预览/测试里没人替我们制造它们。
+     * 只有 mock 才会挂出这个方法，所以拿它做分支判断是安全的：
+     *   if (window.nova.__emit) → 说明跑在预览或 jsdom 测试里。
+     */
+    __emit: emit,
 
     log() {}
   };

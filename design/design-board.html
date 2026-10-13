@@ -1421,11 +1421,13 @@ td code{font-size:11px}
 <section>
   <div class="sec-head">
     <span class="sec-no">06</span>
-    <h2>移动端 · 十一屏</h2>
+    <h2>移动端 · 十二屏</h2>
     <span class="sec-note">376 × 660 画框（≈ 390 × 844 的等比）。同一套代码，靠 <code>[data-layout=mobile]</code> 切换骨架。
       底栏<b>五格</b>：主操作（标签）居中凸起，左右各两格；原来的「下载」与「阅读」并成一格<b>工具</b>（有任务在跑时那一格变成「工具 N」并点亮品牌色，见 L）。
       1.1.0 起<b>内核选择器已删除</b>——APK 内零个 <code>.so</code>，只有一档真内核，
-      只有一个选项的列表不是选择器，是装饰。内核信息改为<b>只读</b>（J 帧），看得见但点不动。</span>
+      只有一个选项的列表不是选择器，是装饰。内核信息改为<b>只读</b>（J 帧），看得见但点不动。
+      最后那屏 <b>S（新标签页）是两端共用的一页</b> —— 它唯一的源文件在 <code>src/renderer/newtab.html</code>，
+      移动端那份是逐字节同步出来的产物，所以它既属于这一节、也不属于这一节。</span>
   </div>
 
   <div class="frames">
@@ -1995,6 +1997,57 @@ td code{font-size:11px}
               <div class="panel-label">现在到什么程度</div>
               <div class="svnote"><b>尚未在真机或模拟器上验证。</b>全部功能有单元测试兜底，但下载、嗅探、注入这类和系统版本强相关的行为，只有装上真机跑过才算数。已知待办：下载目录未接系统分享。</div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 内置新标签页 -->
+    <div class="frame-wrap">
+      <div class="frame-cap"><b>S · 新标签页（新增）</b> · <b>两端共用同一份源</b>（<code>src/renderer/newtab.html</code>，移动端那份是 <code>npm run mobile:sync</code> 逐字节同步出来的产物）。品牌区 + 四列快捷方式，<b>第 8 格固定留给「＋添加」</b> —— 两行四列正好填满，设成 8 个磁贴的话第三行只落一个，看着像坏了。数据由宿主算好（历史里的常去站点 + 用户自己加的），页面只管排序与呈现。<br />磁贴 <b>56dp</b>、标签 11sp、品牌 logo 64px —— <b>不照抄官网宣传图的 40px</b>：那张 mockup 的手机只有 262px 宽（屏内 244px），里面的 40px 磁贴是缩略图上的数字，照搬过去就是 40dp，比项目自己为底栏并格论证过的 44px 触控下限还小。<br />长按（桌面端右键）进<b>编辑态</b>：每个磁贴右上角浮出 × 角标，点 × 即删；点「＋」开底部表单（名称 + 网址，回车即保存）。<b>删掉的站点按主机名记进「已移除」</b> —— 历史记录不会因为点了个 × 就变，不单独记一份的话那家站点下次立刻爬回来，用户的感受是「这个 × 是假的」。<br />地址栏显示「新标签页」而不是那条几 KB 长的 <code>file://…newtab.html?theme=…&amp;data=…</code>，且走的是 placeholder（空 value）：写成 text 的话用户点亮地址栏直接回车，敲出去的就是「新标签页」四个字。</div>
+      <div class="frame mb">
+        <div class="screen">
+          <div class="mtoolbar">
+            <div class="uibtn" title="首页"><svg viewBox="0 0 20 20"><path d="M3.4 9.4L10 3.6l6.6 5.8"/><path d="M5.2 8.6v7.6h9.6V8.6"/><path d="M8.6 16.2v-4.4h2.8v4.4"/></svg></div>
+            <div class="uibtn" title="收藏"><svg viewBox="0 0 20 20"><path d="M10 2.6l2.3 4.7 5.2.8-3.8 3.7.9 5.2L10 14.8 5.4 17l.9-5.2L2.5 8.1l5.2-.8z"/></svg></div>
+            <div class="omni" style="flex:1">
+              <span class="eng ro">CR</span>
+              <span class="lk"><svg viewBox="0 0 16 16"><path d="M4.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/><rect x="3" y="7" width="10" height="6.5" rx="1.6"/></svg></span>
+              <span class="url" style="font-size:14px;color:var(--text-4)">新标签页</span>
+            </div>
+            <div class="uibtn" style="border:1px solid var(--border)"><svg viewBox="0 0 20 20"><path d="M3.5 6h13M3.5 10h13M3.5 14h13"/></svg></div>
+          </div>
+          <div class="vp" style="flex:1">
+            <div style="width:100%;padding:0 20px">
+              <div style="text-align:center;padding-bottom:18px">
+                <svg viewBox="0 0 52 52" style="width:64px;height:64px;display:block;margin:0 auto 10px">
+                  <defs><linearGradient id="ntpLogo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5B84FF" /><stop offset="0.46" stop-color="#3D6BFF" /><stop offset="1" stop-color="#00B8A2" /></linearGradient></defs>
+                  <rect width="52" height="52" rx="13" fill="url(#ntpLogo)" />
+                  <ellipse cx="26" cy="27" rx="17" ry="6.4" transform="rotate(-20 26 27)" fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="1.5" />
+                  <path d="M26 10.5 Q26 26 40 26 Q26 26 26 41.5 Q26 26 12 26 Q26 26 26 10.5 Z" fill="#FFFFFF" />
+                  <circle cx="39.4" cy="20.6" r="2.5" fill="#FFFFFF" />
+                </svg>
+                <div style="font-size:12px;color:var(--text-3)">吾爱Nova · 新标签页</div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px 4px">
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#3D6BFF,#5B84FF)">主</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">主页</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#00B8A2,#34D399)">知</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">知乎</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#2E56D9,#3D6BFF)">哔</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">哔哩</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#00937F,#00B8A2)">微</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">微博</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#3D6BFF,#00B8A2)">G</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Gitee</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#34D399,#22C55E)">贴</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">贴吧</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#5B84FF,#00B8A2)">豆</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">豆瓣</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:23px;font-weight:500;color:var(--text-4);background:var(--surface-2);border:1px solid var(--border)">＋</div><div style="font-size:10.5px;color:var(--text-3)">添加</div></div>
+              </div>
+              <div style="text-align:center;font-size:10.5px;color:var(--text-4);margin-top:14px">长按图标可删除</div>
+            </div>
+          </div>
+          <div class="mbar">
+            <div><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg><span>后退</span></div>
+            <div><svg viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg><span>前进</span></div>
+            <div class="pri"><svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M6.5 2.5h7"/></svg><span>1</span></div>
+            <div><svg viewBox="0 0 20 20"><path d="M4 6h14M4 10h14M4 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><span>工具</span></div>
+            <div><svg viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h12"/></svg><span>菜单</span></div>
           </div>
         </div>
       </div>

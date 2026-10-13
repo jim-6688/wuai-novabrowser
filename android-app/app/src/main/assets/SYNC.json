@@ -12,6 +12,10 @@
     {
       "source": "src/main/adblock-lists.js",
       "sha256": "3440a221b6c8426adee7e38032cd46996071b2039c19061e8b79bf04281ced90"
+    },
+    {
+      "source": "src/renderer/newtab.html",
+      "sha256": "eea6f00b124fd91632aef247b842eff222164587c461727d618cc0dd925cd396"
     }
   ],
   "artifacts": [
@@ -29,6 +33,11 @@
       "file": "android-app/app/src/main/assets/adblock-hosts.txt",
       "bytes": 2373,
       "sha256": "87078379b5f65c92d9ddb7d75bb5ebf860c8779626f6ab3d448fec9365b867d6"
+    },
+    {
+      "file": "android-app/app/src/main/assets/newtab.html",
+      "bytes": 24583,
+      "sha256": "eea6f00b124fd91632aef247b842eff222164587c461727d618cc0dd925cd396"
     }
   ]
 }

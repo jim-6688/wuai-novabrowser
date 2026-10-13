@@ -49,7 +49,7 @@ npm run check:design     # 设计稿体检：class 是否都定义 / 画框是�
 npm run mobile:sync       # 把桌面端的拼页算法与名单同步给移动版
 npm run mobile:check      # 同步门禁：桌面端改了但没同步会在这里报错
 npm run mobile:build      # 门禁 + 构建 debug APK
-npm run mobile:test       # 移动版 385 项单元测试（纯 JVM，不需要设备）
+npm run mobile:test       # 移动版 424 项单元测试（纯 JVM，不需要设备）
 
 cd android-app && ./gradlew assembleRelease   # 出可安装的 release APK
 ```
@@ -95,6 +95,8 @@ novabrowser/
 ├─ src/preload/preload.js  白名单 API 桥（contextIsolation，渲染层拿不到 Node）
 ├─ src/renderer/
 │  ├─ shell.html/.css/.js  外壳：标签、地址栏、内核切换、全屏设置页、移动端骨架
+│  ├─ newtab.html          ★ 内置新标签页（**与移动端共用同一份源**，逐字节同步到 assets）
+│  ├─ ntp.js               ★ 新标签页的宿主侧逻辑：候选编码 / 档位解析 / 命令解析（双导出）
 │  ├─ autopage.js          ★ 自动拼页引擎（算法写成顶层函数声明，序列化后注入页面执行）
 │  └─ bridge-mock.js       非 Electron 环境的等价桥 + 示例数据（用于 UI 预览）
 ├─ design/design-board.html  UI 设计稿（令牌 / 组件态 / PC / 移动七屏 / 设置页 / 下载 / 嗅探 / 无图与拼页 / 规则）
@@ -109,7 +111,7 @@ novabrowser/
 │  ├─ app/build.gradle      AGP 8.7.3 / minSdk 24 / targetSdk 35 / Java 17
 │  ├─ keystore/nova-dev.jks ★ 开发签名（明文口令，仅供本地构建，正式分发务必换掉）
 │  ├─ app/src/main/java/top/wuai/nova/
-│  │  ├─ MainActivity.java  ★ 界面与接线（3734 行）：工具栏两态 / 五格底栏 / 弹层 / 标签总览
+│  │  ├─ MainActivity.java  ★ 界面与接线（3889 行）：工具栏两态 / 五格底栏 / 弹层 / 标签总览
 │  │  ├─ NoImagePolicy.java ★ 无图判定（三档，按后缀猜，边界全部写明）
 │  │  ├─ RequestInterceptor.java ★ 请求拦截：宿主黑名单 + 无图 + 43 字节透明 GIF
 │  │  ├─ AutoPage.java      ★ 自动拼页接线（不含算法，算法从桌面端同步过来）
@@ -125,10 +127,11 @@ novabrowser/
 │  │  ├─ NovaStore.java     ★ 落盘层：设置 / 会话 / 脚本 / 订阅规则 / assets
 │  │  ├─ BookmarkStore.java ★ 书签落盘：行式（id·addedAt·title·url），纯 JVM 不依赖 Android
 │  │  ├─ Tab.java           ★ 标签数据（与 WebView 分离，含缩略图生命周期）
+│  │  ├─ NewTab.java        ★ 新标签页的宿主侧逻辑（页面地址 / 候选编码 / 命令解析，纯 JVM）
 │  │  └─ NovaAlert.java     对话框薄包装（支持自定义内容区）
-│  ├─ app/src/main/assets/  ★ 三份同步产物 + SYNC.json（门禁校验用）
+│  ├─ app/src/main/assets/  ★ 四份同步产物 + SYNC.json（门禁校验用）
 │  ├─ app/src/main/res/     41 个 drawable（18 个图标矢量）+ 28 个布局 + 令牌
-│  └─ app/src/test/java/    ★ 385 项单元测试（23 个类，纯 JVM，不实例化 Android 组件）
+│  └─ app/src/test/java/    ★ 424 项单元测试（24 个类，纯 JVM，不实例化 Android 组件）
 ├─ dist/                    ★ 构建产物：release.apk（装机用）/ debug.apk
 ├─ screenshots/            ★ 真实渲染截图（npm run shots 生成）
 └─ tools/
@@ -155,6 +158,7 @@ novabrowser/
    ├─ test-nomedia.js      ★ 无图判定测试（该拦 / 必须放行 / 放行机制 / 台账 / 配置变更）
    ├─ test-autopage.js     ★ 自动拼页测试（找下一页 / 绝对化 / 正文容器 / 端到端 3 页）
    ├─ test-mobile-ui.js    ★ 移动端阅读增强界面测试（jsdom）
+   ├─ test-newtab.js       ★ 新标签页测试（页面纯函数抽取 + 两端命令/编码契约 + jsdom + 与 NewTab.java 对拍）
    ├─ test-mobile-electron.js ★ 无图模式真机验证（服务端日志为空 = 图片请求真没出门）
    ├─ test-hidden-attr.js  ★ 真实 Chromium 下的 hidden 属性回归（Electron）
    └─ shot.js              真实渲染截图器（Electron → screenshots/*.png）
@@ -346,6 +350,61 @@ ZIP 解包是**自己实现的**（`zlib.inflateRawSync` + 中央目录解析）
   点开只能看，不能切。看得到「现在跑在什么上面」比「假装能切」有用。
 
 **移动端菜单（底部弹层）分三组**：浏览（首页 / 书签 / 广告拦截）、工具（阅读增强 / 下载 / 篡改猴）、应用（设置 / 关于 / 退出）。「退出」调用 `finishAffinity()` 干净结束整个任务栈；书签来自地址栏左侧的星标按钮，一键收藏、底部面板管理 / 删除 / 清空。
+
+### 新标签页：两端共用一份源
+
+`src/renderer/newtab.html` **同时是桌面端与移动端的那一页** —— 移动端那份是
+`npm run mobile:sync` 逐字节复制出来的产物，靠既有的 sha256 门禁保证两边永远一致。
+为什么共用而不是各写一份：这一页的规则（怎么排序、去重、上限几格、磁贴什么颜色）
+全是「看一眼就知道对不对」的展示逻辑，但一旦分成两份实现，改一边忘一边的表现是
+**「手机上少了两个图标」—— 没人会为此开一个 issue**。
+
+页面刻意**不依赖任何外部文件**：不引 CSS、不引图片、不引字体。logo 是内联 SVG 重画的，
+不是 `site/assets/img/logo.png` 那张 21KB 的 PNG。理由有二：`file://` 下相对路径在两端
+指向不同目录（安卓是 `assets/`，桌面是 `src/renderer/`），共用一份源就写不出一个两边
+都成立的字面路径；少一次请求就少一种「图标没加载出来」的失败。
+
+**数据进去、动作出来，都走 URL**：
+
+```
+宿主 → 页面   file://…/newtab.html?theme=dark&data=知乎%09https%3A%2F%2F…%090%09p%0A…
+页面 → 宿主   nova://shortcut/add?label=…&url=…      （由原生拦下，落盘后重载）
+```
+
+为什么不给页面一个 JS 桥：**它是本地页，两端都上不了桥**。桌面端的 `<webview>` 有
+`contextIsolation`、移动端是一次普通的 `loadUrl`，都没有 preload。跳一个自定义 scheme
+是这一页唯一两端通用的回传方式 —— 安卓侧在 `shouldOverrideUrlLoading` 拦，桌面侧在
+`will-navigate` 拦。**两处都必须排在「非 http(s) 交给系统」那一支前面**：`nova://`
+没注册任何系统组件，交出去只会是「没有应用能打开」，用户点 × 就像按了个死键。
+
+候选由宿主算好（历史记录与「已移除」清单都在宿主那边），页面只负责排序与呈现。
+**排序规则两边各写了一遍，而且测试钉住了它们**：宿主排是为了在 30 条上限里优先保住
+常去的站点，页面排是为了在 7 格版面里决定谁上谁下 —— 少一次都会出错。
+
+**7 格而不是 8 格**：第 8 格永远留给「＋添加」，两行四列正好填满；设成 8 的话
+8 个磁贴加「＋」共 9 格，第三行只落一个，看着像坏了。
+
+磁贴尺寸**不是照抄官网宣传图**。那张 mockup 的手机只有 262px 宽（屏内 244px），
+它是一个**缩略示意**：里面的 40px 磁贴、9px 标签是缩略图上的数字，照搬过去就是
+40dp 的磁贴，比项目自己论证过的 44px 触控下限还小。所以按真机重定：磁贴 56dp、标签 11sp。
+
+**「删了又回来」这件事单独记了一份名单。** 用户点掉一个磁贴时，历史记录不会跟着变，
+所以必须把那个**归一化主机名**记进 `removed`（安卓 `ntp.shortcut.removed` /
+桌面 `settings.ntpShortcuts.removed`）。按主机名而不是按完整 URL 记：用户点掉一个磁贴
+的意思是「我不想在这儿看到这家」，不是「我不想看到这一个页面」。加了又删同一家时，
+`ntpAdd` 会顺手把 removed 里那条清掉 —— 不清的话它会被自己的记录挡在门外，
+表现是「加了但没出现」。
+
+> 顺带修掉一个**死设置**。`newTabPage` 在移动端一直存在：写进磁盘、读得回来、
+> 界面上也能切，但**从来没有任何地方问过它** —— 无论怎么设，新标签页永远是首页。
+> 现在两端统一成三档（`start` 内置 / `homepage` 跟随主页 / `blank` 空白），
+> 桌面端另外保留历史遗留的「自由地址」语义：认不出来的值一律当自定义地址直接用，
+> 升级过来的人不该被悄悄改掉自己的设置。
+>
+> 还有一处必须堵住的口子：**内置新标签页自己不能被记进浏览历史**。它的地址是
+> 一条几 KB 长的 `file://…newtab.html?theme=…&data=…`，进了历史就是一条点进去毫无
+> 意义的条目，**更糟的是它下次会作为「访问过的站点」被选成自己的快捷方式候选**，
+> 首页上凭空多出一个指向自己的图标。两端都补了同一条过滤（只记 http/https）。
 
 移动端 UA 与布局都已就位。**要出手机 App 包**，可以把这个壳套进 Capacitor / 原生 WebView：
 渲染层只认 `window.nova` 这个接口（见 `src/preload/preload.js`），换一个容器实现同样的接口即可，
@@ -1165,7 +1224,7 @@ Android 的 release 包**默认没有 `INTERNET` 权限**（模板只在 `src/de
 构建不报错，启动不报错，只是每页都白屏。同理 `usesCleartextTraffic="true"`
 必须开，否则 API 28+ 默认拒绝 http 明文，等于把一半中文站点挡在门外。
 
-### 385 项单元测试
+### 424 项单元测试
 
 ```
 cd android-app && ./gradlew testDebugUnitTest
@@ -1173,25 +1232,32 @@ cd android-app && ./gradlew testDebugUnitTest
 
 ```
 ApkProviderTest             7   MainActivityTabRefEdgeTest  6
-AutoPageTest               18   MainActivityTest           28
-BookmarkStoreTest           8   NoImagePolicyTest          19
-BottomBarRevealEdgeTest    10   NovaSettingsCapsuleTest     9
-BottomBarRevealTest        10   NovaSettingsTest           25
-BuiltinScriptsTest         14   PullToRefreshTest          21
-DownloadTaskTest           23   RuleSetTest                22
-DownloadTriggerEdgeTest    12   TabTest                    10
-DownloadTriggerTest        26   UpdateFlowTest             21
-DownloadUiTest             19   UpdateManagerTest          16
-EngineCatalogTest          14   UserScriptTest             30
-HistoryStoreTest           17
+AutoPageTest               18   MainActivityTest           31
+BookmarkStoreTest           8   NewTabTest                 36
+BottomBarRevealEdgeTest    10   NoImagePolicyTest          19
+BottomBarRevealTest        10   NovaSettingsCapsuleTest     9
+BuiltinScriptsTest         14   NovaSettingsTest           25
+DownloadTaskTest           23   PullToRefreshTest          21
+DownloadTriggerEdgeTest    12   RuleSetTest                22
+DownloadTriggerTest        26   TabTest                    10
+DownloadUiTest             19   UpdateFlowTest             21
+EngineCatalogTest          14   UpdateManagerTest          16
+HistoryStoreTest           17   UserScriptTest             30
 --------------------------------------------------------------
-合计 385 项（23 个测试类），失败 0，跳过 0
+合计 424 项（24 个测试类），失败 0，跳过 0
 ```
 
 只测纯逻辑，**不实例化任何 Android 组件**（这也是它们被拆成纯逻辑的原因）。
 不用 Robolectric：它能把框架在 JVM 上模拟起来，代价是每次跑测慢十几秒，
 而这里不需要。`MainActivityTest` 是个例外中的例外 —— 它只调
-`rulesStale` / `nightOn` 两个静态纯函数，Activity 一行都没跑起来。
+`rulesStale` / `nightOn` / `nextNtpMode` 三个静态纯函数，Activity 一行都没跑起来。
+
+**`NewTabTest` 与桌面端 `tools/test-newtab.js` 是一对。** 新标签页的宿主侧逻辑
+两端各写了一份（Java 一份、JS 一份，页面只留展示部分），**所以「两份要对得上」
+这件事必须由测试来守**：JS 那份直接读 `NewTab.java` 的源码，把 `CMD_PREFIX` /
+`MAX_CANDIDATES` / `OP_ADD` / `OP_REMOVE` 四个常量抠出来逐字比对。
+这不是洁癖 —— 改一边忘一边的表现是「手机上点 × 没反应」，而这一页恰好是
+两端共用一份源、只有宿主侧分家的地方，没有这道对拍就只能靠人记得。
 
 **1.1.0 新增的四套测试逮到的真 bug**（不是「补覆盖率」，是真的错）：
 
@@ -1221,7 +1287,7 @@ HistoryStoreTest           17
 ### 尚未实现（如实说明）
 
 - **没有真机 / 模拟器验证。** 本机装了 Android SDK 但没有系统镜像，也没有 emulator，
-  所以以上全部是「编译通过 + 385 项单元测试通过 + `aapt2` / `apksigner` 静态校验」，
+  所以以上全部是「编译通过 + 424 项单元测试通过 + `aapt2` / `apksigner` 静态校验」，
   **没有在真机或模拟器上跑过**。UI 接线、WebView 生命周期、真实网络请求、
   多线程下载在真实服务器上的行为 —— 这些只有跑起来才暴露的问题，现在都还没暴露。
   这是当前最大的未知项，不是可以忽略的小注脚。
@@ -1237,6 +1303,13 @@ HistoryStoreTest           17
   静态能给的保证只有一条：**逻辑判定没有边界错误**，不是「手势一定跟手」。
 - **下载存应用私有目录**（`filesDir/downloads`）。没有接 `FileProvider` 或 `MediaStore`，
   所以系统「用其他应用打开」不可用，只给了「复制路径」。
+- **内置新标签页在真机上没验过。** 页面本身（排序 / 去重 / 上限 / 磁贴尺寸）在两端
+  共用一份源、且被 72 项测试覆盖，但下面这两条只有装到真机才知道：
+  ① `file:///android_asset/newtab.html` 在 `setAllowFileAccess` 默认关闭（targetSdk 31 起）
+  的情况下仍可加载 —— 官方文档明确写着 assets 与 resources 不受这个开关影响，
+  所以这里**刻意没有**把它打开（打开等于多一条读任意本机文件的路），但文档承诺与真机
+  行为是否一致，没验过。② 页面跳 `nova://` 能不能被 `shouldOverrideUrlLoading` 稳定拦下 ——
+  这一条与项目里已经在用的 `tel:` / `weixin:` 是同一条路径，但同样是没上真机的推断。
 - **用户脚本只有 `document-end`**，做不到真正的 document-start；不支持 `@grant` 特权 API。
   理由见「八之三」。
 - 移动版**没有嗅探、没有 Chrome 扩展、没有收藏、没有历史、没有书签同步**。
@@ -1262,6 +1335,7 @@ PC 主界面（画框 A / B）与侧边面板（画框 C / D）、
 | M / N | 阅读增强弹层、自动拼页运行中 | 底栏并格后入口收进「工具」那一格 |
 | **O** | **拦截规则订阅弹层（新增）** | 四个预置源 + 自定义订阅；订阅与内置**并存**；**三道落盘防线**写在界面上 |
 | **P** | **篡改猴弹层（新增）** | 第一句就写「这是用户脚本，不是 Chrome 扩展」；三条硬边界（document-end / 无 `@grant` / 无 `@match` 拒装） |
+| **S** | **新标签页（新增）** | 品牌区 + **四列快捷方式九宫格**（第 8 格固定是「＋添加」）；磁贴 **56dp**、标签 11sp —— **不照抄官网宣传图的 40px**（那张 mockup 只有 262px 宽，是缩略示意，照搬就是 40dp 的磁贴，低于 44px 触控下限）；同屏给出**编辑态**（磁贴右上角 × 角标）与**添加表单**（名称 + 网址，回车即保存） |
 
 设计规则表也补了 1.1.0 之后的五条正反对照：
 **只有一档时不给选择器**、**下载分片能力按实测判不按头猜**、
@@ -1361,7 +1435,7 @@ PC 主界面（画框 A / B）与侧边面板（画框 C / D）、
 - 原生桥接模式下的广告拦截（宿主网络栈不经过 Electron session，需宿主侧代理 —— 已在 native/README 说明）
 - 移动端原生容器（Capacitor / WebView 壳）—— 接口已就绪，差一个容器实现
 - **移动版的一切尚未在真机 / 模拟器上跑过** —— 见第十三节「尚未实现」第一条。
-  当前所有保证都止于「编译 + 385 项单测 + 静态校验」，这是最大的未知项
+  当前所有保证都止于「编译 + 424 项单测 + 静态校验」，这是最大的未知项
 - **移动版下载存私有目录**，未接 `FileProvider` / `MediaStore`，系统「用其他应用打开」不可用
 - **移动版用户脚本只有 `document-end`**，做不到真正的 document-start；无 `@grant` 特权 API；
   界面已写明，不假装是完整 Tampermonkey

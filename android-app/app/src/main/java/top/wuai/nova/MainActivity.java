@@ -47,8 +47,10 @@ import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * 吾爱Nova浏览器 · 移动版主界面。
@@ -740,6 +742,14 @@ public final class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
+        // 内置新标签页走 file:///android_asset/newtab.html，这里刻意**不**去动
+        // setAllowFileAccess：它从 targetSdk 31 起默认就是 false，而按官方的定义
+        // 「Resources and assets are still accessible using file:///android_asset
+        // and file:///android_res」—— 关掉的是**任意本地路径**，不是 assets。
+        // 反过来把它打开只会让用户和页面多一条读本机文件的路，没有收益。
+        // （setAllowFileAccessFromFileURLs 同样保持默认 false：这一页不做 XHR，
+        // 不需要跨文件同源。）
+
         // 图片开关。两条都要设：只关 setLoadsImagesAutomatically，部分 WebView
         // 版本上网络图片照样会被拉回来；只设 setBlockNetworkImage 又拦不住
         // data: 和内联的图。两条一起才是真的「不显示图片」。
@@ -774,6 +784,14 @@ public final class MainActivity extends Activity {
                 if (scheme == null) return false;
                 String lower = scheme.toLowerCase(java.util.Locale.ROOT);
                 if ("http".equals(lower) || "https".equals(lower)) return false;
+
+                // 内置新标签页回传的动作（加/删快捷方式）。必须排在下面那一支
+                // 「非 http(s) 交给系统」前面：nova:// 没有注册任何系统组件，
+                // 交出去只会是「没有应用能打开」，用户点 × 就像按了个死键。
+                if ("nova".equals(lower)) {
+                    handleNovaCommand(req.getUrl().toString());
+                    return true;
+                }
 
                 // 非 http(s) 的（tel: / mailto: / intent: / weixin:）交回系统。
                 // 自己吞掉只会得到一个打不开的空白页。
@@ -974,8 +992,10 @@ public final class MainActivity extends Activity {
     private void toggleBookmark() {
         if (!mainViewMounted) mountMain();
         String url = currentUrl();
+        // file: 一并挡掉 —— 内置新标签页就是一条 file:// 地址，它不长在
+        // 任何网站上，收藏了也回不到「有内容的那一页」。
         if (url == null || url.isEmpty() || url.startsWith("about:")
-                || url.startsWith("javascript:")) {
+                || url.startsWith("javascript:") || url.startsWith("file:")) {
             toast("当前页面无法收藏");
             return;
         }
@@ -1328,7 +1348,19 @@ public final class MainActivity extends Activity {
 
     private void syncUrlBar(String url) {
         if (urlBar.hasFocus()) return;
+        if (NewTab.isNewTab(url)) {
+            // 内置新标签页的真身是一条 file:///android_asset/newtab.html?theme=…&data=…
+            // 的地址，又长又吓人（像是踩进了本机哪个文件），显示成「新标签页」。
+            //
+            // 走 hint 而不是 text：写成 text 的话，用户点亮地址栏直接敲回车，
+            // 敲出去的就是「新标签页」四个字，会被当成搜索词送给搜索引擎。
+            // 空 text + hint 则与初始状态一致，用户看到的就是一个待输入的框。
+            urlBar.setText("");
+            urlBar.setHint(R.string.omnibox_new_tab);
+            return;
+        }
         urlBar.setText(url == null ? "" : url);
+        urlBar.setHint(R.string.omnibox_hint);
         urlBar.setSelection(urlBar.getText().length());
     }
 
@@ -1336,6 +1368,100 @@ public final class MainActivity extends Activity {
 
     private Tab current() {
         return active >= 0 && active < tabs.size() ? tabs.get(active) : null;
+    }
+
+    // -------------------------------------------------------- 内置新标签页
+
+    /**
+     * 新标签页该去哪。三种取值见 {@code NovaSettings.newTabPage}。
+     *
+     * <p>这一档原先是个**死设置**：写进磁盘、读得回来、界面上也能切，
+     * 但从来没有任何地方问过它，于是无论怎么设，新标签页永远是首页。
+     * 现在三个取值各有去处，才算真的生效。
+     */
+    private String newTabTarget() {
+        String mode = settings.newTabPage;
+        if ("blank".equals(mode)) return "about:blank";
+        if ("start".equals(mode)) return ntpUrl();
+        return settings.homepage;
+    }
+
+    /** 开一个新标签（用户主动新建）。目标完全由设置决定，不需要解析输入。 */
+    private void openNewTab() {
+        newTab(newTabTarget());
+    }
+
+    /**
+     * 拼内置新标签页的地址：把「用户自己加的」和「历史里的常去站点」一起编码进 URL。
+     *
+     * <p>页面那边只负责排序与呈现，候选得由这边算 —— 因为历史记录和
+     * 「已移除」清单都躺在原生这边，页面拿不到。
+     *
+     * <p>自己加的排在前面并且打上 {@code pinned}：页面按「固定项在前、
+     * 其余按访问次数降序」排，用户明确加过的东西不该被访问次数挤下去。
+     */
+    private String ntpUrl() {
+        List<NewTab.Row> rows = new ArrayList<>(store.ntpAdded());
+        Set<String> blocked = store.ntpRemoved();
+        // 去重按主机名，和页面上那条规则一致：zhihu.com 的历史里可能有几十条
+        // 不同的问题页，不去重的话七个格子会被同一家占满。
+        Set<String> seen = new HashSet<>();
+        for (NewTab.Row r : rows) seen.add(NewTab.hostKey(r.url));
+
+        for (HistoryStore.Entry e : store.history()) {
+            if (!HistoryStore.recordable(e.url)) continue;
+            String key = NewTab.hostKey(e.url);
+            if (key.isEmpty() || blocked.contains(key) || !seen.add(key)) continue;
+            rows.add(new NewTab.Row(NewTab.labelOf(e.title, e.url), e.url, e.visits, false));
+        }
+        return NewTab.pageUrl(themeName(), NewTab.candidates(rows));
+    }
+
+    /**
+     * 页面要去用什么色。把「跟随系统」解析成当下真正的深浅色再传过去。
+     *
+     * <p>判据是 Activity 自己的 {@code uiMode}，而不是系统设置：用户可能在
+     * 设置里强制了浅色，那时系统是深色但地址栏、底栏都是浅的 ——
+     * 页面要是跟着系统走，就会出现「白色页面配浅色边框」这种半截深色。
+     * 页面上那份 {@code prefers-color-scheme} 兜底同理靠不住。
+     */
+    private String themeName() {
+        int ui = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        boolean systemNight = ui == Configuration.UI_MODE_NIGHT_YES;
+        // 复用 attachBaseContext 那一套判断，不另写一份：那支管的是「界面是什么色」，
+        // 这里要的是同一个答案，写两份迟早出现「地址栏深色、页面浅色」。
+        return nightOn(settings.theme, systemNight) ? "dark" : "light";
+    }
+
+    /**
+     * 处理页面回传的 {@code nova://shortcut/…} 动作。
+     *
+     * <p>落盘之后必须**重新加载页面**：快捷方式那一屏是渲染时算好的，
+     * 不重载的话用户点了 × 屏幕上什么都没少，看起来就是「这个按钮坏了」。
+     */
+    private void handleNovaCommand(String url) {
+        NewTab.Cmd cmd = NewTab.parse(url);
+        if (cmd == null) return;
+        if (NewTab.OP_ADD.equals(cmd.op)) {
+            store.ntpAdd(cmd.get("label"), cmd.get("url"));
+            toast(getString(R.string.ntp_added));
+        } else if (NewTab.OP_REMOVE.equals(cmd.op)) {
+            // 没真改动（这家本来就不在候选里）就不用重载 —— 否则一次误触
+            // 会让页面白闪一下
+            if (!store.ntpRemove(cmd.get("url"))) return;
+        } else {
+            return;
+        }
+        reloadNewTab();
+    }
+
+    /** 重新加载当前的内置新标签页。数据变了，页面上那一屏也得跟着变。 */
+    private void reloadNewTab() {
+        Tab t = current();
+        if (t == null || !NewTab.isNewTab(t.url)) return;
+        String url = ntpUrl();
+        t.url = url;
+        if (web != null) web.loadUrl(url);
     }
 
     private void newTab(String raw) {
@@ -1378,7 +1504,10 @@ public final class MainActivity extends Activity {
         tabs.remove(index);
 
         if (tabs.isEmpty()) {
-            tabs.add(new Tab(settings.homepage));
+            // 关掉最后一个之后补上来的这一张，语义上就是「新标签页」，
+            // 该按设置来 —— 刚清空所有标签的用户看到的应该是新标签页，
+            // 而不是被塞回首页。
+            tabs.add(new Tab(newTabTarget()));
             active = 0;
             web.loadUrl(tabs.get(0).url);
         } else if (index < active) {
@@ -1489,7 +1618,7 @@ public final class MainActivity extends Activity {
         List<String> urls = null;
         if (settings.restoreSession) urls = store.loadSession();
         if (urls == null || urls.isEmpty()) {
-            tabs.add(new Tab(settings.homepage));
+            tabs.add(new Tab(newTabTarget()));
             active = 0;
             web.loadUrl(tabs.get(0).url);
         } else {
@@ -2960,14 +3089,14 @@ public final class MainActivity extends Activity {
         });
 
         // ---- 通用
-        setRow(sheet, R.id.setNewTab, "新标签页", null,
-            "blank".equals(settings.newTabPage) ? "空白页" : "首页", false, false,
+        setRow(sheet, R.id.setNewTab, "新标签页", "内置 / 首页 / 空白",
+            ntpLabel(settings.newTabPage), false, false,
             () -> {
-                settings.newTabPage = "blank".equals(settings.newTabPage)
-                    ? "homepage" : "blank";
+                settings.newTabPage = nextNtpMode(settings.newTabPage);
                 store.save(settings);
                 mountMain();
                 showSettings();
+                toast("新标签页：" + ntpLabel(settings.newTabPage));
             });
 
         setRow(sheet, R.id.setSearch, "搜索引擎", null,
@@ -3181,8 +3310,11 @@ public final class MainActivity extends Activity {
                     reloadRegistry();
                     scripts = new ArrayList<>();
                     mountMain();
+                    // restoreSession 在这里只有一条路可走：会话刚被 clearAll 抹掉、
+                    // tabs 也清空了，它必然走「开一张新标签」那一支并把地址装进去。
+                    // 原先后面还跟一句 loadUrl(settings.homepage)，等于把刚装好的
+                    // 新标签页立刻顶掉 —— 清除数据之后落到了首页，与新标签页设置无关。
                     restoreSession();
-                    web.loadUrl(settings.homepage);
                     toast("已清除");
                 })
                 .show());
@@ -3251,6 +3383,29 @@ public final class MainActivity extends Activity {
             if (s.enabled && UserScript.appliesTo(s, url)) n++;
         }
         return n;
+    }
+
+    /** 「新标签页」三种取值的显示名。认不出一律当「内置」—— 那是默认值。 */
+    private String ntpLabel(String mode) {
+        if ("blank".equals(mode)) return getString(R.string.ntp_blank);
+        if ("homepage".equals(mode)) return getString(R.string.ntp_homepage);
+        return getString(R.string.ntp_start);
+    }
+
+    /**
+     * 三态轮换：内置 → 首页 → 空白 → 内置。
+     *
+     * <p>「内置」放第一个不只是因为它现在是默认值 —— 轮换是从当前值往后转，
+     * 一进来点一下就到「首页」，而绝大多数人的预期正是「新标签页 = 首页」，
+     * 转两下才到空白页。顺序反过来的话，最常用的那个反而要多点一次。
+     *
+     * <p>抽成静态纯函数是为了能单测（见 MainActivityTest）：轮换成环这件事
+     * 最容易写成「有一档永远出不来」，而那种 bug 在真机上要点好几下才发现。
+     */
+    static String nextNtpMode(String mode) {
+        if ("start".equals(mode)) return "homepage";
+        if ("homepage".equals(mode)) return "blank";
+        return "start";
     }
 
     private String themeLabel(String theme) {
@@ -3541,7 +3696,7 @@ public final class MainActivity extends Activity {
 
         sheet.findViewById(R.id.tabNew).setOnClickListener(v -> {
             mountMain();
-            newTab(settings.homepage);
+            openNewTab();
         });
     }
 

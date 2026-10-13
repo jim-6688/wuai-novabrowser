@@ -25,8 +25,19 @@ public final class NovaSettings {
     public static final String K_THEME = "theme";
 
     public String homepage = "https://52ta.top/";
-    /** homepage | blank */
-    public String newTabPage = "homepage";
+    /**
+     * 新标签页打开什么。三个取值：
+     * <ul>
+     *   <li>{@code start} —— 内置的本地新标签页（{@code assets/newtab.html}），默认值；</li>
+     *   <li>{@code homepage} —— 与主页相同；</li>
+     *   <li>{@code blank} —— 空白页。</li>
+     * </ul>
+     *
+     * <p>默认值从 {@code homepage} 改成 {@code start} 只影响**新装**用户：
+     * 老配置里存着 homepage / blank 的照样按老样子走。刻意不做静默迁移 ——
+     * 「新标签页 = 首页」本身是个合理的选择，凭什么替用户改掉。
+     */
+    public String newTabPage = "start";
     /**
      * 已废弃：移动版不再提供内核选择。
      *
@@ -209,7 +220,8 @@ public final class NovaSettings {
         if (m == null) return s;
         String v;
         if (nonEmpty(v = m.get("homepage"))) s.homepage = v.trim();
-        s.newTabPage = oneOf(m.get("newTabPage"), new String[]{"homepage", "blank"}, s.newTabPage);
+        s.newTabPage = oneOf(m.get("newTabPage"),
+            new String[]{"start", "homepage", "blank"}, s.newTabPage);
         // 已废弃项：照样读，但读出来也没人用。留着是为了不把老配置读成 null。
         s.defaultEngine = oneOf(m.get("defaultEngine"),
             new String[]{"chromium", "gecko", "trident"}, s.defaultEngine);

@@ -412,6 +412,136 @@ public final class NovaStore {
         return out;
     }
 
+    // ------------------------------------------------------ 新标签页快捷方式
+
+    /**
+     * 用户自己加的快捷方式，{@code 名称<TAB>网址} 一行一条。
+     *
+     * <p>与「按访问次数自动填的那些」分开存，是因为它们的语义不同：
+     * 自动的是**候选**（可以随时间被挤掉），用户加的是**他明确要的**（不该自己消失）。
+     * 混在一起的后果是用户加的第七个磁贴，某天被一个访问次数更高的站点顶掉了。
+     */
+    private static final String K_NTP_ADDED = "ntp.shortcut.added";
+
+    /**
+     * 用户点掉过的站点，一行一个**归一化主机名**（见 {@link NewTab#hostKey}）。
+     *
+     * <p>这一份必须单独留着：历史记录不会因为用户在新标签页上点了个 × 就把那几条删掉，
+     * 不记下来的话，下次生成候选时那家站点立刻又爬回来 ——
+     * 用户的感受是「这个 × 是假的」。
+     */
+    private static final String K_NTP_REMOVED = "ntp.shortcut.removed";
+
+    private static java.util.List<String> linesOf(String raw) {
+        java.util.List<String> out = new ArrayList<>();
+        if (raw == null || raw.isEmpty()) return out;
+        for (String line : raw.split("\n")) {
+            String t = line.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
+
+    private static String joinLines(java.util.List<String> lines) {
+        StringBuilder sb = new StringBuilder();
+        for (String t : lines) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(t);
+        }
+        return sb.toString();
+    }
+
+    /** 用户自己加（或固定）的快捷方式，按加入顺序。 */
+    public java.util.List<NewTab.Row> ntpAdded() {
+        java.util.List<NewTab.Row> out = new ArrayList<>();
+        for (String line : linesOf(prefs.getString(K_NTP_ADDED, ""))) {
+            int tab = line.indexOf('\t');
+            // 只有网址没有名称的行也认（名称让页面退回域名），
+            // 但整行没有制表符说明这条记录是坏的，跳过
+            if (tab < 0) continue;
+            String label = line.substring(0, tab).trim();
+            String url = line.substring(tab + 1).trim();
+            if (url.isEmpty()) continue;
+            out.add(new NewTab.Row(label, url, 0, true));
+        }
+        return out;
+    }
+
+    /** 用户点掉过的站点（归一化主机名）。 */
+    public java.util.Set<String> ntpRemoved() {
+        return new java.util.LinkedHashSet<>(linesOf(prefs.getString(K_NTP_REMOVED, "")));
+    }
+
+    /**
+     * 加一条快捷方式。
+     *
+     * <p>顺手把这个站点的「已被移除」记录清掉 —— 用户先删后加同一个站点时，
+     * 不清的话它会被自己的历史挡在门外，表现是「加了但没出现」。
+     */
+    public void ntpAdd(String label, String url) {
+        if (url == null || url.isEmpty()) return;
+        String name = NewTab.sanitize(label);
+        if (name.isEmpty()) name = NewTab.hostKey(url);
+
+        java.util.List<String> lines = linesOf(prefs.getString(K_NTP_ADDED, ""));
+        java.util.List<String> out = new ArrayList<>();
+        String key = NewTab.hostKey(url);
+        for (String line : lines) {
+            int tab = line.indexOf('\t');
+            String u = tab < 0 ? "" : line.substring(tab + 1).trim();
+            // 同一家站点只留一条：页面上本来就是按主机名去重的，
+            // 这里不去的话，存储里会攒下一堆永远不会显示的重复项
+            if (!u.isEmpty() && NewTab.hostKey(u).equals(key)) continue;
+            out.add(line);
+        }
+        out.add(name + "\t" + url);
+
+        java.util.List<String> removed = new ArrayList<>(ntpRemoved());
+        removed.remove(key);
+        prefs.edit()
+            .putString(K_NTP_ADDED, joinLines(out))
+            .putString(K_NTP_REMOVED, joinLines(removed))
+            .apply();
+    }
+
+    /**
+     * 点掉一个磁贴。返回是否真的改动了什么。
+     *
+     * <p>两条路都要走：从「自己加的」里摘掉（如果本来就在里面），
+     * 并且把这个主机名记进「已被移除」。只做前者的话，一个既在历史里、
+     * 又被用户加过的站点会立刻从历史那边回来。
+     */
+    public boolean ntpRemove(String url) {
+        if (url == null || url.isEmpty()) return false;
+        String key = NewTab.hostKey(url);
+
+        java.util.List<String> lines = linesOf(prefs.getString(K_NTP_ADDED, ""));
+        java.util.List<String> out = new ArrayList<>();
+        boolean hit = false;
+        for (String line : lines) {
+            int tab = line.indexOf('\t');
+            String u = tab < 0 ? "" : line.substring(tab + 1).trim();
+            if (!u.isEmpty() && NewTab.hostKey(u).equals(key)) {
+                hit = true;
+                continue;
+            }
+            out.add(line);
+        }
+
+        java.util.List<String> removed = new ArrayList<>(ntpRemoved());
+        if (!key.isEmpty() && !removed.contains(key)) {
+            removed.add(key);
+            hit = true;
+        }
+        if (!hit) return false;
+
+        prefs.edit()
+            .putString(K_NTP_ADDED, joinLines(out))
+            .putString(K_NTP_REMOVED, joinLines(removed))
+            .apply();
+        return true;
+    }
+
     // ------------------------------------------------------- 元数据的文本形态
 
     /**

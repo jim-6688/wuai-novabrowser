@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<!--
+  新标签页。桌面端与移动端**共用这一份**：
+    桌面端  file:///…/src/renderer/newtab.html
+    移动端  file:///android_asset/newtab.html  ← 由 npm run mobile:sync 逐字节复制
+
+  为什么要共用而不是各写一份：这一页的规则（怎么排序、去重、上限几格、磁贴什么颜色）
+  全是「看一眼就知道对不对」的展示逻辑，但一旦分成两份实现，改一边忘一边的表现是
+  「手机上少了两个图标」——没人会为此开一个 issue。共用一份源，靠既有那条
+  sha256 同步门禁（tools/check-mobile-sync.js）保证两边永远一致。
+
+  这一页刻意**不依赖任何外部文件**：不引 CSS、不引图片、不引字体。
+  理由有二：
+    1) file:// 下相对路径在两端指向不同的目录（安卓是 assets/，桌面是 src/renderer/），
+       共用一份源就没法写一个对两边都成立的字面路径；
+    2) 少一次请求就少一种「图标没加载出来」的失败。
+  所以 logo 是内联 SVG 重画的，不是 site/assets/img/logo.png 那张 21KB 的 PNG
+  —— 内联那张会让页面凭空胖 28KB，而它本身就是几个几何图形，SVG 更清晰、
+  也顺便能跟着深浅色主题走。
+
+  数据从 URL 进来（原生算好候选，这一页负责排序与呈现），动作从 URL 出去
+  （跳 nova://shortcut/…，由原生拦下来落盘）。所以这一页自己能测：
+  把下面的 <script> 抽出来在 Node 里跑，不碰 DOM 就能覆盖全部排序规则。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<!-- 锁死网络：这一页只有本地资源和内联脚本，任何一次外部请求都说明我写错了。
+     注意 default-src 'none' 不会拦住点击磁贴的跳转 —— 导航不受 CSP 管辖，
+     拦的是 fetch/XHR/图片/字体这类子资源。 -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:" />
+<title>新标签页</title>
+<style>
+/* 令牌与 App 的 res/values/colors.xml、桌面端 shell.css 的 :root 逐条对应。
+   这一页是独立文档，取不到那些变量，只能照抄一遍 —— 抄漏了就是新标签页
+   跟浏览器其它部分不在一个色系里，所以两边改色时都要记得这第三处。 */
+:root {
+    --bg: #F6F7FB;
+    --surface: #FFFFFF;
+    --surface-2: #F1F3F9;
+    --border: #E6E8EF;
+    --text: #14161C;
+    --text-3: #6B7183;
+    --text-4: #9AA0B0;
+    --brand: #3D6BFF;
+    --danger: #FF4D4F;
+    --shadow-sm: 0 1px 2px rgba(16, 23, 40, .06);
+    --shadow-lg: 0 18px 44px rgba(35, 64, 150, .18);
+}
+html[data-theme="dark"] {
+    --bg: #0E1016;
+    --surface: #171A22;
+    --surface-2: #1E222C;
+    --border: #262B37;
+    --text: #F2F4F8;
+    --text-3: #9299A8;
+    --text-4: #6B7284;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+    --shadow-lg: 0 18px 44px rgba(0, 0, 0, .5);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font: 400 14px/1.5 "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    /* 竖向居中：官网那张宣传图里内容贴着地址栏，那是因为 mockup 的屏幕矮。
+       真机上这一块只占屏幕上半截，顶端对齐会显得下半屏是空的。 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+}
+/* 窄屏且内容高时（横屏、分屏）改成顶端对齐，免得被裁掉 */
+@media (max-height: 460px) {
+    body { align-items: flex-start; padding: 18px 0; }
+}
+
+.ntp { width: 100%; max-width: 420px; padding: 0 20px; }
+
+/* ---------------------------------------------------------------- 品牌区 */
+/* 尺寸不是照抄官网宣传图的像素值。
+   那张 mockup 的手机只有 262px 宽（屏内 244px），它是一个**缩略示意**，
+   里面的 40px 磁贴、9px 标签是缩略图上的数字，不是真机规格 ——
+   照搬过去就是 40dp 的磁贴，比项目自己在 README 里为底栏并格论证过的
+   44px 触控下限还小。所以这里按真机重定：磁贴 56dp（稳稳高过 44dp 下限，
+   也与主流浏览器的九宫格同量级），标签 11sp。 */
+.brand { text-align: center; padding: 24px 0 18px; }
+.brand svg {
+    display: block;
+    width: 64px; height: 64px;
+    margin: 0 auto 10px;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+}
+.brand p { margin: 0; color: var(--text-3); font-size: 13px; }
+
+/* ------------------------------------------------------------ 快捷方式 */
+.quicks {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px 4px;
+    padding: 8px 0 16px;
+}
+.qk {
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    /* 磁贴是 <a href>，不关掉的话每一格底下都拖一条下划线，
+       而这里既有一格「＋添加」（它没有 href，所以没有下划线）——
+       两行磁贴一条有线一条没有，看着像是渲染坏了。 */
+    text-decoration: none;
+    color: inherit;
+}
+/* 磁贴外面再包一层定尺寸的壳，删除角标才能贴着磁贴的右上角定位 ——
+   直接挂在这一格上的话，它是按整格（含标签）定位的，角标会飘到格的右上角去。 */
+.qk .thumb {
+    position: relative;
+    display: block;
+    width: 56px; height: 56px;
+    margin: 0 auto 7px;
+}
+.qk .thumb i {
+    display: grid;
+    place-items: center;
+    width: 100%; height: 100%;
+    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-style: normal;
+    font-size: 19px;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+    transition: transform .12s ease;
+}
+.qk:active .thumb i { transform: scale(.92); }
+.qk span {
+    display: block;
+    color: var(--text-3);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* 「＋添加」那一格：不加渐变底色，靠描边和灰字跟真磁贴区分 */
+.qk.add .thumb i {
+    background: var(--surface-2);
+    color: var(--text-4);
+    font-weight: 500;
+    font-size: 24px;
+}
+
+/* 编辑态：每个磁贴右上角一个删除角标 */
+.qk .del {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px; height: 20px;
+    display: none;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--danger);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1;
+    box-shadow: var(--shadow-sm);
+}
+body.editing .qk .del { display: grid; }
+body.editing .qk:active .thumb i { transform: none; }
+
+.hint {
+    margin: 2px 0 0;
+    text-align: center;
+    color: var(--text-4);
+    font-size: 11px;
+    min-height: 17px;
+}
+
+/* -------------------------------------------------------------- 添加表单 */
+.scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 23, 40, .42);
+    display: none;
+}
+.scrim.on { display: block; }
+
+.sheet {
+    position: fixed;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 420px;
+    padding: 16px 18px calc(16px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    border-radius: 18px 18px 0 0;
+    box-shadow: var(--shadow-lg);
+    display: none;
+}
+.sheet.on { display: block; }
+.sheet h2 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 600;
+}
+.sheet label {
+    display: block;
+    margin-bottom: 10px;
+    color: var(--text-3);
+    font-size: 12px;
+}
+.sheet input {
+    display: block;
+    width: 100%;
+    margin-top: 5px;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+}
+.sheet input:focus {
+    outline: none;
+    border-color: var(--brand);
+    background: var(--surface);
+}
+.sheet .row { display: flex; gap: 10px; margin-top: 14px; }
+.sheet button {
+    flex: 1;
+    padding: 12px 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    cursor: pointer;
+}
+.sheet button.pri {
+    border-color: transparent;
+    background: var(--brand);
+    color: #fff;
+    font-weight: 600;
+}
+</style>
+</head>
+<body>
+
+<main class="ntp">
+    <div class="brand">
+        <!-- 照 site/assets/img/logo.png 重画：蓝入青绿出的圆角方块 + 白色四角星 + 倾斜环与小卫星。
+             渐变角度与色标跟官网 --grad-brand 一致（135deg，#5B84FF → #3D6BFF → #00B8A2）。 -->
+        <svg viewBox="0 0 52 52" aria-hidden="true">
+            <defs>
+                <linearGradient id="novaLogo" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#5B84FF" />
+                    <stop offset="0.46" stop-color="#3D6BFF" />
+                    <stop offset="1" stop-color="#00B8A2" />
+                </linearGradient>
+            </defs>
+            <rect width="52" height="52" rx="13" fill="url(#novaLogo)" />
+            <ellipse cx="26" cy="27" rx="17" ry="6.4" transform="rotate(-20 26 27)"
+                     fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="1.5" />
+            <path d="M26 10.5 Q26 26 40 26 Q26 26 26 41.5 Q26 26 12 26 Q26 26 26 10.5 Z"
+                  fill="#FFFFFF" />
+            <circle cx="39.4" cy="20.6" r="2.5" fill="#FFFFFF" />
+        </svg>
+        <p>吾爱Nova · 新标签页</p>
+    </div>
+
+    <nav class="quicks" id="quicks" aria-label="快捷方式"></nav>
+    <p class="hint" id="hint">长按图标可删除</p>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="添加快捷方式">
+    <h2>添加快捷方式</h2>
+    <label>名称
+        <input id="f-label" type="text" maxlength="12" placeholder="例如：知乎" />
+    </label>
+    <label>网址
+        <input id="f-url" type="text" inputmode="url" autocomplete="off" placeholder="例如：zhihu.com" />
+    </label>
+    <div class="row">
+        <button type="button" id="f-cancel">取消</button>
+        <button type="button" class="pri" id="f-save">保存</button>
+    </div>
+</div>
+
+<script>
+/* ============================================================================
+   下面是这一页的全部逻辑。前半段是纯函数（不碰 DOM），末尾才挂事件。
+   纯函数那段会被 tools/test-newtab.js 抽出来在 Node 里直接跑 —— 排序规则
+   是最容易改错又最难肉眼发现的部分（少一个图标、顺序不对），必须有测试钉住。
+   ========================================================================== */
+var NovaNtp = (function () {
+    'use strict';
+
+    /** 快捷方式上限。**刻意是 7 而不是 8**：第 8 格永远留给「＋添加」，
+        两行四列正好填满。设成 8 的话 8 个磁贴加「＋」共 9 格，第三行只落一个，
+        看着像坏了。 */
+    var MAX_SHORTCUTS = 7;
+
+    var SCHEME = 'nova://shortcut/';
+
+    /** 候选行的字段分隔符。用制表符而不是 JSON：
+        两端都要在没有 JSON 库的前提下拼这段文本（安卓侧不引 org.json，
+        本地单测里 org.json 是空壳会抛 Stub!），逐行拆字段最省事。 */
+    var SEP = '\t';
+
+    /** 从 URL 取 host；取不到就原样返回。与 Tab.hostOf 的分支保持一致：
+        没有 authority 段的（about:blank、data:、file://）原样返回，
+        硬套「去端口」会把 about:blank 砍成 about。 */
+    function hostOf(url) {
+        if (!url) return '';
+        var i = url.indexOf('://');
+        if (i < 0) return url;
+        var s = url.slice(i + 3);
+        var end = s.length;
+        for (var k = 0; k < s.length; k++) {
+            var c = s.charAt(k);
+            if (c === '/' || c === '?' || c === '#') { end = k; break; }
+        }
+        var host = s.slice(0, end);
+        var at = host.lastIndexOf('@');
+        if (at >= 0) host = host.slice(at + 1);
+        var colon = host.lastIndexOf(':');
+        if (colon > 0 && host.indexOf(']') < colon) host = host.slice(0, colon);
+        return host;
+    }
+
+    /** 磁贴底色。按 host 哈希从官网那套调色板里取，同一个站点每次进来颜色都一样
+        —— 会变色的图标等于没有识别价值。 */
+    var GRADS = [
+        ['#3D6BFF', '#5B84FF'],
+        ['#00B8A2', '#34D399'],
+        ['#2E56D9', '#3D6BFF'],
+        ['#00937F', '#00B8A2'],
+        ['#3D6BFF', '#00B8A2'],
+        ['#34D399', '#22C55E'],
+        ['#5B84FF', '#00B8A2']
+    ];
+
+    function hash(s) {
+        var h = 0;
+        for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 1000003;
+        return h;
+    }
+
+    function gradOf(url) {
+        var g = GRADS[hash(hostOf(url) || url) % GRADS.length];
+        return 'linear-gradient(135deg,' + g[0] + ',' + g[1] + ')';
+    }
+
+    /** 磁贴上的那个字。
+        中文取第一个字（「知乎」→ 知）；英文域名取首字母大写（github.com → G）。
+        先看名称再看域名 —— 用户自己起的名字比域名更认得出。 */
+    function initialOf(label, url) {
+        var s = (label || '').trim();
+        if (!s) s = hostOf(url).replace(/^www\./, '');
+        if (!s) return '·';
+        var c = s.charAt(0);
+        if (/[a-z]/.test(c)) return c.toUpperCase();
+        if (/[A-Z0-9]/.test(c)) return c;
+        // 汉字、假名等：直接用它自己，取前一个字符就够
+        return c;
+    }
+
+    /** 把域名压短当默认名称：www.zhihu.com → zhihu.com */
+    function shortName(url) {
+        return hostOf(url).replace(/^www\./, '') || url;
+    }
+
+    /**
+     * 解析原生传来的候选文本。每行 `label<TAB>url<TAB>visits<TAB>flags`。
+     * 坏行直接跳过：这一页是拿来用的，不是拿来校验上游的。
+     */
+    function parseData(text) {
+        var out = [];
+        if (!text) return out;
+        var lines = String(text).split('\n');
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            if (!line) continue;
+            var f = line.split(SEP);
+            var url = (f[1] || '').trim();
+            if (!url) continue;
+            out.push({
+                label: (f[0] || '').trim() || shortName(url),
+                url: url,
+                visits: parseInt(f[2], 10) || 0,
+                pinned: (f[3] || '').indexOf('p') >= 0
+            });
+        }
+        return out;
+    }
+
+    /**
+     * 排序：固定项按给定顺序占前排，其余按访问次数降序，同 host 只留第一个，
+     * 最后截到上限。
+     *
+     * 「同 host 去重」而不是「同 url 去重」：zhihu.com 会出现十条不同的问题页，
+     * 按 url 去重的话这七个格子可能全被同一家占满 —— 那就不叫快捷方式了。
+     */
+    function rank(cands, max) {
+        var cap = (max === undefined || max === null) ? MAX_SHORTCUTS : max;
+        var seen = {};
+        var pinned = [];
+        var rest = [];
+        for (var i = 0; i < (cands || []).length; i++) {
+            var c = cands[i];
+            if (!c || !c.url) continue;
+            var h = hostOf(c.url);
+            if (seen[h]) continue;
+            seen[h] = 1;
+            (c.pinned ? pinned : rest).push(c);
+        }
+        rest.sort(function (a, b) {
+            if (b.visits !== a.visits) return b.visits - a.visits;
+            // 次数相同时按名称定序，否则每次刷新顺序都会抖
+            return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0);
+        });
+        return pinned.concat(rest).slice(0, cap);
+    }
+
+    /** 候选为空时的兜底：官网宣传图里那七个，顺序也一样。
+        收不到原生数据时（同步出错、注入失败）也得有一屏能看的东西，不能白屏。 */
+    var FALLBACK = '主页\thttps://52ta.top/\t0\tp\n'
+        + '知乎\thttps://www.zhihu.com/\t0\tp\n'
+        + '哔哩\thttps://www.bilibili.com/\t0\tp\n'
+        + '微博\thttps://weibo.com/\t0\tp\n'
+        + 'Gitee\thttps://gitee.com/\t0\tp\n'
+        + '贴吧\thttps://tieba.baidu.com/\t0\tp\n'
+        + '豆瓣\thttps://www.douban.com/\t0\tp';
+
+    /** 拼一条回传原生的命令。参数一律 encodeURIComponent，
+        否则名称里的空格和中文会把命令拆坏。 */
+    function cmdUrl(op, params) {
+        var qs = [];
+        for (var k in params) {
+            if (!Object.prototype.hasOwnProperty.call(params, k)) continue;
+            if (params[k] === null || params[k] === undefined) continue;
+            qs.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k])));
+        }
+        return SCHEME + encodeURIComponent(op) + (qs.length ? '?' + qs.join('&') : '');
+    }
+
+    /** 用户敲进来的东西 → 一个正经 URL。
+        没写协议就补 https://；看着像域名才认，不像就退回去让调用方拦下。 */
+    function normalizeUrl(input) {
+        var s = (input || '').trim();
+        if (!s) return '';
+        if (/^https?:\/\//i.test(s)) return s;
+        if (/^[^\s/]+\.[^\s/]{2,}/.test(s)) return 'https://' + s;
+        return '';
+    }
+
+    return {
+        MAX_SHORTCUTS: MAX_SHORTCUTS,
+        FALLBACK: FALLBACK,
+        hostOf: hostOf,
+        gradOf: gradOf,
+        initialOf: initialOf,
+        shortName: shortName,
+        parseData: parseData,
+        rank: rank,
+        cmdUrl: cmdUrl,
+        normalizeUrl: normalizeUrl
+    };
+})();
+
+if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
+</script>
+
+<script>
+/* ---------------------------------------------------------------------------
+   挂载：读 URL 上的参数 → 渲染。这一段碰 DOM，所以单独一个 <script>，
+   上面的纯函数脚本块（以及测试抽取的那一块）不需要它。
+   ------------------------------------------------------------------------- */
+(function () {
+    'use strict';
+
+    function param(name) {
+        var m = new RegExp('[?&]' + name + '=([^&#]*)').exec(location.search + location.hash);
+        if (!m) return null;
+        // 把 `+` 当空格。这是 Java 与 JS 之间一个很安静的坑：安卓侧拼 URL 用的是
+        // java.net.URLEncoder，它按表单规则把空格编成 `+`；而这里读的是
+        // decodeURIComponent，它只认 %20，不认 `+` —— 于是名称里带空格的
+        // 快捷方式到了页面上会变成「My+Site」。两端都做了处理，谁改都还有一层兜住。
+        try { return decodeURIComponent(m[1].replace(/\+/g, '%20')); } catch (e) { return null; }
+    }
+
+    // 主题：原生显式传 theme 优先，没传就看系统。传而不是让 CSS 自己判断，
+    // 是因为移动端的 WebView 不一定把系统深浅色透给页面。
+    var theme = param('theme');
+    if (theme !== 'dark' && theme !== 'light') {
+        theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+            ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+
+    var raw = param('data');
+    var cands = NovaNtp.parseData(raw ? raw : NovaNtp.FALLBACK);
+    var list = NovaNtp.rank(cands, NovaNtp.MAX_SHORTCUTS);
+    // 兜底也可能被用户删空（数据里一个有效的都没有），那就退回内置那七个
+    if (!list.length) list = NovaNtp.rank(NovaNtp.parseData(NovaNtp.FALLBACK), NovaNtp.MAX_SHORTCUTS);
+
+    var quicks = document.getElementById('quicks');
+
+    function tile(item) {
+        var a = document.createElement('a');
+        a.className = 'qk';
+        a.href = item.url;
+        a.title = item.label;
+        // 删除角标与磁贴同处一层壳里，它按壳定位，才贴得住磁贴的右上角
+        var thumb = document.createElement('span');
+        thumb.className = 'thumb';
+        var i = document.createElement('i');
+        i.style.background = NovaNtp.gradOf(item.url);
+        i.textContent = NovaNtp.initialOf(item.label, item.url);
+        var del = document.createElement('b');
+        del.className = 'del';
+        del.textContent = '×';
+        thumb.appendChild(i);
+        thumb.appendChild(del);
+
+        var s = document.createElement('span');
+        s.textContent = item.label;
+        a.appendChild(thumb);
+        a.appendChild(s);
+
+        // 编辑态下点磁贴 = 删除，而不是跳转；角标只是把这条规则画出来
+        a.addEventListener('click', function (ev) {
+            if (!document.body.classList.contains('editing')) return;
+            ev.preventDefault();
+            location.href = NovaNtp.cmdUrl('remove', { url: item.url });
+        });
+        // 长按进编辑态。桌面端没有长按（鼠标按住不算），所以另给一条：
+        // 右键也能进，免得 PC 用户永远发现不了删除。
+        var timer = null;
+        var start = function () { timer = setTimeout(edit, 500); };
+        var stop = function () { if (timer) { clearTimeout(timer); timer = null; } };
+        a.addEventListener('touchstart', start, { passive: true });
+        a.addEventListener('touchmove', stop, { passive: true });
+        a.addEventListener('touchend', stop);
+        a.addEventListener('touchcancel', stop);
+        a.addEventListener('contextmenu', function (ev) { ev.preventDefault(); edit(); });
+        return a;
+    }
+
+    function addTile() {
+        var a = document.createElement('a');
+        a.className = 'qk add';
+        // 刻意不给 href（也不给 javascript:void 0）：带 href 的话点一下会改掉
+        // location，而这一页的入参是从 location.search + location.hash 读的，
+        // 自己往地址上加东西迟早会踩到自己的解析。
+        a.setAttribute('role', 'button');
+        a.setAttribute('tabindex', '0');
+        var thumb = document.createElement('span');
+        thumb.className = 'thumb';
+        var i = document.createElement('i');
+        i.textContent = '＋';
+        thumb.appendChild(i);
+        var s = document.createElement('span');
+        s.textContent = '添加';
+        a.appendChild(thumb);
+        a.appendChild(s);
+        a.addEventListener('click', function (ev) { ev.preventDefault(); open(); });
+        return a;
+    }
+
+    function paint() {
+        quicks.textContent = '';
+        for (var i = 0; i < list.length; i++) quicks.appendChild(tile(list[i]));
+        quicks.appendChild(addTile());
+    }
+
+    function edit() {
+        document.body.classList.add('editing');
+        document.getElementById('hint').textContent = '点击图标右上角的 × 删除';
+    }
+    function unedit() {
+        document.body.classList.remove('editing');
+        document.getElementById('hint').textContent = '长按图标可删除';
+    }
+
+    var sheet = document.getElementById('sheet');
+    var scrim = document.getElementById('scrim');
+    function open() {
+        unedit();
+        document.getElementById('f-label').value = '';
+        document.getElementById('f-url').value = '';
+        sheet.classList.add('on');
+        scrim.classList.add('on');
+        document.getElementById('f-url').focus();
+    }
+    function close() { sheet.classList.remove('on'); scrim.classList.remove('on'); }
+
+    document.getElementById('f-cancel').addEventListener('click', close);
+    scrim.addEventListener('click', function () { close(); unedit(); });
+    document.getElementById('f-save').addEventListener('click', function () {
+        var url = NovaNtp.normalizeUrl(document.getElementById('f-url').value);
+        if (!url) {
+            document.getElementById('f-url').focus();
+            return;
+        }
+        var label = document.getElementById('f-label').value.trim() || NovaNtp.shortName(url);
+        location.href = NovaNtp.cmdUrl('add', { label: label, url: url });
+    });
+    // 回车即保存：这个表单只有两栏，再让用户去点按钮是多余的
+    document.getElementById('f-url').addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') document.getElementById('f-save').click();
+    });
+    document.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') { if (sheet.classList.contains('on')) close(); else unedit(); }
+    });
+
+    paint();
+})();
+</script>
+</body>
+</html>

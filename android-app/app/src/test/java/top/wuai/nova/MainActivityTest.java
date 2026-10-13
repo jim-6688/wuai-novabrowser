@@ -269,4 +269,38 @@ public class MainActivityTest {
         assertEquals(-1, MainActivity.indexOfTabRef(tabs, null));
         assertEquals(-1, MainActivity.indexOfTabRef(null, new Tab("x")));
     }
+
+    // ------------------------------------------------------- 新标签页三档
+
+    @Test
+    public void 新标签页三档轮换成一个环() {
+        assertEquals("homepage", MainActivity.nextNtpMode("start"));
+        assertEquals("blank", MainActivity.nextNtpMode("homepage"));
+        assertEquals("start", MainActivity.nextNtpMode("blank"));
+    }
+
+    @Test
+    public void 三档都能转到一次_没有哪一档转不出来() {
+        // 挨个转一圈，三档必须都出现过。写成 if/else 时最容易漏掉一档，
+        // 表现是「有个选项怎么也切不到」，而真机上要点好几下才发现。
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        String mode = "start";
+        for (int i = 0; i < 3; i++) {
+            seen.add(mode);
+            mode = MainActivity.nextNtpMode(mode);
+        }
+        assertEquals(3, seen.size());
+        assertEquals("start", mode);
+    }
+
+    @Test
+    public void 认不出的档位当默认档处理而不是崩() {
+        // 配置是从设置文件里读回来的，手改过、或来自更早的版本都可能。
+        // 新标签页是每次开标签都要走的路，这里绝不能抛。
+        assertEquals("start", MainActivity.nextNtpMode("乱写的"));
+        assertEquals("start", MainActivity.nextNtpMode(null));
+        assertEquals("start", MainActivity.nextNtpMode(""));
+        // 老配置里 newTabPage 存的是一个地址 —— 也不该崩
+        assertEquals("start", MainActivity.nextNtpMode("https://52ta.top/"));
+    }
 }

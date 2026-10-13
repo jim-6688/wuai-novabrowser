@@ -305,10 +305,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log('\n[P] 补齐的设置项');
   clickNav('general');
   const gen = $('#settings-body');
-  check('常规分区有主页 + 新标签页两个输入框',
+  check('常规分区有主页输入框与自定义新标签页地址',
         !!gen.querySelector('#set-homepage') && !!gen.querySelector('#set-newtab'));
-  check('新标签页默认跟随主页（按钮置灰）',
-        gen.querySelector('[data-act="newtab-same"]').disabled === true);
+  check('新标签页有三种档位（内置 / 主页 / 空白）',
+        ['newtab-builtin', 'newtab-homepage', 'newtab-blank']
+          .every((a) => !!gen.querySelector(`[data-act="${a}"]`)));
+  check('新标签页默认落在「内置」那一档',
+        gen.querySelector('[data-act="newtab-builtin"]').classList.contains('is-active'),
+        gen.querySelector('[data-act="newtab-builtin"]').className);
+  check('默认档位不是「跟随主页」，所以那个按钮可用',
+        gen.querySelector('[data-act="newtab-same"]').disabled === false);
   check('搜索模板回填当前值',
         gen.querySelector('#set-search').value === 'https://www.baidu.com/s?wd=%s',
         gen.querySelector('#set-search').value);

@@ -6,6 +6,31 @@
 # 一个「在别人机器上才复现」的失败，是最难查的一种。
 #
 # -text 的意思是「别当文本处理」，checkin/checkout 都不做转换。
-# 只在 user-scripts 目录下生效，不动仓库里其它文件的既有行为。
 android-app/app/src/main/assets/user-scripts/*.user.js -text
 android-app/app/src/main/assets/user-scripts/*.txt -text
+
+# 同步产物（tools/sync-mobile.js 生成）：同一个理由，而且更直接 ——
+# check-mobile-sync.js 拿 sha256 比对「桌面端源」与「移动版产物」，源是 LF，
+# 产物就该是 LF。让 git 在 checkout 时换成 CRLF，这条比对照样只在 Windows 上红。
+#
+# 为什么现在才补：内置新标签页（newtab.html）是第四个同类产物，补规则时顺手在
+# 一个干净的 clone 里实测了一遍 —— core.autocrlf=true 时上面那三个产物全是现成的
+# 失败样本，npm run mobile:check 直接 6 项全红（源 3 项 + 产物 3 项）。
+# 这类坑不修就一直在，平时只是被「先跑 mobile:sync 再跑 mobile:check」的习惯盖住，
+# 而新克隆仓库 / CI 上不会有人先跑一遍 sync。
+#
+# 三类按扩展名写，不写成 assets/*：那是「assets 下所有东西」，
+# 而这里要保的只是会被 sha256 校验的那几类产物。
+android-app/app/src/main/assets/*.js -text
+android-app/app/src/main/assets/*.txt -text
+android-app/app/src/main/assets/*.html -text
+
+# 上面那组还必须配上这一组 —— SYNC.json 登记的是「源 → 产物」的成对关系，
+# 门禁两头都校验：源被改了要报「产物没跟着同步」，产物被改了要报「与记录不符」。
+# 所以只给产物加 -text 是白搭的，克隆出来的仓库照样红 6 项。
+#
+# 新增同步条目时，成对的两处要一起加。
+src/renderer/autopage.js -text
+src/renderer/newtab.html -text
+src/main/sniffer.js -text
+src/main/adblock-lists.js -text

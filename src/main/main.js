@@ -13,9 +13,15 @@
 
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard } = require('electron');
 
 const settings = require('./settings');
+// 新标签页的宿主侧逻辑。它是 src/renderer 下的双导出模块（既被外壳页面当
+// 普通脚本加载，也能在 Node 里 require）—— 与 autopage.js 同一形态，
+// 这样 tools/test-newtab.js 测的就是跑的那一份。这里只需要它那两个
+// 「增删自己加的快捷方式」的纯函数。
+const ntp = require('../renderer/ntp');
 const { EngineRegistry } = require('./engines');
 const { adblock } = require('./adblock');
 const { ExtensionManager } = require('./extensions');
@@ -27,6 +33,15 @@ const { wireRequestGate: installRequestGate } = require('./request-gate');
 
 const IS_DEV = process.argv.includes('--dev');
 const ROOT = path.join(__dirname, '..', '..');
+
+/**
+ * 内置新标签页的本地文件地址。外壳拿它当「新建标签页」的目标，
+ * 拼上 ?theme=…&data=… 之后交给 <webview> 加载。
+ *
+ * 用 pathToFileURL 而不是手拼 `'file://' + p`：Windows 的盘符（C:\…）、
+ * 路径里的空格与中文都要转义，手拼这三样里错一样就是「新建标签页打不开」。
+ */
+const NEWTAB_FILE_URL = pathToFileURL(path.join(__dirname, '..', 'renderer', 'newtab.html')).href;
 
 let mainWindow = null;
 /** session → engineId，用于在 web-contents-created 时反查内核 */
@@ -446,6 +461,21 @@ function wireContents(contents) {
     return { action: 'deny' };
   });
 
+  // 内置新标签页回传的动作（加 / 删快捷方式）。
+  //
+  // 这一页是本地文件，上不了 preload 那座桥，所以它用的是「跳一个
+  // nova://shortcut/… 地址」这个老办法 —— 页面那边的注释里写了原因。
+  // 必须拦在 will-navigate 上：Electron 对没注册处理器的 scheme 会直接
+  // 放弃这次导航（页面上什么都不发生，用户点了 × 像按了个死键）。
+  //
+  // 拦下来之后把**原始地址**转发给渲染层去解析、再由它回主进程落盘：
+  // 解析规则只有 src/renderer/ntp.js 一份，不在这里再写一遍。
+  contents.on('will-navigate', (event, url) => {
+    if (typeof url !== 'string' || url.indexOf(ntp.CMD_PREFIX) !== 0) return;
+    event.preventDefault();
+    send('ntp:command', { id: contents.id, url });
+  });
+
   contents.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
     if (!isMainFrame) return;
     try { docHostMap.set(contents.id, new URL(url).hostname); } catch { /* noop */ }
@@ -539,6 +569,8 @@ function registerIpc() {
     settings: settings.all(),
     /** 出厂默认值：渲染层的「恢复默认设置」据此回滚，避免前后端各写一份 */
     defaults: settings.DEFAULTS,
+    /** 内置新标签页的本地文件地址，见 NEWTAB_FILE_URL */
+    newTabFileUrl: NEWTAB_FILE_URL,
     engines: registry.list(),
     extensions: extManager.list(),
     adblock: adblock.statsSnapshot(),
@@ -589,6 +621,27 @@ function registerIpc() {
     }
     if (partial.theme) nativeTheme.themeSource = partial.theme;
     send('settings:changed', next);
+    return next;
+  });
+
+  /**
+   * 新标签页上的「＋添加」/「× 删除」。
+   *
+   * 外壳解析完 nova:// 命令之后回落到这里 —— 解析规则只写在
+   * src/renderer/ntp.js 一份，而落盘归主进程管（设置文件在这里）。
+   * 两个纯函数都是「给旧的存储对象、还一个新的」，所以这里只管覆盖。
+   */
+  handle('ntp:shortcut:add', ({ label, url }) => {
+    const next = ntp.addShortcut(settings.get('ntpShortcuts'), label, url);
+    settings.patch({ ntpShortcuts: next });
+    send('settings:changed', settings.all());
+    return next;
+  });
+
+  handle('ntp:shortcut:remove', ({ url }) => {
+    const next = ntp.removeShortcut(settings.get('ntpShortcuts'), url);
+    settings.patch({ ntpShortcuts: next });
+    send('settings:changed', settings.all());
     return next;
   });
 
