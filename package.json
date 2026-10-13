@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "多内核浏览器原型：Chromium / Gecko / IE(Trident) 内核切换，PC 与移动双端，内置广告拦截，支持 Chromium 插件与火狐扩展",
+  "author": "WuAi",
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
@@ -18,8 +19,9 @@
     "filters:fetch": "bash tools/fetch-filters.sh",
     "filters:check": "node tools/check-filters.js",
     "filters": "bash tools/fetch-filters.sh && node tools/check-filters.js",
-    "test": "node tools/check-shell.js && node tools/test-engines.js && node tools/test-adblock.js && node tools/test-engine-menu.js && node tools/test-downloader.js && node tools/test-downloads-ui.js && node tools/test-sniffer.js && node tools/test-sniffer-ui.js && node tools/test-nomedia.js && node tools/test-autopage.js && node tools/test-mobile-ui.js && node tools/test-builtin-userscript.js && node tools/test-newtab.js",
+    "test": "node tools/check-shell.js && node tools/test-engines.js && node tools/test-adblock.js && node tools/test-engine-menu.js && node tools/test-downloader.js && node tools/test-downloads-ui.js && node tools/test-sniffer.js && node tools/test-sniffer-ui.js && node tools/test-nomedia.js && node tools/test-autopage.js && node tools/test-mobile-ui.js && node tools/test-builtin-userscript.js && node tools/test-newtab.js && node tools/test-downloader-degrade-qa.js",
     "test:downloader": "node tools/test-downloader.js",
+    "test:downgrade-qa": "node tools/test-downloader-degrade-qa.js",
     "test:downloads-ui": "node tools/test-downloads-ui.js",
     "test:sniffer": "node tools/test-sniffer.js",
     "test:sniffer-ui": "node tools/test-sniffer-ui.js",
@@ -33,16 +35,44 @@
     "test:mobile-ui": "node tools/test-mobile-ui.js",
     "test:newtab": "node tools/test-newtab.js",
     "check:mobile": "electron tools/test-mobile-electron.js",
-
     "icons": "electron tools/build-icons.js",
     "check:design": "node tools/check-design-board.js",
     "mobile:sync": "node tools/sync-mobile.js",
     "mobile:check": "node tools/check-mobile-sync.js",
     "mobile:test": "cd android-app && gradlew.bat testDebugUnitTest",
-    "mobile:build": "npm run mobile:check && cd android-app && gradlew.bat assembleDebug"
+    "mobile:build": "npm run mobile:check && cd android-app && gradlew.bat assembleDebug",
+    "pc:dir": "electron-builder --win --x64 --dir",
+    "pc:build": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "top.wuai.nova",
+    "productName": "吾爱Nova浏览器",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "compression": "maximum",
+    "win": {
+      "icon": "assets/icon/nova.ico",
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "nova-pc-${version}-win-x64.${ext}"
+    }
   },
   "devDependencies": {
     "electron": "^30.0.0",
+    "electron-builder": "^26.15.3",
     "jsdom": "^24.0.0"
   }
 }
