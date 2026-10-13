@@ -1,0 +1,70 @@
+sequenceDiagram
+    autonumber
+    participant P as 网页（Guest / WebView）
+    participant S as 注入脚本<br/>window.__novaMediaFab
+    participant H as 外壳 / 原生<br/>shell.js · MainActivity
+    participant D as 下载引擎<br/>downloader.js · Downloader.java
+    participant W as remux worker<br/>worker_threads · ExecutorService
+    participant R as remux 子系统<br/>m3u8 · demux · mux
+    participant F as 磁盘
+
+    rect rgba(200,220,255,.18)
+    Note over P,F: A · 注入 + 画按钮（每次主框架导航一次）
+    P->>H: dom-ready / onPageFinished
+    H->>P: executeJavaScript(SOURCE) / evaluateJavascript(assetText)
+    P->>S: 执行 IIFE（版本自检，重复注入返回 already-on）
+    S->>P: querySelectorAll('video, audio')
+    S->>S: novaFabSrcOf -> novaFabJudge -> novaFabVisible
+    S->>P: 对 direct / flv / hls 且在视口内的元素插按钮
+    S->>P: 〔S2〕hook fetch/XHR，记下 .m3u8 地址
+    end
+
+    rect rgba(255,235,200,.18)
+    Note over S,H: B · 心跳取待办（每 600ms）
+    loop 每 600ms
+        H->>S: takeRaw()
+        S-->>H: '' 或 "url|name|kind~..."
+        Note right of H: 空串 = 无待办；<br/>null = 脚本没注入，停心跳
+    end
+    end
+
+    rect rgba(210,255,210,.18)
+    Note over P,F: C1 · 直链（不需要 remux）
+    P->>S: 用户点按钮
+    S->>P: 按钮立刻变「已加入」
+    H->>S: takeRaw()
+    S-->>H: "https://a/v.mp4|v.mp4|direct"
+    H->>D: enqueue({url, kind:'file', postprocess:null, source:'mediafab'})
+    D->>F: Range 并发分片 -> 落盘 v.mp4
+    end
+
+    rect rgba(255,225,225,.18)
+    Note over P,F: C2 · FLV（下载 + remux）
+    H->>D: enqueue({url, kind:'file', postprocess:'remux-mp4', source:'mediafab'})
+    D->>F: 字节分片下载 -> tmp/taskId/source.flv
+    D->>W: 交给 worker（state -> REMUXING）
+    W->>R: remuxFlvToMp4(source.flv, out.mp4)
+    R->>R: flv-demux（avcC / ASC 直给）-> mp4-mux 两遍写出
+    R-->>W: 成功 -> 输出 out.mp4
+    W-->>D: 删 source.flv；state -> DONE
+    Note right of D: 失败：不删 source.flv，<br/>带 code + 用户文案上报
+    end
+
+    rect rgba(226,210,255,.18)
+    Note over P,F: C3 · HLS（清单 -> 分片 -> remux）
+    H->>S: takeRaw()
+    S-->>H: "https://a/index.m3u8|index.mp4|hls"
+    H->>D: enqueue({url, kind:'hls', postprocess:'remux-mp4', source:'mediafab'})
+    D->>R: 拉清单（带 headersFor：Cookie/UA/Referer）
+    R->>R: 解析 -> master 递归 -> 选最高 BANDWIDTH 的 variant
+    R-->>D: segments[] + key(EXT-X-KEY) + map(EXT-X-MAP)
+    D->>F: 分片并发下载 -> tmp/taskId/seg-00001.ts...
+    Note right of D: AES-128：每片按 IV 解密后再写；<br/>EXT-X-BYTERANGE 走 Range 头
+    D->>W: 全部分片就位（state -> REMUXING）
+    W->>R: remuxSegmentsToMp4(segs, key, out.mp4)
+    R->>R: ts-demux（PAT/PMT -> PES 重组 -> Annex-B->AVCC / ADTS->AAC）
+    R->>R: mp4-mux 两遍：Pass1 建索引 -> Pass2 写 ftyp/moov/mdat
+    R-->>W: 成功
+    W-->>D: 删 tmp/taskId；state -> DONE
+    D-->>H: download:update（进度 / REMUXING / 错误码）
+    end

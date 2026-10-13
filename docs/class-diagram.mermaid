@@ -1,0 +1,189 @@
+classDiagram
+    direction LR
+
+    %% ============ 第 1 层 · 共享注入源 ============
+    class NovaMediaFab {
+        <<src/renderer/mediafab.js · 共享源>>
+        +SCRIPT_VERSION int$
+        +buildScript(extKind) string
+        +parseTaken(raw) Taken[]
+        +novaFabSrcOf(el) string
+        +novaFabJudge(url) Verdict
+        +novaFabVisible(rect, vw, vh) bool
+        +novaFabNameOf(url, ext) string
+        +novaFabEscapeUrl(u) string
+        +novaFabMatchNet(url) bool
+    }
+
+    class Verdict {
+        <<判定产出>>
+        +kind string
+        +ext string
+        +reason string
+    }
+    note for Verdict "kind ∈ direct | flv | hls<br/>dash | mse | noext | none"
+
+    class Taken {
+        <<跨界值对象>>
+        +url string
+        +name string
+        +kind string
+    }
+
+    class MediaFabInjected {
+        <<window.__novaMediaFab>>
+        +v int
+        +takeRaw() string
+        +sync() int
+        +enable() void
+        +disable() void
+        +debug() object
+    }
+    note for MediaFabInjected "takeRaw() 返回 ~ 分隔串，<br/>无待办返回空串。<br/>disable() 必须原样还原<br/>被 hook 的 fetch / XHR.open"
+
+    %% ============ 第 2 层 · 外壳 / 原生 ============
+    class ShellMediaFab {
+        <<src/renderer/shell.js>>
+        -fabTimer int
+        +injectMediaFab(tab) bool
+        +pumpMediaFab() Promise
+        +handleMediaFabTaken(list) void
+    }
+
+    class MediaFabJava {
+        <<Java · 薄封装>>
+        +ASSET string$
+        +GLOBAL string$
+        +TAKE_SOURCE string$
+        +bootSource(script) string
+        +parseTaken(raw) Taken[]
+    }
+
+    %% ============ 第 3 层 · 下载任务 ============
+    class DownloadTask {
+        <<两端各一份 · 扩展>>
+        +id string
+        +url string
+        +kind string
+        +postprocess string
+        +state string
+        +source string
+        +remuxError string
+    }
+    note for DownloadTask "kind ∈ file | hls<br/>postprocess ∈ null | remux-mp4<br/>state 新增 REMUXING<br/>source 新增 mediafab"
+
+    %% ============ 第 4 层 · remux（PC/JS 与 安卓/Java 逐函数镜像） ============
+    class M3u8 {
+        <<PC m3u8.js · 安卓 M3u8.java>>
+        +parsePlaylist(text, baseUrl) Playlist$
+        +pickVariant(variants) Variant$
+        +resolveUrl(rel, base) string$
+    }
+
+    class Playlist {
+        <<中间表示>>
+        +isMaster bool
+        +variants Variant[]
+        +segments Segment[]
+        +key KeyInfo
+        +mapUri string
+    }
+
+    class TsDemuxer {
+        <<镜像>>
+        +feed(buf) void
+        +elementaryStreams() EsInfo[]
+        +samples() Sample[]
+        +spsPps() byte[][]
+    }
+
+    class FlvDemuxer {
+        <<镜像>>
+        +feed(buf) void
+        +avcC() byte[]
+        +audioConfig() byte[]
+        +samples() Sample[]
+    }
+
+    class H264 {
+        <<镜像 · 纯函数>>
+        +splitNals(data) byte[][]$
+        +annexBToAvcc(nal) byte[]$
+        +buildAvcC(sps, pps) byte[]$
+    }
+
+    class Aac {
+        <<镜像 · 纯函数>>
+        +parseAdtsHeader(hdr) AdtsInfo$
+        +adtsToAsc(hdr) byte[]$
+        +stripAdts(frame) byte[]$
+    }
+
+    class Mp4Writer {
+        <<镜像 · 两遍写出 + box-walker>>
+        +writeFtyp() byte[]$
+        +buildMoov(index, tracks) byte[]$
+        +copyMdat(inStream, outStream, index) long
+        +walkBoxes(buf) Box[]
+    }
+    note for Mp4Writer "输出必须【字节确定】：<br/>不用墙钟 / 随机 / Map 遍历顺序。<br/>必须【两遍扫描】，不全量缓冲"
+
+    class Aes128 {
+        <<镜像>>
+        +decrypt(data, key, iv) byte[]
+    }
+
+    class Sample {
+        <<中间表示>>
+        +offset long
+        +size int
+        +dts long
+        +pts long
+        +isKeyframe bool
+        +track int
+    }
+
+    class Remuxer {
+        <<编排>>
+        +remuxFlvToMp4(inPath, outPath) void
+        +remuxSegmentsToMp4(segs, key, mapPath, outPath) void
+    }
+    note for Remuxer "PC 跑在 worker_threads；<br/>安卓跑在 ExecutorService"
+
+    class RemuxException {
+        <<错误码 + 用户文案>>
+        +code string
+        +userMessage string
+        +partialPath string
+    }
+    note for RemuxException "失败不删原始数据；<br/>文案里不出现 ffmpeg/demuxer/<br/>muxer/PES/stts"
+
+    %% ============ 关系 ============
+    NovaMediaFab ..> Verdict : 判定产出
+    NovaMediaFab ..> Taken : parseTaken 产出
+    NovaMediaFab ..> MediaFabInjected : buildScript 生成
+    MediaFabInjected ..> DownloadTask : 待办 → 建任务
+    ShellMediaFab ..> MediaFabInjected : executeJavaScript(SOURCE)
+    MediaFabInjected ..> ShellMediaFab : takeRaw ~串
+    ShellMediaFab ..> DownloadTask : handleMediaFabTaken 分派
+    MediaFabJava ..> Taken : parseTaken 产出
+    MediaFabInjected ..> MediaFabJava : takeRaw ~串
+
+    DownloadTask ..> Remuxer : postprocess = remux-mp4
+    Remuxer --> M3u8 : HLS 清单
+    Remuxer --> TsDemuxer : TS 分片
+    Remuxer --> FlvDemuxer : FLV
+    Remuxer --> Aes128 : 加密分片
+    Remuxer --> Mp4Writer : 输出
+    M3u8 ..> Playlist : 解析产出
+    TsDemuxer --> H264 : Annex-B → AVCC
+    TsDemuxer --> Aac : ADTS → 裸帧
+    FlvDemuxer --> H264 : avcC 直给
+    FlvDemuxer --> Aac : ASC 直给
+    TsDemuxer ..> Sample : 产出
+    FlvDemuxer ..> Sample : 产出
+    Mp4Writer ..> Sample : 两遍索引
+    Remuxer ..> RemuxException : 失败时抛
+    M3u8 ..> RemuxException : 编码 / 加密不支持
+    H264 ..> RemuxException : 非 H.264
+    Aac ..> RemuxException : 非 AAC
