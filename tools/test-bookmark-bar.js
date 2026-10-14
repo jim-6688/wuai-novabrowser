@@ -96,8 +96,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   check('收藏夹栏在 DOM 里', !!bar);
   check('默认档位下是显示的', !bar.hidden);
-  check('渲染出 mock 里的两条书签', items().length === 2, items().length + ' 条');
-  check('条目文案取自书签标题', items().some((el) => el.textContent.includes('52ta')),
+  // 条数不写死：mock 摆的那几条就是内置入口（ntp.js 的 BUILTIN_SITES 同一份），
+  // 内置入口从两条补到六条的那一轮，就把这里的两条断言打红了 —— 而界面本身
+  // 一点问题没有，只是「写死 2」这件事过期了。直接问 mock 有几条、界面上
+  // 就得画几条，以后增删内置站点都不必再回来改这一行。
+  const mockCount = window.eval('state.settings.bookmarks.length');
+  const mockFirstTitle = window.eval('state.settings.bookmarks[0].title');
+  check('渲染出 mock 里的全部书签', items().length === mockCount,
+    `${items().length} 条 / mock ${mockCount} 条`);
+  check('条目文案取自书签标题',
+    items().some((el) => el.textContent.includes(mockFirstTitle)),
     items().map((el) => el.textContent.trim()).join(' | '));
   check('没有 favicon 时退回首字母方块（不是空白格）',
     !!items()[0].querySelector('.bm-fav') && !items()[0].querySelector('.bm-fav img'),

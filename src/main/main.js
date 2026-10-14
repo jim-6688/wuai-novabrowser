@@ -31,9 +31,21 @@ const { wireSniffer: wireSnifferSession } = require('./sniffer-wire');
 const { NoMedia, PLACEHOLDER_CSS, PLACEHOLDER_JS } = require('./nomedia');
 const { wireRequestGate: installRequestGate } = require('./request-gate');
 const { FaviconCache, hostsFromNtpData } = require('./favicon-cache');
+const desktopShortcut = require('./desktop-shortcut');
 
 const IS_DEV = process.argv.includes('--dev');
 const ROOT = path.join(__dirname, '..', '..');
+
+/**
+ * 应用元信息。桌面快捷方式的名字与 AppUserModelID 都取这一份。
+ *
+ * 名字其实有三份：这里的 productName、build.nsis.shortcutName（NSIS 打包时写死在
+ * package.json 里，那边没有「读一下常量」这条路）、以及 desktop-shortcut.js 里的
+ * 默认名。三处必须同词，否则同一台机器上会并出两个名字不一样的图标，
+ * 而且「桌上已经有同名图标就不再动」那条会失效。tools/test-desktop-shortcut.js
+ * 的 [G] 组把这三份逐字比过。
+ */
+const PKG = require('../../package.json');
 
 /**
  * 内置新标签页的本地文件地址。外壳拿它当「新建标签页」的目标，
@@ -102,6 +114,12 @@ if (!gotLock) {
 
 async function bootstrap() {
   settings.init(app.getPath('userData'));
+
+  // 0) 桌面快捷方式：免安装（绿色版）第一次跑起来时补一个。
+  // 走安装包进来的用户这里什么也不会发生 —— 桌面那个图标是 NSIS 安装器放的，
+  // 我们只会读到一句「已有」。放在最前面是因为它跟应用状态无关，
+  // 纯粹看「桌面上有没有」这一件事，越早办完越早从启动流程里消失。
+  ensureDesktopShortcut();
 
   // 1) 广告拦截：装载三个源（广告终结者 / Adblock Plus / 系统内置）+ 用户配置
   adblock.loadAll();
@@ -179,6 +197,57 @@ async function bootstrap() {
   app.on('web-contents-created', (_e, contents) => wireContents(contents));
 
   createWindow();
+}
+
+/* ------------------------------------------------------------------ *
+ * 桌面快捷方式
+ * ------------------------------------------------------------------ */
+
+/**
+ * 免安装形态下补一个桌面快捷方式。
+ *
+ * 这里只做「把环境事实喂给桌面快捷方式模块」这一件事 —— 该不该建、什么情况下
+ * 不动桌上已有的那个、为什么只做一次，理由全在 desktop-shortcut.js 的模块头里。
+ *
+ * 顺带说清这条路的覆盖面：**走安装包的用户不会走到这里**（桌面已有同名图标，
+ * 直接进 exists 分支），所以这段代码对现有安装版用户是零影响的。
+ */
+function ensureDesktopShortcut() {
+  if (!desktopShortcut.shouldInstall({
+    platform: process.platform,
+    packaged: app.isPackaged,
+    done: (settings.get('desktopShortcut', 0) | 0) >= 1
+  })) return;
+
+  let desktopDir;
+  try {
+    desktopDir = app.getPath('desktop');
+  } catch (err) {
+    // 极少见：没有桌面目录的会话（服务账号、某些精简系统）。跳过即可，
+    // 不打标 —— 万一只是这一次取不到，下次启动还能再试。
+    console.warn('[shortcut] 取不到桌面目录，跳过：' + err.message);
+    return;
+  }
+
+  const name = desktopShortcut.shortcutFileName(PKG.productName);
+  const result = desktopShortcut.ensureShortcut({
+    desktopDir,
+    name,
+    exePath: process.execPath,
+    description: PKG.productName,
+    appId: (PKG.build && PKG.build.appId) || '',
+    // 'create' 是 Electron 的写法：它在已存在时默认不覆盖，但我们在上面
+    // 已经自己判过 exists 了，走到这里本来就只有「不存在」这一种。
+    writeLink: (lnk, opts) => shell.writeShortcutLink(lnk, 'create', opts)
+  });
+
+  if (result === 'failed') {
+    console.warn('[shortcut] 桌面快捷方式没建成，下次启动会再试一次：' + name);
+    return;
+  }
+
+  settings.patch({ desktopShortcut: 1 });
+  if (result === 'created') console.log('[shortcut] 已创建桌面快捷方式：' + name);
 }
 
 /* ------------------------------------------------------------------ *

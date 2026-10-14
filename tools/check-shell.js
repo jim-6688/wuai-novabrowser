@@ -21,7 +21,8 @@ const jsFiles = [
   'src/main/settings.js', 'src/main/engines.js', 'src/main/adblock.js',
   'src/main/adblock-lists.js', 'src/main/extensions.js', 'src/main/main.js',
   'src/main/downloader.js', 'src/main/sniffer.js', 'src/main/sniffer-wire.js',
-  'src/main/nomedia.js', 'src/main/request-gate.js',
+  'src/main/nomedia.js', 'src/main/request-gate.js', 'src/main/favicon-cache.js',
+  'src/main/desktop-shortcut.js',
   'src/preload/preload.js', 'src/renderer/bridge-mock.js',
   'src/renderer/autopage.js', 'src/renderer/shell.js', 'tools/preview.js'
 ];
@@ -202,6 +203,32 @@ const staleEvents = [...allowedEvents].filter((c) => !listenedEvents.includes(c)
 staleEvents.length
   ? ok(`白名单里有 ${staleEvents.length} 个通道外壳当前没监听（可能由别处消费）：${staleEvents.join(', ')}`)
   : ok('白名单没有多出来的通道');
+
+/* 9. 桌面快捷方式：绿色版首启补建 */
+// 这条链子断掉时的表现是「桌面上什么也没发生」—— 没有报错、没有界面变化。
+// 而它又只在**打包后**才跑，平时开发根本碰不到，所以最容易在某个 `if` 上写反。
+console.log('\n[9] 桌面快捷方式（免安装首启补建）');
+const shortcutMod = fs.readFileSync(P('src/main/desktop-shortcut.js'), 'utf8');
+const pkgJson = require(P('package.json'));
+[
+  ['主进程引了这个模块并在 bootstrap 里真的调用',
+    /require\('\.\/desktop-shortcut'\)/.test(mainJs) && /ensureDesktopShortcut\(\)/.test(mainJs)],
+  ['只在打包后动手（开发时跑的是 node_modules 里的 electron.exe）',
+    /app\.isPackaged/.test(mainJs) && /function shouldInstall\(o\)[\s\S]{0,200}?o\.packaged/.test(shortcutMod)],
+  ['用 shell.writeShortcutLink，不引 COM / 不 spawn PowerShell',
+    /shell\.writeShortcutLink\(/.test(mainJs) && !/WScript\.Shell|powershell/i.test(shortcutMod)],
+  ['桌面上已经有同名图标就不覆盖（用户可能改过名字、钉过任务栏）',
+    /existsSync\(lnk\)[\s\S]{0,60}?return 'exists'/.test(shortcutMod)],
+  ['写失败不打标 —— 打了标就等于永远不建了，只做一次的门就锁死了',
+    /result === 'failed'[\s\S]{0,200}?return;[\s\S]{0,400}?settings\.patch\(\{ desktopShortcut: 1 \}\)/.test(mainJs)],
+  ['标记落在 settings 里，默认 0', /desktopShortcut:\s*0/.test(
+    fs.readFileSync(P('src/main/settings.js'), 'utf8'))],
+  ['快捷方式名字的三份来源同词（productName / NSIS shortcutName / 模块默认名）',
+    pkgJson.productName === pkgJson.build.nsis.shortcutName
+      && shortcutMod.includes(`const SHORTCUT_BASENAME = '${pkgJson.productName}'`)],
+  ['安装版的路没被动过（NSIS 仍然自己建快捷方式）',
+    pkgJson.build.nsis.createDesktopShortcut === true]
+].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');
 process.exit(failed ? 1 : 0);
