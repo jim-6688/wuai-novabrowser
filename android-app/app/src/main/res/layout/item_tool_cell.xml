@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  工具面板里的一格：图标在上、名称在下，等宽三列。
+
+  为什么不复用 item_menu.xml：那一行是「左图标 + 标题 + 副标题 + 右取值/箭头」的
+  横向结构，横向张力全在文字那一侧，靠 layout_weight 把文字撑开；宫格格子是纵向、
+  等宽的，两者除了都有一枚图标之外没有共同点。硬用一份的话，每处调用都要手动把
+  一半子 View 压成 GONE，那份「可选三层」的灵活性反而变成负担。
+
+  根节点不带 id 也可以：<include android:id="..."> 总会覆盖到根 View 上。
+  但仍显式写一个，免得将来有人直接拿它当普通布局 inflate 时找不到 id。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cellRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="?android:attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:minHeight="84dp"
+    android:paddingStart="2dp"
+    android:paddingEnd="2dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
+
+    <!-- 26dp：比列表行的 20dp 大一号。宫格里图标是主角（文字只是它的名字），
+         沿用 20dp 会让整格显得空。 -->
+    <ImageView
+        android:id="@+id/cellIcon"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:scaleType="fitCenter"
+        android:importantForAccessibility="no" />
+
+    <!-- 单行截断：宫格的宽度是均分的，长名字只能省略号收尾，
+         让它换行会把同一行的格子撑成不同高度。 -->
+    <TextView
+        android:id="@+id/cellLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:gravity="center"
+        android:textColor="@color/text_2"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+</LinearLayout>

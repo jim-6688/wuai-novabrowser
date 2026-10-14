@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 底栏主按钮（标签数）。品牌渐变，角度与图标背景的蓝绿渐变一致。 -->
+<!-- 底栏主按钮（标签数）。Nova 星云渐变：蓝绿到青兰，与桌面端
+     shell.css 里那支 nova-grad 同一组色。角度 315 对应 CSS 的 135 度，
+     即从左上角起步，所以起点是蓝绿、终点是青兰。 -->
+<!-- 注意：上面不能写成两个连字符开头的变量名，XML 注释里连续两个连字符非法，
+     aapt2 会报「根元素后面的标记必须格式正确」，完全指不到真正的原因。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
-        android:startColor="#5B84FF"
-        android:centerColor="#3D6BFF"
-        android:endColor="#00B8A2"
+        android:startColor="#00C8A8"
+        android:centerColor="#1699CE"
+        android:endColor="#2D6BF5"
         android:angle="315" />
     <corners android:radius="12dp" />
 </shape>

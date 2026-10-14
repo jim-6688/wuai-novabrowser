@@ -8,19 +8,32 @@
   界面里的卡片、输入框、文字全是浅色。主题设置因此是个假开关。
 
   这里把中性令牌别名到深色值，深色模式才真正落到每个界面上。
-  品牌色（brand / accent）和语义色（ok / warn / danger）两边共用，不覆盖 ——
-  它们在深浅底上都够看，而覆盖了就等于维护两份品牌色。
+  品牌色也从这一版开始覆盖：深空底上原来那支 #2D6BF5 对比度只有 4.0 上下，
+  正文级的蓝字会发飘，所以整支提亮到 #5B8BFF。桌面端 shell.css 的
+  [data-theme="dark"] 块做的是同一件事。
+  语义色（ok / warn / danger）仍然两边共用，不覆盖 ——
+  它们在深浅底上都够看，而覆盖了就等于维护两份。
 -->
 <resources>
+    <color name="brand">@color/brand_dark</color>
+    <color name="brand_strong">@color/brand_strong_dark</color>
+    <color name="accent">@color/accent_dark</color>
+    <color name="engine_chromium">@color/engine_chromium_dark</color>
     <color name="bg">@color/bg_dark</color>
     <color name="surface">@color/surface_dark</color>
-    <color name="surface_translucent">#E6171A22</color>
+    <!-- 深色模的半透明底栏。与浅色同透明度：两边差一点点，切换主题时
+         底栏的「通透感」就会不一样，而这是同一件东西。 -->
+    <color name="surface_translucent">#CC171A22</color>
     <color name="surface_2">@color/surface_2_dark</color>
     <color name="surface_3">@color/surface_3_dark</color>
     <color name="border">@color/border_dark</color>
     <color name="border_strong">@color/border_strong_dark</color>
+    <color name="border_input">@color/border_input_dark</color>
     <color name="text">@color/text_dark</color>
     <color name="text_2">@color/text_2_dark</color>
     <color name="text_3">@color/text_3_dark</color>
     <color name="text_4">@color/text_4_dark</color>
+    <!-- 品牌底上的文字换深色：深色模的品牌色是提亮过的 #5B8BFF，
+         白字压在上面只有 2.6 上下，10sp 的数字会糊成一团。 -->
+    <color name="badge_on_brand">@color/badge_on_brand_dark</color>
 </resources>

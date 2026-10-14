@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   主界面。结构与桌面端 [data-layout="mobile"] 下的 shell.html 一致：
-    顶：工具栏（内核标识 + 首页 + 收藏 + 地址栏 + 刷新 + AI）；滚动时整行收起
+    顶：工具栏（搜索 + 地址栏 + 收藏 + AI）；滚动时整行收起。
+        内置新标签页上这一行的内容整体隐去（页内已经有搜索框了），
+        但行本身留着，页面内容不会因为顶栏有无而上下跳 —— 见 MainActivity#applyChromeFor。
     中：WebView（容器 RefreshHost 负责下拉刷新）+ 加载进度 + 提示条
-    底：五格底栏（.mobilebar）；滚动时原位置换成胶囊搜索框（见 bottomRow）
+    底：五格等宽底栏（.mobilebar）；滚动时原位置换成胶囊搜索框（见 bottomRow）
 
   刻意不给任何硬编码颜色，全部走 @color/*，这样 values-night 一换就整体变深色。
 -->
@@ -15,32 +17,41 @@
     android:fitsSystemWindows="true">
 
     <!-- ============ 顶部工具栏 ============
-         第一行：logo + 地址栏 + 收藏。
-         第二行：四个功能按钮（阅读 / 观影 / 翻译 / AI），横排等分。
+         一行：搜索 + 地址栏 + 收藏 + AI。
 
-         滚动时这一整块<b>收起</b>（setVisibility(GONE)），高度还给网页。
-         「工具」入口挪到底栏第五格（工具箱），这里不再挂工具图标。
+         原先这里还有第二行（阅读 / 观影 / 翻译 / AI 四个功能键）。撤掉的理由是
+         那一行把「一屏直达」当成了唯一价值，代价却是顶栏常驻 48dp 的厚度 ——
+         而那四个功能都在工具箱里有行（sheet_tools 的 toolRead / toolTranslate /
+         toolMovie / toolAi），下滑一次就到。顶栏从 96dp 收回 48dp，网页多出一行。
+
+         滚动时这一整块收起（setVisibility(GONE)），高度还给网页。
+         内置新标签页上只隐去内容（INVISIBLE），行高保留 —— 那一页页内自带搜索框，
+         顶栏再挂一个地址栏就是两个入口，但整行收掉又会让人觉得「上面少了点什么」，
+         而且内容会随之上跳。
     -->
     <FrameLayout
         android:id="@+id/topRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/surface"
-        android:elevation="4dp">
+        android:elevation="8dp">
 
-        <!-- 顶栏底部分隔线：让工具栏与网页区有明显的视觉分界。 -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_gravity="bottom"
-            android:background="@color/border" />
+        <!--
+          这里原来有一条 1dp 的硬分隔线（@color/border）。撤掉，改由 elevation 的
+          投影来说「工具栏浮在网页上面」—— 两条一起留着，边上就成了一道双线。
+
+          4dp → 8dp：4dp 的投影在浅色底上几乎看不见（当初那条硬线就是为了补这件事
+          才加的），8dp 才有明确的悬浮感。底栏用同一个值，两条看起来才是同一套东西。
+        -->
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- 第一行：logo + 地址栏 + 收藏 -->
+            <!-- 顶栏那一行：搜索 + 地址栏 + 收藏 + AI。
+                 这一行的 id 是 topBar —— 内置新标签页上整套内容会被置为
+                 INVISIBLE（见 MainActivity#applyChromeFor），保留它占的高度。 -->
             <LinearLayout
                 android:id="@+id/topBar"
                 android:layout_width="match_parent"
@@ -52,17 +63,19 @@
                 android:paddingTop="6dp"
                 android:paddingBottom="2dp">
 
-                <!-- 应用 logo：品牌位，点它打开主菜单。 -->
+                <!-- 搜索入口：点一下聚焦地址栏。原先这里是应用 logo（点开主菜单），
+                     现在主菜单移进工具箱（底栏「工具」→ 菜单行），顶栏左端让给搜索 ——
+                     地址栏只能覆盖「输入」，而这一格覆盖的是「我想搜点什么」这个起点。 -->
                 <ImageButton
-                    android:id="@+id/btnLogo"
+                    android:id="@+id/btnSearch"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:layout_marginEnd="2dp"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/sheet_menu"
+                    android:contentDescription="@string/search_hint"
                     android:scaleType="centerInside"
-                    android:padding="7dp"
-                    android:src="@mipmap/ic_launcher" />
+                    android:padding="9dp"
+                    android:src="@drawable/ic_search_nav" />
 
                 <!-- 地址栏 -->
                 <FrameLayout
@@ -99,24 +112,21 @@
                     android:scaleType="centerInside"
                     android:padding="9dp"
                     android:src="@drawable/ic_star" />
+
+                <!-- AI 助手。原来在顶栏第二行（那一行已撤掉），现在是顶栏最右一格。
+                     图标本身就是品牌渐变，与左端的搜索按钮一蓝一绿呼应，一眼能认出
+                     「这一格是去别处做一件事」。 -->
+                <ImageButton
+                    android:id="@+id/btnAi"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/content_desc_ai"
+                    android:scaleType="centerInside"
+                    android:padding="9dp"
+                    android:src="@drawable/ic_ai" />
             </LinearLayout>
 
-            <!-- 第二行：四个功能按钮（阅读 / 观影 / 翻译 / AI），等分横排。
-                 带小字标签，图标 20dp、文字 11sp，和底栏同一套视觉语言。 -->
-            <LinearLayout
-                android:id="@+id/topActions"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingStart="2dp"
-                android:paddingEnd="2dp"
-                android:paddingBottom="6dp">
-
-                <include layout="@layout/item_top_action" android:id="@+id/btnRead" />
-                <include layout="@layout/item_top_action" android:id="@+id/btnMovie" />
-                <include layout="@layout/item_top_action" android:id="@+id/btnTranslate" />
-                <include layout="@layout/item_top_action" android:id="@+id/btnAi" />
-            </LinearLayout>
         </LinearLayout>
 
     </FrameLayout>
@@ -217,12 +227,16 @@
 
         <!-- 状态条：拼页进度 / 降级提示 / 无图命中。
              桌面端那个 shrink-to-fit 的截断坑在原生里不存在（原生按 layout 算宽），
-             但仍然要 maxLines=2，否则一句长的降级原因会把进度条顶下去。 -->
+             但仍然要 maxLines=2，否则一句长的降级原因会把进度条顶下去。
+
+             marginBottom 60dp = 底栏高度：底栏改成压在网页上之后，凡是对 bottom
+             对齐的东西都会钻到它底下去（这一条和下面的无图标记都是）。 -->
         <TextView
             android:id="@+id/statusStrip"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
+            android:layout_marginBottom="60dp"
             android:background="#E6171A22"
             android:textColor="#F2F4F8"
             android:textSize="12sp"
@@ -241,7 +255,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
-            android:layout_margin="12dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="72dp"
             android:background="@drawable/chip_pill"
             android:text="@string/status_noimage"
             android:textSize="11sp"
@@ -278,75 +295,115 @@
 
     <!-- ============ 底栏（两态叠放） ============
          这一行有两种形态，同一行里叠着、滚动时交叉淡入淡出：
-           常态   = mobileBar     —— 五格（后退 / 前进 / 标签 / 工具 / 菜单）
+           常态   = mobileBar     —— 五格等宽纯图标（后退 / 主页 / 标签 / 刷新 / 工具）
            滚动中 = searchCapsule —— 整条换成胶囊搜索框
 
          为什么搜索框搬到这里（原先是放在顶栏那一行的）：
-         底栏隐去时它那 54dp 是留着的（用 INVISIBLE 而不是 GONE，图的是不改布局、
+         底栏隐去时它那 60dp 是留着的（用 INVISIBLE 而不是 GONE，图的是不改布局、
          不推网页），于是屏幕下方多出一条谁也没用的空白。与其让它空着，
          不如把「滚动时唯一还要用的东西」放进去 —— 手指刚划完的地方，
          本来也是拇指最顺的位置。
 
-         行高恒定（54dp）的做法与顶栏原先一样：两个子 View 互相覆盖，
-         「行高 = 最高的那个」，胶囊 40dp < 54dp，所以它在 GONE 与 VISIBLE
+         行高恒定（60dp）的做法与顶栏原先一样：两个子 View 互相覆盖，
+         「行高 = 最高的那个」，胶囊 36dp < 60dp，所以它在 GONE 与 VISIBLE
          之间怎么切都不会改这一行的高度 —— 网页不会被推一下。
+
+         60dp 而不是 54dp：五格改成纯图标（30dp）之后，54dp 上下的余量只剩 12dp，
+         图标贴得太近，反而比带文字时更挤。60dp 给出上下各 15dp 的呼吸，
+         也刚好是设计板上那一格的高度。
+    -->
+    <!--
+      这一条是**半透明、压在网页上**的，不是把网页推上去的一行。
+
+      「压在网页上」靠上面那个 layout_marginTop="-60dp"：负的外边距让这一条
+      从网页区的下沿再往上提 60dp，正好盖住网页最后一条；LinearLayout 里后画的
+      兄弟盖在先画的上面，所以它是盖上去而不是把网页挤走。负值必须与 height 相等
+      （都是 60dp），改高度时这里要跟着改。
+
+      于是滚起来时：网页从半透明的底栏底下穿过去（surface_translucent，见 colors.xml），
+      而滚动态那块胶囊搜索框是**实底**（bg_search_capsule）—— 玻璃条上放一块实心输入框，
+      一虚一实，层级才分得出来。两个都半透明的话，页面文字会穿两层，输入框就糊了。
+
+      代价说清楚：网页最底下 60dp 会被永久挡住。所以 MainActivity#injectBarInset
+      会给页面补一条同样高度的 padding-bottom，把最后一行还回来。
     -->
     <FrameLayout
         android:id="@+id/bottomRow"
         android:layout_width="match_parent"
-        android:layout_height="54dp"
-        android:background="@color/surface"
+        android:layout_height="60dp"
+        android:layout_marginTop="-60dp"
+        android:background="@color/surface_translucent"
         android:elevation="8dp">
 
         <LinearLayout
             android:id="@+id/mobileBar"
             android:layout_width="match_parent"
-            android:layout_height="54dp"
+            android:layout_height="60dp"
             android:orientation="horizontal">
 
             <!--
-              四格按钮用 <include> 复用同一份布局。include 上必须显式写 id：
-              不写的话被包含布局的根 id（btnBox）会原样冒上来，四个一模一样的 id，
+              各格用 <include> 复用同一份布局。include 上必须显式写 id：
+              不写的话被包含布局的根 id（btnBox）会原样冒上来，几格一模一样的 id，
               findViewById 只会拿到第一个 —— 那就是「几个按钮全绑成同一个动作」这种
               能编译能运行、只是完全不对的 bug。
             -->
             <include layout="@layout/item_mb_back" android:id="@+id/item_mb_back" />
             <include layout="@layout/item_mb_home" android:id="@+id/item_mb_home" />
 
-            <!-- 中间那个是主按钮：标签数写在图里，尺寸也更大（56dp）。 -->
-            <LinearLayout
+            <!--
+              中间那格是标签页。它原先是一颗 56dp 的品牌渐变主按钮、图标是白的 ——
+              五格改成等宽之后它不再有自己的底色，于是计数徽标（品牌色小胶囊）
+              成了这一格唯一的有色元素：标签数的存在感从「一整块蓝」收到「一粒徽标」，
+              但「现在开着几个标签」这件事仍然是底栏上唯一被强调的数字。
+
+              徽标挂在 30dp 的图标壳里、贴在图标右上角，而不是挂在这一格上：
+              挂在格上会按整格（60dp 高、宽度随屏幕变）定位，它在不同机型上会飘。
+              壳要 clipChildren=false，否则超出 30dp 的那半个徽标会被裁掉。
+            -->
+            <FrameLayout
                 android:id="@+id/mbTabs"
-                android:layout_width="56dp"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:background="@drawable/bg_primary_btn"
-                android:layout_marginTop="6dp"
-                android:layout_marginBottom="6dp"
-                android:layout_marginStart="4dp"
-                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:background="?android:attr/selectableItemBackground"
                 android:clickable="true"
                 android:focusable="true">
 
-                <ImageView
-                    android:layout_width="19dp"
-                    android:layout_height="19dp"
-                    android:src="@drawable/ic_tabs"
-                    android:contentDescription="@string/mb_tabs" />
+                <FrameLayout
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_gravity="center"
+                    android:clipChildren="false">
 
-                <TextView
-                    android:id="@+id/mbTabCount"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="1"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:textColor="#FFFFFF" />
-            </LinearLayout>
+                    <ImageView
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_tabs"
+                        android:contentDescription="@string/mb_tabs" />
+
+                    <TextView
+                        android:id="@+id/mbTabCount"
+                        android:layout_width="wrap_content"
+                        android:layout_height="16dp"
+                        android:layout_gravity="top|end"
+                        android:minWidth="16dp"
+                        android:paddingStart="4dp"
+                        android:paddingEnd="4dp"
+                        android:gravity="center"
+                        android:text="1"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/badge_on_brand"
+                        android:background="@drawable/bg_count_badge"
+                        android:translationX="3dp"
+                        android:translationY="-4dp" />
+                </FrameLayout>
+            </FrameLayout>
 
             <include layout="@layout/item_mb_reload" android:id="@+id/item_mb_reload" />
-            <!-- 第五格「工具箱」：弹工具面板（下载 / 篡改猴 / 广告拦截等）。
-                 原来的顶栏工具图标挪到这里。 -->
+            <!-- 第五格「工具箱」：弹工具面板（下载 / 阅读 / 翻译 / 观影 / AI /
+                 广告拦截 / 主菜单）。顶栏那个工具图标撤掉之后，这里是工具的唯一下沉入口。 -->
             <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools" />
         </LinearLayout>
 
@@ -356,8 +413,8 @@
           刻意用 surface + 品牌色描边（bg_search_capsule），与常态的 omnibox
           （surface_2 灰底无边框）区分开 —— 一眼能看出「现在这一格是搜索状态」。
 
-          40dp 高：底部这一行是拇指的自然落点，比它原先在顶栏时的 34dp 放大一点更好按；
-          同时 40 < 54（行高），所以它显隐不会改本行高度。
+          36dp 高：底部这一行是拇指的自然落点，比它原先在顶栏时的 34dp 放大一点更好按；
+          同时 36 < 60（行高），所以它显隐不会改本行高度。
 
           初始 gone + alpha=0：不进场时它不该吃掉任何触摸。
           位移由代码给（见 MainActivity#applyReveal），从本行下沿滑进来。

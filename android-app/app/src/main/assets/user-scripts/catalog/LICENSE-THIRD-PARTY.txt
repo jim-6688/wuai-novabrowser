@@ -1,0 +1,69 @@
+吾爱Nova浏览器 · 随包分发的第三方用户脚本 · 许可与署名
+================================================================
+
+本目录下的 .user.js 文件是第三方作者的作品，随本应用一起分发。
+它们不会被自动安装——用户在「推荐脚本」里点了哪条才装哪条，
+与 assets/user-scripts/ 下那条首次启动自动装上的内置脚本是两回事。
+
+分发依据
+----------------------------------------------------------------
+这里只放许可明确允许再分发的脚本。判断依据是脚本自己头部的 @license 行，
+逐条抄在下面。没写许可、或写了「保留所有权利」的脚本不在本目录：
+那种条目只能在线安装，因为「它没写许可」和「它允许我分发」是两件事。
+
+脚本正文逐字节保持上游原样。改一个字符，ScriptCatalog 里那条 sha256
+追溯断言就会断，而「这份内置脚本到底是不是我们审计过的那一份」将无从回答。
+要换版本，请重新审计并更新 ScriptCatalog 里的 sha256 与版本说明。
+
+署名与来源
+----------------------------------------------------------------
+auto-expand.user.js
+    《自动展开》 v1.3.87 · airbash · GPL-3.0
+    https://scriptcat.org/script-show-page/725
+    完整许可全文见本目录 LICENSE-GPL-3.0.txt
+
+adblock-4khd.user.js
+    《4khd 广告屏蔽》 v2.5 · Via · MIT
+    https://scriptcat.org/script-show-page/4484
+
+bilibili-save.user.js
+    《B站视频下载器》 v0.1 · youhou · MIT
+    https://scriptcat.org/script-show-page/5958
+
+mobile-unlock.user.js
+    《移动端限制弹窗解除》 v1.73 · Via · MIT
+    https://scriptcat.org/script-show-page/4681
+
+video-speed.user.js
+    《所有网站倍速播放》 v1.2 · 呀嘻耶耶 · MIT
+    https://scriptcat.org/script-show-page/1134
+
+zhihu-clean.user.js
+    《知乎增强：自动关闭登录弹窗、外链跳转与广告弹窗》 v1.3 · Assistant · MIT
+    https://scriptcat.org/script-show-page/4687
+
+
+MIT License（适用于上列除 auto-expand 之外的每一条）
+----------------------------------------------------------------
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+说明：本文件由本应用维护者整理，不是上游作者发出的文件。
+每一处署名与许可标识都抄自对应脚本头部的元数据块，可逐条回链核对。

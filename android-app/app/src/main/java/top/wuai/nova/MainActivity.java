@@ -20,6 +20,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -29,6 +30,7 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.CookieManager;
@@ -51,6 +53,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -156,6 +159,34 @@ public final class MainActivity extends Activity {
     /** WebView 的 client 只绑一次 —— 它是同一个实例，重复绑定会让回调跑多遍。 */
     private boolean webClientBound;
 
+    /**
+     * 启动遮罩。冷启动时盖在主界面上，等首屏页面画出第一帧再淡出。
+     *
+     * <p>它不是「装饰」，是「首屏还没东西可看」这件事的补丁 ——
+     * 详见 {@link #showSplashCover()}。为 null 表示当前没有遮罩（没到冷启动，
+     * 或者已经撤掉了）。
+     */
+    private View splashCover;
+
+    /**
+     * 首屏是否已经画出内容（{@code onPageCommitVisible} / {@code onPageFinished}）。
+     *
+     * <p>它决定两件事：遮罩要不要挂、挂了要不要马上撤。页面比界面先就绪的时候
+     * （本地新标签页、命中缓存的主页）必须靠它把遮罩压住不挂 ——
+     * 否则会先给用户看一页已经好的内容，再糊上去一张启动图。
+     */
+    private boolean firstPagePainted;
+
+    /**
+     * 启动遮罩最多挂多久。
+     *
+     * <p>必须有这个上限：遮罩是靠页面回调撤的，而页面可能永远不回调
+     * （断网、被墙、站点挂掉）。没有上限的话，一次网络故障就会让用户永久卡在启动页上，
+     * 只能杀进程 —— 那是比「多看一眼空白」严重得多的故障。
+     * 到点无条件撤，宁可让用户看见一个还没画完的页面。
+     */
+    private static final long SPLASH_MAX_MS = 1500;
+
     /** 观影/沉浸模式是否开启（隐藏顶栏底栏，只留网页）。 */
     private boolean cinemaMode;
 
@@ -178,8 +209,14 @@ public final class MainActivity extends Activity {
     private ProgressBar progress;
     private TextView statusStrip;
     private TextView noImageChip;
-    /** 顶栏最左侧的应用 logo，点它打开主菜单。 */
-    private View btnLogo;
+    /**
+     * 顶栏上装「搜索 + 地址栏 + 收藏 + AI」的那一行。
+     *
+     * <p>内置新标签页上整行隐去（{@link View#INVISIBLE}），而不是把整条顶栏收掉：
+     * 那一页页内自带搜索框，顶栏再挂一个地址栏就是两个搜索入口；但整行消失会让
+     * 页面内容上跳一次 —— 用户刚点完「新建标签页」，看到的就是上面少了一截。
+     */
+    private View topBar;
     /** 五格底栏。滚动时整条淡出，位置上换成 {@link #searchCapsule}。 */
     private View mobileBar;
     /** 顶栏那一行。滚动时整行收起，把这 52dp 还给网页。 */
@@ -200,6 +237,14 @@ public final class MainActivity extends Activity {
     private PopupWindow urlActions;
     /** 装着 WebView 的容器，负责下拉刷新（见 {@link RefreshHost}）。 */
     private RefreshHost refreshHost;
+    /**
+     * 新标签页磁贴图标的缓存（抓取 + 落盘 + 交给页面）。
+     *
+     * <p>页面那条 CSP 不许它自己发请求，图标只能由原生喂进去（见 {@link FaviconCache}
+     * 的类注释）。这里按住实例：缓存目录、后台线程的状态都挂在它身上，
+     * 每次用都新建一个的话，「定期抓一次」会变成「每次开页都抓一次」。
+     */
+    private FaviconCache favicons;
     /** 刷新卡死时的兜底。正常由 onPageFinished / onReceivedError 先收掉。 */
     private final Runnable refreshTimeout = this::finishPullRefresh;
     /**
@@ -209,6 +254,17 @@ public final class MainActivity extends Activity {
     private final BottomBarReveal reveal = new BottomBarReveal();
     /** 上一次真正应用到界面上的状态，用来避免每个滚动帧都重复启动动画。 */
     private BottomBarReveal.State shownReveal = BottomBarReveal.State.SHOW_BAR;
+
+    /**
+     * 程序性滚动的静默截止时刻（{@link SystemClock#uptimeMillis}）。
+     *
+     * <p>收起 / 展开顶栏时我们会把页面反向补一段来抵消视觉位移，那一下本身
+     * 也会回调 {@code onScrollChange}（重排后还可能再回吐一次夹取后的位置）。
+     * 这些都不是用户划的，窗口内只把状态机的基准挪过去、不参与判定。
+     */
+    private long revealMuteUntil;
+    /** 静默窗口时长。够吞掉补偿自己 + 紧随其后那一次布局回调，又不至于漏掉用户的手势。 */
+    private static final long REVEAL_MUTE_MS = 120;
 
     // ------------------------------------------------------------ 生命周期
 
@@ -268,6 +324,13 @@ public final class MainActivity extends Activity {
         interceptor.setAdblockEnabled(settings.adblockEnabled);
         interceptor.setThirdPartyBlockEnabled(settings.thirdPartyBlock);
 
+        // 先开机（建 WebView + 发出首屏请求），再做剩下的启动工作。
+        //
+        // 位置是这两头夹出来的：往上不能早过 interceptor —— 第一个请求就必须
+        // 过一遍广告拦截；往下不能晚过 mountMain —— 晚一步，用户就是在「已经进了软件」
+        // 之后才看见主页开始转圈。夹在中间这一段，正好是启动画面还盖在屏上的时候。
+        bootBrowser();
+
         // 内置用户脚本：首次启动装上，之后不再检查（卸载了也不会复活）。
         // 必须排在 loadScripts 之前 —— 否则第一次启动会先读到空列表，
         // 要等下次冷启动才看得到那条脚本，用户会以为内置没生效。
@@ -281,6 +344,16 @@ public final class MainActivity extends Activity {
         }
 
         mountMain();
+        // 界面装好了，但首屏页面多半还没画出来 —— 这段时间拿启动遮罩盖住，
+        // 别让用户看见一个空白的软件。
+        showSplashCover();
+        // 图标预热放在 mountMain 之后：它要读历史与快捷方式去算「页面上会是哪几家」，
+        // 而那些数据都在 store 里（上面已经建好），跟界面无关；放在这里只是为了让
+        // 「先建界面再碰网络」这个顺序保持住 —— 冷启动的主线程上不该先等一次 I/O。
+        favicons = new FaviconCache(this);
+        warmFavicons();
+        // 分享进来的链接：首屏已经在 bootBrowser 里加载了，这里只负责把分享的
+        // 那一条另开一个标签（顺序见 handleShare）。
         handleShare(getIntent());
         // 放在 mountMain 之后：更新完成要 reloadRegistry()，那会碰 interceptor，
         // 而它在这里才刚刚建好。
@@ -652,6 +725,87 @@ public final class MainActivity extends Activity {
     }
 
     /**
+     * 开机：把 WebView 建好、配好，并把首屏请求先发出去。
+     *
+     * <p><b>为什么把这一步从 {@link #mountMain()} 里拆出来。</b>
+     * 原来是「先把界面装齐、最后才 loadUrl」，于是从点图标到请求上路之间，
+     * 夹着整个启动开销：读设置、读拦截规则、读用户脚本、建 WebView、
+     * inflate 布局、绑十几个监听。那几百毫秒里屏幕上是启动图，网络上却什么都没发生 ——
+     * 这段时间等于白扔了。挪到前面来之后，启动图还盖着，请求已经在路上。
+     *
+     * <p><b>为什么现在就能 loadUrl。</b>WebView 不要求先挂进窗口才能加载：
+     * 没有父容器的 WebView 照样会解析、拉子资源、跑 JS，只是暂时不绘制。
+     * 而 {@link #mountMain()} 之后搬进容器的是<b>同一个实例</b>（它按引用复用），
+     * 所以页面不会因为「搬家」而重新加载，也不会丢掉已经拿到的内容。
+     *
+     * <p>唯一的前置条件是 interceptor 已经建好 —— 第一个请求就得过广告拦截，
+     * 漏过的那一次会带着广告图原样进缓存，之后再拦也晚了。
+     */
+    private void bootBrowser() {
+        // client 必须在 loadUrl 之前绑上：绑晚了，第一个页面整个收不到
+        // onPageStarted / shouldInterceptRequest —— 进度条不动、拦截不生效、
+        // 地址栏空白，而且这些都不会报错，只是「第一页有点怪」。
+        if (web == null) web = new WebView(this);
+        setupWebView();
+        // 首屏 = 主页，或者上次没关掉的会话（见 restoreSession）。
+        // 这一步原本是 onCreate 的最后一件事（在 handleShare 里），现在提前到这儿。
+        restoreSession();
+    }
+
+    /**
+     * 挂上启动遮罩。
+     *
+     * <p>解决的问题：主页是联网的，从 {@link #bootBrowser()} 把请求发出去，
+     * 到页面真的画出第一帧，中间有一段 WebView 是空的。没有这一层，用户看到的顺序是
+     * 「启动图 → 一个空白的软件 → 主页终于出来」；而启动图本来就该盖到
+     * 「屏幕上终于有东西可看」为止。
+     *
+     * <p><b>什么时候不挂</b>：首屏已经画好了（{@link #firstPagePainted}）。
+     * 本地新标签页、命中缓存的主页都属于这一类 —— 那种时候再糊一张图上去，
+     * 等于把已经能看的东西先藏起来，纯属倒退。
+     *
+     * <p><b>什么时候一定撤</b>：页面回调说画好了，或者到了 {@link #SPLASH_MAX_MS}。
+     * 后一条不是保守，是必须 —— 断网时页面永远不会有回调。
+     */
+    private void showSplashCover() {
+        if (splashCover != null || firstPagePainted) return;
+        ViewGroup content = findViewById(android.R.id.content);
+        if (content == null) return;
+        splashCover = getLayoutInflater().inflate(R.layout.splash_cover, content, false);
+        content.addView(splashCover, new FrameLayout.LayoutParams(-1, -1));
+        main.postDelayed(this::hideSplashCover, SPLASH_MAX_MS);
+    }
+
+    /** 撤掉启动遮罩：淡出之后再从视图树上摘掉。重复调用是安全的。 */
+    private void hideSplashCover() {
+        final View cover = splashCover;
+        if (cover == null) return;
+        // 先置空再播动画：动画这 180ms 里如果又有人调 hide（比如上限到点撞上页面回调），
+        // 拿到的应该是 null，而不是同一个 view 再播一遍。
+        splashCover = null;
+        cover.animate()
+            .alpha(0f)
+            .setDuration(180)
+            .withEndAction(() -> {
+                ViewParent parent = cover.getParent();
+                if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(cover);
+            })
+            .start();
+    }
+
+    /**
+     * 首屏画出内容了 —— 撤遮罩，并记住「这一轮不用再挂」。
+     *
+     * <p>三个回调都能到这儿，谁先到算谁：{@code onPageCommitVisible} 是「已经能看了」，
+     * {@code onPageFinished} 是兜底（个别 WebView 版本上 commitVisible 不一定来），
+     * 主文档加载失败那条则保证页面拉不到时也不会卡在启动页上。
+     */
+    private void markFirstPagePainted() {
+        firstPagePainted = true;
+        hideSplashCover();
+    }
+
+    /**
      * 装上主界面。
      *
      * <p>每次都重新 {@code setContentView}：弹层是用 {@code setContentView} 叠上去的，
@@ -704,9 +858,9 @@ public final class MainActivity extends Activity {
         progress = findViewById(R.id.progress);
         statusStrip = findViewById(R.id.statusStrip);
         noImageChip = findViewById(R.id.noImageChip);
-        btnLogo = findViewById(R.id.btnLogo);
         mobileBar = findViewById(R.id.mobileBar);
         topRow = findViewById(R.id.topRow);
+        topBar = findViewById(R.id.topBar);
         searchCapsule = findViewById(R.id.searchCapsule);
         capsuleInput = findViewById(R.id.capsuleInput);
         capsuleSearch = findViewById(R.id.capsuleSearch);
@@ -722,7 +876,7 @@ public final class MainActivity extends Activity {
         setupWebView();
         setupBottomBar();
         setupStarButton();
-        setupTopActions();
+        setupTopBar();
         setupOmnibox();
         // 滚动显隐。状态机复位成「底栏可见」，与新 inflate 出来的 XML 初态对齐 ——
         // 否则从「胶囊」状态返回主界面时，界面显示的是底栏、状态机却以为是胶囊，
@@ -735,7 +889,6 @@ public final class MainActivity extends Activity {
         shownReveal = BottomBarReveal.State.SHOW_BAR;
         setupScrollReveal();
         setupPullRefresh();
-        setupLogoButton();
         syncChrome();
         syncNoImageChip();
 
@@ -840,10 +993,26 @@ public final class MainActivity extends Activity {
                 return true;
             }
 
+            /**
+             * 首屏「有东西可看」的第一个可靠信号，比 {@code onPageFinished} 早得多
+             * （后者要等所有子资源都下完，图片多的站点能差好几秒）。
+             *
+             * <p>启动遮罩就压在这个回调上撤：既不能让用户等整页 load 完，
+             * 也不能在他还看不见东西的时候就撤。
+             */
+            @Override
+            public void onPageCommitVisible(WebView view, String url) {
+                markFirstPagePainted();
+            }
+
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
-                progress.setVisibility(View.VISIBLE);
-                progress.setProgress(0);
+                // 进度条可能还没建：首屏的请求是 bootBrowser 发的，那时主界面还没 inflate。
+                // 这个回调正常会晚于 mountMain 到达，但「正常」不该是正确性的前提。
+                if (progress != null) {
+                    progress.setVisibility(View.VISIBLE);
+                    progress.setProgress(0);
+                }
                 // 更新当前主文档 host，供第三方拦截做同源比对。
                 interceptor.onMainFrame(url);
                 // 重置本页资源统计与 SSL 状态。
@@ -878,7 +1047,10 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                progress.setVisibility(View.GONE);
+                // 兜底：commitVisible 是 API 23 才有的回调，个别实现上也可能不发，
+                // 而「页面已经加载完」这件事没有任何理由还让启动遮罩挂着。
+                markFirstPagePainted();
+                if (progress != null) progress.setVisibility(View.GONE);
                 // 下拉刷新的球收回去。放在这里而不是 onPageStarted：那时页面刚开始加载，
                 // 球一收就等于「刷完了」，而屏幕上其实还是一片白。
                 finishPullRefresh();
@@ -904,6 +1076,9 @@ public final class MainActivity extends Activity {
                 }
                 injectPlugins(url);
                 injectSelectionTools(url);
+                injectFavicons(url);
+                // 底栏压在网页上，所以每条页面都要补一条让位空白（见 injectBarInset）。
+                injectBarInset();
                 maybeInjectAutoPage();
                 updateStarState();
             }
@@ -914,7 +1089,10 @@ public final class MainActivity extends Activity {
                 // 只报主文档的错误。无图模式下子资源失败是常态（那正是我们干的），
                 // 全报出来会刷成一堆红，把真正的错误埋掉。
                 if (req != null && req.isForMainFrame()) {
-                    progress.setVisibility(View.GONE);
+                    // 首屏就打不开时，不能让启动遮罩陪着一起等超时 —— 它挂在那儿
+                    // 比一个「页面加载失败」的提示更糟：用户连失败都看不到。
+                    markFirstPagePainted();
+                    if (progress != null) progress.setVisibility(View.GONE);
                     // 刷新失败也要收球。不收的话，一次拉不到页面的刷新会让它一直转，
                     // 用户唯一能做的事就是杀进程。
                     finishPullRefresh();
@@ -973,6 +1151,7 @@ public final class MainActivity extends Activity {
         web.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
+                if (progress == null) return;
                 progress.setProgress(newProgress);
                 progress.setVisibility(newProgress >= 100 ? View.GONE : View.VISIBLE);
             }
@@ -1099,35 +1278,42 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 顶栏第二行四个功能按钮：阅读模式 / 观影模式 / 翻译 / AI 助手。
-     * 直接触发对应动作，不再经过「工具」面板中转。
+     * 顶栏那三个按钮：左端搜索、右端收藏与 AI。
+     *
+     * <p>这里原先还有第二行（阅读 / 观影 / 翻译 / AI 四个功能键）。撤掉的理由是
+     * 那一行为了「一屏直达」让顶栏常驻 96dp 的厚度，而四个功能在工具箱里都有行
+     * （{@code sheet_tools} 的 toolRead / toolTranslate / toolMovie / toolAi），
+     * 下滑一次就到。顶栏收回一行之后，网页多出整整一行的高度。
+     *
+     * <p>左端原先是应用 logo（点开主菜单）。主菜单没有丢：工具箱最下面新加了一行
+     * 「菜单」指向同一个 {@link #showMenuSheet()}，而工具箱在底栏拇指位。
+     * 那个位置让给搜索 —— 地址栏只能覆盖「我已经知道要输什么」，
+     * 这一格覆盖的是「我想搜点什么」这个起点。
      */
-    private void setupTopActions() {
-        bindTopAction(R.id.btnRead, R.drawable.ic_read, "阅读", v -> {
-            mountMain();
-            showReadSheet();
-        });
-        bindTopAction(R.id.btnMovie, R.drawable.ic_movie, "观影", v -> {
-            mountMain();
-            toggleCinemaMode();
-        });
-        bindTopAction(R.id.btnTranslate, R.drawable.ic_translate, "翻译", v -> {
-            mountMain();
-            translateCurrentPage();
-        });
-        bindTopAction(R.id.btnAi, R.drawable.ic_ai, "AI", v -> {
+    private void setupTopBar() {
+        findViewById(R.id.btnSearch).setOnClickListener(v -> focusOmnibox());
+        findViewById(R.id.btnAi).setOnClickListener(v -> {
             mountMain();
             showAiSheet();
         });
     }
 
-    /** 绑定顶栏功能按钮（图标 + 文字）。 */
-    private void bindTopAction(int boxId, int iconRes, String text, OnTap cb) {
-        View box = findViewById(boxId);
-        if (box == null) return;
-        ((ImageView) box.findViewById(R.id.btnIcon)).setImageResource(iconRes);
-        ((TextView) box.findViewById(R.id.btnText)).setText(text);
-        box.setOnClickListener(v -> cb.tap(v));
+    /**
+     * 把光标送进地址栏，并把键盘叫出来。
+     *
+     * <p>{@code requestFocus} 在部分机型上只给焦点、不弹输入法 —— 用户点的是一个图标，
+     * 系统不会替他假设「他要打字」，于是会出现「点了搜索、光标在闪、键盘没来」。
+     * 所以这里显式 showSoftInput，交给 {@code SHOW_IMPLICIT} 去判要不要真弹。
+     *
+     * <p>全选交给 XML 的 {@code selectAllOnFocus}，这里不再 selectAll 一次：
+     * 那会和 {@link #syncUrlBar} 里那句 {@code setSelection(length)} 打架。
+     */
+    private void focusOmnibox() {
+        if (!mainViewMounted) mountMain();
+        if (urlBar == null) return;
+        urlBar.requestFocus();
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(urlBar, InputMethodManager.SHOW_IMPLICIT);
     }
 
     /**
@@ -1244,10 +1430,26 @@ public final class MainActivity extends Activity {
      *
      * <p>WebView 是复用的同一个实例，所以这里重复 set listener 也不会有多份
      * —— set 是覆盖语义，跟 add 不一样。
+     *
+     * <p>顶栏收起 / 展开会让网页区高度差 48dp，那带来的视觉位移由
+     * {@link #applyReveal} 里的补偿抵消（见 {@link #compensateTopBarShift}）——
+     * 少了它，用户看到的就是「滑一下就跳一下」。
      */
     private void setupScrollReveal() {
         if (web == null) return;
         web.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+            // 关掉了「上划显示搜索」：滚动完全不改界面。
+            // 但基准仍要跟着走 —— 否则重新打开开关后，第一个回调会拿一个
+            // 过期的基准去算位移，界面凭空切一次滚动态。
+            if (!settings.swipeUpSearch) {
+                reveal.syncBaseline(scrollY);
+                return;
+            }
+            // 补偿造成的滚动回调：只挪基准，不作判定（见 revealMuteUntil）。
+            if (SystemClock.uptimeMillis() < revealMuteUntil) {
+                reveal.syncBaseline(scrollY);
+                return;
+            }
             BottomBarReveal.State s = reveal.onScroll(scrollY);
             if (s != shownReveal) {
                 shownReveal = s;
@@ -1287,7 +1489,21 @@ public final class MainActivity extends Activity {
         navSearch(q);
         capsuleInput.setText("");
         // 跳完把底栏恢复常态：别让用户落在一个「只有搜索框、没有底栏」的界面。
-        // 用当前位置作基准，并让首个滚动回调只定基准、不判定，避免跳转瞬间误弹。
+        forceRevealBar();
+    }
+
+    /**
+     * 强制把界面恢复到「顶栏 + 五格底栏」的常态。
+     *
+     * <p>两处用它：提交胶囊搜索之后、以及关掉「上划显示搜索」时。
+     * 两者的共同点是<b>此后不会再有滚动事件来解除滚动态</b> ——
+     * 提交搜索后停在原地，关掉开关后回调直接不看了，界面就会一直卡在
+     * 「顶栏不见、底栏只有一格搜索框」上，而用户没有任何办法划回常态。
+     *
+     * <p>用当前位置做基准、并让首个滚动回调只定基准不判定：
+     * 否则跳转 / 复位那一瞬间的样本会被当成一次猛滚，刚摆正的界面又弹回去。
+     */
+    private void forceRevealBar() {
         reveal.reset(web != null ? web.getScrollY() : 0);
         if (shownReveal != BottomBarReveal.State.SHOW_BAR) {
             shownReveal = BottomBarReveal.State.SHOW_BAR;
@@ -1329,13 +1545,25 @@ public final class MainActivity extends Activity {
         boolean showBar = s == BottomBarReveal.State.SHOW_BAR;
         int duration = animate ? 300 : 0;
         // 高度拿不到（还没 layout）时用布局里写死的尺寸兜底，否则位移量会是 0，
-        // 动画看起来就像没动。54dp 对应 bottomRow（底栏那一行）。
+        // 动画看起来就像没动。60dp 对应 bottomRow（底栏那一行）。
         float density = getResources().getDisplayMetrics().density;
-        int barH = bar.getHeight() > 0 ? bar.getHeight() : Math.round(54 * density);
+        int barH = bar.getHeight() > 0 ? bar.getHeight() : Math.round(60 * density);
+        // 顶栏高度同理兜底。48dp = 40dp 按钮 + 上下 padding 6+2，见 activity_main.xml —
+        // 这一行的真实高度决定补偿多少，写错就等于没补（顶栏收起时它已被 GONE，量不到）。
+        int topH = top.getHeight() > 0 ? top.getHeight() : Math.round(48 * density);
+        int topWas = top.getVisibility();
 
         if (showBar) {
             // 顶栏整行回来。它上一轮是被 GONE 掉的，这里没有 alpha 可播 —— 直接出现。
+            //
+            // 但「顶栏这一行」和「顶栏里的内容」是两件事：内置新标签页上内容该是空的
+            // （见 applyChromeFor），所以紧接着要按当前页面重算一次 —— 少了这一句，
+            // 在新标签页上滚一下再滚回来，地址栏和搜索键就会重新亮出来。
             top.setVisibility(View.VISIBLE);
+            // 只有真的从「收起」切回来才补偿。装配阶段它本来就是可见的，
+            // 那一下若也补，等于每次重装主界面都把页面平白往下推 48dp。
+            if (topWas != View.VISIBLE) compensateTopBarShift(topH);
+            applyChromeFor(currentUrl());
             // 胶囊向下滑出行外。位移取的是整个「行高」而不是它自己的高度：
             // 它要从本行下沿出去，只移自身高度的话会卡在行里露一条边。
             cap.animate().alpha(0f).translationY(barH).setDuration(duration)
@@ -1349,6 +1577,7 @@ public final class MainActivity extends Activity {
         } else {
             // 顶栏整行收起，把这一行的高度让给网页
             top.setVisibility(View.GONE);
+            if (topWas != View.GONE) compensateTopBarShift(-topH);
             cap.setVisibility(View.VISIBLE);
             // 先摆到行外，再滑进来。少了这一步，第一帧它已经在终点上，
             // 看起来是「啪」一下出现，而不是滑进来。
@@ -1377,6 +1606,36 @@ public final class MainActivity extends Activity {
         if (shownReveal != expected) return;
         v.setVisibility(hideAs);
         if (hideAs == View.GONE) v.setTranslationY(0f);
+    }
+
+    /**
+     * 顶栏收起 / 展开后，把网页反向滚一段，抵消它带来的视觉位移。
+     *
+     * <p>顶栏是竖直 LinearLayout 里的流式兄弟节点（见 activity_main.xml）：它一
+     * {@code GONE}，网页区就既长高 48dp、又整体上移 48dp —— WebView 被 resize，
+     * 同一段内容在屏幕上凭空挪了一整条地址栏的高度，读起来就是「滑动时跳一下」，
+     * 展开时反向再跳一次。这不是动画或阈值的问题，是布局本身动了。
+     *
+     * <p>补的方向：顶栏收起时把页面往回滚（{@code scrollY - topH}），展开时往前滚
+     * （{@code + topH}）。内容相对视口下移 topH，正好抵消视口上沿上移 topH ——
+     * 用户在读的那一段停在原处，多出来的那一块从下方补进来。桌面浏览器收起工具栏后
+     * 是同一个手感：走掉的是「原本被挡住的那一条」，不是你正在看的内容。
+     *
+     * <p>滚到页面尽头不必担心越界：浏览器会把位置夹回合法范围，这一下会被夹成空操作，
+     * 与「什么都不做」等价。也不会出现「在顶部把位置滚成负数」—— 顶栏只在向下累计
+     * 超过 120px 之后才收起（见 {@link BottomBarReveal} 的阈值）。
+     *
+     * <p>补完之后立刻做两件收尾，否则这一下会被当成用户手势：把状态机的基准对齐到
+     * 真实位置（免得下一个回调拿过期基准算出位移），再开一个短静默窗口吞掉紧随
+     * 重排而来的那一次回调。两件都要，理由见 {@link #revealMuteUntil}。
+     *
+     * @param scrollDeltaPx 要补的位移；正 = 往前滚（顶栏回来），负 = 往回滚（顶栏收起）
+     */
+    private void compensateTopBarShift(int scrollDeltaPx) {
+        if (web == null || scrollDeltaPx == 0) return;
+        revealMuteUntil = SystemClock.uptimeMillis() + REVEAL_MUTE_MS;
+        web.scrollBy(0, scrollDeltaPx);
+        reveal.syncBaseline(web.getScrollY());
     }
 
     /**
@@ -1708,6 +1967,10 @@ public final class MainActivity extends Activity {
     }
 
     private void syncUrlBar(String url) {
+        applyChromeFor(url);
+        // 地址栏可能还没建：首屏的 onPageStarted 是 bootBrowser 那一次加载触发的，
+        // 那时主界面还没 inflate（见 bootBrowser）。
+        if (urlBar == null) return;
         if (urlBar.hasFocus()) return;
         if (NewTab.isNewTab(url)) {
             // 内置新标签页的真身是一条 file:///android_asset/newtab.html?theme=…&data=…
@@ -1760,6 +2023,17 @@ public final class MainActivity extends Activity {
      * 其余按访问次数降序」排，用户明确加过的东西不该被访问次数挤下去。
      */
     private String ntpUrl() {
+        return NewTab.pageUrl(themeName(), ntpData());
+    }
+
+    /**
+     * 页面要的那份候选数据（{@code label\turl\tvisits\tflags} 逐行）。
+     *
+     * <p>抽出来是因为它现在有两个用处：拼 URL 交给页面，以及算出「页面上会是哪几家」
+     * 好去预热图标。两处必须看到同一份数据 —— 各算一次的话，图标预热的那份
+     * 会随着排序规则改动而悄悄错位（图标抓的是这家、显示的是那家）。
+     */
+    private String ntpData() {
         List<NewTab.Row> rows = new ArrayList<>(store.ntpAdded());
         Set<String> blocked = store.ntpRemoved();
         // 去重按主机名，和页面上那条规则一致：zhihu.com 的历史里可能有几十条
@@ -1773,7 +2047,78 @@ public final class MainActivity extends Activity {
             if (key.isEmpty() || blocked.contains(key) || !seen.add(key)) continue;
             rows.add(new NewTab.Row(NewTab.labelOf(e.title, e.url), e.url, e.visits, false));
         }
-        return NewTab.pageUrl(themeName(), NewTab.candidates(rows));
+        return NewTab.candidates(rows);
+    }
+
+    /**
+     * 页面真正会显示出来的那几家主机名。
+     *
+     * <p>取候选里的**前 {@link #NTP_TILE_MAX} 条**，因为页面只渲染这么多格
+     * （页面侧的同名常量是 {@code NovaNtp.MAX_SHORTCUTS}）。多抓的那些永远不会显示，
+     * 只是白花流量和一次 DNS。
+     *
+     * <p>用原始主机名（{@code www.} 保留）当键：页面那边是拿 {@code hostOf(url)}
+     * 直接查表的，而它取的正是原文里的主机名；这里若先去 {@code www.}，
+     * 页面就得多写一层猜测才能对上。
+     */
+    private List<String> ntpIconHosts(String data) {
+        List<String> out = new ArrayList<>();
+        if (data == null || data.isEmpty()) return out;
+        for (String line : data.split("\n")) {
+            if (out.size() >= NTP_TILE_MAX) break;
+            String[] f = line.split("\t");
+            if (f.length < 2) continue;
+            String host = NewTab.hostOf(f[1]);
+            if (host.isEmpty() || out.contains(host)) continue;
+            out.add(host);
+        }
+        return out;
+    }
+
+    /** 页面一屏能放几个磁贴。与页面上的 {@code NovaNtp.MAX_SHORTCUTS} 必须一致。 */
+    private static final int NTP_TILE_MAX = 7;
+
+    /**
+     * 启动时预热一遍新标签页的图标。
+     *
+     * <p>「定期」这件事落在启动这一下：缓存 7 天有效（见 {@link FaviconCache#TTL_MS}），
+     * 每次冷启动检查一次，过期的才重抓。页面侧永远是只读本地缓存 ——
+     * 打开新标签页不该等网络，也不该在「新建标签页」这条路上塞七个请求。
+     *
+     * <p>全程后台、失败静默：抓不到图标就回落成渐变底 + 首字，那是这一页本来就有的样子。
+     */
+    private void warmFavicons() {
+        if (favicons == null) return;
+        List<String> hosts = ntpIconHosts(ntpData());
+        if (hosts.isEmpty()) return;
+        favicons.refreshIfStale(hosts, host -> {
+            // 抓到一个就立刻贴上去，而不是等整轮跑完：最慢的那家可能要多等一次
+            // 连接超时（6 秒），那时用户早就看着空磁贴了。
+            String url = currentUrl();
+            if (NewTab.isNewTab(url)) injectFavicons(url);
+        });
+    }
+
+    /**
+     * 把缓存里已经有的图标交给新标签页。
+     *
+     * <p>页面那条 CSP（{@code default-src 'none'; img-src data:}）不许它自己发请求，
+     * 所以图标只能这样喂进去：写一张「主机名 → {@code data:} URI」的表到
+     * {@code window.__novaIcons}，再叫页面重画一遍磁贴。表里没有的那几家，
+     * 页面照旧回落成渐变底 + 首字。
+     *
+     * <p>注入放在 {@code onPageFinished}：更早（{@code onPageStarted}）页面还没有
+     * {@code __novaApplyIcons} 可调；更晚用户已经看见了没有图标的那一版，磁贴会跳一下。
+     *
+     * <p>表是空的也要注入：页面可能还挂着上一次注入的表，不覆盖会显示过期的图标。
+     */
+    private void injectFavicons(String url) {
+        if (web == null || favicons == null || !NewTab.isNewTab(url)) return;
+        String json = favicons.jsonFor(ntpIconHosts(ntpData()));
+        web.evaluateJavascript(
+            "window.__novaIcons = " + json + ";"
+                + "if (window.__novaApplyIcons) window.__novaApplyIcons();",
+            null);
     }
 
     /**
@@ -2044,7 +2389,24 @@ public final class MainActivity extends Activity {
         // 而且 tabs.remove 已经执行过了，界面和状态从此对不上。
         TextView count = findViewById(R.id.mbTabCount);
         if (count != null) count.setText(String.valueOf(tabs.size()));
+        // 顶栏内容随「当前这一页是不是新标签页」变化。切标签、恢复会话
+        // 都要重算一次，否则从新标签页切回网页时顶栏还是空的。
+        applyChromeFor(currentUrl());
         updateDownloadBadge();
+    }
+
+    /**
+     * 顶栏内容该不该出现。
+     *
+     * <p>只有内置新标签页例外：那一页页内自带搜索框，顶栏再挂一个地址栏
+     * 就是两个搜索入口。但整条顶栏<b>不能收掉</b> —— 收掉之后内容会随之上跳，
+     * 用户点完「新建标签页」看到的第一件事就是页面跳了一下。
+     * 所以隐内容、留行高（{@link View#INVISIBLE} 仍然参与布局）。
+     */
+    private void applyChromeFor(String url) {
+        if (topBar == null) topBar = findViewById(R.id.topBar);
+        if (topBar == null) return;
+        topBar.setVisibility(NewTab.isNewTab(url) ? View.INVISIBLE : View.VISIBLE);
     }
 
     // ------------------------------------------------------------ 用户脚本
@@ -2209,6 +2571,50 @@ public final class MainActivity extends Activity {
         return name.isEmpty() ? null : name;
     }
 
+    // ------------------------------------------------------------ 底栏让位
+
+    /**
+     * 给页面补一条底栏那么高的空白。
+     *
+     * <p>底栏是半透明、并且<b>压在网页上</b>的（见 activity_main.xml 的 bottomRow），
+     * 所以网页会从它底下穿过去 —— 好看，但也意味着页面最底下那一条被永久挡住：
+     * 最后一行字看不到、页脚最后一个链接点不着。这里把那一条补回来。
+     *
+     * <p><b>为什么用 padding 而不是把 WebView 缩矮</b>：缩矮就没有「内容从底下穿过去」
+     * 这件事了，底栏半透明也就没了意义。padding 是让页面自己多留一截空白，
+     * 底栏底下仍然有内容在滚。
+     *
+     * <p><b>为什么要把 dp 换算成 CSS 像素</b>：没写 viewport 的老站点会被按 980px
+     * 排版再整体缩小，那时候 1 个 CSS 像素不等于 1dp —— 直接写 60px 会短掉一大截。
+     * 两者的比值就是 {@code innerWidth / 视口宽度(dp)}。
+     *
+     * <p>用 {@code documentElement.style} 而不是插一个 {@code <style>} 标签：
+     * 后者会被页面的 CSP（style-src）拦掉，改 CSSOM 不受 CSP 管。
+     *
+     * <p>观影模式下底栏整条收掉，就没什么要让的了 —— 那时要把这一条清掉，
+     * 否则页面末尾会平白多出一段空白。
+     */
+    private void injectBarInset() {
+        if (web == null) return;
+        View bar = findViewById(R.id.bottomRow);
+        boolean shown = bar != null && bar.getVisibility() == View.VISIBLE;
+        float density = getResources().getDisplayMetrics().density;
+        // 视口宽度按 dp 算：WebView 还没量过时拿不到，那就按 1:1 兜底
+        // （现代站点基本都写了 viewport，兜底这一支在手机上通常就是对的）。
+        int vpDp = web.getWidth() > 0 ? Math.round(web.getWidth() / density) : 0;
+        int barDp = 0;
+        if (shown) barDp = bar.getHeight() > 0 ? Math.round(bar.getHeight() / density) : 60;
+
+        web.evaluateJavascript(
+            "(function(){"
+                + "var w=window.innerWidth||0;"
+                + "var k=" + barDp + "*(w>0&&" + vpDp + ">0?(w/" + vpDp + "):1);"
+                + "document.documentElement.style.paddingBottom="
+                + "k>0?Math.round(k)+'px':'';"
+                + "})();",
+            null);
+    }
+
     // ------------------------------------------------------------ 自动拼页
 
     /**
@@ -2355,17 +2761,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /**
-     * 顶栏最左侧的应用 logo：点它打开主菜单。
-     *
-     * <p>这个位置原先是「圆点 + CR」的内核标识。移动版没有内核可选，那个标识
-     * 既没信息量（用户看不懂「CR」）也没得点，纯占位。换成 logo 后既补了品牌感，
-     * 又给了顶栏一个真实的入口 —— 和底栏的「菜单」格指向同一个 {@link #showMenuSheet()}。
-     */
-    private void setupLogoButton() {
-        btnLogo.setOnClickListener(v -> showMenuSheet());
-    }
-
     private int color(int res) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) return getColor(res);
         return getResources().getColor(res);
@@ -2439,12 +2834,13 @@ public final class MainActivity extends Activity {
             tabs.setBackground(g);
         }
 
-        // 胶囊搜索框描边：换成当前主色。
+        // 胶囊搜索框描边：换成当前主色。底色仍是实底 surface ——
+        // 半透明的是它待着的那条底栏，不是它自己（见 bg_search_capsule）。
         if (searchCapsule != null) {
             GradientDrawable cap = new GradientDrawable();
             cap.setShape(GradientDrawable.RECTANGLE);
             cap.setCornerRadius(dp(18));
-            cap.setColor(color(R.color.surface_translucent));
+            cap.setColor(color(R.color.surface));
             cap.setStroke(1, brand);
             searchCapsule.setBackground(cap);
         }
@@ -2695,53 +3091,73 @@ public final class MainActivity extends Activity {
      * 还是旧面板，新面板的 {@code setContentView} 会把它顶掉，而 WebView 仍被搬来搬去，
      * 容易在返回时白屏（原因见 mountMain 的注释）。
      */
+    /**
+     * 工具面板。九宫格，每格「图标 + 名称」，点一下直接执行。
+     *
+     * <p>九个入口没有主次、没有层级，全是「对当前页做一件事」，所以用宫格而不是
+     * 列表：三行装完，不必滚动，视线先落在图标上。
+     *
+     * <p>代价是列表里那行副标题没了。写死的那些（「无图模式 / 自动拼页」之类）
+     * 只是注解，丢掉不心疼；但有几条是动态的（篡改猴的已装数量、广告拦截的域名数、
+     * 下载的进行中数量）—— 那几条如果还想让人在不点开的情况下看到，得给图标挂
+     * 角标，不能靠把宫格退回列表。
+     */
     private void showToolsSheet() {
         View sheet = openSheet(getString(R.string.sheet_tools), R.layout.sheet_tools);
 
-        // 副标题直接用 downloadSummary()，和主菜单里的下载入口保持一致：
-        // 同一件事的说明文字只有一个来源，改一处两边都变。
-        menuRow(sheet, R.id.toolDownloads, R.drawable.ic_download, "下载",
-            downloadSummary(), () -> {
+        toolCell(sheet, R.id.toolDownloads, R.drawable.ic_download, "下载", () -> {
             mountMain();
             showDownloadSheet();
-        }, true);
-        menuRow(sheet, R.id.toolRead, R.drawable.ic_read, "阅读模式",
-            "无图模式 / 自动拼页", () -> {
+        });
+        toolCell(sheet, R.id.toolRead, R.drawable.ic_read, "阅读模式", () -> {
             mountMain();
             showReadSheet();
-        }, true);
-        menuRow(sheet, R.id.toolTranslate, R.drawable.ic_translate, "翻译网页",
-            "打开有道翻译（国内可用）", () -> {
+        });
+        toolCell(sheet, R.id.toolTranslate, R.drawable.ic_translate, "翻译网页", () -> {
             mountMain();
             translateCurrentPage();
-        }, false);
-        menuRow(sheet, R.id.toolMovie, R.drawable.ic_movie, "观影模式",
-            "隐藏工具栏 · 沉浸全屏", () -> {
+        });
+        toolCell(sheet, R.id.toolMovie, R.drawable.ic_movie, "观影模式", () -> {
             mountMain();
             toggleCinemaMode();
-        }, false);
-        menuRow(sheet, R.id.toolAi, R.drawable.ic_ai, "AI 助手",
-            "DeepSeek / 元宝 / 豆包 / Kimi 等在线对话", () -> {
+        });
+        toolCell(sheet, R.id.toolAi, R.drawable.ic_ai, "AI 助手", () -> {
             mountMain();
             showAiSheet();
-        }, true);
-        menuRow(sheet, R.id.toolPlugins, R.drawable.ic_plugin, "篡改猴",
-            scripts.isEmpty() ? "未安装" : "已装 " + scripts.size() + " 个", () -> {
+        });
+        toolCell(sheet, R.id.toolPlugins, R.drawable.ic_plugin, "篡改猴", () -> {
             mountMain();
             showPluginSheet();
-        }, true);
-        menuRow(sheet, R.id.toolAdblock, R.drawable.ic_shield, "广告拦截",
-            registry.hasUserRules()
-                ? "已订阅 · " + registry.totalHosts() + " 个域名"
-                : "内置 " + registry.adblockHosts().size() + " 个域名", () -> {
+        });
+        toolCell(sheet, R.id.toolAdblock, R.drawable.ic_shield, "广告拦截", () -> {
             mountMain();
             showRulesSheet();
-        }, true);
-        menuRow(sheet, R.id.toolSiteInfo, R.drawable.ic_settings, "网页安全",
-            "当前页资源 / 证书 / 拦截情报", () -> {
+        });
+        toolCell(sheet, R.id.toolSiteInfo, R.drawable.ic_settings, "网页安全", () -> {
             mountMain();
             showSiteInfoSheet();
-        }, true);
+        });
+        // 末格：出口型入口。顶栏那个 logo 撤掉之后（那一格让给了搜索），
+        // 这里是主菜单的唯一下沉入口 —— 底栏拇指位一次到。
+        toolCell(sheet, R.id.toolMenu, R.drawable.ic_menu, "主菜单", () -> {
+            mountMain();
+            showMenuSheet();
+        });
+    }
+
+    /**
+     * 工具宫格的一格：铺上图标与名称，整格可点。
+     *
+     * <p>和 {@link #menuRow} 是两条并行的路 —— 宫格没有副标题、没有右取值、
+     * 没有箭头，也就没有那一堆 setVisibility(GONE)。硬塞进 menuRow 的话，
+     * 每次调用都要先确认「这次不要的那三件」不会 NPE。
+     */
+    private void toolCell(View sheet, int id, int iconRes, String label, Runnable onTap) {
+        View cell = sheet.findViewById(id);
+        if (cell == null) return;
+        ((ImageView) cell.findViewById(R.id.cellIcon)).setImageResource(iconRes);
+        ((TextView) cell.findViewById(R.id.cellLabel)).setText(label);
+        cell.setOnClickListener(v -> onTap.run());
     }
 
     /**
@@ -2825,9 +3241,13 @@ public final class MainActivity extends Activity {
             View bottom = findViewById(R.id.bottomRow);
             if (top != null) top.setVisibility(View.GONE);
             if (bottom != null) bottom.setVisibility(View.GONE);
+            // 底栏收掉了，那条让位空白就没有存在的理由（见 injectBarInset）。
+            injectBarInset();
             toast("已进入观影模式，点工具→观影模式退出");
         } else {
             mountMain();
+            // 底栏回来了，让位空白也要跟着回来。
+            injectBarInset();
         }
     }
 
@@ -3107,8 +3527,8 @@ public final class MainActivity extends Activity {
             "吾爱Nova 内置篡改猴（Tampermonkey）兼容的用户脚本管理器，"
             + "装的是 .user.js，不是 Chrome 扩展 —— Android 没有提供扩展宿主，装不了扩展。"
             + "脚本按 @match 声明的地址注入页面。\n"
-            + "不支持 @grant 特权（跨域请求、读取 Cookie 等），"
-            + "声明了会在装上后明确标出。\n"
+            + "不支持 GM_xmlhttpRequest 这类需要原生桥的特权接口，"
+            + "声明了会明确标出，不会假装支持。\n"
             + "随包内置一条口碑最好的脚本（网页限制解除），用不上可以停用或卸载 ——"
             + "卸载后不会再自己回来。");
 
@@ -3142,12 +3562,12 @@ public final class MainActivity extends Activity {
         View sheet = openSheet("推荐脚本", R.layout.sheet_catalog);
 
         ((TextView) sheet.findViewById(R.id.ctNotice)).setText(
-            "这些脚本不在安装包里，选了哪条才去 Greasy Fork 下哪条 —— "
-            + "第三方脚本的许可各不相同，只提供地址就不涉及随包分发的问题，"
-            + "安装包也不会变大。\n"
-            + "「已确认」= 它的 @grant 声明已人工核对过，本引擎能跑；"
-            + "「未确认」不是不能用，是还没核对过 —— 安装时仍会逐项检测，"
-            + "把它要的权限摆出来给你看。");
+            "来源是脚本猫（scriptcat.org），按装机量挑的。\n"
+            + "「已内置」= 脚本正文随安装包一起发，断网也装得上；"
+            + "「需联网」= 那几条的许可没允许随包分发，只能现下 —— "
+            + "这是授权问题，不是它们不能用。\n"
+            + "这里的脚本一条都不会自动装上，点哪条才装哪条。"
+            + "安装前会把它声明要什么权限摆出来，本引擎给不了的部分会如实标注。");
 
         LinearLayout list = sheet.findViewById(R.id.ctList);
         list.removeAllViews();
@@ -3195,10 +3615,12 @@ public final class MainActivity extends Activity {
         ((TextView) row.findViewById(R.id.ctCredit)).setText(item.credit());
         ((TextView) row.findViewById(R.id.ctDesc)).setText(item.desc);
 
-        // 「未确认」不能画得像「推荐」—— 用中性色，与「已确认」的强调色分开。
+        // 徽章答的是「这条现在装得上吗」——比「核过没核过」更该被一眼看到。
+        // 内置的那批不联网就能装，用强调色；其余要联网，用中性色，
+        // 不能让两类看起来一样：用户刚因为没网失败过，最想知道的就是这个区别。
         TextView badge = row.findViewById(R.id.ctBadge);
-        badge.setText(item.verified ? "已确认" : "未确认");
-        badge.setTextColor(color(item.verified ? R.color.accent : R.color.text_3));
+        badge.setText(item.bundled ? "已内置" : "需联网");
+        badge.setTextColor(color(item.bundled ? R.color.accent : R.color.text_3));
 
         TextView caution = row.findViewById(R.id.ctCaution);
         if (item.caution.isEmpty()) {
@@ -3222,49 +3644,81 @@ public final class MainActivity extends Activity {
     /**
      * 装一条推荐脚本。
      *
-     * <p>下载是异步的。取回来的第一件事<b>不是</b>写库，而是把能力检测的结果
-     * 摆给用户看 —— {@link UserScript#parse} 会读出脚本真实的 {@code @grant}，
-     * 那是清单里「未确认」三个字变成确定事实的时刻。用户点了确认才落盘。
+     * <p>取回脚本的路径有两条，取决于这条在不在安装包里（{@link ScriptCatalog.Item#bundled}）：
+     * 内置的直接从 assets 读，<b>不碰网络</b>；其余的去脚本猫下。
+     * 两条路径都汇到 {@link #confirmInstall}，所以确认框里看到的东西完全一样。
+     *
+     * <p>取回来的第一件事<b>不是</b>写库，而是把能力检测的结果摆给用户看 ——
+     * {@link UserScript#parse} 会读出脚本真实的 {@code @grant}。
+     * 用户点了确认才落盘。
      */
     private void installFromCatalog(final ScriptCatalog.Item item) {
-        if (scriptInstaller == null) scriptInstaller = new ScriptInstaller();
-        toast("正在获取「" + item.name + "」…");
-
-        scriptInstaller.fetch(item, r -> {
-            if (!r.ok || r.pending == null) {
-                new NovaAlert(this, "没能安装", r.message)
+        if (item.bundled) {
+            // 内置的没什么可等的 —— 读一个几 KB 的 asset，同步做完就行，
+            // 加个「正在获取…」的提示反而像是出了什么慢事。
+            String text;
+            try {
+                text = store.readAssetText(item.asset);
+            } catch (IOException e) {
+                new NovaAlert(this, "安装包不完整",
+                    "读不到内置脚本 " + item.asset + "。\n\n"
+                        + "这是安装包的问题，不是网络问题。"
+                        + "其余标着「需联网」的脚本不受影响。")
                     .positive("知道了", null).show();
                 return;
             }
+            confirmInstall(item, ScriptInstaller.parseBundled(text, item));
+            return;
+        }
 
-            UserScript.Installed inst = r.pending;
-            StringBuilder msg = new StringBuilder();
-            msg.append("匹配：").append(String.join("、", inst.meta.match));
-            msg.append("\n\n").append(inst.meta.summary());
-            if (r.headless) {
-                msg.append("\n\n⚠ 它没有 ==UserScript== 元数据头，"
-                    + "会被当成「所有网站都运行」。");
-            }
-            if (!r.grants.isEmpty()) {
-                msg.append("\n\n⚠ 它声明了本引擎不提供的权限：")
-                    .append(String.join("、", r.grants))
-                    .append("。依赖这些权限的功能不会生效，其余部分照常。");
-            }
-            msg.append("\n\n来源：").append(r.origin);
+        if (scriptInstaller == null) scriptInstaller = new ScriptInstaller();
+        toast("正在从脚本猫获取「" + item.name + "」…");
+        scriptInstaller.fetch(item, r -> confirmInstall(item, r));
+    }
 
-            new NovaAlert(this, "安装「" + inst.displayName() + "」", msg.toString())
-                .negative("取消", null)
-                .positive("安装", () -> {
-                    if (!store.saveScript(inst)) {
-                        toast("写入失败，可能是存储空间不足");
-                        return;
-                    }
-                    mountMain();
-                    showCatalogSheet();
-                    toast("已安装 " + inst.displayName());
-                })
-                .show();
-        });
+    /** 把取回来的结果摆给用户看，他点了「安装」才落盘。 */
+    private void confirmInstall(final ScriptCatalog.Item item, ScriptInstaller.Result r) {
+        if (!r.ok || r.pending == null) {
+            new NovaAlert(this, "没能安装", r.message)
+                .positive("知道了", null).show();
+            return;
+        }
+
+        UserScript.Installed inst = r.pending;
+        StringBuilder msg = new StringBuilder();
+
+        // 适用范围只列前三条。像「自动展开」这种脚本有六十多条 @match，
+        // 全列出来会把确认框撑成一屏滚不完的地址墙，而用户真正要看的
+        // 「它会在哪些站上跑」被淹掉了。
+        List<String> match = inst.meta.match;
+        int shown = Math.min(3, match.size());
+        msg.append("匹配：").append(String.join("、", match.subList(0, shown)));
+        if (match.size() > shown) msg.append(" 等 ").append(match.size()).append(" 条");
+
+        msg.append("\n\n").append(inst.meta.summary());
+        if (r.headless) {
+            msg.append("\n\n⚠ 它没有 ==UserScript== 元数据头，"
+                + "会被当成「所有网站都运行」。");
+        }
+        if (!r.grants.isEmpty()) {
+            msg.append("\n\n⚠ 它声明了本引擎不提供的权限：")
+                .append(String.join("、", r.grants))
+                .append("。依赖这些权限的功能不会生效，其余部分照常。");
+        }
+        msg.append("\n\n来源：").append(r.local ? "随安装包内置（未联网）" : r.origin);
+
+        new NovaAlert(this, "安装「" + inst.displayName() + "」", msg.toString())
+            .negative("取消", null)
+            .positive("安装", () -> {
+                if (!store.saveScript(inst)) {
+                    toast("写入失败，可能是存储空间不足");
+                    return;
+                }
+                mountMain();
+                showCatalogSheet();
+                toast("已安装 " + inst.displayName());
+            })
+            .show();
     }
 
     private void refreshPluginPanel(View sheet) {
@@ -3813,15 +4267,10 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private String downloadSummary() {
-        if (downloader == null) return "没有下载任务";
-        int running = 0, total = downloader.tasks().size();
-        for (DownloadTask t : downloader.tasks()) {
-            if (!t.state.isTerminal()) running++;
-        }
-        if (total == 0) return "没有下载任务";
-        return running > 0 ? running + " 个进行中 · 共 " + total + " 条" : "共 " + total + " 条";
-    }
+    // 这里原有一个 downloadSummary()（「3 个进行中 · 共 8 条」那行小字），
+    // 只为工具面板里「下载」那一行的副标题服务。面板改成宫格之后它没有调用方了
+    // —— 下载进度并没有因此消失：底栏「工具」格本来就会在有任务时把图标换成下载图标
+    // （见 updateDownloadBadge），那条提示仍然在，只是不带数字。
 
     private void copyToClipboard(String text) {
         try {
@@ -3860,6 +4309,12 @@ public final class MainActivity extends Activity {
             settings.searchTemplate().label, false, false,
             () -> pickSearchEngine());
 
+        setRow(sheet, R.id.setUA, "网页标识（UA）", "自动 = 手机版；电脑版适合只认桌面浏览器的老网站",
+            uaLabel(), false, true,
+            () -> pickUA());
+
+        // ---- 个性化
+        // 顺序与布局里的分组一致：主题 → 主题配色 → 网页字号 → 上划显示搜索。
         setRow(sheet, R.id.setTheme, "主题", "跟随系统 / 强制浅色 / 强制深色",
             themeLabel(settings.theme), false, false,
             () -> {
@@ -3879,13 +4334,20 @@ public final class MainActivity extends Activity {
             accentLabel(), false, true,
             () -> pickAccent());
 
-        setRow(sheet, R.id.setUA, "网页标识（UA）", "自动 = 手机版；电脑版适合只认桌面浏览器的老网站",
-            uaLabel(), false, true,
-            () -> pickUA());
-
         setRow(sheet, R.id.setFont, "网页字号", "放大或缩小网页文字",
             textZoomLabel(), false, true,
             () -> pickTextZoom());
+
+        setRow(sheet, R.id.setSwipeUpSearch, "上划显示搜索",
+            "下滑时收起工具栏，底栏那格换成搜索框；关掉后滚动不改动界面",
+            null, settings.swipeUpSearch, false, () -> {
+                settings.swipeUpSearch = !settings.swipeUpSearch;
+                store.save(settings);
+                // 关掉时要立刻把界面收回常态。此刻很可能正停在「顶栏已收起」上，
+                // 而关掉之后不会再有滚动事件来解除它 —— 界面会一直卡在滚动态，
+                // 顶栏再也不回来、底栏停在一格搜索框上。
+                if (!settings.swipeUpSearch) forceRevealBar();
+            });
 
         // ---- 阅读增强
         setRow(sheet, R.id.setNoImage, "无图模式", null,
@@ -4655,16 +5117,20 @@ public final class MainActivity extends Activity {
 
     // ------------------------------------------------------------ 杂项
 
+    /**
+     * 处理「从别的应用分享进来」的链接。
+     *
+     * <p>恢复会话已经不在这里了 —— 它挪到了 {@link #bootBrowser()}，为的是让首屏
+     * 早一点上路。这里只剩一件事：把分享进来的链接另开一个标签，
+     * 而不是顶掉刚恢复出来的那个（顶掉的话，用户上次没看完的页面就少一个）。
+     *
+     * <p>代价说清楚：分享进来时，首屏那次加载会白跑一遍（刚发出请求就被切走）。
+     * 这是有意的取舍 —— 为了分享这一种入口去砍掉「启动即预载」，
+     * 等于让绝大多数情况替少数情况买单。
+     */
     private void handleShare(Intent intent) {
-        // 先把分享的网址挑出来，再去恢复会话。
-        // 顺序反过来会白加载一次页面：恢复完立刻被 go() 覆盖掉。
-        String shared = null;
-        if (intent != null && Intent.ACTION_SEND.equals(intent.getAction())) {
-            shared = urlFromShare(intent);
-        }
-        restoreSession();
-        // 分享进来的内容开一个新标签，而不是顶掉刚恢复出来的那个 ——
-        // 顶掉的话，用户上次没看完的页面就少了一个。
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return;
+        String shared = urlFromShare(intent);
         if (shared != null) newTab(shared);
     }
 

@@ -5,17 +5,24 @@
   圆角 = 高度的一半 → 两端是标准半圆胶囊。
   高度由 activity_main.xml 里的 searchCapsule 定，这里只画形状。
 
-  悬浮感：底色改用半透明 surface（透出底下的网页），描边保留品牌色，
-  让这一格「浮在页面上」而不是「嵌在底栏里」。阴影不在 shape 里画（shape
-  不支持 elevation），而是由 activity_main.xml 里的 searchCapsule 用
-  android:elevation 抬起 —— 两者配合才有悬浮的感觉。
+  底色是实底 surface，不是 surface_translucent —— 这条改过，理由值得留一句：
+  半透明属于**底栏那一条**（它压在网页上，网页从底下透出来），
+  而胶囊是压在底栏上的「实心控件」。两者都半透明的话，页面文字会先穿底栏、
+  再穿胶囊，两层叠在一起，输入框读起来就是糊的。
+  一虚一实才分得出层级：玻璃条上放一块实心输入框。
+
+  描边保留品牌色：与常态的 omnibox（surface 底 + 近黑描边）刻意不同 ——
+  一眼能看出「现在这一格是搜索状态」，而不是「地址栏换了个位置」。
+
+  阴影不在 shape 里画（shape 不支持 elevation），而是由 activity_main.xml 里的
+  searchCapsule 用 android:elevation 抬起 —— 两者配合才有「浮在玻璃条上」的感觉。
 
   全部走令牌，不硬编码颜色：values-night 一换就整体变深色，
   这是本工程布局的硬规矩（statusStrip 的历史硬编码是例外，不模仿）。
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/surface_translucent" />
+    <solid android:color="@color/surface" />
     <corners android:radius="18dp" />
     <stroke android:width="1dp" android:color="@color/brand" />
 </shape>

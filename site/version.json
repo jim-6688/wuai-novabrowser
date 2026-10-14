@@ -1,39 +1,41 @@
 {
-  "version": "1.4.0",
-  "versionCode": 10,
+  "version": "1.5.0",
+  "versionCode": 11,
   "channel": "release",
   "updatedAt": "2026-10-14",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "顶栏新增四个功能按钮：阅读模式 / 观影模式 / 翻译 / AI 助手，一键直达",
-    "底栏新增「工具箱」格，下载 / 篡改猴 / 广告拦截等收拢一处",
-    "新增推荐脚本库：精选口碑脚本清单，点哪条装哪条，装前自动检测",
-    "新增第三方脚本拦截（严格隐私模式），拦下一切非同源追踪资源",
-    "新增划词搜索 + 翻译：页面选中文字即可搜索或打开有道翻译",
-    "新增网页安全面板：当前页资源统计、SSL 证书状态、拦截情报一目了然",
-    "配色重设，灰底白卡层次更清晰；整体字号加大",
-    "设置页移除「新标签页」选项，固定启动进主页、新建进内置新标签页"
+    "底栏改为五格纯图标并加大，去掉文字与网址，视觉更干净",
+    "顶栏收敛为「搜索胶囊 + AI 助手」，撤掉第二行的四个按钮",
+    "新标签页重做：隐藏顶栏、恢复页内搜索框、九宫格自动抓取网站真实图标",
+    "主页启动即预载并加启动页遮罩，进软件不再白屏等待",
+    "底栏改半透明玻璃条、顶栏加悬浮投影",
+    "修复滑动网页时界面跳屏的问题",
+    "设置页新增「个性化」分组：主题、配色、网页字号、上划显示搜索",
+    "工具箱改为九宫格并补齐图标",
+    "推荐脚本库换用脚本猫，6 条脚本随安装包内置，断网也能装",
+    "标签页、书签、历史等六个列表页增加行间分隔线"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.4.0.apk",
-      "size": 425176,
-      "sha256": "2280fd6f10a664169ad7b2d0e460a969a1c1e6ffd0e09920cd3e57ff7c1ffaea"
+      "url": "download/nova-1.5.0.apk",
+      "size": 479414,
+      "sha256": "4e0b6352e07227f7b6b4b4b57c6e27aba75788187a00bbb644abf2937c7f27f8"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.4.0/nova-1.4.0.apk",
-      "size": 425176,
-      "sha256": "2280fd6f10a664169ad7b2d0e460a969a1c1e6ffd0e09920cd3e57ff7c1ffaea"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.5.0/nova-1.5.0.apk",
+      "size": 479414,
+      "sha256": "4e0b6352e07227f7b6b4b4b57c6e27aba75788187a00bbb644abf2937c7f27f8"
     }
   ],
   "pc": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "label": "PC 版（Windows 安装包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v0.1.0/nova-pc-0.1.0-win-x64-setup.exe",
-    "size": 78024576,
-    "sha256": "c6fc42018912e82a91f3e0c05481eb753214bf5939a09e8c8a896e351cb0f8e2"
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.5.0/nova-pc-0.2.0-win-x64-setup.exe",
+    "size": 78026429,
+    "sha256": "ea5d7826934e74ee101a36132ebe8bd97e16a19a7532a3a8d9411540064f7fe8"
   }
 }

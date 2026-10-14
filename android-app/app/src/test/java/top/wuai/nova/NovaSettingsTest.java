@@ -31,6 +31,19 @@ public class NovaSettingsTest {
         assertFalse(s.autoPage);
         assertTrue(s.adblockEnabled);
         assertEquals("system", s.theme);
+        assertTrue(s.swipeUpSearch);
+    }
+
+    @Test
+    public void 老配置缺上划显示搜索键时保持开启() {
+        // 新增开关不该让任何人的界面突然变了：老配置里没有这个键，
+        // bool() 走 fallback，升级上来的用户保持原有行为（上划换搜索框）。
+        Map<String, String> m = new HashMap<>(new NovaSettings().toMap());
+        m.remove("swipeUpSearch");
+        assertTrue(NovaSettings.fromMap(m).swipeUpSearch);
+        // 只有显式关掉才关
+        m.put("swipeUpSearch", "false");
+        assertFalse(NovaSettings.fromMap(m).swipeUpSearch);
     }
 
     // ------------------------------------------------------------ 往返
@@ -43,6 +56,7 @@ public class NovaSettingsTest {
         s.autoPageMax = 20;
         s.theme = "dark";
         s.defaultEngine = "trident";
+        s.swipeUpSearch = false;
 
         NovaSettings back = NovaSettings.fromMap(s.toMap());
         assertEquals("image-av", back.noImage);
@@ -50,6 +64,7 @@ public class NovaSettingsTest {
         assertEquals(20, back.autoPageMax);
         assertEquals("dark", back.theme);
         assertEquals("trident", back.defaultEngine);
+        assertFalse(back.swipeUpSearch);
     }
 
     @Test

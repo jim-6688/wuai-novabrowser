@@ -123,4 +123,87 @@ public class ScriptInstallerTest {
         assertTrue(r.message, r.ok);
         assertNotNull(r.pending);
     }
+
+    // ------------------------------------------------------------ 内置路径
+
+    @Test
+    public void 内置脚本带上来源与本地标记() {
+        // 来源必须挂上。它是「这条清单项装过没有」唯一的判据
+        // （ScriptCatalog.fromOrigin 拿它反查）—— 丢掉的后果不是
+        // 「来源那行空着」这么轻，而是装完之后清单里那条仍然显示「安装」，
+        // 再点一次就装出第二份。
+        ScriptCatalog.Item it = ScriptCatalog.byKey("auto-expand");
+        ScriptInstaller.Result r = ScriptInstaller.parseBundled(内置正文(), it);
+        assertTrue(r.message, r.ok);
+        assertTrue(r.local);
+        assertEquals(ScriptCatalog.homeUrl(it), r.origin);
+        assertEquals(it, ScriptCatalog.fromOrigin(r.origin));
+    }
+
+    @Test
+    public void 内置脚本走的是跟线上同一套校验() {
+        // 两条路径共用 parseDownloaded，所以权限检测、无头判定、
+        // 名称解析的结果必须一模一样。分成两套的话，迟早只有一套会被维护。
+        ScriptCatalog.Item it = ScriptCatalog.byKey("auto-expand");
+        ScriptInstaller.Result local =
+            ScriptInstaller.parseBundled(内置正文(), it);
+        ScriptInstaller.Result online =
+            ScriptInstaller.parseDownloaded(内置正文());
+        assertEquals(online.pending.meta.name, local.pending.meta.name);
+        assertEquals(online.pending.meta.match, local.pending.meta.match);
+        assertEquals(online.grants, local.grants);
+        assertEquals(online.headless, local.headless);
+        assertEquals(online.pending.id, local.pending.id);
+    }
+
+    @Test
+    public void 内置脚本坏掉时说的是安装包问题() {
+        // 内置脚本读不出来是**打包**问题。这时候报「网络错误」会让人
+        // 对着网络猜一辈子，也猜不到这一层。
+        ScriptCatalog.Item it = ScriptCatalog.byKey("auto-expand");
+        ScriptInstaller.Result r = ScriptInstaller.parseBundled("<html>oops", it);
+        assertFalse(r.ok);
+        assertTrue(r.message, r.message.contains("安装包"));
+        assertTrue(r.message, r.message.contains("打包"));
+        // 本地 asset 没有被重定向的可能，所以不该把「去查网络」这类指引
+        // 当作主因摆出来。原文只作括注保留，供排查。
+        assertFalse("不该让用户去查网络", r.message.contains("检查网络"));
+    }
+
+    @Test
+    public void 内置路径对空清单项也是安全的() {
+        // 清单项是 null 时不该抛 —— 抛的话表现是「点安装没反应」，
+        // 而且看不出跟内置路径有关。
+        ScriptInstaller.Result r = ScriptInstaller.parseBundled(内置正文(), null);
+        assertTrue(r.message, r.ok);
+        assertEquals("", r.origin);
+        assertTrue(r.local);
+    }
+
+    @Test
+    public void 内置脚本的权限检测与在线路径一致() {
+        // 打包进来的脚本同样要报「引擎给不了哪几项」，不能因为它是内置的
+        // 就当没事 —— 用户装的是行为，不是来源。
+        String src = "// ==UserScript==\n"
+            + "// @name 要特权\n"
+            + "// @match https://example.com/*\n"
+            + "// @grant GM_setValue\n"
+            + "// ==/UserScript==\n"
+            + "void 0;\n";
+        ScriptInstaller.Result r =
+            ScriptInstaller.parseBundled(src, ScriptCatalog.byKey("auto-expand"));
+        assertTrue(r.message, r.ok);
+        assertEquals(1, r.grants.size());
+        assertTrue(r.grants.contains("GM_setValue"));
+    }
+
+    private static String 内置正文() {
+        return "// ==UserScript==\n"
+            + "// @name         自动展开\n"
+            + "// @namespace    nova.test\n"
+            + "// @match        *://*.csdn.net/*\n"
+            + "// @grant        none\n"
+            + "// ==/UserScript==\n"
+            + "console.log('expanded');\n";
+    }
 }

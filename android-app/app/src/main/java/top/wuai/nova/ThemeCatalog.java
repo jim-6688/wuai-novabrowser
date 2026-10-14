@@ -44,11 +44,11 @@ public final class ThemeCatalog {
      * 保证状态栏深色与主色层次分明。
      */
     public static final Theme[] ALL = {
-        new Theme("blue",    "默认蓝", 0xFF3D6BFF, 0xFF2E56D9, 0xFF00B8A2),
-        new Theme("teal",    "青绿",   0xFF00B8A2, 0xFF009C8B, 0xFF3D6BFF),
+        new Theme("blue",    "星云蓝", 0xFF2D6BF5, 0xFF1D52D6, 0xFF00C8A8),
+        new Theme("teal",    "青绿",   0xFF00C8A8, 0xFF00A88D, 0xFF2D6BF5),
         new Theme("purple",  "粉紫",   0xFF8B5CF6, 0xFF7C3AED, 0xFFEC4899),
         new Theme("orange",  "暖橙",   0xFFF97316, 0xFFEA580C, 0xFFF59E0B),
-        new Theme("amoled",  "纯黑",   0xFF3D6BFF, 0xFF2E56D9, 0xFF00B8A2),
+        new Theme("amoled",  "纯黑",   0xFF2D6BF5, 0xFF1D52D6, 0xFF00C8A8),
     };
 
     /** 默认主题（蓝色）。 */

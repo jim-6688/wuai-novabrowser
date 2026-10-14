@@ -17,7 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 吾爱Nova浏览器 · 推荐脚本的下载。
+ * 吾爱Nova浏览器 · 推荐脚本的取得与校验。
  *
  * <h3>它只负责「取回来 + 验一遍」，不负责落盘</h3>
  *
@@ -26,12 +26,29 @@ import java.util.concurrent.Executors;
  * {@link #fetch} 给出的 {@link Result#pending} 是一个构造好但<b>尚未保存</b>的
  * {@link UserScript.Installed}，存不存由调用方决定。
  *
+ * <h3>两条取得路径，界面看到的形状必须一样</h3>
+ *
+ * <p>清单里的条目分两类（见 {@link ScriptCatalog.Item#bundled}）：
+ *
+ * <ul>
+ *   <li><b>随包内置</b>：正文在 assets 里。调用方用
+ *       {@code store.readAssetText(item.asset)} 读出来，交给
+ *       {@link #parseBundled} 走一遍同样的校验。<b>全程不碰网络</b>，
+ *       所以断网、飞行模式、域名被墙都装得上。</li>
+ *   <li><b>需联网</b>：走 {@link #fetch} 从脚本猫下载。许可没允许再分发的
+ *       只能这么装 —— 这是授权问题，不是技术问题。</li>
+ * </ul>
+ *
+ * <p>两条路径最终都汇到 {@link #parseDownloaded}，所以「确认框里显示什么、
+ * 哪些 {@code @grant} 会被标红」对两类条目完全一致。分成两套解析的话，
+ * 迟早只有一套会被维护。
+ *
  * <h3>为什么把 {@code @grant} 检测放在这一层</h3>
  *
- * <p>清单里多数条目标着「未验证」—— 那不是「大概不能用」，是「没确认过」。
- * 下载回来的那一刻，{@link UserScript#parse} 会读出<b>真实的</b>
- * {@code @grant}，于是「未验证」在用户点下安装的一秒内就变成了确定的事实。
- * 这比在清单里猜准确得多，也不必让发布者在无网络的环境里预先验证每一条。
+ * <p>清单里记着每条脚本声明的 {@code @grant}（选品时的读数），但那毕竟是
+ * 二手信息。用户点下安装的那一刻，{@link UserScript#parse} 会读出脚本
+ * <b>真实</b>的 {@code @grant} —— 作者改了脚本、平台元数据没跟上，
+ * 都在这里被抓住。这比在清单里猜准确得多。
  *
  * <h3>为什么不用 OkHttp</h3>
  *
@@ -72,6 +89,13 @@ public final class ScriptInstaller {
         public boolean headless;
         /** 来源地址，显示用。 */
         public String origin = "";
+        /**
+         * 正文是从安装包里读的，不是下载来的。
+         *
+         * <p>界面上要把这句话说出来 —— 「它已经在安装包里了、这次没联网」
+         * 是一件用户会想知道的事，尤其是他刚因为没网失败过几次之后。
+         */
+        public boolean local;
     }
 
     public interface Callback {
@@ -127,7 +151,7 @@ public final class ScriptInstaller {
                 // 脚本下架、ID 变更、或站点把请求重定向到了首页，都会落到这里。
                 // 必须单独说 —— 否则用户看到的是「装不上」，而真实原因是那条脚本没了。
                 r.message = "该地址返回的是网页（" + shortType(ctype) + "），不是脚本。"
-                    + "这条脚本可能已从 Greasy Fork 下架或改过地址。";
+                    + "这条脚本可能已从脚本猫下架或改过地址。";
                 return r;
             }
 
@@ -145,10 +169,11 @@ public final class ScriptInstaller {
             }
             text = sb.toString();
         } catch (SocketTimeoutException e) {
-            r.message = "连接超时，请检查网络后重试";
+            r.message = "连接脚本猫超时。换个网络、或者挑一条标着「已内置」的脚本重试。";
             return r;
         } catch (UnknownHostException e) {
-            r.message = "域名解析失败：可能当前网络无法访问 Greasy Fork";
+            r.message = "域名解析失败：当前网络可能无法访问脚本猫（scriptcat.org）。"
+                + "如果这条脚本标着「已内置」，换那条装就能绕开网络。";
             return r;
         } catch (Exception e) {
             r.message = "下载失败：" + (e.getMessage() == null
@@ -158,16 +183,57 @@ public final class ScriptInstaller {
             if (conn != null) conn.disconnect();
         }
 
-        return parseDownloaded(text);
+        // 来源要挂回结果上。早先的写法是 `return parseDownloaded(text)`，
+        // 而 parseDownloaded 返回的是一个**新** Result —— 上面那句
+        // r.origin = homeUrl(item) 当场被丢掉。后果不是「来源那行空着」这么轻：
+        // 脚本落盘时 origin 为空，ScriptCatalog.fromOrigin 反查不到，
+        // 于是装完之后清单里那条仍然显示「安装」，点下去会装出第二份。
+        Result parsed = parseDownloaded(text);
+        parsed.origin = ScriptCatalog.homeUrl(item);
+        return parsed;
     }
 
     /**
-     * 把下载到的文本验成一条可安装的脚本。
+     * 把<b>安装包里</b>的脚本正文验成一条可安装的脚本。
+     *
+     * <p>和线上下载走同一套校验（同一个 {@link #parseDownloaded}），
+     * 差别只有两处：来源直接由清单项给出（不用去 parseDownloaded 里补，
+     * 因为这里本来就知道它是谁），以及失败时要把话说清楚 ——
+     * 内置脚本读不出来是<b>打包</b>问题。
+     *
+     * <p>这里刻意<b>不</b>复用 {@code parseDownloaded} 那句
+     * 「请求可能被重定向了」：一个本地 asset 没有被重定向的可能，
+     * 把这句话摆给用户看，等于指着他去查一条根本不存在的原因。
+     * 原文只作为括注保留，供排查用。
+     */
+    static Result parseBundled(String text, ScriptCatalog.Item item) {
+        Result r = parseDownloaded(text);
+        r.local = true;
+        if (item != null) r.origin = ScriptCatalog.homeUrl(item);
+        if (!r.ok) {
+            String detail = r.message;
+            r.message = "安装包里的这份脚本读不出来。\n\n"
+                + "这是打包时出的错，与你的网络和操作都无关 —— "
+                + "标着「需联网」的那几条不受影响，可以先用它们。\n\n"
+                + "（原始原因：" + detail + "）";
+            return r;
+        }
+        r.message = "已从安装包读取：" + r.pending.meta.name;
+        return r;
+    }
+
+    /**
+     * 把脚本正文验成一条可安装的脚本 —— 两条取得路径共用的那一套。
      *
      * <p>独立成静态方法是为了能单测 —— 这里挡的是一个<b>真实且危险</b>的坑：
      * {@link UserScript#parse} 对没有元数据头的文本会兜底成「匹配所有地址」，
      * 也就是「所有网站都运行」。于是一张 HTML 错误页
      * 会被安静地装成一个全站脚本。所以进 parse 之前必须先排除「这是网页」。
+     *
+     * <p>本方法不设 {@link Result#origin} —— 它只认正文，不认来源。
+     * 线上路径由 {@link #download} 补，内置路径由 {@link #parseBundled} 补。
+     * 让这里自己猜一个来源，两条路径就会各猜一个，迟早对不上
+     * （而那正是「装完了清单还说没装」的成因）。
      */
     static Result parseDownloaded(String text) {
         Result r = new Result();
@@ -223,7 +289,8 @@ public final class ScriptInstaller {
 
     private static String hint(int code) {
         if (code == 403) return "（服务器拒绝了请求，可能被网络环境拦截）";
-        if (code == 404) return "（脚本不存在，可能已从 Greasy Fork 下架）";
+        if (code == 404) return "（脚本不存在，可能已从脚本猫下架）";
+        if (code == 429) return "（请求太频繁，过一会儿再试）";
         if (code >= 500) return "（对方服务器出错，稍后再试）";
         return "";
     }

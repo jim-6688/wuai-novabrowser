@@ -59,6 +59,17 @@ public final class NovaSettings {
     public String theme = "system";
     /** 主题配色 id（见 {@link ThemeCatalog}），默认蓝。与 theme 的深浅正交。 */
     public String accentTheme = ThemeCatalog.DEFAULT_ID;
+    /**
+     * 上划（页面往下翻）时收起顶栏，底栏那格换成搜索框。
+     *
+     * <p>默认开。关掉之后<b>滚动完全不改界面</b> —— 顶栏常驻、底栏一直是五格。
+     *
+     * <p>为什么值得给一个开关：收起顶栏本身是个「拿空间换沉浸」的取舍，
+     * 而不是所有人都想要的默认行为 —— 单手拿着手机往下读时，上面那条
+     * 工具栏凭空消失、多出一格搜索框，有人觉得顺手，有人觉得界面在动。
+     * 关掉它不会损失任何功能，只是回到「什么都不动」。
+     */
+    public boolean swipeUpSearch = true;
     public boolean adblockEnabled = true;
     /** 第三方请求拦截（严格隐私模式）：拦一切非同源子资源。默认关，避免影响老用户。 */
     public boolean thirdPartyBlock = false;
@@ -203,6 +214,7 @@ public final class NovaSettings {
         m.put("layout", layout);
         m.put(K_THEME, theme);
         m.put(K_ACCENT_THEME, accentTheme);
+        m.put("swipeUpSearch", String.valueOf(swipeUpSearch));
         m.put("adblockEnabled", String.valueOf(adblockEnabled));
         m.put("thirdPartyBlock", String.valueOf(thirdPartyBlock));
         m.put("noImage", noImage);
@@ -244,6 +256,9 @@ public final class NovaSettings {
         s.theme = oneOf(m.get(K_THEME), new String[]{"system", "light", "dark"}, s.theme);
         s.accentTheme = ThemeCatalog.known(m.get(K_ACCENT_THEME))
             ? m.get(K_ACCENT_THEME) : ThemeCatalog.DEFAULT_ID;
+        // 默认 true：老配置里没有这个键，bool() 走 fallback，于是升级上来的用户
+        // 保持现在的行为（上划换搜索框）—— 新增开关不该让任何人的界面突然变了。
+        s.swipeUpSearch = bool(m.get("swipeUpSearch"), s.swipeUpSearch);
         s.adblockEnabled = bool(m.get("adblockEnabled"), s.adblockEnabled);
         s.thirdPartyBlock = bool(m.get("thirdPartyBlock"), s.thirdPartyBlock);
         s.noImage = NoImagePolicy.Level.fromId(m.get("noImage")).id;

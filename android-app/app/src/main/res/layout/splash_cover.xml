@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动遮罩。冷启动时盖在主界面上，等首屏页面画出第一帧再淡出（见 MainActivity#showSplashCover）。
+
+  它要解决的问题不是「好看」，是「这段时间屏幕上没东西可看」：主页是联网的，
+  从发出请求到画出第一帧，中间 WebView 是空的。没有这一层，用户的观感就是
+  「启动图 → 一个空白的软件 → 主页终于出来」；有了它，启动图一直盖到屏幕上
+  真的有东西可看为止。
+
+  两处「刻意同款」：
+    · 底色取 @color/bg —— 与 Theme.Nova 的 windowBackground 同一个值
+    · 图标取 @mipmap/ic_launcher —— 与 Android 12+ 系统启动页同一个图
+  所以系统启动页淡出、这一层接上来的时候看不出是两层，整段启动是一次连续的启动页。
+
+  可点击 + 可获得焦点：遮罩在的时候它得吃掉触摸。不吃的话，用户在这几百毫秒里
+  点到的是下面那个还没画出来的界面 —— 点中的位置和看到的东西对不上。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/splashCover"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:clickable="true"
+    android:focusable="true">
+
+    <ImageView
+        android:layout_width="84dp"
+        android:layout_height="84dp"
+        android:layout_gravity="center"
+        android:importantForAccessibility="no"
+        android:src="@mipmap/ic_launcher" />
+</FrameLayout>

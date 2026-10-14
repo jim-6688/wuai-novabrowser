@@ -67,16 +67,40 @@
                 <include layout="@layout/item_menu" android:id="@+id/setSearch" />
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setUA" />
+            </LinearLayout>
+
+            <!-- ============ 个性化 ============
+                 原先「主题 / 主题配色 / 网页字号」混在「通用」里。那三项回答的是
+                 「这东西长什么样」，而通用那一组回答「它按什么规则工作」——
+                 混在一起时，想换主题的人得先在首页地址、搜索引擎里翻一遍。
+
+                 工具箱里原先还有一行「深浅模式」的快捷入口，这次一并撤掉：
+                 同一个动作留两处入口，早晚会出现「两处说法不一样」，
+                 而且那一行占的是工具面板里最贵的位置。
+            -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="个性化" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_menu_group">
+
                 <include layout="@layout/item_menu" android:id="@+id/setTheme" />
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
                 <include layout="@layout/item_menu" android:id="@+id/setAccent" />
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
-                <include layout="@layout/item_menu" android:id="@+id/setUA" />
+                <include layout="@layout/item_menu" android:id="@+id/setFont" />
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
-                <include layout="@layout/item_menu" android:id="@+id/setFont" />
+                <include layout="@layout/item_menu" android:id="@+id/setSwipeUpSearch" />
             </LinearLayout>
 
             <!-- ============ 阅读增强 ============ -->

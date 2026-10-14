@@ -1,22 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
-  底栏「工具」图标：三条横线 + 三个滑块，即常见的「调节 / 工具」符号。
+  底栏「工具」图标：一只工具箱（箱体 + 提手 + 中缝）。
 
-  造型与其它图标保持一致：20dp 画布、纯描边（strokeColor 用 #000，真正的颜色由
-  根节点的 android:tint 决定）、圆头线帽。这里刻意不写 fillColor ——
-  本工程的线性图标全部靠 tint 上色，写了 fill 反而变成实心块，和 ic_back / ic_menu
-  不是一套。
+  原来画的是「三条横线 + 三个滑块」的调节符号 —— 那套图形在 20dp 下和
+  ic_menu 的三条横线几乎分不出来，底栏里并排放着，「工具」与「菜单」看着像
+  同一个按钮。换成工具箱后两者一眼可分：箱体有明确的外轮廓，横线没有。
+
+  造型沿用本工程线性图标的约定：20dp 画布、strokeColor 写 #000（真正的颜色由
+  根节点的 android:tint 决定）、圆头线帽、不写 fillColor（写了会变成实心块，
+  和 ic_back / ic_menu 不是一套）。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="20dp" android:height="20dp"
     android:viewportWidth="20" android:viewportHeight="20"
     android:tint="@color/text_3">
     <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M4.8,7.4 H15.2 A2,2 0 0,1 17.2,9.4 V14.8 A2,2 0 0,1 15.2,16.8 H4.8 A2,2 0 0,1 2.8,14.8 V9.4 A2,2 0 0,1 4.8,7.4 Z" />
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M7.4,7.4 V6 A1.7,1.7 0 0,1 9.1,4.3 H10.9 A1.7,1.7 0 0,1 12.6,6 V7.4" />
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
         android:strokeLineCap="round"
-        android:pathData="M3,6 H17 M3,10 H17 M3,14 H17" />
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
-        android:pathData="M7,6 a1.8,1.8 0 1,0 0.01,0 z" />
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
-        android:pathData="M13,10 a1.8,1.8 0 1,0 0.01,0 z" />
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
-        android:pathData="M9,14 a1.8,1.8 0 1,0 0.01,0 z" />
+        android:pathData="M2.8,11 H17.2" />
 </vector>

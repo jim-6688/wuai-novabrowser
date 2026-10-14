@@ -1,7 +1,13 @@
+<!--
+  底栏「标签」格。原来是画在 56dp 蓝色主按钮里的白图标（tint 写死 #FFFFFF，
+  因为那时底下一定有一块品牌色）。底栏改成五格等宽纯图标之后，这一格不再有
+  自己的底色，白图标落在浅色底上等于看不见 —— 改成与左邻 ic_back 同一支
+  text_3，让计数徽标（品牌色）成为这一格唯一的有色元素。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="20dp" android:height="20dp"
     android:viewportWidth="20" android:viewportHeight="20"
-    android:tint="#FFFFFF">
+    android:tint="@color/text_3">
     <path android:strokeColor="#000" android:strokeWidth="1.6"
         android:strokeLineJoin="round"
         android:pathData="M4,6.5 h12 v9 h-12 z" />

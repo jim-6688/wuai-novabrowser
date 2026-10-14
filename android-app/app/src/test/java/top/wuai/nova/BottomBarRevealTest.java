@@ -111,4 +111,27 @@ public class BottomBarRevealTest {
         assertEquals(BAR, r.onScroll(800));
         assertEquals(CAP, r.onScroll(950));
     }
+
+    @Test
+    public void 挪基准不改变当前状态() {
+        BottomBarReveal r = new BottomBarReveal();
+        r.onScroll(0);
+        assertEquals(CAP, r.onScroll(300));
+        r.syncBaseline(1000);
+        assertEquals(CAP, r.state());
+    }
+
+    @Test
+    public void 程序性补偿只挪基准不作判定() {
+        // 收起顶栏后我们把页面反向补了 48px（那不是用户划的）。
+        // 基准跟着挪，于是这一下既不算「向下」也不算「向上」；
+        // 少了 syncBaseline，它会变成一次莫名其妙的向上拖动 ——
+        // 用户再回划 45px 就够到 60px 的回弹阈值，顶栏刚收起来又弹回去。
+        BottomBarReveal r = new BottomBarReveal();
+        assertEquals(BAR, r.onScroll(0));
+        assertEquals(CAP, r.onScroll(300));
+        r.syncBaseline(252);                 // 300 - 48
+        assertEquals(CAP, r.onScroll(280));  // 用户继续下划一帧
+        assertEquals(CAP, r.onScroll(235));  // 再回划 45px：没到阈值，不该弹回来
+    }
 }

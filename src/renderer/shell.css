@@ -3,48 +3,60 @@
    设计令牌 → 组件 → 桌面布局 → 移动布局
    ========================================================================== */
 
-/* ---------- 1. 设计令牌 ---------- */
+/* ---------- 1. 设计令牌 · Nova 星云 ----------
+   与 android-app 的 values/colors.xml、values-night/colors.xml 逐条对应：
+   这一份改了，那边必须跟着改，两端共用同一套语言。
+   深色模不是浅色模的反相 —— 中性色换了一整套深空底，品牌色反而提亮一档。 */
 :root {
-  /* 品牌 */
-  --brand: #3D6BFF;
-  --brand-strong: #2E56D9;
-  --brand-soft: rgba(61, 107, 255, 0.12);
-  --accent: #00B8A2;
+  /* 品牌。青兰为主、蓝绿为辅，两者之间的 135° 渐变是「星云」母题，
+     用在品牌标识、一级按钮、内核胶囊、进度条与开关的开态上。 */
+  --brand: #2D6BF5;
+  --brand-strong: #1D52D6;
+  --brand-soft: rgba(45, 107, 245, 0.12);
+  --accent: #00C8A8;
+  --accent-soft: rgba(0, 200, 168, 0.14);
+  --nova-grad: linear-gradient(135deg, var(--accent), var(--brand));
+
+  /* 焦点环。键盘走查与地址栏聚焦共用。用品牌色而不是系统蓝 ——
+     系统蓝在这套配色里是第四种蓝，会显得整个界面没收拾干净。 */
+  --ring: 0 0 0 3px var(--brand-soft);
 
   /* 星标（收藏）。与移动端 colors.xml 的 star 对应 ——
      不借用 warn：警告色哪天要调，收藏星不该跟着变。 */
   --star: #F5A623;
 
   /* 内核标识色 */
-  --engine-chromium: #3D6BFF;
+  --engine-chromium: #2D6BF5;
   --engine-gecko: #FF7139;
   --engine-trident: #0A84C6;
 
-  /* 语义色 */
-  --ok: #14B87A;
+  /* 语义色。深浅两模共用，不随主题覆盖 */
+  --ok: #12B981;
   --warn: #FF9F0A;
   --danger: #FF4D4F;
 
-  /* 中性（浅色） */
-  --bg: #F6F7FB;
+  /* 中性（浅色）。底色偏冷、与品牌蓝同向；卡片靠边框与投影分层，
+     不靠加深底色，所以 surface 系列之间只差一档。 */
+  --bg: #F4F6FB;
   --surface: #FFFFFF;
-  --surface-2: #F1F3F9;
-  --surface-3: #E9ECF5;
-  --border: #E6E8EF;
-  --border-strong: #D5D9E4;
-  --text: #14161C;
-  --text-2: #4A5062;
-  --text-3: #6B7183;
-  --text-4: #9AA0B0;
-  --shadow-1: 0 1px 2px rgba(20, 22, 28, 0.06), 0 1px 1px rgba(20, 22, 28, 0.04);
-  --shadow-2: 0 8px 24px rgba(20, 22, 28, 0.10), 0 2px 6px rgba(20, 22, 28, 0.06);
-  --shadow-3: 0 24px 60px rgba(20, 22, 28, 0.18);
+  --surface-2: #EEF1F8;
+  --surface-3: #E3E8F4;
+  --border: #E4E8F2;
+  --border-strong: #CFD6E6;
+  --text: #101322;
+  --text-2: #464E63;
+  --text-3: #6A7288;
+  --text-4: #9BA3B7;
+  --shadow-1: 0 1px 2px rgba(16, 19, 34, 0.06), 0 1px 1px rgba(16, 19, 34, 0.04);
+  --shadow-2: 0 10px 28px rgba(16, 19, 34, 0.10), 0 2px 6px rgba(16, 19, 34, 0.06);
+  --shadow-3: 0 28px 64px rgba(16, 19, 34, 0.20);
 
   /* 尺幅 */
   --r-xs: 6px;
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
+  --r-xl: 22px;
   --r-pill: 999px;
 
   --sp-1: 4px;
@@ -54,35 +66,43 @@
   --sp-5: 20px;
   --sp-6: 24px;
   --sp-8: 32px;
+  --sp-10: 40px;
 
-  --titlebar-h: 34px;
-  --tabstrip-h: 38px;
-  --toolbar-h: 46px;
-  --row-h: 34px;
+  --titlebar-h: 36px;
+  --tabstrip-h: 40px;
+  --toolbar-h: 48px;
+  --row-h: 36px;
 
   --font: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system,
           "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
+  --dur-fast: 120ms;
   --dur: 160ms;
+  --dur-slow: 240ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 [data-theme="dark"] {
-  --bg: #0E1016;
-  --surface: #171A22;
-  --surface-2: #1E222C;
-  --surface-3: #262B37;
-  --border: #262B37;
-  --border-strong: #343A48;
-  --text: #F2F4F8;
-  --text-2: #C3C9D6;
-  --text-3: #9299A8;
-  --text-4: #6B7284;
-  --brand-soft: rgba(61, 107, 255, 0.22);
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 10px 30px rgba(0, 0, 0, 0.5);
-  --shadow-3: 0 26px 70px rgba(0, 0, 0, 0.6);
+  --brand: #5B8BFF;
+  --brand-strong: #4272E8;
+  --brand-soft: rgba(91, 139, 255, 0.20);
+  --accent: #2BD9BE;
+  --accent-soft: rgba(43, 217, 190, 0.18);
+  --engine-chromium: #5B8BFF;
+  --bg: #0A0D16;
+  --surface: #131826;
+  --surface-2: #1A2032;
+  --surface-3: #232A40;
+  --border: #232A40;
+  --border-strong: #333C57;
+  --text: #F2F5FC;
+  --text-2: #C4CBDE;
+  --text-3: #939CB4;
+  --text-4: #6C7590;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-2: 0 10px 30px rgba(0, 0, 0, 0.50);
+  --shadow-3: 0 28px 70px rgba(0, 0, 0, 0.60);
 }
 
 /* ---------- 2. 基础 ---------- */
@@ -208,9 +228,9 @@ svg {
 }
 .tab.is-active::after {
   content: "";
-  position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 2.5px;
   background: var(--tab-accent, var(--brand));
-  border-radius: 2px 2px 0 0;
+  border-radius: 3px 3px 0 0;
 }
 .tab-favicon {
   width: 14px; height: 14px; flex: 0 0 14px;
@@ -275,7 +295,7 @@ svg {
 
 .icon-btn {
   width: 30px; height: 30px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   display: grid; place-items: center;
   color: var(--text-2);
   position: relative;
@@ -283,22 +303,30 @@ svg {
 }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 .icon-btn:active { transform: scale(0.94); }
+.icon-btn:focus-visible { outline: none; box-shadow: var(--ring); }
 .icon-btn[disabled] { color: var(--text-4); opacity: 0.5; cursor: default; }
 .icon-btn[disabled]:hover { background: none; }
 .icon-btn.is-on { background: var(--brand-soft); color: var(--brand); }
 .icon-btn svg { width: 17px; height: 17px; }
 
+/* 计数徽标。盾牌与嗅探两个按钮是相邻的，没有那圈 surface 描边时
+   两个徽标会糊在一起，所以描边不是装饰，是让它们读得开。 */
 .has-badge .badge {
-  position: absolute; top: 1px; right: 0;
-  min-width: 14px; height: 14px; padding: 0 3px;
+  position: absolute; top: -2px; right: -1px;
+  min-width: 15px; height: 15px; padding: 0 4px;
   border-radius: var(--r-pill);
   background: var(--ok);
   color: #fff;
-  font-size: 9px; font-weight: 700; font-style: normal;
+  font-size: 9.5px; font-weight: 700; font-style: normal;
   display: grid; place-items: center;
   border: 1.5px solid var(--surface);
+  box-shadow: var(--shadow-1);
 }
 .has-badge.is-off .badge { background: var(--text-4); }
+/* 嗅探徽标换成品牌色。它和拦截徽标本来就是两件事 ——
+   一个是「已经挡掉了多少」，一个是「这页还有多少可下载」，
+   都用绿色时两个相邻按钮上的数字会长得一模一样。 */
+#btn-sniff .badge { background: var(--brand); }
 
 /* 地址栏 */
 .omnibox {
@@ -306,9 +334,9 @@ svg {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  height: 32px;
-  padding: 0 var(--sp-1) 0 var(--sp-2);
-  border-radius: var(--r-pill);
+  height: 36px;
+  padding: 0 var(--sp-1) 0 var(--sp-3);
+  border-radius: var(--r-md);
   background: var(--surface-2);
   border: 1px solid transparent;
   transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
@@ -318,7 +346,7 @@ svg {
 .omnibox:focus-within {
   background: var(--surface);
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px var(--brand-soft);
+  box-shadow: var(--ring);
 }
 
 .ow-divider {
@@ -329,20 +357,23 @@ svg {
 }
 
 /* 内核选择器（地址栏右端） */
+/* 内核选择器（地址栏右端）。底色跟着内核走 —— 它要回答的是「现在哪一档」，
+   所以不能把 --engine-color 换成品牌色；星云渐变在这里退成一层高光。 */
 .ow-engine {
   flex: 0 0 auto;
-  display: flex; align-items: center; gap: 3px;
-  height: 24px; padding: 0 7px 0 9px;
-  border-radius: var(--r-pill);
-  background: var(--engine-color, var(--brand));
+  display: flex; align-items: center; gap: 4px;
+  height: 24px; padding: 0 8px 0 10px;
+  border-radius: var(--r-sm);
+  background-color: var(--engine-color, var(--brand));
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0) 62%);
   color: #fff;
   font-size: 10px; font-weight: 800; letter-spacing: 0.6px;
   transition: filter var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
-              background var(--dur) var(--ease), color var(--dur) var(--ease);
+              background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 .ow-engine:hover { filter: brightness(1.08); }
 .ow-engine:active { transform: scale(0.97); }
-.ow-engine[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--brand-soft); }
+.ow-engine[aria-expanded="true"] { box-shadow: var(--ring); }
 .ow-engine .ow-caret { width: 11px; height: 11px; opacity: 0.9; stroke-width: 2.2; }
 .ow-engine.is-compat {
   background: color-mix(in srgb, var(--warn) 16%, var(--surface));
@@ -360,7 +391,7 @@ svg {
   padding: var(--sp-2);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow-3);
   z-index: 55;
   animation: menuIn 140ms var(--ease);
@@ -377,7 +408,7 @@ svg {
   display: flex; align-items: center; gap: var(--sp-3);
   width: 100%;
   padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   text-align: left;
   transition: background var(--dur) var(--ease);
 }
@@ -512,11 +543,11 @@ svg {
 .drawer {
   position: fixed;
   top: 0; right: 0; bottom: 0;
-  width: 380px;
+  width: 400px;
   max-width: 92vw;
   background: var(--surface);
   border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   transform: translateX(102%);
   transition: transform 220ms var(--ease);
   display: flex;
@@ -535,8 +566,8 @@ svg {
 
 .scrim {
   position: fixed; inset: 0;
-  background: rgba(12, 14, 20, 0.42);
-  backdrop-filter: blur(2px);
+  background: rgba(10, 13, 22, 0.48);
+  backdrop-filter: blur(3px);
   z-index: 30;
   opacity: 0;
   transition: opacity 200ms var(--ease);
@@ -560,10 +591,12 @@ svg {
   color: var(--text-2);
   cursor: default;
   border-radius: 0;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .list-row.is-click { cursor: pointer; }
 .list-row.is-click:hover { background: var(--surface-2); color: var(--text); }
-.list-row .lr-icon { flex: 0 0 18px; display: grid; place-items: center; color: var(--text-3); }
+.list-row.is-click:hover .lr-icon { color: var(--brand); }
+.list-row .lr-icon { flex: 0 0 18px; display: grid; place-items: center; color: var(--text-3); transition: color var(--dur-fast) var(--ease); }
 /* 标题与副标题要竖排：它们是 inline span，不显式声明就会挤在同一行 */
 .list-row .lr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .list-row .lr-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -572,47 +605,61 @@ svg {
 
 /* 开关 */
 .switch {
-  flex: 0 0 38px;
-  width: 38px; height: 22px;
+  flex: 0 0 40px;
+  width: 40px; height: 24px;
   border-radius: var(--r-pill);
   background: var(--surface-3);
   position: relative;
-  transition: background var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 .switch::after {
   content: "";
   position: absolute; top: 2px; left: 2px;
-  width: 18px; height: 18px;
+  width: 20px; height: 20px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: var(--shadow-1);
+  box-shadow: 0 1px 3px rgba(16, 19, 34, 0.28);
   transition: transform var(--dur) var(--ease);
 }
-.switch.is-on { background: var(--ok); }
+/* 开态走星云渐变。与一级按钮、品牌标识同一个色源 ——
+   所以这里不能退化成单色的 ok 绿，那会让整套配色断掉。 */
+.switch.is-on {
+  background: var(--nova-grad);
+  box-shadow: 0 3px 10px rgba(45, 107, 245, 0.24);
+}
 .switch.is-on::after { transform: translateX(16px); }
 
 /* 分段控件 */
 .segmented {
-  display: flex; gap: 2px;
-  padding: 2px;
-  border-radius: var(--r-sm);
+  display: flex; gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-md);
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
 .segmented button {
   flex: 1;
-  height: 26px;
-  border-radius: var(--r-xs);
-  font-size: 11.5px; color: var(--text-3);
+  height: 30px;
+  border-radius: var(--r-sm);
+  font-size: 12px; color: var(--text-3);
   transition: all var(--dur) var(--ease);
 }
-.segmented button.is-active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.segmented button:hover { color: var(--text-2); }
+.segmented button:focus-visible { outline: none; box-shadow: var(--ring); }
+/* 选中项用白底 + 微投影 + 主色文字，不用满色块：
+   设置页一屏里会有好几组分段控件，都用满色块会互相抢视线。 */
+.segmented button.is-active {
+  background: var(--surface);
+  color: var(--brand);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
+}
 
 /* 统计卡 */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); padding: 0 var(--sp-4) var(--sp-3); }
 .stat-card {
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   padding: var(--sp-3);
   background: var(--surface-2);
 }
@@ -1140,15 +1187,16 @@ svg {
 .sv-nav-group:first-child { padding-top: var(--sp-1); }
 .sv-nav-item {
   display: flex; align-items: center; gap: var(--sp-3);
-  width: 100%; height: 32px;
+  width: 100%; height: 36px;
   padding: 0 var(--sp-3);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   font-size: 12.5px; color: var(--text-2);
   text-align: left;
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 .sv-nav-item svg { width: 16px; height: 16px; flex: 0 0 16px; }
 .sv-nav-item:hover { background: var(--surface-2); color: var(--text); }
+.sv-nav-item:focus-visible { outline: none; box-shadow: var(--ring); }
 .sv-nav-item.is-active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
 .sv-nav-count { margin-left: auto; font-size: 10.5px; color: var(--text-4); font-family: var(--font-mono); }
 .sv-nav-item.is-active .sv-nav-count { color: var(--brand); }

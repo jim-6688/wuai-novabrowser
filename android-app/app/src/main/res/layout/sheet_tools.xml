@@ -1,10 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  工具栏面板。底栏「工具」格弹出的底部面板，结构与 sheet_menu 一致
-  （拖柄 + 标题 + 分区标题 + 可点行），这样它和主菜单长得是同一套东西。
+  工具栏面板。底栏「工具」格弹出的底部面板。
 
-  所有「对网页加工」的能力都收拢到这里：下载 / 阅读增强 / 篡改猴 / 广告拦截。
-  主菜单里不再逐项列它们，只留「工具」一个入口，两条路径都能到。
+  这个面板是**九宫格**（三列三行），不是列表：
+    · 面板里的每一项都是「点一下就对网页做一件事」，彼此没有先后、没有层级，
+      也没有从属关系。这种并列关系用宫格表达最省地方 —— 三行把九项装完，
+      列表要九行、还要滚动才看得全。
+    · 图标成为主角。列表里图标只是一个 20dp 的行首标记，文字才是重点；
+      宫格里相反，用户的视线先落在图形上，名称退成注解。
+
+  因此这里没有分区标题（原先的「网页工具」/「菜单」两组）：宫格本身已经把
+  「一堆并列的动作」说清楚了，再加一层标题只会把面板撑高。末格的「主菜单」
+  仍然是一个出口型入口（去历史 / 书签 / 设置），放在右下的收尾位置。
+
+  这里原先还有一行「深浅模式」，已撤掉：那个动作在「设置 → 个性化 → 主题」
+  里有一份，同一个开关留两处入口，早晚会出现两处说法不一样。
+
+  视图 id 沿用改建前的那一套（toolDownloads / toolRead / …）：改的是排列方式，
+  不是这些入口的语义，id 跟着变只会让 MainActivity 的 diff 更难看懂。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -14,47 +27,68 @@
 
     <include layout="@layout/sheet_head" />
 
-    <TextView
-        style="@style/SectionHead"
-        android:paddingTop="2dp"
-        android:text="网页工具" />
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_marginStart="12dp"
         android:layout_marginEnd="12dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
         android:background="@drawable/bg_menu_group">
 
-        <include layout="@layout/item_menu" android:id="@+id/toolDownloads" />
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="@drawable/divider_row"
-            android:layout_marginStart="48dp" />
-        <include layout="@layout/item_menu" android:id="@+id/toolRead" />
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="@drawable/divider_row"
-            android:layout_marginStart="48dp" />
-        <include layout="@layout/item_menu" android:id="@+id/toolTranslate" />
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="@drawable/divider_row"
-            android:layout_marginStart="48dp" />
-        <include layout="@layout/item_menu" android:id="@+id/toolMovie" />
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="@drawable/divider_row"
-            android:layout_marginStart="48dp" />
-        <include layout="@layout/item_menu" android:id="@+id/toolAi" />
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="@drawable/divider_row"
-            android:layout_marginStart="48dp" />
-        <include layout="@layout/item_menu" android:id="@+id/toolPlugins" />
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="@drawable/divider_row"
-            android:layout_marginStart="48dp" />
-        <include layout="@layout/item_menu" android:id="@+id/toolAdblock" />
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="@drawable/divider_row"
-            android:layout_marginStart="48dp" />
-        <include layout="@layout/item_menu" android:id="@+id/toolSiteInfo" />
+        <!--
+          三个 <include> 并排，各占一份 weight。
+          注意：include 上的 layout_weight / margin 这类参数，只有在同时显式写了
+          layout_width 和 layout_height 时才会生效（这是 include 的坑，不是本项目的约定）
+          —— 所以下面每一处都老老实实四件套写全，别省。
+        -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolDownloads"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolRead"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolTranslate"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolMovie"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolAi"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolPlugins"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolAdblock"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolSiteInfo"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolMenu"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

@@ -2,5 +2,5 @@
 <!-- 弹层遮罩。纯黑半透明，不吃触摸事件之外的事。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#99101218" />
+    <solid android:color="#99101322" />
 </shape>

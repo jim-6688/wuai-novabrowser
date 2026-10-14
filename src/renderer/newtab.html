@@ -35,28 +35,33 @@
 <style>
 /* 令牌与 App 的 res/values/colors.xml、桌面端 shell.css 的 :root 逐条对应。
    这一页是独立文档，取不到那些变量，只能照抄一遍 —— 抄漏了就是新标签页
-   跟浏览器其它部分不在一个色系里，所以两边改色时都要记得这第三处。 */
+   跟浏览器其它部分不在一个色系里。所以改色时一共要记得三处：
+   shell.css、res/values(+values-night)、以及这里。 */
 :root {
-    --bg: #F6F7FB;
+    --bg: #F4F6FB;
     --surface: #FFFFFF;
-    --surface-2: #F1F3F9;
-    --border: #E6E8EF;
-    --text: #14161C;
-    --text-3: #6B7183;
-    --text-4: #9AA0B0;
-    --brand: #3D6BFF;
+    --surface-2: #EEF1F8;
+    --border: #E4E8F2;
+    --text: #101322;
+    --text-3: #6A7288;
+    --text-4: #9BA3B7;
+    --brand: #2D6BF5;
+    --accent: #00C8A8;
+    --nova-grad: linear-gradient(135deg, #00C8A8, #2D6BF5);
     --danger: #FF4D4F;
-    --shadow-sm: 0 1px 2px rgba(16, 23, 40, .06);
-    --shadow-lg: 0 18px 44px rgba(35, 64, 150, .18);
+    --shadow-sm: 0 1px 2px rgba(16, 19, 34, .06);
+    --shadow-lg: 0 18px 44px rgba(16, 19, 34, .18);
 }
 html[data-theme="dark"] {
-    --bg: #0E1016;
-    --surface: #171A22;
-    --surface-2: #1E222C;
-    --border: #262B37;
-    --text: #F2F4F8;
-    --text-3: #9299A8;
-    --text-4: #6B7284;
+    --bg: #0A0D16;
+    --surface: #131826;
+    --surface-2: #1A2032;
+    --border: #232A40;
+    --text: #F2F5FC;
+    --text-3: #939CB4;
+    --text-4: #6C7590;
+    --brand: #5B8BFF;
+    --accent: #2BD9BE;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
     --shadow-lg: 0 18px 44px rgba(0, 0, 0, .5);
 }
@@ -172,6 +177,20 @@ body {
     transition: transform .12s ease;
 }
 .qk:active .thumb i { transform: scale(.92); }
+/* 有站点图标的那一格：磁贴自己不再画底色和描边，图标直接落在页面底色上。
+   图标是站点自己画的，尺寸千差万别（16px 的 ico 与 180px 的 touch icon 都有），
+   统一按 60% 居中缩放 —— 60% 正是设计板上「30dp 图标落在 56dp 磁贴里」的比例。
+   差一两个像素没人看得出，但七格里「六格大小不一」是看得出来的。 */
+.qk .thumb i.ico {
+    background: none;
+    border: 0;
+    box-shadow: none;
+}
+.qk .thumb i.ico img {
+    width: 60%;
+    height: 60%;
+    object-fit: contain;
+}
 .qk span {
     display: block;
     color: var(--text-3);
@@ -294,9 +313,9 @@ body.editing .qk:active .thumb i { transform: none; }
         <svg viewBox="0 0 52 52" aria-hidden="true">
             <defs>
                 <linearGradient id="novaLogo" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#5B84FF" />
-                    <stop offset="0.46" stop-color="#3D6BFF" />
-                    <stop offset="1" stop-color="#00B8A2" />
+                    <stop offset="0" stop-color="#00C8A8" />
+                    <stop offset="0.5" stop-color="#1699CE" />
+                    <stop offset="1" stop-color="#2D6BF5" />
                 </linearGradient>
             </defs>
             <rect width="52" height="52" rx="13" fill="url(#novaLogo)" />
@@ -423,6 +442,33 @@ var NovaNtp = (function () {
     }
 
     /**
+     * 这个站点有没有现成的图标，有就返回一个 data: URI。
+     *
+     * 图标表由宿主喂进来（window.__novaIcons，形如 {"www.zhihu.com": "data:image/png;base64,…"}）——
+     * 这一页的 CSP 是 `default-src 'none'; img-src data:`，等于把网络整个锁死，
+     * 页面自己一个请求都发不出去。这是刻意的：一张本地页面没有任何理由联网。
+     * 于是「自动获取站点图标」这件事由原生抓、原生缓存，再以 data: 交进来
+     * （安卓侧见 FaviconCache）。桌面端目前不喂这张表，这里就一直返回空串，
+     * 磁贴照旧走渐变底 + 首字 —— 两端同一份代码，行为各自成立。
+     *
+     * 查表要试三个键：原文主机名、去掉 www. 的、以及补上 www. 的。
+     * 因为「哪一边带 www.」是站点的自由，而发请求的是宿主、渲染的是页面，
+     * 两边对同一个站点的写法不保证一模一样。
+     *
+     * 取不到返回空串（不是 null）：调用方只判真假，两种写法都能用，
+     * 而空串在拼 CSS / 判空时更不容易漏。
+     */
+    function iconOf(url) {
+        var map = (typeof window !== 'undefined') ? window.__novaIcons : null;
+        if (!map) return '';
+        var h = hostOf(url);
+        if (!h) return '';
+        var bare = h.replace(/^www\./, '');
+        var hit = map[h] || map[bare] || map['www.' + bare];
+        return typeof hit === 'string' ? hit : '';
+    }
+
+    /**
      * 解析原生传来的候选文本。每行 `label<TAB>url<TAB>visits<TAB>flags`。
      * 坏行直接跳过：这一页是拿来用的，不是拿来校验上游的。
      */
@@ -511,6 +557,7 @@ var NovaNtp = (function () {
         hostOf: hostOf,
         gradOf: gradOf,
         initialOf: initialOf,
+        iconOf: iconOf,
         shortName: shortName,
         parseData: parseData,
         rank: rank,
@@ -566,8 +613,29 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
         var thumb = document.createElement('span');
         thumb.className = 'thumb';
         var i = document.createElement('i');
-        i.style.background = NovaNtp.gradOf(item.url);
-        i.textContent = NovaNtp.initialOf(item.label, item.url);
+        // 有站点图标就用图标，没有才回落成「渐变底 + 首字」。
+        // 这不是两种样式，而是同一格的两条路：图标是站点自己画的（最认得出），
+        // 渐变底 + 首字是这一页自己造的识别符号（兜底，深浅色下都成立）。
+        // 所以「取不到图标」不是一个需要单独设计的空状态 —— 它就是默认那一版。
+        var ico = NovaNtp.iconOf(item.url);
+        if (ico) {
+            i.className = 'ico';
+            var img = document.createElement('img');
+            img.src = ico;
+            img.alt = '';
+            // 图标是本地缓存的字节，仍可能解不出来（站点传了个坏的 / 我们的
+            // 字节头判定放过了什么）。解不出来的话退回渐变底 + 首字 ——
+            // 留一个空白格子，用户会以为这格坏了。
+            img.onerror = function () {
+                i.className = '';
+                i.style.background = NovaNtp.gradOf(item.url);
+                i.textContent = NovaNtp.initialOf(item.label, item.url);
+            };
+            i.appendChild(img);
+        } else {
+            i.style.background = NovaNtp.gradOf(item.url);
+            i.textContent = NovaNtp.initialOf(item.label, item.url);
+        }
         var del = document.createElement('b');
         del.className = 'del';
         del.textContent = '×';
@@ -674,6 +742,27 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
     });
 
     paint();
+
+    /**
+     * 宿主把图标表喂进来之后，叫这一页重画一遍。
+     *
+     * 表是异步到的：图标由原生在后台抓（缓存过期才抓，见 FaviconCache），
+     * 而这一页在 onPageFinished 时就已经画好了 —— 抓得比加载慢，所以必须留一个
+     * 「再画一次」的入口。不进这里的话，第一次进新标签页永远看不到图标
+     * （要等下一次打开才碰上缓存），用户会以为这个功能没生效。
+     *
+     * 重建放在下一帧，而不是同步做：宿主是在 onPageFinished 里注入的，
+     * 那时页面可能还有几帧没画完，同步把七格拆了重建，用户会看到一次闪动。
+     * 反正磁贴重建本来就要等一次样式计算，等一帧再动不会更慢。
+     *
+     * 直接复用 paint()：重建磁贴本来就是它在做的事。另写一段「只换图标」的
+     * 增量逻辑，等于把「一格磁贴长什么样」这件事写成两份，改一处必漏一处。
+     */
+    window.__novaApplyIcons = function () {
+        (window.requestAnimationFrame || function (fn) { setTimeout(fn, 16); })(function () {
+            paint();
+        });
+    };
 })();
 </script>
 </body>

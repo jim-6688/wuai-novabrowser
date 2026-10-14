@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  顶栏左端的放大镜：搜索入口。
+
+  为什么不直接复用 ic_search：那一支是给胶囊搜索框用的，颜色写死在
+  strokeColor 上（品牌色），尺寸也按 22dp 调过 —— 它服务的那个胶囊是
+  「当前处于搜索态」这个状态本身。顶栏这一格不是状态，是一个入口按钮，
+  颜色得跟着主题走（深色底上那支品牌色仍然成立，但按钮的按压反馈、
+  与旁边星标/AI 的关系都要求它走 tint），所以另立一支。
+
+  形状与 ic_search 完全一致：圆 + 一段斜柄。同一个 App 里两处放大镜
+  长得不一样是会被人一眼看出来的，复用形状、只换取色方式。
+  尺幅按本工程线性图标的约定：20dp 画布、strokeColor 写 #000、真正的
+  颜色交给根节点的 android:tint。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp" android:height="22dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/brand">
+    <path android:strokeColor="#000" android:strokeWidth="1.7"
+        android:pathData="M9,9 a4.2,4.2 0 1,0 0.01,0 z" />
+    <path android:strokeColor="#000" android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:pathData="M12.4,12.4 L16.4,16.4" />
+</vector>

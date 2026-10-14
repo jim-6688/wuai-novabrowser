@@ -106,6 +106,25 @@ public final class BottomBarReveal {
     }
 
     /**
+     * 只把基准挪到当前位置 —— 状态与累积都不动。
+     *
+     * <p>给<b>程序性滚动</b>用的：顶栏收起 / 展开时我们会把页面反向补一段，
+     * 抵消它带来的视觉位移（见 {@code MainActivity#compensateTopBarShift}）。
+     * 那不是用户划的，不能算进累计；但基准必须跟着挪，否则下一个真实回调会
+     * 拿一个过期的基准去算位移，把这一下补偿记成一次用户手势 ——
+     * 表现就是顶栏刚收起来、又立刻弹回去。
+     *
+     * <p>与 {@link #reset(int)} 的区别：那个是「换了一套界面，一切重来」，
+     * 会强制回到 {@link State#SHOW_BAR}；这个只动基准，当前状态原样保留。
+     *
+     * @param scrollY 补偿之后页面真正的滚动位置
+     */
+    public void syncBaseline(int scrollY) {
+        lastY = scrollY;
+        hasBaseline = true;
+    }
+
+    /**
      * 喂一个新的滚动位置，返回喂完之后应该显示的状态。
      *
      * @param scrollY 页面当前的竖直滚动位置（像素）

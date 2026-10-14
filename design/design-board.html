@@ -5,20 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>吾爱Nova浏览器 · UI 设计稿 v0.1</title>
 <style>
-/* ==========================================================================
-   设计令牌（与 src/renderer/shell.css 同源，改这里 = 改产品）
-   ========================================================================== */
+/* Nova 星云设计令牌。与 src/renderer/shell.css 的 :root 逐条对应 */
 :root{
-  --brand:#3D6BFF; --brand-strong:#2E56D9; --brand-soft:rgba(61,107,255,.12); --accent:#00B8A2;
-  --engine-chromium:#3D6BFF; --engine-gecko:#FF7139; --engine-trident:#0A84C6;
-  --ok:#14B87A; --warn:#FF9F0A; --danger:#FF4D4F;
-  --bg:#F6F7FB; --surface:#FFF; --surface-2:#F1F3F9; --surface-3:#E9ECF5;
-  --border:#E6E8EF; --border-strong:#D5D9E4;
-  --text:#14161C; --text-2:#4A5062; --text-3:#6B7183; --text-4:#9AA0B0;
-  --shadow-1:0 1px 2px rgba(20,22,28,.06),0 1px 1px rgba(20,22,28,.04);
-  --shadow-2:0 8px 24px rgba(20,22,28,.10),0 2px 6px rgba(20,22,28,.06);
-  --shadow-3:0 24px 60px rgba(20,22,28,.18);
-  --r-xs:6px; --r-sm:8px; --r-md:12px; --r-lg:16px; --r-pill:999px;
+  --brand:#2D6BF5; --brand-strong:#1D52D6; --brand-soft:rgba(45,107,245,.12); --accent:#00C8A8;
+  --accent-soft:rgba(0,200,168,.14); --nova-grad:linear-gradient(135deg,#00C8A8,#2D6BF5);
+  --ring:0 0 0 3px rgba(45,107,245,.16);
+  --engine-chromium:#2D6BF5; --engine-gecko:#FF7139; --engine-trident:#0A84C6;
+  --ok:#12B981; --warn:#FF9F0A; --danger:#FF4D4F;
+  --bg:#F4F6FB; --surface:#FFF; --surface-2:#EEF1F8; --surface-3:#E3E8F4;
+  --border:#E4E8F2; --border-strong:#CFD6E6;
+  --text:#101322; --text-2:#464E63; --text-3:#6A7288; --text-4:#9BA3B7;
+  --shadow-1:0 1px 2px rgba(16,19,34,.06),0 1px 1px rgba(16,19,34,.04);
+  --shadow-2:0 10px 28px rgba(16,19,34,.10),0 2px 6px rgba(16,19,34,.06);
+  --shadow-3:0 28px 64px rgba(16,19,34,.20);
+  --r-xs:6px; --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px; --r-pill:999px;
   --font:"PingFang SC","Microsoft YaHei UI","Microsoft YaHei",-apple-system,"Segoe UI",Roboto,sans-serif;
   --mono:"JetBrains Mono","SFMono-Regular",Consolas,monospace;
 }
@@ -221,7 +221,7 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
 
 /* 视口占位 */
 .vp{flex:1;position:relative;background:var(--surface);display:grid;place-items:center;overflow:hidden;
-    background-image:radial-gradient(circle at 50% 32%,rgba(61,107,255,.10),transparent 62%)}
+    background-image:radial-gradient(circle at 50% 32%,rgba(45,107,245,.10),transparent 62%)}
 .vp .h3{margin:0 0 8px;font-size:18px;color:var(--text-2);font-weight:600}
 .vp p{margin:0;font-size:12px;color:var(--text-3);line-height:1.85;font-family:var(--mono)}
 
@@ -589,15 +589,15 @@ td code{font-size:11px}
     <div class="card">
       <p class="label">品牌与语义色</p>
       <div class="swatches">
-        <div class="sw"><i style="background:#3D6BFF"></i><div><b>Brand</b><span>#3D6BFF</span><em>主操作 / 当前项</em></div></div>
-        <div class="sw"><i style="background:#00B8A2"></i><div><b>Accent</b><span>#00B8A2</span><em>渐变副色</em></div></div>
-        <div class="sw"><i style="background:#14B87A"></i><div><b>OK</b><span>#14B87A</span><em>拦截计数 / 已开启</em></div></div>
+        <div class="sw"><i style="background:#2D6BF5"></i><div><b>Brand</b><span>#2D6BF5</span><em>主操作 / 当前项</em></div></div>
+        <div class="sw"><i style="background:#00C8A8"></i><div><b>Accent</b><span>#00C8A8</span><em>渐变副色</em></div></div>
+        <div class="sw"><i style="background:#12B981"></i><div><b>OK</b><span>#12B981</span><em>拦截计数 / 已开启</em></div></div>
         <div class="sw"><i style="background:#FF9F0A"></i><div><b>Warn</b><span>#FF9F0A</span><em>兼容层 / 降级提示</em></div></div>
         <div class="sw"><i style="background:#FF4D4F"></i><div><b>Danger</b><span>#FF4D4F</span><em>关闭窗口 / 清除</em></div></div>
       </div>
       <p class="label" style="margin-top:22px">内核标识色</p>
       <div class="swatches">
-        <div class="sw"><i style="background:#3D6BFF"></i><div><b>Chromium</b><span>#3D6BFF</span><em>原生内核</em></div></div>
+        <div class="sw"><i style="background:#2D6BF5"></i><div><b>Chromium</b><span>#2D6BF5</span><em>原生内核</em></div></div>
         <div class="sw"><i style="background:#FF7139"></i><div><b>Gecko</b><span>#FF7139</span><em>Firefox 内核</em></div></div>
         <div class="sw"><i style="background:#0A84C6"></i><div><b>IE / Trident</b><span>#0A84C6</span><em>IE11 内核</em></div></div>
       </div>
@@ -606,14 +606,14 @@ td code{font-size:11px}
     <div class="card">
       <p class="label">中性色（浅色主题）</p>
       <div class="swatches">
-        <div class="sw"><i style="background:#F6F7FB"></i><div><b>bg</b><span>#F6F7FB</span></div></div>
+        <div class="sw"><i style="background:#F4F6FB"></i><div><b>bg</b><span>#F4F6FB</span></div></div>
         <div class="sw"><i style="background:#FFFFFF"></i><div><b>surface</b><span>#FFFFFF</span></div></div>
-        <div class="sw"><i style="background:#F1F3F9"></i><div><b>surface-2</b><span>#F1F3F9</span></div></div>
-        <div class="sw"><i style="background:#E9ECF5"></i><div><b>surface-3</b><span>#E9ECF5</span></div></div>
-        <div class="sw"><i style="background:#E6E8EF"></i><div><b>border</b><span>#E6E8EF</span></div></div>
-        <div class="sw"><i style="background:#14161C"></i><div><b>text</b><span>#14161C</span><em>对白 15.8:1</em></div></div>
-        <div class="sw"><i style="background:#4A5062"></i><div><b>text-2</b><span>#4A5062</span><em>对白 8.2:1</em></div></div>
-        <div class="sw"><i style="background:#6B7183"></i><div><b>text-3</b><span>#6B7183</span><em>对白 5.1:1</em></div></div>
+        <div class="sw"><i style="background:#EEF1F8"></i><div><b>surface-2</b><span>#EEF1F8</span></div></div>
+        <div class="sw"><i style="background:#E3E8F4"></i><div><b>surface-3</b><span>#E3E8F4</span></div></div>
+        <div class="sw"><i style="background:#E4E8F2"></i><div><b>border</b><span>#E4E8F2</span></div></div>
+        <div class="sw"><i style="background:#101322"></i><div><b>text</b><span>#101322</span><em>对白 15.8:1</em></div></div>
+        <div class="sw"><i style="background:#464E63"></i><div><b>text-2</b><span>#464E63</span><em>对白 8.2:1</em></div></div>
+        <div class="sw"><i style="background:#6A7288"></i><div><b>text-3</b><span>#6A7288</span><em>对白 5.1:1</em></div></div>
       </div>
       <p class="cap">文字对比度全部 ≥ 4.5:1；<code>text-4</code> 只用于非必需的辅助信息，不上正文。</p>
     </div>
@@ -1466,7 +1466,7 @@ td code{font-size:11px}
             </div>
             <div class="uibtn" title="刷新"><svg viewBox="0 0 20 20"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6"/><path d="M16.8 2.6v3h-3"/></svg></div>
             <div class="uibtn" title="AI"><svg viewBox="0 0 20 20">
-              <defs><linearGradient id="aiGradA" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/></linearGradient></defs>
+              <defs><linearGradient id="aiGradA" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2D6BF5"/><stop offset="1" stop-color="#00C8A8"/></linearGradient></defs>
               <path d="M1.6 16.4L5.1 5.2l3.5 11.2M3.2 12.5h3.8" stroke="url(#aiGradA)" fill="none"/>
               <path d="M11.8 5.2v11.2" stroke="url(#aiGradA)" fill="none"/>
               <path d="M16.9 1C17.17 2.52 18.38 3.73 19.9 4c-1.52.27-2.73 1.48-3 3-.27-1.52-1.48-2.73-3-3 1.52-.27 2.73-1.48 3-3z" fill="url(#aiGradA)" stroke="none"/>
@@ -2045,7 +2045,7 @@ td code{font-size:11px}
             </div>
             <div class="uibtn" title="刷新"><svg viewBox="0 0 20 20"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6"/><path d="M16.8 2.6v3h-3"/></svg></div>
             <div class="uibtn" title="AI"><svg viewBox="0 0 20 20">
-              <defs><linearGradient id="aiGradB" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/></linearGradient></defs>
+              <defs><linearGradient id="aiGradB" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2D6BF5"/><stop offset="1" stop-color="#00C8A8"/></linearGradient></defs>
               <path d="M1.6 16.4L5.1 5.2l3.5 11.2M3.2 12.5h3.8" stroke="url(#aiGradB)" fill="none"/>
               <path d="M11.8 5.2v11.2" stroke="url(#aiGradB)" fill="none"/>
               <path d="M16.9 1C17.17 2.52 18.38 3.73 19.9 4c-1.52.27-2.73 1.48-3 3-.27-1.52-1.48-2.73-3-3 1.52-.27 2.73-1.48 3-3z" fill="url(#aiGradB)" stroke="none"/>
@@ -2055,7 +2055,7 @@ td code{font-size:11px}
             <div style="width:100%;padding:0 20px">
               <div style="text-align:center;padding-bottom:18px">
                 <svg viewBox="0 0 52 52" style="width:64px;height:64px;display:block;margin:0 auto 10px">
-                  <defs><linearGradient id="ntpLogo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5B84FF" /><stop offset="0.46" stop-color="#3D6BFF" /><stop offset="1" stop-color="#00B8A2" /></linearGradient></defs>
+                  <defs><linearGradient id="ntpLogo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5B84FF" /><stop offset="0.46" stop-color="#2D6BF5" /><stop offset="1" stop-color="#00C8A8" /></linearGradient></defs>
                   <rect width="52" height="52" rx="13" fill="url(#ntpLogo)" />
                   <ellipse cx="26" cy="27" rx="17" ry="6.4" transform="rotate(-20 26 27)" fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="1.5" />
                   <path d="M26 10.5 Q26 26 40 26 Q26 26 26 41.5 Q26 26 12 26 Q26 26 26 10.5 Z" fill="#FFFFFF" />
@@ -2064,13 +2064,13 @@ td code{font-size:11px}
                 <div style="font-size:12px;color:var(--text-3)">吾爱Nova · 新标签页</div>
               </div>
               <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px 4px">
-                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#3D6BFF,#5B84FF)">主</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">主页</div></div>
-                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#00B8A2,#34D399)">知</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">知乎</div></div>
-                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#2E56D9,#3D6BFF)">哔</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">哔哩</div></div>
-                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#00937F,#00B8A2)">微</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">微博</div></div>
-                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#3D6BFF,#00B8A2)">G</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Gitee</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#2D6BF5,#5B84FF)">主</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">主页</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#00C8A8,#34D399)">知</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">知乎</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#1D52D6,#2D6BF5)">哔</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">哔哩</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#00937F,#00C8A8)">微</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">微博</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#2D6BF5,#00C8A8)">G</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Gitee</div></div>
                 <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#34D399,#22C55E)">贴</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">贴吧</div></div>
-                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#5B84FF,#00B8A2)">豆</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">豆瓣</div></div>
+                <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:18px;font-weight:700;color:#fff;background:linear-gradient(135deg,#5B84FF,#00C8A8)">豆</div><div style="font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">豆瓣</div></div>
                 <div style="text-align:center"><div style="width:54px;height:54px;margin:0 auto 7px;border-radius:16px;display:grid;place-items:center;font-size:23px;font-weight:500;color:var(--text-4);background:var(--surface-2);border:1px solid var(--border)">＋</div><div style="font-size:10.5px;color:var(--text-3)">添加</div></div>
               </div>
               <div style="text-align:center;font-size:10.5px;color:var(--text-4);margin-top:14px">长按图标可删除</div>
@@ -2102,7 +2102,7 @@ td code{font-size:11px}
             </div>
             <div class="uibtn" title="刷新"><svg viewBox="0 0 20 20"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6"/><path d="M16.8 2.6v3h-3"/></svg></div>
             <div class="uibtn" title="AI"><svg viewBox="0 0 20 20">
-              <defs><linearGradient id="aiGradC" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/></linearGradient></defs>
+              <defs><linearGradient id="aiGradC" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2D6BF5"/><stop offset="1" stop-color="#00C8A8"/></linearGradient></defs>
               <path d="M1.6 16.4L5.1 5.2l3.5 11.2M3.2 12.5h3.8" stroke="url(#aiGradC)" fill="none"/>
               <path d="M11.8 5.2v11.2" stroke="url(#aiGradC)" fill="none"/>
               <path d="M16.9 1C17.17 2.52 18.38 3.73 19.9 4c-1.52.27-2.73 1.48-3 3-.27-1.52-1.48-2.73-3-3 1.52-.27 2.73-1.48 3-3z" fill="url(#aiGradC)" stroke="none"/>
@@ -2157,7 +2157,7 @@ td code{font-size:11px}
       <svg viewBox="0 0 64 64" class="icon-big" aria-label="主图标">
         <defs>
           <linearGradient id="ibg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#5B84FF"/><stop offset=".5" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/>
+            <stop offset="0" stop-color="#5B84FF"/><stop offset=".5" stop-color="#2D6BF5"/><stop offset="1" stop-color="#00C8A8"/>
           </linearGradient>
           <radialGradient id="iglow">
             <stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
@@ -2178,7 +2178,7 @@ td code{font-size:11px}
       <svg viewBox="0 0 64 64" class="icon-big" aria-label="紧凑变体（16/24px 用）">
         <defs>
           <linearGradient id="cbg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#5B84FF"/><stop offset=".5" stop-color="#3D6BFF"/><stop offset="1" stop-color="#00B8A2"/>
+            <stop offset="0" stop-color="#5B84FF"/><stop offset=".5" stop-color="#2D6BF5"/><stop offset="1" stop-color="#00C8A8"/>
           </linearGradient>
         </defs>
         <rect x="1" y="1" width="62" height="62" rx="15" fill="url(#cbg)"/>
@@ -2186,7 +2186,7 @@ td code{font-size:11px}
       </svg>
 
       <div class="icon-notes">
-        <p><b>品牌渐变</b>　<code>#5B84FF → #3D6BFF → #00B8A2</code>，与 brand / accent 令牌同源。</p>
+        <p><b>品牌渐变</b>　<code>#5B84FF → #2D6BF5 → #00C8A8</code>，与 brand / accent 令牌同源。</p>
         <p><b>轨道环</b>　倾斜 −24°，椭圆 <code>rx 20.5 / ry 8.6</code>，白色 55% 描边，环上一颗珠子。</p>
         <p><b>星芒</b>　二次贝塞尔凹边四射，外径 32→15，腰身 3.4。</p>
         <p><b>圆角</b>　<code>rx 15</code>，对应 <code>--r-lg</code>。</p>
@@ -2217,19 +2217,19 @@ td code{font-size:11px}
       在方形蒙版机型上会露出双层圆角的毛边。</p>
       <div class="icon-adaptive">
         <div class="ia">
-          <div class="ia-mask circle" style="background:linear-gradient(135deg,#5B84FF,#3D6BFF 50%,#00B8A2)">
+          <div class="ia-mask circle" style="background:linear-gradient(135deg,#5B84FF,#2D6BF5 50%,#00C8A8)">
             <svg viewBox="0 0 66 66"><path d="M33 13 Q35.7 30.3 51 33 Q35.7 35.7 33 53 Q30.3 35.7 15 33 Q30.3 30.3 33 13 Z" fill="#fff"/></svg>
           </div>
           <span>圆形蒙版</span>
         </div>
         <div class="ia">
-          <div class="ia-mask squircle" style="background:linear-gradient(135deg,#5B84FF,#3D6BFF 50%,#00B8A2)">
+          <div class="ia-mask squircle" style="background:linear-gradient(135deg,#5B84FF,#2D6BF5 50%,#00C8A8)">
             <svg viewBox="0 0 66 66"><path d="M33 13 Q35.7 30.3 51 33 Q35.7 35.7 33 53 Q30.3 35.7 15 33 Q30.3 30.3 33 13 Z" fill="#fff"/></svg>
           </div>
           <span>圆角方蒙版</span>
         </div>
         <div class="ia">
-          <div class="ia-mask square" style="background:linear-gradient(135deg,#5B84FF,#3D6BFF 50%,#00B8A2)">
+          <div class="ia-mask square" style="background:linear-gradient(135deg,#5B84FF,#2D6BF5 50%,#00C8A8)">
             <svg viewBox="0 0 66 66"><path d="M33 13 Q35.7 30.3 51 33 Q35.7 35.7 33 53 Q30.3 35.7 15 33 Q30.3 30.3 33 13 Z" fill="#fff"/></svg>
           </div>
           <span>方形蒙版<br>（角被裁，所以要留安全区）</span>

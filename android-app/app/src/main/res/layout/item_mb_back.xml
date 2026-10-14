@@ -13,11 +13,16 @@
 
     <ImageView
         android:id="@+id/btnIcon"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
         android:contentDescription="@string/mb_menu"
         android:scaleType="fitCenter" />
 
+    <!-- 文案层保留但隐藏：底栏改成纯图标后不再需要它，而 MainActivity#bindMb
+         仍会往这个 id 上 setText —— 直接删掉这个 View 会换来一次 NPE。
+         它也不是白留的：把它藏起来之后，「底栏这一格叫什么」这件事仍然
+         只写在一处（strings.xml），将来要做可访问性或者「图标+文字」形态
+         都还能从同一个地方取。 -->
     <TextView
         android:id="@+id/btnText"
         android:layout_width="wrap_content"
@@ -26,5 +31,6 @@
         android:textSize="12sp"
         android:textStyle="bold"
         android:textColor="@color/text_2"
-        android:maxLines="1" />
+        android:maxLines="1"
+        android:visibility="gone" />
 </LinearLayout>
