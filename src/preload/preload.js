@@ -28,6 +28,14 @@ const EVENT_CHANNELS = [
   'sniff:state',
   'mobile:stats',
   'shell:viewport',
+  /* 主进程抓到一份新的站点图标。收藏夹栏与书签列表据此重读那张表 ——
+     图标是异步到的，不推的话它们会一直停在首字母上。
+     注意：这个数组是**白名单**，不在里面的通道 on() 会抛异常。新加推送
+     通道时两边都得改，而漏改的表现是「init 后半段整段没跑」——
+     因为外壳是在 init 里注册监听的，一抛后面就全断了。
+     tools/check-shell.js 的 [8] 会拿外壳里的每个 bridge.on('…') 对着
+     这个数组逐一比对，专门守这件事。 */
+  'favicon:updated',
   /* 内置新标签页发来的动作（加 / 删快捷方式）。页面本身是本地文件、
      上不了这座桥，它是跳一个 nova:// 地址被主进程拦下来转发的。 */
   'ntp:command'
@@ -91,6 +99,11 @@ contextBridge.exposeInMainWorld('nova', {
   ntp: {
     addShortcut: (label, url) => ipcRenderer.invoke('ntp:shortcut:add', { label, url }),
     removeShortcut: (url) => ipcRenderer.invoke('ntp:shortcut:remove', { url })
+  },
+
+  /* --- 磁贴图标（收藏夹栏 / 书签列表用；新标签页由主进程直接注入，不走这里） --- */
+  favicons: {
+    json: (hosts) => ipcRenderer.invoke('favicon:json', hosts)
   },
 
   /* --- 下载（Nova 多线程引擎） --- */

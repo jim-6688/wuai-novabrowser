@@ -30,6 +30,7 @@ const { Sniffer, FORMAT_STATS } = require('./sniffer');
 const { wireSniffer: wireSnifferSession } = require('./sniffer-wire');
 const { NoMedia, PLACEHOLDER_CSS, PLACEHOLDER_JS } = require('./nomedia');
 const { wireRequestGate: installRequestGate } = require('./request-gate');
+const { FaviconCache, hostsFromNtpData } = require('./favicon-cache');
 
 const IS_DEV = process.argv.includes('--dev');
 const ROOT = path.join(__dirname, '..', '..');
@@ -74,6 +75,11 @@ let noMediaStatsTimer = null;
  * 所以不是「让一次」而是「让一小段时间」）。
  */
 const noMediaGrace = new Map();
+
+/** 新标签页磁贴图标的抓取与缓存（语义与安卓端 FaviconCache 对齐，见该模块头） */
+let faviconCache = null;
+/** 当前开着的新标签页 webContents：图标抓到后要挨个重注入，谁先看到谁先换 */
+const ntpContents = new Set();
 
 /* ------------------------------------------------------------------ *
  * 启动
@@ -121,6 +127,19 @@ async function bootstrap() {
 
   // 5) 无图模式判定器。它要在请求闸门里被问到，所以必须早于 session
   createNoMedia();
+
+  // 5.5) 磁贴图标缓存。要在 createWindow 之前建好：新标签页一打开就要注入。
+  // 启动先按书签 + 快捷方式 + 近期历史暖一轮 —— 用户开第一个新标签页时
+  // 常去站点的图标多半已经在盘上了，不用等这一页自己触发抓取。
+  faviconCache = new FaviconCache(path.join(app.getPath('userData'), 'favicons'));
+  // 抓到一份新的：进新标签页的那条路要重注入，外壳那条路（收藏夹栏、书签列表）
+  // 也要被告一声 —— 它是先拿到空表画出来的，不重画就停在首字母上，
+  // 而图标通常要几秒后才到（没缓存时得现连 DNS、现拿 TLS）。
+  faviconCache.onFetched = () => {
+    reinjectFavicons();
+    send('favicon:updated', null);
+  };
+  warmFavicons();
 
   // 6) 每个内核一份独立 session
   for (const engine of registry.engines) {
@@ -265,6 +284,72 @@ function clearNoMediaOnNavigate(wcId) {
   const until = noMediaGrace.get(wcId) || 0;
   if (Date.now() < until) return;
   noMedia.clear(wcId);
+}
+
+
+/* ------------------------------------------------------------------ *
+ * 磁贴图标（新标签页 / 收藏夹栏）
+ * ------------------------------------------------------------------ */
+
+/**
+ * 把图标表喂进一个新标签页。
+ *
+ * 页面那条 CSP 不许它自己发请求（见 newtab.html），所以图标只能这样喂：
+ * 写一张「主机名 → data: URI」的表到 window.__novaIcons，再叫页面重画一遍
+ * 磁贴。注入放在 did-finish-load：更早页面还没有 __novaApplyIcons 可调，
+ * 更晚用户已经看见了没有图标的那一版，磁贴会跳一下 —— 与安卓端
+ * MainActivity#injectFavicons 的时机是同一条规则。
+ *
+ * 表是空的也要注入：页面可能还挂着上一次注入的表，不覆盖会显示过期的图标。
+ */
+function injectFavicons(contents) {
+  if (!faviconCache || !contents || contents.isDestroyed()) return;
+  let url = '';
+  try { url = contents.getURL(); } catch { /* 窗口正在销毁 */ }
+  if (typeof url !== 'string' || url.indexOf(NEWTAB_FILE_URL) !== 0) return;
+  ntpContents.add(contents);
+
+  let hosts = [];
+  try {
+    hosts = hostsFromNtpData(new URL(url).searchParams.get('data') || '');
+  } catch { /* 拿不到就用空表，覆盖照做 */ }
+  // 这一页要用的主机顺手暖一遍：用户加了新磁贴、或历史里冒出新站点时，
+  // 不用等下一次启动才抓到
+  faviconCache.refreshIfStale(hosts);
+
+  const script = 'window.__novaIcons = ' + JSON.stringify(faviconCache.jsonFor(hosts)) + ';'
+    + 'if (window.__novaApplyIcons) window.__novaApplyIcons();';
+  contents.executeJavaScript(script, true).catch(() => { /* 页面走了就算了 */ });
+}
+
+/** 图标抓到新的一份 → 给所有还开着的新标签页重注入。谁先抓到谁先换。 */
+function reinjectFavicons() {
+  for (const contents of [...ntpContents]) {
+    let gone = !contents || contents.isDestroyed();
+    if (!gone) {
+      try {
+        gone = String(contents.getURL()).indexOf(NEWTAB_FILE_URL) !== 0;
+      } catch { gone = true; }
+    }
+    if (gone) { ntpContents.delete(contents); continue; }
+    injectFavicons(contents);
+  }
+}
+
+/**
+ * 启动时按「用户认得的站点」暖一轮缓存：书签 + 自己加的磁贴 + 近期历史。
+ * 只暖这些而不是全量历史 —— 抓图标是锦上添花，不该在启动路径上
+ * 对几十个域名排队发请求。
+ */
+function warmFavicons() {
+  if (!faviconCache) return;
+  const s = settings.all();
+  const hosts = new Set();
+  const add = (u) => { try { const h = new URL(u).hostname; if (h) hosts.add(h); } catch { /* 跳过坏地址 */ } };
+  for (const b of s.bookmarks || []) add(b && b.url);
+  for (const a of ((s.ntpShortcuts || {}).added || [])) add(a && a.url);
+  for (const h of (s.history || []).slice(0, 30)) add(h && h.url);
+  faviconCache.refreshIfStale([...hosts]);
 }
 
 
@@ -501,11 +586,27 @@ function wireContents(contents) {
     sniffPending.delete(contents.id);
     if (noMedia) noMedia.clear(contents.id);
     noMediaGrace.delete(contents.id);
+    ntpContents.delete(contents);
   });
 
   contents.on('page-favicon-updated', (_e, favicons) => {
     send('tab:favicon', { id: contents.id, favicon: favicons[0] || null });
+    // 顺手把「站点自己声明的图标」抓进缓存：新标签页磁贴与收藏夹栏格用。
+    // 只收 http(s) 的页面与图标地址 —— file:、扩展页的图标不进缓存。
+    // 盲探 PATHS 探不到自定义图标路径，这一步是它的高命中率补位。
+    if (faviconCache && favicons && favicons[0]) {
+      let pageUrl = '';
+      try { pageUrl = contents.getURL(); } catch { /* noop */ }
+      if (/^https?:/i.test(pageUrl) && /^https?:/i.test(favicons[0])) {
+        let host = '';
+        try { host = new URL(pageUrl).hostname; } catch { /* noop */ }
+        if (host) faviconCache.remember(host, favicons[0]);
+      }
+    }
   });
+
+  // 新标签页加载完成 → 注入图标表（其他页面在 injectFavicons 里被前缀挡掉）
+  contents.on('did-finish-load', () => injectFavicons(contents));
 
   contents.on('did-navigate', (_e, url, httpStatus) => {
     settings.pushHistory({
@@ -643,6 +744,20 @@ function registerIpc() {
     settings.patch({ ntpShortcuts: next });
     send('settings:changed', settings.all());
     return next;
+  });
+
+  /**
+   * 收藏夹栏 / 书签列表按主机名要图标。新标签页那条路不走 IPC（主进程直接注入）。
+   *
+   * 顺手 kick 一次抓取：只读不抓的话，用户当场加的那条书签在本次运行里永远
+   * 等不到图标 —— 启动时的暖缓存只覆盖「当时已经在设置里的那些站点」。
+   * 抓到之后 onFetched 会推 favicon:updated，外壳据此重画。
+   */
+  handle('favicon:json', (hosts) => {
+    if (!faviconCache) return {};
+    const list = Array.isArray(hosts) ? hosts : [];
+    faviconCache.refreshIfStale(list);
+    return faviconCache.jsonFor(list);
   });
 
   handle('engine:list', () => registry.list());

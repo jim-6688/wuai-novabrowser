@@ -43,6 +43,12 @@ const state = {
   defaults: null,
   extensions: [],
   bookmarks: [],
+  /**
+   * 站点图标表：主机名 → data: URI。由主进程按站点抓取并落盘（见
+   * src/main/favicon-cache.js），外壳启动时问一次、书签变动后再问一次。
+   * 新标签页磁贴读的是同一份缓存，只是那份由主进程直接注进页面。
+   */
+  hostIcons: {},
   adblock: { blocked: 0, rules: {}, top: [], enabled: true },
   allowlist: [],
   tabs: [],
@@ -731,6 +737,59 @@ const BM_BAR_LABEL = {
 let bmBarSig = null;
 
 /**
+ * 某个地址的站点图标，取到给 data: URI，取不到给空串。
+ *
+ * 与 newtab.html 的 NovaNtp.iconOf 是同一套查表规则（原文主机名 → 去 www.
+ * → 补 www.，三试），因为写到表里的键是主进程按书本 / 磁贴里的写法算的，
+ * 与这里读到的 url 不保证同一写法。改这里记得同步那一处。
+ */
+function hostIcon(url) {
+  const h = hostOf(url);
+  if (!h) return '';
+  const bare = h.replace(/^www\./, '');
+  return state.hostIcons[h] || state.hostIcons[bare] || state.hostIcons['www.' + bare] || '';
+}
+
+/** 已经问过主进程的主机名。同一批问第二遍拿到的还是同一张表，白跑一趟 IPC。 */
+let hostIconsAsked = '';
+
+/**
+ * 问主进程要一次站点图标表。
+ *
+ * 只问书签用到的那些主机，不是全量 —— 这张表是为「书签格 / 书签列表上那颗
+ * 图标」服务的，历史记录里那几百个域名不需要。
+ *
+ * 拿到之后重新渲染：图标是异步来的（没缓存时主进程要现抓，可能要几秒），
+ * 渲染时不重画一次的话，用户得切个页面才看得到图标。
+ *
+ * force 用于「主机名没变但表的内容变了」——主进程抓到新图标会推
+ * favicon:updated，那时必须再读一次。
+ */
+async function refreshHostIcons(force = false) {
+  const hosts = [...new Set((state.bookmarks || []).map((b) => hostOf(b && b.url)).filter(Boolean))];
+  const key = hosts.slice().sort().join(',');
+  // 一张表都没有（书签全删光）时也要走一次：state.hostIcons 得跟着清空，
+  // 否则删掉的书签的图标会留在表里，下次同名主机加回来时先撞上旧图。
+  if (!force && !hosts.length && !Object.keys(state.hostIcons).length) return;
+  if (!force && key === hostIconsAsked) return;
+  hostIconsAsked = key;
+  try {
+    state.hostIcons = (await bridge.favicons.json(hosts)) || {};
+  } catch {
+    // 拿不到就维持现状：书签格上还有 b.favicon 与首字母两层兜底，
+    // 不该因为一次 IPC 失败把整条栏画没了。
+    return;
+  }
+  renderBookmarkBar(true);
+  // 设置页正停在「书签」分区时，那张列表也要跟着换图标 —— 它是上一次
+  // 用空表画出来的，不补这一次就停在首字母上。
+  const view = $('#settings-view');
+  if (view && !view.hidden && state.settingsSection === 'bookmarks') {
+    renderSettingsSection('bookmarks');
+  }
+}
+
+/**
  * 渲染收藏夹栏。
  *
  * 位置固定在地址栏下方（往上就是标签条，这条栏没有第二处可放），
@@ -757,10 +816,11 @@ function renderBookmarkBar(force = false) {
   bar.hidden = false;
 
   const list = state.bookmarks || [];
-  // 指纹里带上 favicon：书签的标题可能不变而图标后来才拿到（页面的
-  // page-favicon-updated 比收藏动作晚），不带就会停在一个旧图标上。
+  // 指纹里带上图标三层来源：书签的标题可能不变，而图标是后来才到的 ——
+  // 页面的 page-favicon-updated 比收藏动作晚，主进程抓缓存又要等网络。
+  // 不带就会停在一个旧图标上（甚至是永远不换的首字母）。
   const sig = mode + '|' + list
-    .map((b) => `${b.url}\u0001${b.title || ''}\u0001${b.favicon || ''}`)
+    .map((b) => `${b.url}\u0001${b.title || ''}\u0001${hostIcon(b.url)}\u0001${b.favicon || ''}`)
     .join('\u0002');
   if (!force && sig === bmBarSig) return;
   bmBarSig = sig;
@@ -774,8 +834,12 @@ function renderBookmarkBar(force = false) {
   bar.innerHTML = list.map((b) => {
     const host = hostOf(b.url);
     const label = b.title || host || b.url;
-    const icon = b.favicon
-      ? `<img src="${esc(b.favicon)}" alt="" onerror="this.remove()" />`
+    // 三层，从可靠到兜底：站点图标缓存（主进程按站点抓的，落盘、有 TTL）
+    // → 书签自带的 favicon（收藏那一刻抄下来的外链，可能空、可能已失效）
+    // → 首字母方块（新标签页磁贴用的是同一套兜底）。
+    const src = hostIcon(b.url) || b.favicon || '';
+    const icon = src
+      ? `<img src="${esc(src)}" alt="" onerror="this.remove()" />`
       : esc((host || 'N').slice(0, 1).toUpperCase());
     return `<button class="bm-item" data-bm="${esc(b.url)}"` +
       ` title="${esc(label)}&#10;${esc(b.url)}&#10;右键移出收藏夹栏">` +
@@ -1490,14 +1554,24 @@ function buildBookmarks() {
   return `
     <h2 class="sv-h2">书签</h2>
     <div class="sv-lead">共 ${list.length} 条。点一行就在当前标签页打开。<br />${barNote}</div>
-    ${list.length ? `<div class="sv-card">${list.map((b) => `
+    ${list.length ? `<div class="sv-card">${list.map((b) => {
+      const host = hostOf(b.url);
+      // 与收藏夹栏同一套三层兜底：站点图标缓存 → 书签自带 favicon → 首字母。
+      // 列表行比收藏夹栏宽，所以这里给 20px，图标本身看得清。
+      const src = hostIcon(b.url) || b.favicon || '';
+      const icon = src
+        ? `<img src="${esc(src)}" alt="" onerror="this.remove()" />`
+        : esc((host || 'N').slice(0, 1).toUpperCase());
+      return `
       <div class="list-row is-click" data-url="${esc(b.url)}">
+        <span class="lr-fav">${icon}</span>
         <span class="lr-main">
           <span class="lr-title">${esc(b.title || b.url)}</span>
           <span class="lr-sub">${esc(prettyUrl(b.url))}</span>
         </span>
         <button class="btn" data-unbookmark="${esc(b.url)}">删除</button>
-      </div>`).join('')}</div>` : '<div class="sv-empty">还没有书签。地址栏右侧的星形按钮可以加入当前页。</div>'}
+      </div>`;
+    }).join('')}</div>` : '<div class="sv-empty">还没有书签。地址栏右侧的星形按钮可以加入当前页。</div>'}
     <div class="btn-row">
       <button class="btn btn-primary" data-act="bookmark-current">把当前页加入书签</button>
       <button class="btn" data-act="clear-bookmarks" ${list.length ? '' : 'disabled'}>清空全部书签</button>
@@ -2571,6 +2645,10 @@ function refreshCurrent() {
   // 收藏夹栏是常驻面，不归设置页 / 弹层那套显隐管，所以先刷它。
   // 书签的每一次增删清最后都落到这里，不必在七八处各补一句。
   renderBookmarkBar();
+  // 站点图标表在书签变了之后要重新问一次。放这里而不是跟着上面那句一起
+  // 塞进 renderBookmarkBar：那张表是异步来的，而 renderBookmarkBar 是同步
+  // 渲染路径，不该在里面发 IPC。主机名没变时这个调用会立刻返回。
+  refreshHostIcons();
   // 删掉的书签如果正好是当前页，星标要跟着变回空心
   syncStarButton();
 
@@ -3477,6 +3555,11 @@ function wireBridgeEvents() {
   });
   bridge.on('shell:viewport', applyLayout);
 
+  // 主进程抓到一份新图标。重读一次那张表（同名主机也要重读 —— 内容变了）。
+  // 这条推送是必须的：图标是异步到的，不推的话书签格会一直停在首字母上，
+  // 直到用户下一次动书签才碰巧重画一次。
+  bridge.on('favicon:updated', () => refreshHostIcons(true));
+
   // 内置新标签页发来的动作（加 / 删快捷方式）。
   //
   // 页面本身是本地文件，上不了 preload 那座桥 —— 它是跳一个
@@ -3550,6 +3633,10 @@ async function init() {
   // 此处标签页还没建，所以「仅新标签页」档位下一开始是收着的，等下面
   // createTab → activateTab 那次 syncBookmarkBar 再把它放出来。
   renderBookmarkBar(true);
+  // 书签格上的站点图标。这里问一次（不 await）：那张表是异步来的，拿到之后
+  // refreshHostIcons 自己会重画一遍。不 await 是为了让它和下面 createTab
+  // 那些初始化并行跑，不必等图标回来才把界面立起来。
+  refreshHostIcons();
   syncQuickBar();
 
   if (state.isPreview) {

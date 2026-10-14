@@ -131,5 +131,77 @@ const cssRules = fs.readFileSync(P('src/renderer/shell.css'), 'utf8').replace(/\
   ['设计板画出了窗口本体 .svwin', /class="svwin"/.test(board)]
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
+/* 8. 站点图标：一条从抓取到画出来的完整链子 */
+console.log('\n[8] 站点图标链路');
+// 这条链子横跨四个文件，任何一环断了的表现都一样 —— 「图标就是不出来」。
+// 而链子本身没有任何报错：抓不到图只是回落到首字母，看起来像「本来就长这样」。
+const mainJs = fs.readFileSync(P('src/main/main.js'), 'utf8');
+const preload = fs.readFileSync(P('src/preload/preload.js'), 'utf8');
+const mockJs = fs.readFileSync(P('src/renderer/bridge-mock.js'), 'utf8');
+const newtab = fs.readFileSync(P('src/renderer/newtab.html'), 'utf8');
+const toJava = (rel) => P('android-app/app/src/main/' + rel);
+[
+  ['主进程引了 FaviconCache（与安卓端同一套语义的另一份实现）',
+    /require\('\.\/favicon-cache'\)/.test(mainJs)],
+  ['缓存目录落在 userData 下（不写进安装目录，那里可能只读）',
+    /new FaviconCache\(/.test(mainJs) && /app\.getPath\('userData'\)/.test(mainJs)],
+  ['导航时顺手记住「站点自己声明的图标」——盲探三处常规位置拿不到的那种',
+    /page-favicon-updated'[\s\S]{0,900}?faviconCache\.remember\(/.test(mainJs)],
+  ['新标签页加载完就把图标表注入进去（页面那条 CSP 锁死了网络，只能这样喂）',
+    /function injectFavicons/.test(mainJs) && /window\.__novaIcons\s*=/.test(mainJs)
+      && /__novaApplyIcons/.test(mainJs)],
+  ['抓到新图标会回灌给还开着的新标签页（先抓到先换，不等整轮跑完）',
+    /faviconCache\.onFetched\s*=\s*\(\)\s*=>\s*\{?[\s\S]{0,300}?reinjectFavicons\(\)/.test(mainJs)],
+  ['启动时按「用户认得的站点」暖一轮（书签 + 自己加的磁贴 + 近期历史）',
+    /function warmFavicons/.test(mainJs) && /warmFavicons\(\)/.test(mainJs)
+      && /s\.bookmarks/.test(mainJs) && /ntpShortcuts/.test(mainJs)],
+  ['有 favicon:json 这个 IPC 给外壳用', /handle\('favicon:json'/.test(mainJs)],
+  ['favicon:json 顺手 kick 一次抓取 —— 只读不抓的话，用户当场加的书签'
+    + '在本次运行里永远等不到图标（启动暖缓存只覆盖当时已在设置里的站点）',
+    /handle\('favicon:json'[\s\S]{0,400}?refreshIfStale\(/.test(mainJs)],
+  ['抓到图标会推 favicon:updated 给外壳（否则书签格停在首字母，直到下次动书签）',
+    /send\('favicon:updated'/.test(mainJs) && /on\('favicon:updated'/.test(js)],
+  ['外壳收到推送后走的是强制重读（主机名没变，但表的内容变了）',
+    /on\('favicon:updated',\s*\(\)\s*=>\s*refreshHostIcons\(true\)\)/.test(js)],
+  ['preload 把 favicons.json 挂到桥上', /favicons:\s*\{/.test(preload)
+    && /favicon:json/.test(preload)],
+  ['外壳有查表与取表两个函数', /function hostIcon\(/.test(js) && /async function refreshHostIcons\(/.test(js)],
+  ['书签每一次增删清都会走到取表那一步（挂在 refreshCurrent 上，一处顶八处）',
+    /function refreshCurrent\(\)[\s\S]{0,600}?refreshHostIcons\(\)/.test(js)],
+  ['书签格与设置页列表走同一套三层兜底（缓存 → 书签自带 favicon → 首字母）',
+    (js.match(/hostIcon\(b\.url\)/g) || []).length >= 2],
+  ['设置页列表行的图标样式在', /\.list-row \.lr-fav\s*\{/.test(cssRules)],
+  ['预览桥给了一张空表而不是编造的图标 —— 预览里一个请求都不发，编一张等于让截图说谎',
+    /favicons:\s*\{[\s\S]{0,200}?json:\s*async\s*\(\)\s*=>\s*\(\{\}\)/.test(mockJs)],
+  ['新标签页的说明已不再写着「桌面端目前不喂这张表」（那句话已经过期）',
+    !/桌面端目前不喂这张表/.test(newtab) && /favicon-cache\.js/.test(newtab)],
+  ['新标签页与安卓端产物仍然逐字节一致（npm run mobile:check 会再验一遍）',
+    fs.readFileSync(P('src/renderer/newtab.html')).equals(
+      fs.readFileSync(toJava('assets/newtab.html')))]
+].forEach(([name, pass]) => pass ? ok(name) : bad(name));
+
+/* 8.1 事件白名单：外壳监听的每个通道，preload 都得放行 */
+// 这一条值得单列，因为它的失败方式最阴：preload 的 on() 对不在白名单里的通道
+// 直接 throw，而外壳是在 init 里注册监听的 —— 一抛，init 后半段（建标签页、
+// 挂各处分区）整段不跑。界面看起来只是「少了个功能」，控制台里也只是一句
+// 「未授权的事件通道」，很容易被当成无关日志划过去。
+// 而 jsdom 测试用的是 mock 桥，mock 没有白名单 —— 所以单测全绿也拦不住。
+const allowedBlock = ((preload.match(/const EVENT_CHANNELS = \[([\s\S]*?)\];/) || [])[1] || '')
+  // 先剥注释：这段数组的说明里就写着 bridge.on('…') 当例子，
+  // 不剥的话那个例子会被当成一个真的通道名，白算出一条「多出来的通道」。
+  .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+const allowedEvents = new Set([...allowedBlock.matchAll(/'([^']+)'/g)].map((m) => m[1]));
+const listenedEvents = [...new Set([...js.matchAll(/bridge\.on\('([^']+)'/g)].map((m) => m[1]))];
+const missingEvents = listenedEvents.filter((c) => !allowedEvents.has(c));
+missingEvents.length
+  ? bad('外壳监听了 preload 未放行的通道：' + missingEvents.join(', ')
+      + '（on() 会直接抛，init 后半段整段不跑）')
+  : ok(`外壳监听的 ${listenedEvents.length} 个事件通道都在 preload 白名单里`);
+// 反向也看一眼：白名单里挂着但没人监听的，多半是推送改了名而监听没跟上
+const staleEvents = [...allowedEvents].filter((c) => !listenedEvents.includes(c));
+staleEvents.length
+  ? ok(`白名单里有 ${staleEvents.length} 个通道外壳当前没监听（可能由别处消费）：${staleEvents.join(', ')}`)
+  : ok('白名单没有多出来的通道');
+
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');
 process.exit(failed ? 1 : 0);

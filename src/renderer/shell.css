@@ -702,6 +702,23 @@ svg {
 .list-row .lr-sub { font-size: 11px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
 .list-row .lr-tail { flex: 0 0 auto; font-size: 11px; color: var(--text-4); }
 
+/* 书签列表行左侧的站点图标。
+   与收藏夹栏 .bm-fav 是同一套三层兜底（站点图标缓存 → 书签自带 favicon →
+   首字母），只是那边挤在 32px 高的窄格子里给 16px，这边行更宽就给 20px。
+   方块底 + overflow:hidden 是给「站点图标是 16px 的 ico」那种情况兜底的：
+   不裁的话小图标会在格子里飘。 */
+.list-row .lr-fav {
+  flex: 0 0 20px; width: 20px; height: 20px;
+  border-radius: 5px;
+  display: grid; place-items: center;
+  overflow: hidden;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: 10px; font-weight: 800;
+  line-height: 1;
+}
+.list-row .lr-fav img { width: 100%; height: 100%; object-fit: contain; }
+
 /* 开关 */
 .switch {
   flex: 0 0 40px;

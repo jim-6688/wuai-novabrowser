@@ -452,8 +452,10 @@ var NovaNtp = (function () {
      * 这一页的 CSP 是 `default-src 'none'; img-src data:`，等于把网络整个锁死，
      * 页面自己一个请求都发不出去。这是刻意的：一张本地页面没有任何理由联网。
      * 于是「自动获取站点图标」这件事由原生抓、原生缓存，再以 data: 交进来
-     * （安卓侧见 FaviconCache）。桌面端目前不喂这张表，这里就一直返回空串，
-     * 磁贴照旧走渐变底 + 首字 —— 两端同一份代码，行为各自成立。
+     * （安卓侧见 FaviconCache.java，桌面侧见 src/main/favicon-cache.js ——
+     * 两份实现语义逐条对齐，TTL、探测顺序、文件名清洗规则都同值）。
+     * 两端的宿主都会在页面加载完成后注入这张表（安卓 MainActivity#injectFavicons、
+     * 桌面 main.js#injectFavicons），表是空的也照样注入，免得页面停在上一张旧表上。
      *
      * 查表要试三个键：原文主机名、去掉 www. 的、以及补上 www. 的。
      * 因为「哪一边带 www.」是站点的自由，而发请求的是宿主、渲染的是页面，

@@ -11,7 +11,8 @@
  *   1. 窄屏档位下这条栏具体收得多窄。那是层叠结果，而 jsdom 不跑布局，
  *      这里只验到「栏还在、内容还对、CSS 里写的是收窄规则而不是 display:none」。
  *   2. 图标是不是真的画出来了。jsdom 不加载图，img 的 onerror 触发时机
- *      也和真机不同，所以这里只验「该用 img 的时候用的是 img」。
+ *      也和真机不同，所以这里只验「该用 img 的时候用的是 img」，以及三层
+ *      兜底的顺序对不对（详见 [Q]）。
  */
 
 const path = require('path');
@@ -424,7 +425,90 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   window.eval("state.settings.layout = 'desktop'");
   window.eval('applyLayout()');
 
-  console.log('\n[Q] 运行时错误');
+  console.log('\n[Q] 站点图标');
+
+  // 换掉「桥」那一层来喂图标表，而不是直接写 state.hostIcons ——
+  // 后者会把 refreshHostIcons 那段接线整个绕过去，测不到它。
+  // 真的那份桥在主进程里按主机名抓 /favicon.ico 再以 data: URI 交出来
+  // （见 src/main/favicon-cache.js），这里只需要它「按主机的写法查表」这一点。
+  const icons = async (map) => {
+    window.eval(`bridge.favicons.json = async () => (${JSON.stringify(map)});`
+      + "hostIconsAsked = '';");
+    await window.eval('refreshHostIcons()');
+    await sleep(20);
+  };
+  const favImg = () => $('#bookmark-bar .bm-fav img');
+  const favText = () => ($('#bookmark-bar .bm-fav') || {}).textContent || '';
+
+  setBms([{ url: 'https://52ta.top/', title: '52ta' }]);
+  await icons({ '52ta.top': 'data:image/png;base64,AAAA' });
+  check('拿到图标表后书签格画的是 <img>，不再是首字母', !!favImg());
+  check('img 的 src 就是表里那个 data: URI',
+    !!favImg() && favImg().getAttribute('src') === 'data:image/png;base64,AAAA',
+    favImg() && favImg().getAttribute('src'));
+
+  // 表里的键由主进程按「书签里写的那个 url」算出来，与这里读到的 url
+  // 不保证同一写法 —— 带不带 www. 是每个站点的自由。
+  setBms([{ url: 'https://www.zhihu.com/', title: '知乎' }]);
+  await icons({ 'zhihu.com': 'data:image/png;base64,BBB' });
+  check('书签带 www.、表里存的是裸域名 —— 也命中',
+    !!favImg() && favImg().getAttribute('src') === 'data:image/png;base64,BBB');
+  setBms([{ url: 'https://zhihu.com/', title: '知乎' }]);
+  await icons({ 'www.zhihu.com': 'data:image/png;base64,CCC' });
+  check('反过来（书签不带 www.、表里带）也命中',
+    !!favImg() && favImg().getAttribute('src') === 'data:image/png;base64,CCC');
+
+  // 三层兜底。外链那份是收藏那一刻从标签页抄下来的，会失效；
+  // 缓存那份是主进程按站点抓的，落盘、有 TTL。所以前者是备选，不是首选。
+  setBms([{ url: 'https://x.test/', title: 'X', favicon: 'https://x.test/f.png' }]);
+  await icons({});
+  check('没有缓存图标时退到书签自带的 favicon',
+    !!favImg() && favImg().getAttribute('src') === 'https://x.test/f.png');
+  await icons({ 'x.test': 'data:image/png;base64,DDD' });
+  check('两层都有时，站点图标缓存胜过书签自带的外链',
+    !!favImg() && favImg().getAttribute('src') === 'data:image/png;base64,DDD',
+    favImg() && favImg().getAttribute('src'));
+
+  // 设置页那张书签列表读的是同一张表 —— 它是上一次用空表画出来的，
+  // 图标到了不补画一次就永远停在首字母上。
+  setBms([{ url: 'https://n.test/', title: 'Nova' }]);
+  await icons({ 'n.test': 'data:image/png;base64,EEE' });
+  window.eval("openSettings('bookmarks')");
+  await waitFor(() => $('.sv-main .list-row'));
+  check('设置页的书签列表也画站点图标', !!$('.sv-main .list-row .lr-fav img'));
+  window.eval('closeSettings()');
+
+  // 表空掉之后落回首字母 —— 两层兜底都不在时才走这一层
+  await icons({});
+  check('两层都没有时才回落首字母，且不带 <img>',
+    !favImg() && favText().trim() === 'N', JSON.stringify(favText().trim()));
+
+  // 接线：书签变动后要重新问一次，而且只问书签用到的主机
+  window.eval('window.__asked = null; window.__calls = 0;'
+    + 'bridge.favicons.json = async (hosts) => { window.__asked = hosts; window.__calls++; return {}; };'
+    + "hostIconsAsked = '';");
+  setBms([{ url: 'https://q.test/', title: 'Q' }]);
+  window.eval('refreshCurrent()');
+  await sleep(30);
+  check('书签变动后重新问一次，且只问书签用到的主机（不是全量历史）',
+    JSON.stringify(window.__asked) === '["q.test"]', JSON.stringify(window.__asked));
+  const calls0 = window.__calls;
+  await window.eval('refreshHostIcons()');
+  check('同一批主机不重复问 —— refreshCurrent 每次都会调到这儿，白跑一趟 IPC 不划算',
+    window.__calls === calls0, `${calls0} → ${window.__calls}`);
+
+  // 抓图是异步的：主机名没变、但表的内容变了，也必须重读一次。
+  // 真机上是主进程抓到图标后推 favicon:updated 触发的这条路。
+  window.eval('window.__calls = 0;'
+    + 'bridge.favicons.json = async () => { window.__calls++; return {}; };'
+    + "hostIconsAsked = 'q.test';");
+  await window.eval('bridge.__emit("favicon:updated", null)');
+  await sleep(40);
+  check('主进程推 favicon:updated 时外壳会重读那张表（主机名没变也要重读）——'
+    + '少了这条，书签格会一直停在首字母上，直到用户下次动书签才碰巧重画',
+    window.__calls === 1, `重读 ${window.__calls} 次`);
+
+  console.log('\n[R] 运行时错误');
 
   check('走完这套全流程仍无异常', errors.length === 0, errors.join(' | ') || '无');
 

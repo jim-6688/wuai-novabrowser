@@ -19,7 +19,7 @@
     "filters:fetch": "bash tools/fetch-filters.sh",
     "filters:check": "node tools/check-filters.js",
     "filters": "bash tools/fetch-filters.sh && node tools/check-filters.js",
-    "test": "node tools/check-shell.js && node tools/test-engines.js && node tools/test-adblock.js && node tools/test-engine-menu.js && node tools/test-downloader.js && node tools/test-downloads-ui.js && node tools/test-sniffer.js && node tools/test-sniffer-ui.js && node tools/test-nomedia.js && node tools/test-autopage.js && node tools/test-mobile-ui.js && node tools/test-builtin-userscript.js && node tools/test-newtab.js && node tools/test-bookmark-bar.js && node tools/test-downloader-degrade-qa.js",
+    "test": "node tools/check-shell.js && node tools/test-engines.js && node tools/test-adblock.js && node tools/test-engine-menu.js && node tools/test-downloader.js && node tools/test-downloads-ui.js && node tools/test-sniffer.js && node tools/test-sniffer-ui.js && node tools/test-nomedia.js && node tools/test-autopage.js && node tools/test-mobile-ui.js && node tools/test-builtin-userscript.js && node tools/test-newtab.js && node tools/test-bookmark-bar.js && node tools/test-favicon-cache.js && node tools/test-downloader-degrade-qa.js",
     "test:downloader": "node tools/test-downloader.js",
     "test:downgrade-qa": "node tools/test-downloader-degrade-qa.js",
     "test:downloads-ui": "node tools/test-downloads-ui.js",
@@ -45,7 +45,8 @@
     "pc:dir": "electron-builder --win --x64 --dir",
     "pc:build": "electron-builder --win --x64",
     "pc:zip": "node tools/make-zip.js",
-    "publish:gitee": "node tools/publish-gitee.js"
+    "publish:gitee": "node tools/publish-gitee.js",
+    "test:favicon": "node tools/test-favicon-cache.js"
   },
   "build": {
     "appId": "top.wuai.nova",
