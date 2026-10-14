@@ -489,20 +489,25 @@
             </div>
 
             <!-- PC 版（Windows）。安装包走 Gitee Release 附件（78MB 不进 git 仓库），
-                 官网这里只放一个指向 Gitee 的下载按钮。 -->
+                 官网这里只放一个指向 Gitee 的下载按钮。
+
+                 发的是 ZIP 而不是裸 exe：浏览器对「直接下载 .exe」会弹
+                 「不常下载的文件」风险提示，套一层压缩包之后下载这一步就干净了。
+                 压缩包里就是原来那个安装程序，向导 / 快捷方式 / 卸载项都照旧，
+                 只是多一步解压。 -->
             <div class="dl-box" style="margin-top:32px;">
                 <div class="dl-version">
                     <strong>v0.2.1</strong>
                     <span>PC 版 · Windows</span>
                 </div>
-                <p class="dl-note">桌面版安装包约 74 MB。提供 Chromium 真内核 + Gecko / IE 兼容层，支持 .crx / .xpi 扩展。</p>
+                <p class="dl-note">桌面版约 74 MB，以 ZIP 压缩包提供 —— 下载后解压，运行里面的安装程序即可。提供 Chromium 真内核 + Gecko / IE 兼容层，支持 .crx / .xpi 扩展。</p>
                 <div class="dl-list">
-                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.5.1/nova-pc-0.2.1-win-x64-setup.exe" download>Gitee Releases · PC 安装包</a>
+                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.5.1/nova-pc-0.2.1-win-x64-setup.zip" download>Gitee Releases · PC 安装包（ZIP）</a>
                 </div>
                 <ul class="dl-facts">
                     <li><span>版本</span><span>0.2.1</span></li>
                     <li><span>平台</span><span>Windows x64</span></li>
-                    <li><span>大小</span><span>约 74 MB</span></li>
+                    <li><span>大小</span><span>约 74 MB（ZIP）</span></li>
                 </ul>
             </div>
         </div>

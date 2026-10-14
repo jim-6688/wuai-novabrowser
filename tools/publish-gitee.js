@@ -6,8 +6,10 @@
  *
  * 用法：
  *   npm run publish:gitee                                       # Android：自动找 site/download/nova-<版本>.apk
- *   npm run publish:gitee -- --pc dist/nova-pc-<版本>-win-x64-setup.exe
- *   npm run publish:gitee -- --apk <apk路径> --pc <exe路径>       # 两个都要传时显式写全
+ *   npm run publish:gitee -- --pc dist/nova-pc-<版本>-win-x64-setup.zip
+ *   npm run publish:gitee -- --apk <apk路径> --pc <zip路径>      # 两个都要传时显式写全
+ *
+ *   PC 版主发 .zip（见 tools/make-zip.js 的说明），附件名按源文件后缀生成。
  *
  * 规则：不给任何文件参数时才去猜默认 APK 路径；给了 --apk / --pc 就只传给的那个。
  *
@@ -199,7 +201,13 @@ async function main() {
     if (fs.existsSync(defApk)) files.push({ path: defApk, name: 'nova-' + ver + '.apk' });
   }
   if (args.pc) {
-    files.push({ path: args.pc, name: 'nova-pc-' + pcVersion() + '-win-x64-setup.exe' });
+    // 附件名跟着**实际文件的后缀**走，不写死 .exe。
+    // PC 版现在主发 .zip（浏览器对 .exe 直接下载会弹「不常下载」风险提示，
+    // 套一层压缩包就干净了），但偶尔也会直接传 .exe 做备份。写死的话
+    // 会把 zip 传成 exe 名字 —— 用户下到的文件后缀和实际格式对不上，
+    // 反而更容易被浏览器拦，解压时也会报「不是有效的压缩包」。
+    const ext = path.extname(args.pc) || '.exe';
+    files.push({ path: args.pc, name: 'nova-pc-' + pcVersion() + '-win-x64-setup' + ext });
   }
 
   if (files.length === 0) {
