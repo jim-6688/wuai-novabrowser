@@ -5,16 +5,21 @@
  * 一条命令完成「创建/更新 Release + 上传 APK 附件」，不再进 Gitee 网页点确认。
  *
  * 用法：
- *   GITEE_TOKEN=xxx node tools/publish-gitee.js                 # Android APK
- *   GITEE_TOKEN=xxx node tools/publish-gitee.js --pc <exe路径>  # PC 安装包
- *   GITEE_TOKEN=xxx node tools/publish-gitee.js --apk <apk路径> --pc <exe路径>
+ *   npm run publish:gitee                                       # Android：自动找 site/download/nova-<版本>.apk
+ *   npm run publish:gitee -- --pc dist/nova-pc-<版本>-win-x64-setup.exe
+ *   npm run publish:gitee -- --apk <apk路径> --pc <exe路径>       # 两个都要传时显式写全
  *
- * Token 获取：Gitee → 头像 → 设置 → 私人令牌 → 生成新令牌（勾选 projects 权限）。
- * Token 也可写进本地 .env 文件（GITEE_TOKEN=xxx，已 gitignore），脚本会自动读，
- * 这样命令行就不用每次带 token 了。
+ * 规则：不给任何文件参数时才去猜默认 APK 路径；给了 --apk / --pc 就只传给的那个。
+ *
+ * Token：**零配置**。依次尝试 GITEE_TOKEN 环境变量 → 仓库根 .env（已 gitignore）
+ * → ~/.git-credentials 里 gitee.com 那条凭据（Gitee 允许把私人令牌当 git 密码用，
+ * 所以那串 32 字符本身就是合法令牌）。三种都没有才报错。
  *
  * 版本号唯一来源：android-app/app/src/main/res/values/strings.xml 的 app_version。
  * PC 版版本号从 package.json 的 version 字段读。
+ *
+ * 顺序要求：本脚本按 tag 在 **Gitee 服务端** 的 main 上打 tag，
+ * 所以必须先 `git push` 再跑本脚本，否则 tag 会落在上一个提交上。
  */
 
 const fs = require('fs');
@@ -181,10 +186,15 @@ async function main() {
   }
 
   // 2. 上传附件
+  //
+  // 默认（一个文件参数都不给）才去猜 site/download 下的 APK。
+  // 只要显式给了 --apk 或 --pc，就以给的那个为准 —— 否则
+  // `--pc xxx.exe` 会顺带把 APK 再传一次，Release 里出现两条同名附件。
+  const explicit = !!(args.apk || args.pc);
   const files = [];
   if (args.apk) {
     files.push({ path: args.apk, name: 'nova-' + ver + '.apk' });
-  } else {
+  } else if (!explicit) {
     const defApk = path.join(ROOT, 'site/download/nova-' + ver + '.apk');
     if (fs.existsSync(defApk)) files.push({ path: defApk, name: 'nova-' + ver + '.apk' });
   }
