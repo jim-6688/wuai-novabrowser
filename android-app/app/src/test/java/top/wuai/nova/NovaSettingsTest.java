@@ -32,6 +32,17 @@ public class NovaSettingsTest {
         assertTrue(s.adblockEnabled);
         assertEquals("system", s.theme);
         assertTrue(s.swipeUpSearch);
+        assertTrue("收藏夹栏入口默认开着", s.bookmarkBarButton);
+    }
+
+    @Test
+    public void 老配置缺收藏夹栏键时入口保持显示() {
+        // 与上划显示搜索同一条规矩：新增开关不该让老用户的顶栏凭空少一格。
+        Map<String, String> m = new HashMap<>(new NovaSettings().toMap());
+        m.remove("bookmarkBarButton");
+        assertTrue(NovaSettings.fromMap(m).bookmarkBarButton);
+        m.put("bookmarkBarButton", "false");
+        assertFalse(NovaSettings.fromMap(m).bookmarkBarButton);
     }
 
     @Test
@@ -57,6 +68,7 @@ public class NovaSettingsTest {
         s.theme = "dark";
         s.defaultEngine = "trident";
         s.swipeUpSearch = false;
+        s.bookmarkBarButton = false;
 
         NovaSettings back = NovaSettings.fromMap(s.toMap());
         assertEquals("image-av", back.noImage);
@@ -65,6 +77,7 @@ public class NovaSettingsTest {
         assertEquals("dark", back.theme);
         assertEquals("trident", back.defaultEngine);
         assertFalse(back.swipeUpSearch);
+        assertFalse(back.bookmarkBarButton);
     }
 
     @Test

@@ -38,6 +38,9 @@
     <string name="content_desc_back">返回上一页</string>
     <string name="content_desc_tools">打开工具面板</string>
     <string name="content_desc_star">收藏当前页面 / 取消收藏</string>
+    <!-- 顶栏那个把收藏夹栏拉出来 / 收起来的格子。与上面的星标分得很清楚：
+         星标管「当前这一页要不要收藏」，这一格管「下面那条横栏露不露出来」。 -->
+    <string name="content_desc_bookmark_bar">收藏夹栏</string>
     <string name="content_desc_ai">AI 助手</string>
     <!-- 下拉刷新的指示器球。它是纯装饰性的（刷新本身由手指动作触发，
          没有任何可点的东西），这条说明只给读屏软件用。 -->
@@ -95,6 +98,8 @@
     <string name="bookmark_empty">还没有书签。打开网页后点工具栏的星标即可收藏。</string>
     <string name="bookmark_added">已收藏</string>
     <string name="bookmark_removed">已取消收藏</string>
+    <!-- 收藏夹栏拉到一半、一条书签都没有时占位的那一句。 -->
+    <string name="bookmark_bar_empty">还没有书签。点顶栏的星标可以把当前页收进来。</string>
 
     <string name="sheet_history">历史</string>
     <string name="history_empty">还没有浏览记录。只记录 http/https 网页，无痕模式下不记。</string>

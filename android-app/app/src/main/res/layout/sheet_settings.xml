@@ -101,6 +101,9 @@
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
                 <include layout="@layout/item_menu" android:id="@+id/setSwipeUpSearch" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setBookmarkBar" />
             </LinearLayout>
 
             <!-- ============ 阅读增强 ============ -->

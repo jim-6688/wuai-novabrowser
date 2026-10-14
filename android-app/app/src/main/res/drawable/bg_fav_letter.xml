@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  收藏夹栏里那一格的站点标识位。
+
+  用首字母方块而不是去拉 favicon：与桌面端 .bm-fav 的降级做法同一套 ——
+  猜 favicon.ico 的地址等于每展开一次书签栏就往十来家站点各发一个请求，
+  而这条栏的全部意义是「我常去的那几个站」。移动端现有的书签面板
+  （item_bookmark）本来也没有图标，这里保持一致，不单为这一条栏引一套异步加载。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface_3" />
+    <corners android:radius="4dp" />
+</shape>

@@ -113,6 +113,25 @@
                     android:padding="7dp"
                     android:src="@drawable/ic_star" />
 
+                <!-- 收藏夹栏的唤出键。移动端这条栏不常驻：点一下在地址栏下方拉出
+                     一条横向书签栏，点中某一格跳走之后自动收起。手机上每一行高度
+                     都金贵，没有理由让一条常驻书签栏一直占着。
+
+                     位置在星标与 AI 之间：它和星标是同一类事（都关于收藏），
+                     放在一起读得通；而右端的 AI 是「去别处做一件事」，与它们不同。
+                     关掉设置里的「收藏夹栏」这一项时，这一格整个隐去，
+                     宽度还给地址栏。 -->
+                <ImageButton
+                    android:id="@+id/btnBmBar"
+                    android:layout_width="@dimen/tap_action"
+                    android:layout_height="@dimen/tap_action"
+                    android:layout_marginStart="2dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/content_desc_bookmark_bar"
+                    android:scaleType="centerInside"
+                    android:padding="7dp"
+                    android:src="@drawable/ic_bookmark_bar" />
+
                 <!-- AI 助手。原来在顶栏第二行（那一行已撤掉），现在是顶栏最右一格。
                      图标本身就是品牌渐变，与左端的搜索按钮一蓝一绿呼应，一眼能认出
                      「这一格是去别处做一件事」。 -->
@@ -126,6 +145,36 @@
                     android:padding="7dp"
                     android:src="@drawable/ic_ai" />
             </LinearLayout>
+
+            <!-- 收藏夹栏。默认 gone —— 它是「按需唤出」的一条，不是常驻的一条。
+
+                 放在 topBar 之后的同一块里，于是滚动时顶栏整块 GONE 的那套逻辑
+                 自动带着它一起走，这条栏不用自己再处理一次滚动。
+
+                 横向滚动而不是换行：换行会把这一栏撑高，网页视口跟着缩一截，
+                 而「这条栏占多高」是用户点开它的那一刻就已经定下的预期。
+
+                 scrollbars=none：横条的滚动条在移动端只会横在字下面，
+                 而这本来也不是一条需要看见滚动条的东西。 -->
+            <HorizontalScrollView
+                android:id="@+id/bookmarkBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/surface"
+                android:fillViewport="false"
+                android:paddingTop="2dp"
+                android:paddingBottom="8dp"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/bookmarkBarRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp" />
+            </HorizontalScrollView>
 
         </LinearLayout>
 

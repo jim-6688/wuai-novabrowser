@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  收藏夹栏里的一格。
+
+  与列表版 item_bookmark 不是同一份：那一版是两行（标题 + 网址）外加一个 × 删除键，
+  一行 60dp 上下；横栏里复用它会当场把这条栏撑成两倍高，而它只有一行标题。
+
+  删除走长按，格子里不放 × —— 一格才 28dp 高、标题本来就是截断的，
+  再往里挤一个 × 会把标题压成两个字。桌面端那条栏是同一个取舍（那边用右键）。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="?android:attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:minHeight="28dp"
+    android:paddingStart="7dp"
+    android:paddingEnd="10dp"
+    android:layout_marginEnd="4dp">
+
+    <TextView
+        android:id="@+id/bmbFav"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/bg_fav_letter"
+        android:gravity="center"
+        android:maxLines="1"
+        android:textColor="@color/text_3"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/bmbTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:maxWidth="136dp"
+        android:textColor="@color/text_2"
+        android:textSize="12.5sp" />
+</LinearLayout>
