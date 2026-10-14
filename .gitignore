@@ -51,3 +51,7 @@ android-app/captures/
 
 # 打包产物
 dist/
+
+# Gitee 发布令牌：私密，绝不入库
+.env
+.gitee-token
