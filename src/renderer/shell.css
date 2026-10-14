@@ -1247,12 +1247,43 @@ svg {
   padding: var(--sp-2) var(--sp-3);
 }
 
-/* ---------- 9. 设置页（全屏） ---------- */
+/* ---------- 9. 设置（窗口） ----------
+   原先这里是 position:fixed; inset:0 —— 点一下工具栏的盾牌，网页整个消失，
+   像换了个应用。改成一扇居中的窗口：暗底留住「现在在设置里」的知觉，
+   四周留出边距，浏览器本体还在视线里。
+   为什么不做成可拖动的小窗：设置是分十二个分区、会停很久的一个面，不是看一眼
+   就走的一次性弹层。窗口一旦能拖，就得顺带处理「拖到屏幕外找不回来」「位置
+   记不记、记在哪」这一串与设置本身无关的事，而它换来的好处在这里为零。
+   窄屏档位仍然整屏：手机屏幕就这么大，窗口那圈边距只是白白吃掉可用宽度，
+   换不来任何「还在浏览器里」的感觉（见移动布局段的覆盖）。 */
 .settings-view:not([hidden]) {
   position: fixed; inset: 0;
   z-index: 42;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-6);
+  /* 与抽屉用的 .scrim 同一个值：同一个应用里两层暗底不该有两个深浅 */
+  background: rgba(10, 13, 22, 0.48);
+  backdrop-filter: blur(3px);
+  animation: svFade var(--dur) var(--ease);
+}
+/* 窗口外壳。注意别写成 .sv-card —— 那个类归分区内部的分组卡，
+   两者一旦同名，所有卡片会一起变成一扇窗。 */
+.sv-window {
   display: flex; flex-direction: column;
+  width: min(940px, 100%);
+  height: min(620px, 100%);
   background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  animation: svPop var(--dur) var(--ease);
+}
+/* 两段动画分开写：暗底只淡入，窗口多一个上浮。窗口跟着一起淡入的话，
+   这一层「浮起来」的暗示就没了，看着像整块底色闪了一下。 */
+@keyframes svFade { from { opacity: 0; } }
+@keyframes svPop {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
 }
 .sv-head {
   height: 48px; min-height: 48px;
@@ -1476,6 +1507,21 @@ svg {
 [data-layout="mobile"] .mb-primary span { font-size: 12px; font-weight: 700; }
 [data-layout="mobile"] .drawer { width: 100%; max-width: none; border-left: 0; }
 [data-layout="mobile"] .tab-list-btn { display: grid; }
+
+/* 窄屏不窗口化：退回整屏。手机上窗口那圈边距纯属浪费可用宽度，
+   而且那里本来就没有「浏览器本体」可看 —— 网页已经被设置页盖住了。
+   暗底与动画一并去掉：整屏之后没有「浮在网页上」这件事，留着反而怪。 */
+[data-layout="mobile"] .settings-view:not([hidden]) {
+  padding: 0;
+  background: var(--bg);
+  backdrop-filter: none;
+  animation: none;
+}
+[data-layout="mobile"] .sv-window {
+  width: 100%; height: 100%;
+  border: 0; border-radius: 0; box-shadow: none;
+  animation: none;
+}
 
 /* 设置页在窄屏下降级：左侧导航变成顶部横向可滑动的胶囊条 */
 [data-layout="mobile"] .sv-body { flex-direction: column; }

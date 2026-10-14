@@ -335,6 +335,22 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
         border:1px solid var(--border);white-space:nowrap}
 .svchip.act{background:var(--brand-soft);color:var(--brand);border-color:var(--brand);font-weight:600}
 
+/* 设置类界面（设置 / 下载 / 广告拦截 / 扩展 / 嗅探）不再是整窗铺满，而是浮在浏览器上的
+   一扇窗口 —— 对应实现里的 .settings-view > .sv-window。
+   四层：.frame.setwin 是那扇应用窗，::after 是压暗层，.setstage 是居中舞台，
+   .svwin 才是窗口本身。C / D 两帧底下那条 .toolbar 留在压暗层下面，正好说明
+   「窗口之外浏览器还在」这件事。 */
+.frame.setwin{position:relative}
+.frame.setwin::after{content:"";position:absolute;inset:0;background:rgba(10,13,22,.48);z-index:1}
+.setstage{position:relative;z-index:2;flex:1;min-height:0;display:flex;align-items:center;
+          justify-content:center;padding:24px}
+.svwin{position:relative;display:flex;flex-direction:column;width:100%;height:100%;
+       background:var(--bg);border:1px solid var(--border);border-radius:16px;
+       box-shadow:0 28px 64px rgba(16,19,34,.20);overflow:hidden}
+/* 拦截 / 扩展两帧的内容块原先长在抽屉里（.drawer .db）。抽屉没了，补一条等价规则，
+   否则内容块会丢掉内边距、也不再撑满正文区。 */
+.svwin .db{flex:1;overflow:hidden;padding:12px 0}
+
 .panel-label{font-size:10.5px;font-weight:700;letter-spacing:.8px;color:var(--text-4);text-transform:uppercase;margin:12px 0 8px;padding:0 16px}
 .btn{height:30px;padding:0 16px;border-radius:var(--r-sm);font-size:12px;border:1px solid var(--border-strong);color:var(--text-2);background:none;display:inline-flex;align-items:center}
 .btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -1014,8 +1030,8 @@ td code{font-size:11px}
   <div class="frames">
     <!-- 广告拦截 -->
     <div class="frame-wrap">
-      <div class="frame-cap"><b>C · 广告拦截</b></div>
-      <div class="frame pc" style="height:960px">
+      <div class="frame-cap"><b>C · 广告拦截</b> · 工具栏盾牌点开 = 设置窗口停在「广告拦截」这一页（<b>整页左上角那个返回箭头按一下退回上一个到过的分区</b>，不是关闭）</div>
+      <div class="frame pc setwin" style="height:960px">
         <div class="toolbar" style="border-bottom:1px solid var(--border)">
           <div class="navg">
             <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
@@ -1027,65 +1043,88 @@ td code{font-size:11px}
             <div class="uibtn" style="position:relative;border:1px solid var(--border)"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg><i class="badge" style="position:absolute;top:0;right:-2px">138</i></div>
           </div>
         </div>
-        <div class="body">
-          <div class="vp" style="background-image:none;background:var(--surface-2)"></div>
-          <div class="drawer">
-            <div class="dh"><h2>广告拦截</h2><div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div></div>
-            <div class="db">
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 16px 12px">
-                <div class="stat"><b class="ok">138</b><span>本次会话已拦截</span></div>
-                <div class="stat"><b style="font-size:15px">133,904</b><span>网络规则</span></div>
-                <div class="stat"><b style="font-size:15px">46,599</b><span>隐藏规则</span></div>
+        <div class="setstage">
+          <div class="svwin">
+            <div class="svhead">
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
+              <h2 class="svtitle">设置</h2>
+              <span class="svpath">广告拦截</span>
+              <div style="flex:1"></div>
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div>
+            </div>
+            <div class="svbody">
+              <div class="svnav">
+                <div class="svgroup">浏览器</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg><span>常规</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.8-.8 1.8-1.6 0-.5-.3-.9-.6-1.2-.3-.3-.5-.6-.5-1 0-.6.5-1.1 1.1-1.1H13A4 4 0 0 0 17 8c0-2.8-3.1-5-7-5z"/><circle cx="7.4" cy="8.2" r=".9"/><circle cx="11" cy="6.8" r=".9"/></svg><span>外观</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/></svg><span>内核</span></div>
+                <div class="svgroup">内容</div>
+                <div class="svitem act"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg><span>广告拦截</span><span class="svcnt">3/3</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/></svg><span>媒体嗅探</span><span class="svcnt">7</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg><span>扩展</span><span class="svcnt">3</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/></svg><span>书签</span><span class="svcnt">2</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/></svg><span>历史记录</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg><span>下载</span></div>
+                <div class="svgroup">系统</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/></svg><span>隐私与数据</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg><span>关于吾爱Nova</span></div>
               </div>
+              <div class="svmain">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 16px 12px">
+                  <div class="stat"><b class="ok">138</b><span>本次会话已拦截</span></div>
+                  <div class="stat"><b style="font-size:15px">133,904</b><span>网络规则</span></div>
+                  <div class="stat"><b style="font-size:15px">46,599</b><span>隐藏规则</span></div>
+                </div>
 
-              <div class="panel-label">拦截来源</div>
-              <div class="srcc">
-                <div class="srch"><span class="srcn">广告终结者</span><span class="sw2 on"></span></div>
-                <div class="srcv">ChinaList + EasyList 修正</div>
-                <div class="srcm">
-                  <span><b>11,761</b> 网络</span><span><b>6,906</b> 隐藏</span><span class="h"><b>41</b> 命中</span>
+                <div class="panel-label">拦截来源</div>
+                <div class="srcc">
+                  <div class="srch"><span class="srcn">广告终结者</span><span class="sw2 on"></span></div>
+                  <div class="srcv">ChinaList + EasyList 修正</div>
+                  <div class="srcm">
+                    <span><b>11,761</b> 网络</span><span><b>6,906</b> 隐藏</span><span class="h"><b>41</b> 命中</span>
+                  </div>
+                  <div class="srcl"><span>ChinaList · EasyList 修正版</span><span>16,843 条</span></div>
+                  <div class="srcl"><span>CJX's Annoyance List</span><span>1,824 条</span></div>
+                  <div class="srcnt">官方订阅域 sub.adtchrome.com 已停服，使用同血统的 ChinaList 维护版还原。</div>
                 </div>
-                <div class="srcl"><span>ChinaList · EasyList 修正版</span><span>16,843 条</span></div>
-                <div class="srcl"><span>CJX's Annoyance List</span><span>1,824 条</span></div>
-                <div class="srcnt">官方订阅域 sub.adtchrome.com 已停服，使用同血统的 ChinaList 维护版还原。</div>
-              </div>
-              <div class="srcc">
-                <div class="srch"><span class="srcn">Adblock Plus</span><span class="sw2 on"></span></div>
-                <div class="srcv">EasyList 官方规则</div>
-                <div class="srcm">
-                  <span><b>121,936</b> 网络</span><span><b>30,574</b> 隐藏</span><span class="h"><b>84</b> 命中</span>
+                <div class="srcc">
+                  <div class="srch"><span class="srcn">Adblock Plus</span><span class="sw2 on"></span></div>
+                  <div class="srcv">EasyList 官方规则</div>
+                  <div class="srcm">
+                    <span><b>121,936</b> 网络</span><span><b>30,574</b> 隐藏</span><span class="h"><b>84</b> 命中</span>
+                  </div>
+                  <div class="srcl"><span>EasyList</span><span>79,654 条</span></div>
+                  <div class="srcl"><span>EasyList China</span><span>17,447 条</span></div>
                 </div>
-                <div class="srcl"><span>EasyList</span><span>79,654 条</span></div>
-                <div class="srcl"><span>EasyList China</span><span>17,447 条</span></div>
-              </div>
-              <div class="srcc off">
-                <div class="srch"><span class="srcn">系统内置拦截器</span><span class="sw2"></span></div>
-                <div class="srcv">吾爱Nova 自带清单</div>
-                <div class="srcm">
-                  <span><b>207</b> 网络</span><span><b>89</b> 隐藏</span><span class="h"><b>13</b> 命中</span>
+                <div class="srcc off">
+                  <div class="srch"><span class="srcn">系统内置拦截器</span><span class="sw2"></span></div>
+                  <div class="srcv">吾爱Nova 自带清单</div>
+                  <div class="srcm">
+                    <span><b>207</b> 网络</span><span><b>89</b> 隐藏</span><span class="h"><b>13</b> 命中</span>
+                  </div>
+                  <div class="srcl"><span>吾爱Nova 内置清单</span><span>296 条</span></div>
                 </div>
-                <div class="srcl"><span>吾爱Nova 内置清单</span><span>296 条</span></div>
-              </div>
-              <p class="cap" style="padding:0 16px">第三个源画的是<b>停用态</b>：整卡降透明度到 45%。
-                三个源互不影响，停掉一个另外两个照常判定。</p>
+                <p class="cap" style="padding:0 16px">第三个源画的是<b>停用态</b>：整卡降透明度到 45%。
+                  三个源互不影响，停掉一个另外两个照常判定。</p>
 
-              <div class="panel-label">总开关</div>
-              <div class="row" style="padding-top:0"><span class="rm"><span style="color:var(--text)">启用广告拦截</span><br /><span class="sub">网络层 + 元素隐藏</span></span><span class="sw2 on"></span></div>
-              <div class="row" style="padding-top:0"><span class="rm"><span style="color:var(--text)">元素隐藏（外观过滤）</span><br /><span class="sub">干掉自售广告位</span></span><span class="sw2 on"></span></div>
-              <div class="panel-label">拦截强度</div>
-              <div style="padding:0 16px 12px">
-                <div class="seg"><span class="act">标准</span><span>严格</span></div>
+                <div class="panel-label">总开关</div>
+                <div class="row" style="padding-top:0"><span class="rm"><span style="color:var(--text)">启用广告拦截</span><br /><span class="sub">网络层 + 元素隐藏</span></span><span class="sw2 on"></span></div>
+                <div class="row" style="padding-top:0"><span class="rm"><span style="color:var(--text)">元素隐藏（外观过滤）</span><br /><span class="sub">干掉自售广告位</span></span><span class="sw2 on"></span></div>
+                <div class="panel-label">拦截强度</div>
+                <div style="padding:0 16px 12px">
+                  <div class="seg"><span class="act">标准</span><span>严格</span></div>
+                </div>
+                <div class="panel-label">当前站点</div>
+                <div class="row" style="padding-top:0">
+                  <span class="rm"><span style="color:var(--text)">52ta.top</span><br /><span class="sub">正常拦截</span></span>
+                  <button class="btn">加入白名单</button>
+                </div>
+                <div class="panel-label">拦截来源 Top</div>
+                <div class="row" style="padding-top:2px"><span class="rm sub" style="font-family:var(--font);color:var(--text-2);font-size:12px">hm.baidu.com</span><span class="rt">34 次</span></div>
+                <div class="row" style="padding-top:2px"><span class="rm sub" style="font-family:var(--font);color:var(--text-2);font-size:12px">googlesyndication.com</span><span class="rt">27 次</span></div>
+                <div class="row" style="padding-top:2px"><span class="rm sub" style="font-family:var(--font);color:var(--text-2);font-size:12px">cpro.baidu.com</span><span class="rt">21 次</span></div>
+                <div class="btnrow"><button class="btn pri">导入过滤清单</button><button class="btn">重置统计</button></div>
               </div>
-              <div class="panel-label">当前站点</div>
-              <div class="row" style="padding-top:0">
-                <span class="rm"><span style="color:var(--text)">52ta.top</span><br /><span class="sub">正常拦截</span></span>
-                <button class="btn">加入白名单</button>
-              </div>
-              <div class="panel-label">拦截来源 Top</div>
-              <div class="row" style="padding-top:2px"><span class="rm sub" style="font-family:var(--font);color:var(--text-2);font-size:12px">hm.baidu.com</span><span class="rt">34 次</span></div>
-              <div class="row" style="padding-top:2px"><span class="rm sub" style="font-family:var(--font);color:var(--text-2);font-size:12px">googlesyndication.com</span><span class="rt">27 次</span></div>
-              <div class="row" style="padding-top:2px"><span class="rm sub" style="font-family:var(--font);color:var(--text-2);font-size:12px">cpro.baidu.com</span><span class="rt">21 次</span></div>
-              <div class="btnrow"><button class="btn pri">导入过滤清单</button><button class="btn">重置统计</button></div>
             </div>
           </div>
         </div>
@@ -1094,8 +1133,8 @@ td code{font-size:11px}
 
     <!-- 扩展 -->
     <div class="frame-wrap">
-      <div class="frame-cap"><b>D · 扩展（含火狐兼容处理披露）</b></div>
-      <div class="frame pc" style="height:600px">
+      <div class="frame-cap"><b>D · 扩展（含火狐兼容处理披露）</b> · 同样是那扇设置窗口，只是停在「扩展」这一页；窗口一关网页还在原处，不会被顶走</div>
+      <div class="frame pc setwin" style="height:600px">
         <div class="toolbar" style="border-bottom:1px solid var(--border)">
           <div class="navg">
             <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
@@ -1106,35 +1145,58 @@ td code{font-size:11px}
             <div class="uibtn" style="border:1px solid var(--border);background:var(--brand-soft);color:var(--brand)"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg></div>
           </div>
         </div>
-        <div class="body">
-          <div class="vp" style="background-image:none;background:var(--surface-2)"></div>
-          <div class="drawer">
-            <div class="dh"><h2>扩展</h2><div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div></div>
-            <div class="db">
-              <div class="panel-label" style="margin-top:0">已安装</div>
-              <div class="extc" style="margin:0 16px 8px;background:transparent">
-                <div class="ic">u</div>
-                <div style="flex:1;min-width:0">
-                  <div class="nm">uBlock Origin Lite <span class="src-tag s-cr">Chromium 商店</span></div>
-                  <div class="ds">高效宽频内容过滤器，拦截广告与追踪脚本。</div>
-                  <div class="mt">v1.52.2 · Manifest V3 · CRX v3</div>
-                </div>
+        <div class="setstage">
+          <div class="svwin">
+            <div class="svhead">
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
+              <h2 class="svtitle">设置</h2>
+              <span class="svpath">扩展</span>
+              <div style="flex:1"></div>
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div>
+            </div>
+            <div class="svbody">
+              <div class="svnav">
+                <div class="svgroup">浏览器</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg><span>常规</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.8-.8 1.8-1.6 0-.5-.3-.9-.6-1.2-.3-.3-.5-.6-.5-1 0-.6.5-1.1 1.1-1.1H13A4 4 0 0 0 17 8c0-2.8-3.1-5-7-5z"/><circle cx="7.4" cy="8.2" r=".9"/><circle cx="11" cy="6.8" r=".9"/></svg><span>外观</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/></svg><span>内核</span></div>
+                <div class="svgroup">内容</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg><span>广告拦截</span><span class="svcnt">3/3</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/></svg><span>媒体嗅探</span><span class="svcnt">7</span></div>
+                <div class="svitem act"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg><span>扩展</span><span class="svcnt">3</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/></svg><span>书签</span><span class="svcnt">2</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/></svg><span>历史记录</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg><span>下载</span></div>
+                <div class="svgroup">系统</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/></svg><span>隐私与数据</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg><span>关于吾爱Nova</span></div>
               </div>
-              <div class="extc" style="margin:0 16px 8px;background:transparent">
-                <div class="ic">D</div>
-                <div style="flex:1;min-width:0">
-                  <div class="nm">Dark Reader <span class="src-tag s-cr">Chromium 商店</span></div>
-                  <div class="ds">为每个网站生成暗色主题，护眼且可调。</div>
-                  <div class="mt">v4.9.86 · Manifest V3 · CRX v3</div>
+              <div class="svmain">
+                <div class="panel-label" style="margin-top:0">已安装</div>
+                <div class="extc" style="margin:0 16px 8px;background:transparent">
+                  <div class="ic">u</div>
+                  <div style="flex:1;min-width:0">
+                    <div class="nm">uBlock Origin Lite <span class="src-tag s-cr">Chromium 商店</span></div>
+                    <div class="ds">高效宽频内容过滤器，拦截广告与追踪脚本。</div>
+                    <div class="mt">v1.52.2 · Manifest V3 · CRX v3</div>
+                  </div>
                 </div>
-              </div>
-              <div class="extc" style="margin:0 16px 8px;background:transparent">
-                <div class="ic">T</div>
-                <div style="flex:1;min-width:0">
-                  <div class="nm">Tampermonkey <span class="src-tag s-ff">火狐扩展</span></div>
-                  <div class="ds">用户脚本管理器，从 .xpi 安装。</div>
-                  <div class="mt">v5.1.1 · Manifest V2</div>
-                  <div class="chg"><b>兼容处理：</b>移除 Firefox 专有字段 browser_specific_settings；过滤 2 项 Gecko 专有权限；注入 browser.* → chrome.* 兼容桥</div>
+                <div class="extc" style="margin:0 16px 8px;background:transparent">
+                  <div class="ic">D</div>
+                  <div style="flex:1;min-width:0">
+                    <div class="nm">Dark Reader <span class="src-tag s-cr">Chromium 商店</span></div>
+                    <div class="ds">为每个网站生成暗色主题，护眼且可调。</div>
+                    <div class="mt">v4.9.86 · Manifest V3 · CRX v3</div>
+                  </div>
+                </div>
+                <div class="extc" style="margin:0 16px 8px;background:transparent">
+                  <div class="ic">T</div>
+                  <div style="flex:1;min-width:0">
+                    <div class="nm">Tampermonkey <span class="src-tag s-ff">火狐扩展</span></div>
+                    <div class="ds">用户脚本管理器，从 .xpi 安装。</div>
+                    <div class="mt">v5.1.1 · Manifest V2</div>
+                    <div class="chg"><b>兼容处理：</b>移除 Firefox 专有字段 browser_specific_settings；过滤 2 项 Gecko 专有权限；注入 browser.* → chrome.* 兼容桥</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1145,65 +1207,69 @@ td code{font-size:11px}
 
     <!-- 设置 -->
     <div class="frame-wrap">
-      <div class="frame-cap"><b>E · 设置页</b> · 全屏左导航 + 右内容（不再走抽屉）</div>
-      <div class="frame pc" style="height:600px">
-        <div class="svhead">
-          <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
-          <h2 class="svtitle">设置</h2>
-          <span class="svpath">内核</span>
-          <div style="flex:1"></div>
-          <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div>
-        </div>
-        <div class="svbody">
-          <div class="svnav">
-            <div class="svgroup">浏览器</div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg><span>常规</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.8-.8 1.8-1.6 0-.5-.3-.9-.6-1.2-.3-.3-.5-.6-.5-1 0-.6.5-1.1 1.1-1.1H13A4 4 0 0 0 17 8c0-2.8-3.1-5-7-5z"/><circle cx="7.4" cy="8.2" r=".9"/><circle cx="11" cy="6.8" r=".9"/></svg><span>外观</span></div>
-            <div class="svitem act"><svg viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/></svg><span>内核</span></div>
-            <div class="svgroup">内容</div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg><span>广告拦截</span><span class="svcnt">3/3</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/></svg><span>媒体嗅探</span><span class="svcnt">7</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg><span>扩展</span><span class="svcnt">3</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/></svg><span>书签</span><span class="svcnt">2</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/></svg><span>历史记录</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg><span>下载</span></div>
-            <div class="svgroup">系统</div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/></svg><span>隐私与数据</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg><span>关于吾爱Nova</span></div>
-          </div>
-          <div class="svmain">
-            <h2 class="svh2">内核</h2>
-            <p class="svlead">三档运行时：native（进程内真实 Blink）/ bridge（原生宿主进程，NDJSON over stdio）/ compat（兼容层）。探测不到宿主的绝不假装成真内核。</p>
-            <div class="panel-label">当前状态</div>
-            <div class="svcard">
-              <div class="svrow"><span class="eng ro">CR</span><span class="m"><span class="t">Chromium</span><span class="s">persist:nova-chromium · Blink</span></span><span class="mode-pill m-native">原生内核</span></div>
-              <div class="svrow"><span class="eng gk">GK</span><span class="m"><span class="t">Gecko</span><span class="s">persist:nova-gecko · Firefox 内核</span></span><span class="mode-pill m-compat">兼容层</span></div>
-              <div class="svrow"><span class="eng ie">IE</span><span class="m"><span class="t">IE / Trident</span><span class="s">persist:nova-trident · IE11 兼容内核</span></span><span class="mode-pill m-compat">兼容层</span></div>
+      <div class="frame-cap"><b>E · 设置页</b> · <b>窗口形态</b>：左导航 + 右内容浮在浏览器上，四周留边距、背景压暗。原先这里是 <code>position:fixed; inset:0</code> 的整屏接管 —— 点一下工具栏的盾牌，网页整个消失，像换了个应用。<br />窗口居中固定、<b>不可拖动</b>：设置是分十二个分区、会停很久的一个面，不是看一眼就走的一次性弹层；窗口一旦能拖，就得顺带处理「拖到屏幕外找不回来」「位置记不记」这一串与设置本身无关的事，而它在这里换来的好处为零。<br />窄屏档位<b>仍走整屏</b>：手机屏幕就那么大，窗口那圈边距只是白白吃掉可用宽度，换不来任何「还在浏览器里」的感觉。</div>
+      <div class="frame pc setwin" style="height:600px">
+        <div class="setstage">
+          <div class="svwin">
+            <div class="svhead">
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
+              <h2 class="svtitle">设置</h2>
+              <span class="svpath">内核</span>
+              <div style="flex:1"></div>
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div>
             </div>
-            <div class="panel-label">内核二进制</div>
-            <div class="svcard" style="padding:0">
-              <div class="kb-group">
-                <div class="kb-head"><span class="kb-title">Chromium</span><span class="kb-arch">x64 (AMD64)</span></div>
-                <div class="kb-status"><span class="ok-text">原生内核</span></div>
-                <div class="kb-src"><span class="kb-mark">✓</span><span class="kb-body"><span class="kb-name">Electron 主内核　<span style="color:var(--text-4)">PE x64 · Electron / Chromium</span></span><span class="kb-meta">Electron 30.5.1　73 文件 / 254 MB</span></span></div>
-                <div class="kb-src"><span class="kb-mark">✓</span><span class="kb-body"><span class="kb-name">CEF 嵌入内核　<span style="color:var(--text-4)">PE x64 · CEF / Chromium Embedded</span></span><span class="kb-meta">CEF 154.0.34 / Chromium 154.0.8037.98　972 文件 / 422 MB</span></span></div>
+            <div class="svbody">
+              <div class="svnav">
+                <div class="svgroup">浏览器</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg><span>常规</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.8-.8 1.8-1.6 0-.5-.3-.9-.6-1.2-.3-.3-.5-.6-.5-1 0-.6.5-1.1 1.1-1.1H13A4 4 0 0 0 17 8c0-2.8-3.1-5-7-5z"/><circle cx="7.4" cy="8.2" r=".9"/><circle cx="11" cy="6.8" r=".9"/></svg><span>外观</span></div>
+                <div class="svitem act"><svg viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/></svg><span>内核</span></div>
+                <div class="svgroup">内容</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg><span>广告拦截</span><span class="svcnt">3/3</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/></svg><span>媒体嗅探</span><span class="svcnt">7</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg><span>扩展</span><span class="svcnt">3</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/></svg><span>书签</span><span class="svcnt">2</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/></svg><span>历史记录</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg><span>下载</span></div>
+                <div class="svgroup">系统</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/></svg><span>隐私与数据</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg><span>关于吾爱Nova</span></div>
               </div>
-              <div class="kb-group">
-                <div class="kb-head"><span class="kb-title">Gecko</span><span class="kb-arch">x86 (I386)</span></div>
-                <div class="kb-status"><span class="warn-text">二进制就位 · 待宿主编译</span></div>
-                <div class="kb-src"><span class="kb-mark">✓</span><span class="kb-body"><span class="kb-name">GeckoFX 45 + XULRunner 45　<span style="color:var(--text-4)">PE x86 · Gecko / XULRunner (XPCOM)</span></span><span class="kb-meta">GeckoFX 45.0.6.0 / XULRunner 45.0.0.5873　32 文件 / 74 MB</span></span></div>
-                <div class="kb-note">真内核二进制已就位（x86），缺原生宿主 native/bin/gecko-host.exe —— 需编译为 x86，见 native/README.md</div>
+              <div class="svmain">
+                <h2 class="svh2">内核</h2>
+                <p class="svlead">三档运行时：native（进程内真实 Blink）/ bridge（原生宿主进程，NDJSON over stdio）/ compat（兼容层）。探测不到宿主的绝不假装成真内核。</p>
+                <div class="panel-label">当前状态</div>
+                <div class="svcard">
+                  <div class="svrow"><span class="eng ro">CR</span><span class="m"><span class="t">Chromium</span><span class="s">persist:nova-chromium · Blink</span></span><span class="mode-pill m-native">原生内核</span></div>
+                  <div class="svrow"><span class="eng gk">GK</span><span class="m"><span class="t">Gecko</span><span class="s">persist:nova-gecko · Firefox 内核</span></span><span class="mode-pill m-compat">兼容层</span></div>
+                  <div class="svrow"><span class="eng ie">IE</span><span class="m"><span class="t">IE / Trident</span><span class="s">persist:nova-trident · IE11 兼容内核</span></span><span class="mode-pill m-compat">兼容层</span></div>
+                </div>
+                <div class="panel-label">内核二进制</div>
+                <div class="svcard" style="padding:0">
+                  <div class="kb-group">
+                    <div class="kb-head"><span class="kb-title">Chromium</span><span class="kb-arch">x64 (AMD64)</span></div>
+                    <div class="kb-status"><span class="ok-text">原生内核</span></div>
+                    <div class="kb-src"><span class="kb-mark">✓</span><span class="kb-body"><span class="kb-name">Electron 主内核　<span style="color:var(--text-4)">PE x64 · Electron / Chromium</span></span><span class="kb-meta">Electron 30.5.1　73 文件 / 254 MB</span></span></div>
+                    <div class="kb-src"><span class="kb-mark">✓</span><span class="kb-body"><span class="kb-name">CEF 嵌入内核　<span style="color:var(--text-4)">PE x64 · CEF / Chromium Embedded</span></span><span class="kb-meta">CEF 154.0.34 / Chromium 154.0.8037.98　972 文件 / 422 MB</span></span></div>
+                  </div>
+                  <div class="kb-group">
+                    <div class="kb-head"><span class="kb-title">Gecko</span><span class="kb-arch">x86 (I386)</span></div>
+                    <div class="kb-status"><span class="warn-text">二进制就位 · 待宿主编译</span></div>
+                    <div class="kb-src"><span class="kb-mark">✓</span><span class="kb-body"><span class="kb-name">GeckoFX 45 + XULRunner 45　<span style="color:var(--text-4)">PE x86 · Gecko / XULRunner (XPCOM)</span></span><span class="kb-meta">GeckoFX 45.0.6.0 / XULRunner 45.0.0.5873　32 文件 / 74 MB</span></span></div>
+                    <div class="kb-note">真内核二进制已就位（x86），缺原生宿主 native/bin/gecko-host.exe —— 需编译为 x86，见 native/README.md</div>
+                  </div>
+                  <div class="kb-group">
+                    <div class="kb-head"><span class="kb-title">IE / Trident</span><span class="kb-arch">x64 (AMD64)</span></div>
+                    <div class="kb-status"><span class="warn-text">二进制就位 · 待宿主编译</span></div>
+                    <div class="kb-src"><span class="kb-mark">✓</span><span class="kb-body"><span class="kb-name">Windows 内置 MSHTML　<span style="color:var(--text-4)">PE x64 · Trident / MSHTML (IE)</span></span><span class="kb-meta">系统组件（不下载）</span></span></div>
+                  </div>
+                </div>
+                <div class="panel-label">内核桥接</div>
+                <div style="padding:0 16px 12px">
+                  <button class="btn" style="width:100%;justify-content:center">重新探测原生内核宿主</button>
+                  <p class="cap" style="margin-top:8px">把 gecko-host.exe / trident-host.exe 放进 native/bin/ 后重新探测，对应内核会从「兼容层」升级为「原生桥接」。</p>
+                </div>
               </div>
-              <div class="kb-group">
-                <div class="kb-head"><span class="kb-title">IE / Trident</span><span class="kb-arch">x64 (AMD64)</span></div>
-                <div class="kb-status"><span class="warn-text">二进制就位 · 待宿主编译</span></div>
-                <div class="kb-src"><span class="kb-mark">✓</span><span class="kb-body"><span class="kb-name">Windows 内置 MSHTML　<span style="color:var(--text-4)">PE x64 · Trident / MSHTML (IE)</span></span><span class="kb-meta">系统组件（不下载）</span></span></div>
-              </div>
-            </div>
-            <div class="panel-label">内核桥接</div>
-            <div style="padding:0 16px 12px">
-              <button class="btn" style="width:100%;justify-content:center">重新探测原生内核宿主</button>
-              <p class="cap" style="margin-top:8px">把 gecko-host.exe / trident-host.exe 放进 native/bin/ 后重新探测，对应内核会从「兼容层」升级为「原生桥接」。</p>
             </div>
           </div>
         </div>
@@ -1213,117 +1279,121 @@ td code{font-size:11px}
     <!-- 下载 -->
     <div class="frame-wrap">
       <div class="frame-cap"><b>F · 下载页</b> · 多线程引擎：一格进度 = 一条连接</div>
-      <div class="frame pc" style="height:760px">
-        <div class="svhead">
-          <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
-          <h2 class="svtitle">设置</h2>
-          <span class="svpath">下载</span>
-          <div style="flex:1"></div>
-          <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div>
-        </div>
-        <div class="svbody">
-          <div class="svnav">
-            <div class="svgroup">浏览器</div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg><span>常规</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.8-.8 1.8-1.6 0-.5-.3-.9-.6-1.2-.3-.3-.5-.6-.5-1 0-.6.5-1.1 1.1-1.1H13A4 4 0 0 0 17 8c0-2.8-3.1-5-7-5z"/><circle cx="7.4" cy="8.2" r=".9"/><circle cx="11" cy="6.8" r=".9"/></svg><span>外观</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/></svg><span>内核</span></div>
-            <div class="svgroup">内容</div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg><span>广告拦截</span><span class="svcnt">3/3</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/></svg><span>媒体嗅探</span><span class="svcnt">7</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg><span>扩展</span><span class="svcnt">3</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/></svg><span>书签</span><span class="svcnt">2</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/></svg><span>历史记录</span></div>
-            <div class="svitem act"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg><span>下载</span><span class="svcnt">4</span></div>
-            <div class="svgroup">系统</div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/></svg><span>隐私与数据</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg><span>关于吾爱Nova</span></div>
-          </div>
-          <div class="svmain">
-            <h2 class="svh2">下载</h2>
-            <p class="svlead">Nova 多线程引擎：把文件按 Range 切成多段并发拉取，各段直接写到目标文件的对应偏移，最后无需合并。</p>
-
-            <div class="dleng">
-              <div class="h">
-                <span class="ttl">Nova 多线程下载引擎</span>
-                <span class="dlpill on">接管中</span>
+      <div class="frame pc setwin" style="height:760px">
+        <div class="setstage">
+          <div class="svwin">
+            <div class="svhead">
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
+              <h2 class="svtitle">设置</h2>
+              <span class="svpath">下载</span>
+              <div style="flex:1"></div>
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div>
+            </div>
+            <div class="svbody">
+              <div class="svnav">
+                <div class="svgroup">浏览器</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg><span>常规</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.8-.8 1.8-1.6 0-.5-.3-.9-.6-1.2-.3-.3-.5-.6-.5-1 0-.6.5-1.1 1.1-1.1H13A4 4 0 0 0 17 8c0-2.8-3.1-5-7-5z"/><circle cx="7.4" cy="8.2" r=".9"/><circle cx="11" cy="6.8" r=".9"/></svg><span>外观</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/></svg><span>内核</span></div>
+                <div class="svgroup">内容</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg><span>广告拦截</span><span class="svcnt">3/3</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/></svg><span>媒体嗅探</span><span class="svcnt">7</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg><span>扩展</span><span class="svcnt">3</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/></svg><span>书签</span><span class="svcnt">2</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/></svg><span>历史记录</span></div>
+                <div class="svitem act"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg><span>下载</span><span class="svcnt">4</span></div>
+                <div class="svgroup">系统</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/></svg><span>隐私与数据</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg><span>关于吾爱Nova</span></div>
               </div>
-              <div class="dlstats">
-                <div class="dlstat"><b>2</b><span>进行中</span></div>
-                <div class="dlstat"><b>10.03 MB/s</b><span>合计速度</span></div>
-                <div class="dlstat"><b>1</b><span>已完成</span></div>
-                <div class="dlstat"><b>1</b><span>失败</span></div>
-              </div>
-              <div class="dlnote">页面触发的下载会被接管到本引擎；引擎一个字节都拿不到时会自动交回 Chromium 内建下载器。服务端不支持 Range 时自动退化为单连接，不会因此下载失败。</div>
-            </div>
+              <div class="svmain">
+                <h2 class="svh2">下载</h2>
+                <p class="svlead">Nova 多线程引擎：把文件按 Range 切成多段并发拉取，各段直接写到目标文件的对应偏移，最后无需合并。</p>
 
-            <div class="panel-label">并发线程数（每个任务）</div>
-            <div class="btnrow" style="padding:0 16px 4px">
-              <span class="seg-btn">1</span><span class="seg-btn">4</span>
-              <span class="seg-btn act">8</span><span class="seg-btn">16</span>
-            </div>
-            <p class="cap" style="padding:0 16px 8px">分片过碎反而更慢，实测 4~8 条连接收益最高；上限 16。</p>
-
-            <div class="panel-label">同时进行的任务数</div>
-            <div class="btnrow" style="padding:0 16px 8px">
-              <span class="seg-btn">1</span><span class="seg-btn">2</span>
-              <span class="seg-btn act">3</span><span class="seg-btn">5</span>
-            </div>
-
-            <div class="svcard">
-              <div class="svrow"><span class="m"><span class="t">接管页面触发的下载</span><span class="s">关闭后一律使用 Chromium 内建下载器</span></span><span class="dlsw on"></span></div>
-              <div class="svrow"><span class="m"><span class="t">下载目录</span><span class="s">C:\Users\you\Downloads</span></span><span class="btn" style="height:26px;padding:0 12px;font-size:11px">更改</span><span class="btn" style="height:26px;padding:0 12px;font-size:11px">打开</span></div>
-            </div>
-
-            <div class="panel-label">新建下载</div>
-            <div class="dlnew">
-              <span class="inp">粘贴文件地址（http / https）</span>
-              <span class="btn pri" style="height:32px">开始下载</span>
-            </div>
-
-            <div class="panel-label">进行中（2）</div>
-            <div class="svcard">
-              <div class="dltask">
-                <div class="dlhead"><span class="dlname">noble-desktop-amd64.iso</span><span class="dlpill on">下载中</span></div>
-                <div class="dlsegs">
-                  <i class="dlseg done"><b style="width:100%"></b></i>
-                  <i class="dlseg done"><b style="width:100%"></b></i>
-                  <i class="dlseg"><b style="width:83%"></b></i>
-                  <i class="dlseg"><b style="width:71%"></b></i>
-                  <i class="dlseg"><b style="width:66%"></b></i>
-                  <i class="dlseg"><b style="width:58%"></b></i>
-                  <i class="dlseg"><b style="width:42%"></b></i>
-                  <i class="dlseg"><b style="width:31%"></b></i>
+                <div class="dleng">
+                  <div class="h">
+                    <span class="ttl">Nova 多线程下载引擎</span>
+                    <span class="dlpill on">接管中</span>
+                  </div>
+                  <div class="dlstats">
+                    <div class="dlstat"><b>2</b><span>进行中</span></div>
+                    <div class="dlstat"><b>10.03 MB/s</b><span>合计速度</span></div>
+                    <div class="dlstat"><b>1</b><span>已完成</span></div>
+                    <div class="dlstat"><b>1</b><span>失败</span></div>
+                  </div>
+                  <div class="dlnote">页面触发的下载会被接管到本引擎；引擎一个字节都拿不到时会自动交回 Chromium 内建下载器。服务端不支持 Range 时自动退化为单连接，不会因此下载失败。</div>
                 </div>
-                <div class="dlmeta"><span>4.96 MB / 8.00 MB（62%）</span><span>9.40 MB/s</span><span>剩余 4 秒</span><span>8 线程并发</span></div>
-                <div class="dlacts"><span class="btn">暂停</span><span class="btn">取消</span></div>
-              </div>
-              <div class="dltask">
-                <div class="dlhead"><span class="dlname">setup.exe</span><span class="dlpill on">下载中</span></div>
-                <div class="dlsegs"><i class="dlseg"><b style="width:35%"></b></i></div>
-                <div class="dlmeta"><span>1.05 MB / 3.00 MB（35%）</span><span>640.0 KB/s</span><span>剩余 3 秒</span><span>单连接（服务端不支持分片）</span></div>
-                <div class="dlacts"><span class="btn">暂停</span><span class="btn">取消</span></div>
-              </div>
-            </div>
 
-            <div class="panel-label">已完成与历史（2）</div>
-            <div class="svcard">
-              <div class="dltask">
-                <div class="dlhead"><span class="dlname">theme-pack.zip</span><span class="dlpill ok">已完成</span></div>
-                <div class="dlsegs">
-                  <i class="dlseg done"><b style="width:100%"></b></i><i class="dlseg done"><b style="width:100%"></b></i>
-                  <i class="dlseg done"><b style="width:100%"></b></i><i class="dlseg done"><b style="width:100%"></b></i>
-                  <i class="dlseg done"><b style="width:100%"></b></i><i class="dlseg done"><b style="width:100%"></b></i>
-                  <i class="dlseg done"><b style="width:100%"></b></i><i class="dlseg done"><b style="width:100%"></b></i>
+                <div class="panel-label">并发线程数（每个任务）</div>
+                <div class="btnrow" style="padding:0 16px 4px">
+                  <span class="seg-btn">1</span><span class="seg-btn">4</span>
+                  <span class="seg-btn act">8</span><span class="seg-btn">16</span>
                 </div>
-                <div class="dlmeta"><span>24.00 MB / 24.00 MB（100%）</span><span>8 线程并发</span></div>
-                <div class="dlacts"><span class="btn pri">打开</span><span class="btn">在文件夹中显示</span><span class="btn">移除</span></div>
-              </div>
-              <div class="dltask" style="border-bottom:0">
-                <div class="dlhead"><span class="dlname">archive.tar.gz</span><span class="dlpill bad">失败</span></div>
-                <div class="dlsegs"><i class="dlseg wait"><b style="width:0"></b></i></div>
-                <div class="dlmeta"><span>0 B</span></div>
-                <div class="dlnote" style="margin:8px 0 0;border-left-color:var(--danger);color:var(--danger)">HTTP 403（已重试 3 次）· 已交回 Chromium 内建下载器</div>
-                <div class="dlacts"><span class="btn">重试</span><span class="btn">移除</span></div>
+                <p class="cap" style="padding:0 16px 8px">分片过碎反而更慢，实测 4~8 条连接收益最高；上限 16。</p>
+
+                <div class="panel-label">同时进行的任务数</div>
+                <div class="btnrow" style="padding:0 16px 8px">
+                  <span class="seg-btn">1</span><span class="seg-btn">2</span>
+                  <span class="seg-btn act">3</span><span class="seg-btn">5</span>
+                </div>
+
+                <div class="svcard">
+                  <div class="svrow"><span class="m"><span class="t">接管页面触发的下载</span><span class="s">关闭后一律使用 Chromium 内建下载器</span></span><span class="dlsw on"></span></div>
+                  <div class="svrow"><span class="m"><span class="t">下载目录</span><span class="s">C:\Users\you\Downloads</span></span><span class="btn" style="height:26px;padding:0 12px;font-size:11px">更改</span><span class="btn" style="height:26px;padding:0 12px;font-size:11px">打开</span></div>
+                </div>
+
+                <div class="panel-label">新建下载</div>
+                <div class="dlnew">
+                  <span class="inp">粘贴文件地址（http / https）</span>
+                  <span class="btn pri" style="height:32px">开始下载</span>
+                </div>
+
+                <div class="panel-label">进行中（2）</div>
+                <div class="svcard">
+                  <div class="dltask">
+                    <div class="dlhead"><span class="dlname">noble-desktop-amd64.iso</span><span class="dlpill on">下载中</span></div>
+                    <div class="dlsegs">
+                      <i class="dlseg done"><b style="width:100%"></b></i>
+                      <i class="dlseg done"><b style="width:100%"></b></i>
+                      <i class="dlseg"><b style="width:83%"></b></i>
+                      <i class="dlseg"><b style="width:71%"></b></i>
+                      <i class="dlseg"><b style="width:66%"></b></i>
+                      <i class="dlseg"><b style="width:58%"></b></i>
+                      <i class="dlseg"><b style="width:42%"></b></i>
+                      <i class="dlseg"><b style="width:31%"></b></i>
+                    </div>
+                    <div class="dlmeta"><span>4.96 MB / 8.00 MB（62%）</span><span>9.40 MB/s</span><span>剩余 4 秒</span><span>8 线程并发</span></div>
+                    <div class="dlacts"><span class="btn">暂停</span><span class="btn">取消</span></div>
+                  </div>
+                  <div class="dltask">
+                    <div class="dlhead"><span class="dlname">setup.exe</span><span class="dlpill on">下载中</span></div>
+                    <div class="dlsegs"><i class="dlseg"><b style="width:35%"></b></i></div>
+                    <div class="dlmeta"><span>1.05 MB / 3.00 MB（35%）</span><span>640.0 KB/s</span><span>剩余 3 秒</span><span>单连接（服务端不支持分片）</span></div>
+                    <div class="dlacts"><span class="btn">暂停</span><span class="btn">取消</span></div>
+                  </div>
+                </div>
+
+                <div class="panel-label">已完成与历史（2）</div>
+                <div class="svcard">
+                  <div class="dltask">
+                    <div class="dlhead"><span class="dlname">theme-pack.zip</span><span class="dlpill ok">已完成</span></div>
+                    <div class="dlsegs">
+                      <i class="dlseg done"><b style="width:100%"></b></i><i class="dlseg done"><b style="width:100%"></b></i>
+                      <i class="dlseg done"><b style="width:100%"></b></i><i class="dlseg done"><b style="width:100%"></b></i>
+                      <i class="dlseg done"><b style="width:100%"></b></i><i class="dlseg done"><b style="width:100%"></b></i>
+                      <i class="dlseg done"><b style="width:100%"></b></i><i class="dlseg done"><b style="width:100%"></b></i>
+                    </div>
+                    <div class="dlmeta"><span>24.00 MB / 24.00 MB（100%）</span><span>8 线程并发</span></div>
+                    <div class="dlacts"><span class="btn pri">打开</span><span class="btn">在文件夹中显示</span><span class="btn">移除</span></div>
+                  </div>
+                  <div class="dltask" style="border-bottom:0">
+                    <div class="dlhead"><span class="dlname">archive.tar.gz</span><span class="dlpill bad">失败</span></div>
+                    <div class="dlsegs"><i class="dlseg wait"><b style="width:0"></b></i></div>
+                    <div class="dlmeta"><span>0 B</span></div>
+                    <div class="dlnote" style="margin:8px 0 0;border-left-color:var(--danger);color:var(--danger)">HTTP 403（已重试 3 次）· 已交回 Chromium 内建下载器</div>
+                    <div class="dlacts"><span class="btn">重试</span><span class="btn">移除</span></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1333,148 +1403,152 @@ td code{font-size:11px}
     <!-- 媒体嗅探 -->
     <div class="frame-wrap">
       <div class="frame-cap"><b>G · 媒体嗅探</b> · 置信度与判定依据逐条摊开，流媒体与分片单独对待</div>
-      <div class="frame pc" style="height:830px">
-        <div class="svhead">
-          <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
-          <h2 class="svtitle">设置</h2>
-          <span class="svpath">媒体嗅探</span>
-          <div style="flex:1"></div>
-          <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div>
-        </div>
-        <div class="svbody">
-          <div class="svnav">
-            <div class="svgroup">浏览器</div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg><span>常规</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.8-.8 1.8-1.6 0-.5-.3-.9-.6-1.2-.3-.3-.5-.6-.5-1 0-.6.5-1.1 1.1-1.1H13A4 4 0 0 0 17 8c0-2.8-3.1-5-7-5z"/><circle cx="7.4" cy="8.2" r=".9"/><circle cx="11" cy="6.8" r=".9"/></svg><span>外观</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/></svg><span>内核</span></div>
-            <div class="svgroup">内容</div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg><span>广告拦截</span><span class="svcnt">3/3</span></div>
-            <div class="svitem act"><svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/></svg><span>媒体嗅探</span><span class="svcnt">7</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg><span>扩展</span><span class="svcnt">3</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/></svg><span>书签</span><span class="svcnt">2</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/></svg><span>历史记录</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg><span>下载</span><span class="svcnt">4</span></div>
-            <div class="svgroup">系统</div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/></svg><span>隐私与数据</span></div>
-            <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg><span>关于吾爱Nova</span></div>
-          </div>
-          <div class="svmain">
-            <h2 class="svh2">媒体嗅探</h2>
-            <p class="svlead">在响应头阶段识别页面加载的音视频与流媒体，判定依据分四级置信度，并把依据如实标在每一条上。识别不改写任何请求，纯旁路观察。</p>
-
-            <div class="sneng">
-              <div class="h">
-                <span class="ttl">媒体嗅探引擎</span>
-                <span class="dlpill on">运行中</span>
+      <div class="frame pc setwin" style="height:830px">
+        <div class="setstage">
+          <div class="svwin">
+            <div class="svhead">
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
+              <h2 class="svtitle">设置</h2>
+              <span class="svpath">媒体嗅探</span>
+              <div style="flex:1"></div>
+              <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></div>
+            </div>
+            <div class="svbody">
+              <div class="svnav">
+                <div class="svgroup">浏览器</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg><span>常规</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3a7 7 0 0 0 0 14c1.2 0 1.8-.8 1.8-1.6 0-.5-.3-.9-.6-1.2-.3-.3-.5-.6-.5-1 0-.6.5-1.1 1.1-1.1H13A4 4 0 0 0 17 8c0-2.8-3.1-5-7-5z"/><circle cx="7.4" cy="8.2" r=".9"/><circle cx="11" cy="6.8" r=".9"/></svg><span>外观</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/></svg><span>内核</span></div>
+                <div class="svgroup">内容</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg><span>广告拦截</span><span class="svcnt">3/3</span></div>
+                <div class="svitem act"><svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/></svg><span>媒体嗅探</span><span class="svcnt">7</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg><span>扩展</span><span class="svcnt">3</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/></svg><span>书签</span><span class="svcnt">2</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/></svg><span>历史记录</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg><span>下载</span><span class="svcnt">4</span></div>
+                <div class="svgroup">系统</div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/></svg><span>隐私与数据</span></div>
+                <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg><span>关于吾爱Nova</span></div>
               </div>
-              <div class="snstats">
-                <div class="snstat"><b>4</b><span>视频</span></div>
-                <div class="snstat"><b>1</b><span>音频</span></div>
-                <div class="snstat"><b>1</b><span>流媒体</span></div>
-                <div class="snstat"><b>1</b><span>字幕</span></div>
-                <div class="snstat"><b>270.4 MB</b><span>合计体积</span></div>
-              </div>
-              <div class="dlnote">当前页：<b>示例影片 · 在线观看</b> · 本次会话共解析 23 个媒体响应、排除 41 个非媒体响应。<br>格式注册表：<b>100</b> 种扩展名 / <b>91</b> 种响应类型，归一为 <b>78</b> 个容器。</div>
-            </div>
+              <div class="svmain">
+                <h2 class="svh2">媒体嗅探</h2>
+                <p class="svlead">在响应头阶段识别页面加载的音视频与流媒体，判定依据分四级置信度，并把依据如实标在每一条上。识别不改写任何请求，纯旁路观察。</p>
 
-            <div class="panel-label">嗅探设置</div>
-            <div class="svcard">
-              <div class="svrow"><span class="m"><span class="t">启用媒体嗅探</span><span class="s">关闭后不再解析响应头</span></span><span class="dlsw on"></span></div>
-              <div class="svrow"><span class="m"><span class="t">自动读取时长与分辨率</span><span class="s">只取文件头；流媒体清单一律不探测</span></span><span class="dlsw on"></span></div>
-              <div class="svrow"><span class="m"><span class="t">显示 HLS 分片</span><span class="s">切片动辄几百条，默认折叠</span></span><span class="dlsw"></span></div>
-            </div>
-
-            <div class="panel-label">最小体积</div>
-            <div class="btnrow" style="padding:0 16px 4px">
-              <span class="seg-btn act">不限</span><span class="seg-btn">64 KB</span>
-              <span class="seg-btn">256 KB</span><span class="seg-btn">1 MB</span>
-            </div>
-            <p class="cap" style="padding:0 16px 8px">默认「不限」是刻意的：嗅探是发现工具，宁可多列也不能漏。长度未知的响应永远不会被这一项拦掉。</p>
-
-            <div class="panel-label">流媒体（1）</div>
-            <div class="svcard">
-              <div class="snitem" style="border-bottom:0">
-                <div class="snhead">
-                  <span class="snkind s">流媒体</span>
-                  <span class="snname">master.m3u8</span>
-                  <span class="snconf hi">确定</span>
+                <div class="sneng">
+                  <div class="h">
+                    <span class="ttl">媒体嗅探引擎</span>
+                    <span class="dlpill on">运行中</span>
+                  </div>
+                  <div class="snstats">
+                    <div class="snstat"><b>4</b><span>视频</span></div>
+                    <div class="snstat"><b>1</b><span>音频</span></div>
+                    <div class="snstat"><b>1</b><span>流媒体</span></div>
+                    <div class="snstat"><b>1</b><span>字幕</span></div>
+                    <div class="snstat"><b>270.4 MB</b><span>合计体积</span></div>
+                  </div>
+                  <div class="dlnote">当前页：<b>示例影片 · 在线观看</b> · 本次会话共解析 23 个媒体响应、排除 41 个非媒体响应。<br>格式注册表：<b>100</b> 种扩展名 / <b>91</b> 种响应类型，归一为 <b>78</b> 个容器。</div>
                 </div>
-                <div class="snmeta"><span>2.4 KB</span><span>HLS</span></div>
-                <div class="snurl">https://cdn.example.com/live/master.m3u8?token=abc123</div>
-                <div class="snwhy">判定依据：响应类型 application/vnd.apple.mpegurl</div>
-                <div class="snnote">这是流媒体的<b>分片清单</b>：拿到的是切片地址表，不是单个文件。下载得到的是清单本身，要合成完整视频需要专门的合并工具。</div>
-                <div class="snacts"><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
+
+                <div class="panel-label">嗅探设置</div>
+                <div class="svcard">
+                  <div class="svrow"><span class="m"><span class="t">启用媒体嗅探</span><span class="s">关闭后不再解析响应头</span></span><span class="dlsw on"></span></div>
+                  <div class="svrow"><span class="m"><span class="t">自动读取时长与分辨率</span><span class="s">只取文件头；流媒体清单一律不探测</span></span><span class="dlsw on"></span></div>
+                  <div class="svrow"><span class="m"><span class="t">显示 HLS 分片</span><span class="s">切片动辄几百条，默认折叠</span></span><span class="dlsw"></span></div>
+                </div>
+
+                <div class="panel-label">最小体积</div>
+                <div class="btnrow" style="padding:0 16px 4px">
+                  <span class="seg-btn act">不限</span><span class="seg-btn">64 KB</span>
+                  <span class="seg-btn">256 KB</span><span class="seg-btn">1 MB</span>
+                </div>
+                <p class="cap" style="padding:0 16px 8px">默认「不限」是刻意的：嗅探是发现工具，宁可多列也不能漏。长度未知的响应永远不会被这一项拦掉。</p>
+
+                <div class="panel-label">流媒体（1）</div>
+                <div class="svcard">
+                  <div class="snitem" style="border-bottom:0">
+                    <div class="snhead">
+                      <span class="snkind s">流媒体</span>
+                      <span class="snname">master.m3u8</span>
+                      <span class="snconf hi">确定</span>
+                    </div>
+                    <div class="snmeta"><span>2.4 KB</span><span>HLS</span></div>
+                    <div class="snurl">https://cdn.example.com/live/master.m3u8?token=abc123</div>
+                    <div class="snwhy">判定依据：响应类型 application/vnd.apple.mpegurl</div>
+                    <div class="snnote">这是流媒体的<b>分片清单</b>：拿到的是切片地址表，不是单个文件。下载得到的是清单本身，要合成完整视频需要专门的合并工具。</div>
+                    <div class="snacts"><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
+                  </div>
+                </div>
+
+                <div class="panel-label">视频（4）</div>
+                <div class="svcard">
+                  <div class="snitem">
+                    <div class="snhead">
+                      <span class="snkind v">视频</span>
+                      <span class="snname">trailer-1080p.mp4</span>
+                      <span class="snconf hi">确定</span>
+                    </div>
+                    <div class="snmeta"><span>1920×1080</span><span>2:34</span><span>48.0 MB</span><span>MP4</span><span>命中 2 次</span></div>
+                    <div class="snurl">https://cdn.example.com/movie/trailer-1080p.mp4</div>
+                    <div class="snwhy">判定依据：响应类型 video/mp4</div>
+                    <div class="snacts"><span class="btn">预览</span><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
+                  </div>
+                  <div class="snitem">
+                    <div class="snhead">
+                      <span class="snkind v">视频</span>
+                      <span class="snname">8123</span>
+                      <span class="snconf hi">确定</span>
+                    </div>
+                    <div class="snmeta"><span>1280×720</span><span>1:02</span><span>7.40 MB</span><span>MP4</span></div>
+                    <div class="snurl">https://api.example.com/v1/media/8123</div>
+                    <div class="snwhy">判定依据：响应类型 video/mp4（地址里没有扩展名，靠响应类型救回）</div>
+                    <div class="snacts"><span class="btn">预览</span><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
+                  </div>
+                  <div class="snitem" style="border-bottom:0">
+                    <div class="snhead">
+                      <span class="snkind v">视频</span>
+                      <span class="snname">setup-installer.mkv</span>
+                      <span class="snconf lo">存疑</span>
+                    </div>
+                    <div class="snmeta"><span>22.0 MB</span><span>MKV</span></div>
+                    <div class="snurl">https://files.example.com/legacy/setup-installer.mkv</div>
+                    <div class="snwhy">判定依据：通用二进制类型 + 扩展名 .mkv</div>
+                    <div class="snacts"><span class="btn">预览</span><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
+                  </div>
+                </div>
+
+                <div class="panel-label">音频（1）· 字幕（1）</div>
+                <div class="svcard">
+                  <div class="snitem">
+                    <div class="snhead">
+                      <span class="snkind a">音频</span>
+                      <span class="snname">podcast-ep42.mp3</span>
+                      <span class="snconf hi">确定</span>
+                    </div>
+                    <div class="snmeta"><span>1:02:25</span><span>61.0 MB</span><span>MP3</span></div>
+                    <div class="snurl">https://cdn.example.com/audio/podcast-ep42.mp3</div>
+                    <div class="snwhy">判定依据：响应类型 audio/mpeg</div>
+                    <div class="snacts"><span class="btn">预览</span><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
+                  </div>
+                  <div class="snitem" style="border-bottom:0">
+                    <div class="snhead">
+                      <span class="snkind t">字幕</span>
+                      <span class="snname">chs.vtt</span>
+                      <span class="snconf hi">确定</span>
+                    </div>
+                    <div class="snmeta"><span>42.0 KB</span><span>VTT</span></div>
+                    <div class="snurl">https://cdn.example.com/movie/subtitles/chs.vtt</div>
+                    <div class="snwhy">判定依据：响应类型 text/vtt</div>
+                    <div class="snacts"><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
+                  </div>
+                </div>
+
+                <div class="panel-label" style="display:flex;justify-content:space-between;align-items:center">
+                  <span>HLS 分片（4）· 默认折叠</span><span class="btn" style="height:24px;padding:0 10px;font-size:11px">展开</span>
+                </div>
+
+                <p class="cap" style="padding:0 16px">嗅探只认「响应里声明了媒体类型」的资源。用 <b>blob:</b> 或 MSE 在页面里现拼的流网络上没有可下载的完整地址；加密的 HLS 分片单独下下来也解不开。</p>
               </div>
             </div>
-
-            <div class="panel-label">视频（4）</div>
-            <div class="svcard">
-              <div class="snitem">
-                <div class="snhead">
-                  <span class="snkind v">视频</span>
-                  <span class="snname">trailer-1080p.mp4</span>
-                  <span class="snconf hi">确定</span>
-                </div>
-                <div class="snmeta"><span>1920×1080</span><span>2:34</span><span>48.0 MB</span><span>MP4</span><span>命中 2 次</span></div>
-                <div class="snurl">https://cdn.example.com/movie/trailer-1080p.mp4</div>
-                <div class="snwhy">判定依据：响应类型 video/mp4</div>
-                <div class="snacts"><span class="btn">预览</span><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
-              </div>
-              <div class="snitem">
-                <div class="snhead">
-                  <span class="snkind v">视频</span>
-                  <span class="snname">8123</span>
-                  <span class="snconf hi">确定</span>
-                </div>
-                <div class="snmeta"><span>1280×720</span><span>1:02</span><span>7.40 MB</span><span>MP4</span></div>
-                <div class="snurl">https://api.example.com/v1/media/8123</div>
-                <div class="snwhy">判定依据：响应类型 video/mp4（地址里没有扩展名，靠响应类型救回）</div>
-                <div class="snacts"><span class="btn">预览</span><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
-              </div>
-              <div class="snitem" style="border-bottom:0">
-                <div class="snhead">
-                  <span class="snkind v">视频</span>
-                  <span class="snname">setup-installer.mkv</span>
-                  <span class="snconf lo">存疑</span>
-                </div>
-                <div class="snmeta"><span>22.0 MB</span><span>MKV</span></div>
-                <div class="snurl">https://files.example.com/legacy/setup-installer.mkv</div>
-                <div class="snwhy">判定依据：通用二进制类型 + 扩展名 .mkv</div>
-                <div class="snacts"><span class="btn">预览</span><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
-              </div>
-            </div>
-
-            <div class="panel-label">音频（1）· 字幕（1）</div>
-            <div class="svcard">
-              <div class="snitem">
-                <div class="snhead">
-                  <span class="snkind a">音频</span>
-                  <span class="snname">podcast-ep42.mp3</span>
-                  <span class="snconf hi">确定</span>
-                </div>
-                <div class="snmeta"><span>1:02:25</span><span>61.0 MB</span><span>MP3</span></div>
-                <div class="snurl">https://cdn.example.com/audio/podcast-ep42.mp3</div>
-                <div class="snwhy">判定依据：响应类型 audio/mpeg</div>
-                <div class="snacts"><span class="btn">预览</span><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
-              </div>
-              <div class="snitem" style="border-bottom:0">
-                <div class="snhead">
-                  <span class="snkind t">字幕</span>
-                  <span class="snname">chs.vtt</span>
-                  <span class="snconf hi">确定</span>
-                </div>
-                <div class="snmeta"><span>42.0 KB</span><span>VTT</span></div>
-                <div class="snurl">https://cdn.example.com/movie/subtitles/chs.vtt</div>
-                <div class="snwhy">判定依据：响应类型 text/vtt</div>
-                <div class="snacts"><span class="btn pri">下载</span><span class="btn">复制链接</span><span class="btn">在标签页打开</span></div>
-              </div>
-            </div>
-
-            <div class="panel-label" style="display:flex;justify-content:space-between;align-items:center">
-              <span>HLS 分片（4）· 默认折叠</span><span class="btn" style="height:24px;padding:0 10px;font-size:11px">展开</span>
-            </div>
-
-            <p class="cap" style="padding:0 16px">嗅探只认「响应里声明了媒体类型」的资源。用 <b>blob:</b> 或 MSE 在页面里现拼的流网络上没有可下载的完整地址；加密的 HLS 分片单独下下来也解不开。</p>
           </div>
         </div>
       </div>

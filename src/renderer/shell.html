@@ -184,22 +184,30 @@
     </button>
   </nav>
 
-  <!-- ============ 设置页（全屏，左导航 + 右内容） ============ -->
+  <!-- ============ 设置（窗口，左导航 + 右内容） ============
+       外层 .settings-view 是定位层兼暗底，内层 .sv-window 才是那扇窗。
+       分两层是因为「居中 + 留边距」得由父级给：窗自己写 margin: auto 在
+       内容比窗口高的时候会把上边距吃掉，滚到顶时标题栏贴着屏幕边缘。
+       窗口外壳叫 .sv-window 而不是 .sv-card —— 后者已经被分区内部那些
+       分组卡占用了（见 shell.css 的「设置页里的分组卡」），重名会让
+       所有卡片一起变成窗口。 -->
   <section class="settings-view" id="settings-view" hidden>
-    <header class="sv-head">
-      <button class="icon-btn" id="sv-back" title="返回">
-        <svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5" /></svg>
-      </button>
-      <h1 class="sv-title">设置</h1>
-      <span class="sv-path" id="sv-path">常规</span>
-      <div class="sv-fill"></div>
-      <button class="icon-btn" id="sv-close" title="关闭设置">
-        <svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
-      </button>
-    </header>
-    <div class="sv-body">
-      <nav class="sv-nav" id="settings-nav"></nav>
-      <main class="sv-main" id="settings-body"></main>
+    <div class="sv-window">
+      <header class="sv-head">
+        <button class="icon-btn" id="sv-back" title="返回">
+          <svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5" /></svg>
+        </button>
+        <h1 class="sv-title">设置</h1>
+        <span class="sv-path" id="sv-path">常规</span>
+        <div class="sv-fill"></div>
+        <button class="icon-btn" id="sv-close" title="关闭设置">
+          <svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
+        </button>
+      </header>
+      <div class="sv-body">
+        <nav class="sv-nav" id="settings-nav"></nav>
+        <main class="sv-main" id="settings-body"></main>
+      </div>
     </div>
   </section>
 

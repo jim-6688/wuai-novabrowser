@@ -3339,6 +3339,19 @@ function wireUi() {
   $('#scrim').addEventListener('click', closeDrawer);
   $('#sv-back').addEventListener('click', goSettingsBack);
   $('#sv-close').addEventListener('click', closeSettings);
+  // 设置页从整屏改成窗口后多了圈暗底，点它也该能关 —— 应用里另一处暗底
+  // （抽屉的 .scrim）就是这么做的，同一套视觉语言不该有两种脾气。
+  //
+  // 判据用 mousedown 的落点，不是只看 click：在窗口里选中一段文字、手一滑
+  // 松到窗外，click 的 target 会是暗底 —— 那样「拖选」会被当成「点外面」，
+  // 用户一松手窗就没了。按下与松开都落在暗底上才算数。
+  let svPressedBackdrop = false;
+  const svView = $('#settings-view');
+  svView.addEventListener('mousedown', (ev) => { svPressedBackdrop = ev.target === svView; });
+  svView.addEventListener('click', (ev) => {
+    if (svPressedBackdrop && ev.target === svView) closeSettings();
+    svPressedBackdrop = false;
+  });
   $('#engine-notice-close').addEventListener('click', () => { $('#engine-notice').hidden = true; });
 
   // 移动端

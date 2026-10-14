@@ -375,7 +375,56 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   window.eval("state.settings.theme = 'light'");
   doc.documentElement.dataset.theme = 'light';
 
-  console.log('\n[P] 运行时错误');
+  console.log('\n[P] 设置窗口（不再是整屏）');
+
+  // 宽屏档位下，设置是一扇居中的窗，不是把整个浏览器顶走。
+  window.eval("state.settings.layout = 'desktop'");
+  window.eval('applyLayout()');
+  window.eval("openSettings('general')");
+  await waitFor(() => $('#settings-nav .sv-nav-item'));
+
+  const view = $('#settings-view');
+  const win = $('.settings-view > .sv-window');
+  check('宽屏档位下有窗口外壳包着（head/body 不是直接铺满）', !!win);
+  check('标题栏和正文都收在窗口里',
+    !!win && !!win.querySelector('.sv-head') && !!win.querySelector('.sv-body'));
+  check('窗口外壳与分区内的分组卡没有撞名',
+    !$('.sv-window.sv-card') && !!$('.sv-main .sv-card'));
+
+  // 点暗底关窗。mousedown + click 两段合成，对应真实的一次按下与一次松开。
+  const pressBackdrop = () => {
+    view.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true }));
+    view.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  };
+  pressBackdrop();
+  await sleep(30);
+  check('点暗底关得掉', view.hidden);
+
+  // 在窗口里按住鼠标、拖选一段文字、手一滑松到了窗外 —— click 的落点是暗底，
+  // 但按下不是。这种「拖选」不该被当成「点外面」，否则一松手设置就没了。
+  window.eval("openSettings('general')");
+  await waitFor(() => $('.settings-view > .sv-window'));
+  $('.settings-view > .sv-window')
+    .dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true }));
+  view.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await sleep(30);
+  check('窗口里按下、松开落在暗底上 —— 不关（那不是点外面）', !view.hidden);
+
+  pressBackdrop();
+  await sleep(30);
+  check('按下与松开都落在暗底上 —— 这才叫点外面', view.hidden);
+
+  // 窄屏档位：窗口外壳留在 DOM 里，「整屏还是窗口」归 CSS 那一层覆盖管，
+  // jsdom 不跑布局，这里只验到结构没有因为换档被拆掉。
+  window.eval("state.settings.layout = 'mobile'");
+  window.eval('applyLayout()');
+  window.eval("openSettings('general')");
+  await waitFor(() => $('#settings-nav .sv-nav-item'));
+  check('窄屏档位下窗口外壳仍在 DOM 里', !!$('.settings-view > .sv-window'));
+  window.eval("state.settings.layout = 'desktop'");
+  window.eval('applyLayout()');
+
+  console.log('\n[Q] 运行时错误');
 
   check('走完这套全流程仍无异常', errors.length === 0, errors.join(' | ') || '无');
 

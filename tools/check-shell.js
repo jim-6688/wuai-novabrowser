@@ -111,5 +111,25 @@ const board = fs.readFileSync(P('design/design-board.html'), 'utf8');
   board.includes(k) ? ok('设计板包含 ' + k) : bad('设计板缺少 ' + k);
 });
 
+/* 7. 设置是窗口，不是整屏 */
+console.log('\n[7] 设置窗口（不再整屏接管）');
+// 剥掉注释再比对：注释里写到 .sv-card / .sv-window 只是解释「别把它们写混」，
+// 不剥掉的话，说明文字本身就会把「选择器不能混用」这一条误判成失败。
+const cssRules = fs.readFileSync(P('src/renderer/shell.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+[
+  ['外壳有窗口元素 .sv-window', /class="sv-window"/.test(html)],
+  ['窗口外壳与分区内的分组卡 .sv-card 没有写进同一条选择器',
+    !/\.sv-window[^{}]*\.sv-card/.test(cssRules) && !/\.sv-card[^{}]*\.sv-window/.test(cssRules)],
+  ['外壳定位层做的是居中 + 压暗，不是铺满',
+    /\.settings-view:not\(\[hidden\]\)\s*\{[^}]*align-items:\s*center/.test(cssRules)
+      && /\.settings-view:not\(\[hidden\]\)\s*\{[^}]*rgba\(10,\s*13,\s*22/.test(cssRules)],
+  ['窄屏档位覆盖回整屏',
+    /\[data-layout="mobile"\] \.settings-view:not\(\[hidden\]\)\s*\{[^}]*padding:\s*0/.test(cssRules)],
+  ['点暗底关窗的按下/松开两步判定在', /svPressedBackdrop/.test(js)],
+  ['设计板的设置类帧也画成窗口',
+    (board.match(/frame pc setwin/g) || []).length >= 5],
+  ['设计板画出了窗口本体 .svwin', /class="svwin"/.test(board)]
+].forEach(([name, pass]) => pass ? ok(name) : bad(name));
+
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');
 process.exit(failed ? 1 : 0);
