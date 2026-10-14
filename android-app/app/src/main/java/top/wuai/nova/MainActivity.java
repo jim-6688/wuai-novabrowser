@@ -223,6 +223,15 @@ public final class MainActivity extends Activity {
     private View topRow;
     /** 滚动态的胶囊搜索框。与 {@link #mobileBar} 叠在同一行里（布局里的 bottomRow）。 */
     private View searchCapsule;
+    /**
+     * 底栏那一行 —— 五格工具栏与胶囊搜索框共用的容器，两种形态叠在里面。
+     *
+     * <p>存成字段是因为它的<b>底色要随形态切</b>：五格工具栏时是实底
+     * （{@code @color/surface}，与顶栏同一块白），滚动态的胶囊搜索框时才是半透明的
+     * 玻璃条（{@code @color/surface_translucent}）—— 那是用户对底栏唯一的怨言：
+     * 「只在搜索框情况下透明，工具栏模式下实色」。见 {@link #applyReveal}。
+     */
+    private View bottomRow;
     /** 胶囊搜索框里的输入框。 */
     private EditText capsuleInput;
     /** 胶囊搜索框里的放大镜图标。可点击：点它等同提交搜索（与软键盘搜索键一致）。 */
@@ -864,6 +873,7 @@ public final class MainActivity extends Activity {
         searchCapsule = findViewById(R.id.searchCapsule);
         capsuleInput = findViewById(R.id.capsuleInput);
         capsuleSearch = findViewById(R.id.capsuleSearch);
+        bottomRow = findViewById(R.id.bottomRow);
         refreshHost = findViewById(R.id.webHost);
 
         // 重新 inflate 出来的进度条是全新的：XML 没写 visibility，默认 visible、progress=0。
@@ -1530,7 +1540,7 @@ public final class MainActivity extends Activity {
      *       收起的目的就是把高度让出去，若只是把内容变透明，那一条空白
      *       照样横在网页上面，等于没让。</li>
      *   <li><b>底栏</b>：五格与胶囊搜索框叠在同一行（布局里的 {@code bottomRow}，
-     *       行高恒定 54dp）里交叉淡入淡出。滚动时五格向下滑出、胶囊从下沿滑进来。
+     *       行高恒定 60dp）里交叉淡入淡出。滚动时五格向下滑出、胶囊从下沿滑进来。
      *       两套内容互相覆盖，行高不变，所以网页不会被推一下。</li>
      * </ul>
      *
@@ -1544,6 +1554,12 @@ public final class MainActivity extends Activity {
         if (bar == null || cap == null || top == null) return;
         boolean showBar = s == BottomBarReveal.State.SHOW_BAR;
         int duration = animate ? 300 : 0;
+
+        // 底色跟着形态走，且必须**先设再播动画**：等动画收尾再换的话，
+        // 五格已经滑进来了、底下还是那条玻璃，中间会有一帧「实心图标浮在透明条上」。
+        // 放在这里，两件事在同一帧开始，看起来就是一次切换。
+        applyBottomBarGround(showBar);
+
         // 高度拿不到（还没 layout）时用布局里写死的尺寸兜底，否则位移量会是 0，
         // 动画看起来就像没动。60dp 对应 bottomRow（底栏那一行）。
         float density = getResources().getDisplayMetrics().density;
@@ -1588,6 +1604,25 @@ public final class MainActivity extends Activity {
                     BottomBarReveal.State.SHOW_CAPSULE))
                 .start();
         }
+    }
+
+    /**
+     * 底栏底色：工具栏实底，滚动态玻璃条。
+     *
+     * <p>为什么不是一直半透明：五格工具栏是<b>常驻</b>的一条，它底下永远压着网页。
+     * 半透明时页面文字会从图标缝里透出来，读起来像脏、也像没对齐；
+     * 而滚动态的胶囊搜索框是<b>临时浮上来</b>的一块输入区，半透明才有「浮在页面上」
+     * 的层级感。同一块底，两种身份，底色就该分开。
+     *
+     * <p>颜色走 {@code @color} 令牌而不是写死：#CC 那一档在浅色下是
+     * {@code #CCFFFFFF}、深色下是 {@code #CC171A22}，两侧都由 values-night 给。
+     *
+     * @param showBar true = 五格工具栏形态（实底）；false = 胶囊搜索框形态（玻璃条）
+     */
+    private void applyBottomBarGround(boolean showBar) {
+        if (bottomRow == null) return;
+        bottomRow.setBackgroundColor(
+            color(showBar ? R.color.surface : R.color.surface_translucent));
     }
 
     /**
@@ -2839,11 +2874,16 @@ public final class MainActivity extends Activity {
         if (searchCapsule != null) {
             GradientDrawable cap = new GradientDrawable();
             cap.setShape(GradientDrawable.RECTANGLE);
-            cap.setCornerRadius(dp(18));
+            cap.setCornerRadius(dp(20));
             cap.setColor(color(R.color.surface));
             cap.setStroke(1, brand);
             searchCapsule.setBackground(cap);
         }
+
+        // 底栏底色同样是从主题令牌算出来的（实底 / 玻璃条两档）。
+        // setBackgroundColor 把颜色烤进了 Drawable，换主题后不重设就停在旧色上 ——
+        // 深色主题配一条浅色的底栏，或者反过来。
+        applyBottomBarGround(shownReveal == BottomBarReveal.State.SHOW_BAR);
 
         // 进度条 tint 换成主色。
         if (progress != null) {
@@ -4306,17 +4346,17 @@ public final class MainActivity extends Activity {
 
         // ---- 通用
         setRow(sheet, R.id.setSearch, "搜索引擎", null,
-            settings.searchTemplate().label, false, false,
+            settings.searchTemplate().label, false,
             () -> pickSearchEngine());
 
         setRow(sheet, R.id.setUA, "网页标识（UA）", "自动 = 手机版；电脑版适合只认桌面浏览器的老网站",
-            uaLabel(), false, true,
+            uaLabel(), true,
             () -> pickUA());
 
         // ---- 个性化
         // 顺序与布局里的分组一致：主题 → 主题配色 → 网页字号 → 上划显示搜索。
         setRow(sheet, R.id.setTheme, "主题", "跟随系统 / 强制浅色 / 强制深色",
-            themeLabel(settings.theme), false, false,
+            themeLabel(settings.theme), false,
             () -> {
                 String[] order = {"system", "light", "dark"};
                 int i = 0;
@@ -4331,41 +4371,45 @@ public final class MainActivity extends Activity {
             });
 
         setRow(sheet, R.id.setAccent, "主题配色", "默认蓝 / 青绿 / 粉紫 / 暖橙 / 纯黑",
-            accentLabel(), false, true,
+            accentLabel(), true,
             () -> pickAccent());
 
         setRow(sheet, R.id.setFont, "网页字号", "放大或缩小网页文字",
-            textZoomLabel(), false, true,
+            textZoomLabel(), true,
             () -> pickTextZoom());
 
-        setRow(sheet, R.id.setSwipeUpSearch, "上划显示搜索",
+        setToggleRow(sheet, R.id.setSwipeUpSearch, "上划显示搜索",
             "下滑时收起工具栏，底栏那格换成搜索框；关掉后滚动不改动界面",
-            null, settings.swipeUpSearch, false, () -> {
+            settings.swipeUpSearch, false, () -> {
                 settings.swipeUpSearch = !settings.swipeUpSearch;
                 store.save(settings);
                 // 关掉时要立刻把界面收回常态。此刻很可能正停在「顶栏已收起」上，
                 // 而关掉之后不会再有滚动事件来解除它 —— 界面会一直卡在滚动态，
                 // 顶栏再也不回来、底栏停在一格搜索框上。
                 if (!settings.swipeUpSearch) forceRevealBar();
+                // 就地重画芯片，不重建面板。这一行是唯一「改了状态却不重开界面」的
+                // 开关（其余都走 mountMain + 重开面板，整页刷一遍自然就对了），
+                // 少了这一步，右侧会一直写着「开」，看起来就是这个开关点不动。
+                repaintToggle(sheet, R.id.setSwipeUpSearch, settings.swipeUpSearch);
             });
 
         // ---- 阅读增强
         setRow(sheet, R.id.setNoImage, "无图模式", null,
-            settings.noImageLevel().label, false, true, () -> {
+            settings.noImageLevel().label, true, () -> {
                 mountMain();
                 showReadSheet();
             });
 
         setRow(sheet, R.id.setAutoPage, "自动拼页", "往上滑自动接上下一页",
-            "关 · 上限 " + settings.autoPageMax + " 页", false, true, () -> {
+            "关 · 上限 " + settings.autoPageMax + " 页", true, () -> {
                 mountMain();
                 showReadSheet();
             });
 
         // 比无图模式更狠的一档：无图模式按网址后缀猜，这个直接让 WebView 不拉图。
         // 两条路都留着是因为它们的误伤率不同 —— 后缀猜错的图（/a/b/c）这里能拦住。
-        setRow(sheet, R.id.setLoadImages, "加载图片", "关掉后所有图片都不显示，比无图模式更省流量",
-            null, settings.loadImages, false, () -> {
+        setToggleRow(sheet, R.id.setLoadImages, "加载图片", "关掉后所有图片都不显示，比无图模式更省流量",
+            settings.loadImages, false, () -> {
                 settings.loadImages = !settings.loadImages;
                 store.save(settings);
                 applyImageLoading();
@@ -4378,8 +4422,8 @@ public final class MainActivity extends Activity {
         // ---- 广告拦截
         // 总开关。关掉之后下面的订阅、内置名单全部不生效，
         // 但规则本身不动 —— 再打开就恢复，不需要重新订阅。
-        setRow(sheet, R.id.setAdblock, "广告拦截", "总开关。关掉后内置与订阅的规则都不生效",
-            null, settings.adblockEnabled, false, () -> {
+        setToggleRow(sheet, R.id.setAdblock, "广告拦截", "总开关。关掉后内置与订阅的规则都不生效",
+            settings.adblockEnabled, false, () -> {
                 settings.adblockEnabled = !settings.adblockEnabled;
                 interceptor.setAdblockEnabled(settings.adblockEnabled);
                 store.save(settings);
@@ -4387,9 +4431,9 @@ public final class MainActivity extends Activity {
                 mountMain();
                 showSettings();
             });
-        setRow(sheet, R.id.setThirdParty, "第三方脚本拦截",
+        setToggleRow(sheet, R.id.setThirdParty, "第三方脚本拦截",
             "严格隐私：拦下一切非同源脚本、跟踪像素与第三方资源，可能影响部分页面加载",
-            null, settings.thirdPartyBlock, false, () -> {
+            settings.thirdPartyBlock, false, () -> {
                 settings.thirdPartyBlock = !settings.thirdPartyBlock;
                 interceptor.setThirdPartyBlockEnabled(settings.thirdPartyBlock);
                 store.save(settings);
@@ -4397,7 +4441,7 @@ public final class MainActivity extends Activity {
                 mountMain();
                 showSettings();
             });
-        setRow(sheet, R.id.setRules, "拦截规则", null, null, false, true, () -> {
+        setRow(sheet, R.id.setRules, "拦截规则", null, null, true, () -> {
             mountMain();
             showRulesSheet();
         });
@@ -4412,9 +4456,9 @@ public final class MainActivity extends Activity {
         // 自动更新。间隔固定 3 天：订阅名单一般周更，3 天既能跟上节奏，
         // 又不至于每次冷启动都打一次网络。静默进行，失败不弹窗 ——
         // 用户没点它，为一个背景动作弹「更新失败」是骚扰。
-        setRow(sheet, R.id.setRulesAuto, "订阅自动更新",
+        setToggleRow(sheet, R.id.setRulesAuto, "订阅自动更新",
             "开启后每次打开应用时检查，超过 3 天没更新就自动拉一次（失败不打扰）",
-            null, settings.rulesAutoUpdate, false, () -> {
+            settings.rulesAutoUpdate, false, () -> {
                 settings.rulesAutoUpdate = !settings.rulesAutoUpdate;
                 store.save(settings);
                 mountMain();
@@ -4422,9 +4466,9 @@ public final class MainActivity extends Activity {
             });
 
         // ---- 篡改猴（用户脚本）
-        setRow(sheet, R.id.setPluginsOn, "启用篡改猴",
+        setToggleRow(sheet, R.id.setPluginsOn, "启用篡改猴",
             "关掉后已装脚本全部停用，不用逐个卸载",
-            null, settings.pluginsEnabled, false, () -> {
+            settings.pluginsEnabled, false, () -> {
                 settings.pluginsEnabled = !settings.pluginsEnabled;
                 store.save(settings);
                 mountMain();
@@ -4432,13 +4476,13 @@ public final class MainActivity extends Activity {
             });
         setRow(sheet, R.id.setPlugins, "篡改猴",
             "篡改猴用户脚本（.user.js）· 兼容 Tampermonkey · 非 Chrome 扩展",
-            scripts.isEmpty() ? "未安装" : "已装 " + scripts.size() + " 个", false, true, () -> {
+            scripts.isEmpty() ? "未安装" : "已装 " + scripts.size() + " 个", true, () -> {
                 mountMain();
                 showPluginSheet();
             });
-        setRow(sheet, R.id.setPluginConfirm, "安装前确认",
+        setToggleRow(sheet, R.id.setPluginConfirm, "安装前确认",
             "关掉之后，选中脚本文件即直接安装",
-            null, settings.pluginConfirm, false, () -> {
+            settings.pluginConfirm, false, () -> {
                 settings.pluginConfirm = !settings.pluginConfirm;
                 store.save(settings);
                 mountMain();
@@ -4448,7 +4492,7 @@ public final class MainActivity extends Activity {
         // ---- 下载
         setRow(sheet, R.id.setThreads, "并行分片数",
             "越大越快，但占带宽；服务器不支持分片时会自动退回单线程",
-            settings.downloadThreads + " 线程", false, false, () -> {
+            settings.downloadThreads + " 线程", false, () -> {
                 int[] opts = {1, 2, 4, 6, 8};
                 int i = 0;
                 for (int k = 0; k < opts.length; k++) {
@@ -4469,17 +4513,17 @@ public final class MainActivity extends Activity {
         // 嗅探到的链接一律直接进队列（理由见 setDownloadListener 里那句注释）。
         // 这一格暂时留着占位 —— 它现在不再参与判定，等产品定了「还要不要这一档」
         // 再决定是删掉还是换个说法。
-        setRow(sheet, R.id.setAutoDownload, "自动下载媒体",
+        setToggleRow(sheet, R.id.setAutoDownload, "自动下载媒体",
             "嗅探到的音视频直接进入队列，不再弹框询问；可在下载面板里暂停或取消",
-            null, settings.autoDownload, false, () -> {
+            settings.autoDownload, false, () -> {
                 settings.autoDownload = !settings.autoDownload;
                 store.save(settings);
                 mountMain();
                 showSettings();
             });
 
-        setRow(sheet, R.id.setDlNotify, "完成通知", null,
-            null, settings.downloadNotify, false, () -> {
+        setToggleRow(sheet, R.id.setDlNotify, "完成通知", null,
+            settings.downloadNotify, false, () -> {
                 settings.downloadNotify = !settings.downloadNotify;
                 store.save(settings);
                 mountMain();
@@ -4490,7 +4534,7 @@ public final class MainActivity extends Activity {
         // 这一点必须写在副标题里，否则用户会以为文件被一起删了。
         setRow(sheet, R.id.setHistoryMax, "下载记录上限",
             "超出后删最旧的记录，已下载的文件不受影响",
-            settings.downloadHistoryMax + " 条", false, false, () -> {
+            settings.downloadHistoryMax + " 条", false, () -> {
                 int[] opts = {20, 50, 100, 200, 500};
                 int i = 0;
                 for (int k = 0; k < opts.length; k++) {
@@ -4502,44 +4546,51 @@ public final class MainActivity extends Activity {
                 showSettings();
             });
 
-        setRow(sheet, R.id.setOpenFolder, "下载目录", null,
-            downloadDir().getAbsolutePath(), false, false,
+        // 路径放**副标题**，不放右侧取值。
+        //
+        // 右侧那一格是 wrap_content：整条绝对路径（40 来个字符）会把宽度全吃走，
+        // 左边 weight=1 的「下载目录」被压到只剩一个字的宽度，只能一字一行地
+        // 竖着堆起来 —— 用户报的「竖排挤一起」就是这么来的。
+        // 副标题占的是整行宽度（它和标题在同一个 weight=1 的竖列里），
+        // 40 来个字符一行放得下，自然就是横排。
+        setRow(sheet, R.id.setOpenFolder, "下载目录",
+            downloadDir().getAbsolutePath(), null, false,
             () -> copyToClipboard(downloadDir().getAbsolutePath()));
 
         // ---- 隐私
-        setRow(sheet, R.id.setIncognito, "无痕模式", "退出时不恢复上次会话",
-            null, settings.incognito, false, () -> {
+        setToggleRow(sheet, R.id.setIncognito, "无痕模式", "退出时不恢复上次会话",
+            settings.incognito, false, () -> {
                 settings.incognito = !settings.incognito;
                 store.save(settings);
                 mountMain();
                 showSettings();
             });
-        setRow(sheet, R.id.setClearOnExit, "退出时清缓存", "关掉后浏览记录与 Cookie 都会留下",
-            null, settings.clearOnExit, false, () -> {
+        setToggleRow(sheet, R.id.setClearOnExit, "退出时清缓存", "关掉后浏览记录与 Cookie 都会留下",
+            settings.clearOnExit, false, () -> {
                 settings.clearOnExit = !settings.clearOnExit;
                 store.save(settings);
                 mountMain();
                 showSettings();
             });
-        setRow(sheet, R.id.setForceHttps, "强制 HTTPS", "把明文地址自动升级成 https",
-            null, settings.forceHttps, false, () -> {
+        setToggleRow(sheet, R.id.setForceHttps, "强制 HTTPS", "把明文地址自动升级成 https",
+            settings.forceHttps, false, () -> {
                 settings.forceHttps = !settings.forceHttps;
                 store.save(settings);
                 mountMain();
                 showSettings();
             });
-        setRow(sheet, R.id.setRestore, "恢复上次会话",
+        setToggleRow(sheet, R.id.setRestore, "恢复上次会话",
             "关着：每次启动只开主页。已存的会话不清，重新打开还能接着用",
-            null, settings.restoreSession, false, () -> {
+            settings.restoreSession, false, () -> {
                 settings.restoreSession = !settings.restoreSession;
                 store.save(settings);
                 mountMain();
                 showSettings();
             });
         setRow(sheet, R.id.setClearCache, "清除缓存", "不影响 Cookie 与下载",
-            null, false, true, () -> clearCache());
+            null, true, () -> clearCache());
         setRow(sheet, R.id.setClear, "清除全部数据",
-            "设置、会话、已装脚本、订阅规则、书签全部删除", null, false, true,
+            "设置、会话、已装脚本、订阅规则、书签全部删除", null, true,
             () -> new NovaAlert(this, "清除数据",
                 "会清掉全部设置、会话记录、已装脚本与订阅规则，无法撤销。")
                 .negative("取消", null)
@@ -4561,9 +4612,9 @@ public final class MainActivity extends Activity {
                 .show());
 
         // ---- 应用更新
-        setRow(sheet, R.id.setUpdateAuto, "自动下载更新",
+        setToggleRow(sheet, R.id.setUpdateAuto, "自动下载更新",
             "开着：发现新版直接后台下载，下完只提示「重启更新」；关着：每次先问一句再下",
-            null, settings.updateAuto, false, () -> {
+            settings.updateAuto, false, () -> {
                 settings.updateAuto = !settings.updateAuto;
                 store.save(settings);
                 mountMain();
@@ -4576,9 +4627,9 @@ public final class MainActivity extends Activity {
                 }
             });
 
-        setRow(sheet, R.id.setUpdateWifi, "仅在 Wi-Fi 下下载更新",
+        setToggleRow(sheet, R.id.setUpdateWifi, "仅在 Wi-Fi 下下载更新",
             "更新包只有几 MB，但一个用户没主动要的下载不该吃掉移动流量",
-            null, settings.updateWifiOnly, false, () -> {
+            settings.updateWifiOnly, false, () -> {
                 settings.updateWifiOnly = !settings.updateWifiOnly;
                 store.save(settings);
                 mountMain();
@@ -4985,15 +5036,21 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 设置页的一行。
+     * 设置页的「展示行」：右侧显示一个当前取值，点了进另一个面板。
      *
-     * @param onValue true = 开关类（右侧显示「开/关」，点了立刻生效）
-     * @param arrow   true = 点了进另一个面板
-     * @param sub     副标题，通常放当前值之外的说明
+     * <p>开关行不走这里，走 {@link #setToggleRow}。
+     *
+     * <p>为什么把这两类拆开：早先只有一个 boolean 同时表示「是不是开关」和
+     * 「开关当前状态」。于是 false 就有了两重含义 —— 「关着的开关」和「压根不是
+     * 开关」。判到 false 时只能走「没有取值」那条分支，右侧芯片整个消失，
+     * 关掉的开关看起来就像坏了（用户报的「上划显示搜索关不掉」，一半就是它）。
+     *
+     * @param currentValue 右侧取值文案；null / 空 = 不显示取值
+     * @param arrow        true = 点了进另一个面板
+     * @param sub          副标题，通常放当前值之外的说明
      */
     private void setRow(View sheet, int id, String title, String sub,
-                        String currentValue, boolean onValue, boolean arrow,
-                        Runnable onTap) {
+                        String currentValue, boolean arrow, Runnable onTap) {
         View row = sheet.findViewById(id);
         ((TextView) row.findViewById(R.id.rowTitle)).setText(title);
 
@@ -5010,12 +5067,7 @@ public final class MainActivity extends Activity {
         row.findViewById(R.id.rowIcon).setVisibility(View.GONE);
 
         TextView val = row.findViewById(R.id.rowValue);
-        if (onValue) {
-            val.setVisibility(View.VISIBLE);
-            val.setBackgroundResource(onValue ? R.drawable.seg_on : R.drawable.seg_track);
-            val.setTextColor(color(onValue ? R.color.surface : R.color.text_2));
-            val.setText(onValue ? "开" : "关");
-        } else if (currentValue != null && !currentValue.isEmpty()) {
+        if (currentValue != null && !currentValue.isEmpty()) {
             val.setVisibility(View.VISIBLE);
             val.setBackgroundResource(R.drawable.seg_track);
             val.setTextColor(color(R.color.text_2));
@@ -5027,6 +5079,62 @@ public final class MainActivity extends Activity {
         row.findViewById(R.id.rowArrow).setVisibility(
             arrow ? View.VISIBLE : View.INVISIBLE);
         row.setOnClickListener(v -> onTap.run());
+    }
+
+    /**
+     * 设置页的「开关行」：右侧是「开 / 关」芯片，点了立刻生效。
+     *
+     * @param on    当前状态。独立成一个参数，不再和「是不是开关」共用一个值 ——
+     *              理由见 {@link #setRow}。
+     * @param arrow true = 点了进另一个面板
+     * @param sub   副标题，通常放当前值之外的说明
+     */
+    private void setToggleRow(View sheet, int id, String title, String sub,
+                              boolean on, boolean arrow, Runnable onTap) {
+        View row = sheet.findViewById(id);
+        ((TextView) row.findViewById(R.id.rowTitle)).setText(title);
+
+        TextView subView = row.findViewById(R.id.rowSub);
+        if (sub == null || sub.isEmpty()) {
+            subView.setVisibility(View.GONE);
+        } else {
+            subView.setVisibility(View.VISIBLE);
+            subView.setText(sub);
+        }
+
+        row.findViewById(R.id.rowIcon).setVisibility(View.GONE);
+        paintToggle(row.findViewById(R.id.rowValue), on);
+        row.findViewById(R.id.rowArrow).setVisibility(
+            arrow ? View.VISIBLE : View.INVISIBLE);
+        row.setOnClickListener(v -> onTap.run());
+    }
+
+    /**
+     * 画开关芯片。开 = 品牌实心 + 白字，关 = 灰槽 + 次级文字。
+     *
+     * <p>抽成单独一步是为了「点完就地重画」能复用同一套配色：开与关的样式只写
+     * 在这里一处，不会出现「初始化时」和「点击后」两套画法慢慢长歪。
+     */
+    private void paintToggle(TextView val, boolean on) {
+        val.setVisibility(View.VISIBLE);
+        val.setBackgroundResource(on ? R.drawable.seg_on : R.drawable.seg_track);
+        val.setTextColor(color(on ? R.color.surface : R.color.text_2));
+        val.setText(on ? "开" : "关");
+    }
+
+    /**
+     * 只重画某一行的开关芯片，面板不重建。
+     *
+     * <p>给那些「改了状态、但不需要重建界面」的开关用。多数开关行的 onTap 会走
+     * {@code mountMain() + 重开面板}，整页刷一遍自然就对了；但那会让设置面板跳回
+     * 顶部，能不重建就别重建。少了刷新这一步，用户点完看到的还是旧文字，
+     * 会以为开关没生效 ——「上划显示搜索关不掉」的另一半就是这个。
+     */
+    private void repaintToggle(View sheet, int id, boolean on) {
+        if (sheet == null) return;
+        View row = sheet.findViewById(id);
+        if (row == null) return;
+        paintToggle(row.findViewById(R.id.rowValue), on);
     }
 
     // --------------------------------------------------------- 标签总览
@@ -5046,20 +5154,30 @@ public final class MainActivity extends Activity {
         TabAdapter adapter = new TabAdapter();
         adapter.total = (TextView) sheet.findViewById(R.id.tabTotal);
         grid.setAdapter(adapter);
-        grid.setOnItemClickListener((parent, v, position, id) -> {
-            mountMain();
-            switchTab(position);
-        });
-        grid.setOnItemLongClickListener((parent, v, position, id) -> {
-            // 长按同样是「按引用关」：position 来自网格派发，同样会在关闭后失效，
-            // 于是这里也只是用它取一次对象，真正的定位交给 closeTabByRef。
-            if (position >= 0 && position < tabs.size()) {
-                closeTabByRef(tabs.get(position));
-                adapter.notifyDataSetChanged();
-                ((TextView) sheet.findViewById(R.id.tabTotal)).setText(
-                    "共 " + tabs.size() + " 个标签");
-            }
-            return true;
+        // 切换与长按删除都不挂 grid 的 OnItemClickListener / OnItemLongClickListener：
+        // item_tab.xml 的根布局本身是 clickable 的，它会消费掉按下事件，AdapterView
+        // 那两套回调一次都不会派发。两件事都下移到每一格自己身上（见 TabAdapter）。
+
+        // 网格高度按实测行高算，不再由 XML 里那个 260dp 说了算。
+        //
+        // 260dp 是个「看着够两行」的数，但一张卡片（缩略图 86dp + 标题 + 域名）
+        // 实测约 132dp，两行加 8dp 行间距要 272dp —— 260 装不下，第二行的域名
+        // 那半截永远被切掉，卡片就像「超出」了可视区；反过来只开一两个标签时，
+        // 网格仍占满 260dp，下面空出一大片近白底色。
+        //
+        // 真实行高要等第一帧布局完才拿得到，所以放在 post 里。标签再多也封顶到
+        // 屏幕的一半，多出来的交给网格自己滚，不会把「新标签」按钮顶出屏幕。
+        grid.post(() -> {
+            if (grid.getChildCount() == 0) return;
+            int rowH = grid.getChildAt(0).getMeasuredHeight() + dp(8);
+            if (rowH <= dp(8)) return;
+            int cap = Math.max(1,
+                (int) (getResources().getDisplayMetrics().heightPixels * 0.5f / rowH));
+            int h = Math.min((tabs.size() + 1) / 2, cap) * rowH;
+            ViewGroup.LayoutParams lp = grid.getLayoutParams();
+            if (lp.height == h) return;
+            lp.height = h;
+            grid.setLayoutParams(lp);
         });
 
         sheet.findViewById(R.id.tabNew).setOnClickListener(v -> {
@@ -5099,8 +5217,30 @@ public final class MainActivity extends Activity {
             row.findViewById(R.id.tabActiveBar).setVisibility(
                 i == active ? View.VISIBLE : View.INVISIBLE);
 
-            // 单独关闭。点这张卡片的 × 只关它自己；点卡片其它地方仍是切换
-            // （网格的 OnItemClickListener 管那个，× 是 clickable 子视图会吃掉自己的触摸）。
+            // 切到这一格。挂在每一格自己身上而不是靠 grid 的 OnItemClickListener：
+            // item_tab 的根布局是 clickable 的（卡片要自己的点击态），而 AdapterView
+            // 只在「没有任何子视图消费这次按下」时才派发 itemClick —— 根布局一 clickable，
+            // 那条路就断了，点卡片会像点在一块不会动的板子上。这就是「标签栏切不了网页」。
+            //
+            // 定位方式与 tabClose 一致：按引用找下标。GridView 会复用 item 视图，
+            // 关闭之后下标会整体前移，捕获 i 会切错页。
+            row.setOnClickListener(v -> {
+                int idx = indexOfTabRef(tabs, t);
+                if (idx < 0) return;
+                mountMain();
+                switchTab(idx);
+            });
+
+            // 长按删除。同样按引用关，理由见 closeTabByRef。
+            row.setOnLongClickListener(v -> {
+                closeTabByRef(t);
+                notifyDataSetChanged();
+                if (total != null) total.setText("共 " + tabs.size() + " 个标签");
+                return true;
+            });
+
+            // 单独关闭。点这张卡片的 × 只关它自己；点卡片其它地方是切换
+            // （× 自己是 clickable 子视图，落在它身上的触摸被它吃掉，不会冒到卡片上）。
             //
             // 关键：捕获的是 t（这一格的 Tab 对象），不是 i（绑定时的下标）。
             // GridView 复用 item 视图，而关闭后又立刻 notifyDataSetChanged ——

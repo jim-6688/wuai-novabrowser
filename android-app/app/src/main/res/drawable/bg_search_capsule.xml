@@ -3,13 +3,16 @@
   滚动态的胶囊搜索框背景。它现在落在**底栏那一行**（见 activity_main.xml 的 bottomRow）。
 
   圆角 = 高度的一半 → 两端是标准半圆胶囊。
-  高度由 activity_main.xml 里的 searchCapsule 定，这里只画形状。
+  高度由 activity_main.xml 里的 searchCapsule 定，这里只画形状；
+  胶囊 40dp，所以这里是 20dp。改高度时这一处和 MainActivity#applyTheme
+  里的 dp(20) 要跟着一起改（描边色是运行期按主题重画的，圆角在那边也写了一份）。
 
   底色是实底 surface，不是 surface_translucent —— 这条改过，理由值得留一句：
-  半透明属于**底栏那一条**（它压在网页上，网页从底下透出来），
-  而胶囊是压在底栏上的「实心控件」。两者都半透明的话，页面文字会先穿底栏、
+  半透明属于**底栏那一条**，而且只在它显成这块搜索框的时候
+  （五格工具栏形态下底栏是实底，见 MainActivity#applyBottomBarGround）。
+  胶囊是压在玻璃条上的「实心控件」：两者都半透明的话，页面文字会先穿底栏、
   再穿胶囊，两层叠在一起，输入框读起来就是糊的。
-  一虚一实才分得出层级：玻璃条上放一块实心输入框。
+  一虚一实才分得出层级。
 
   描边保留品牌色：与常态的 omnibox（surface 底 + 近黑描边）刻意不同 ——
   一眼能看出「现在这一格是搜索状态」，而不是「地址栏换了个位置」。
@@ -23,6 +26,6 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/surface" />
-    <corners android:radius="18dp" />
+    <corners android:radius="20dp" />
     <stroke android:width="1dp" android:color="@color/brand" />
 </shape>

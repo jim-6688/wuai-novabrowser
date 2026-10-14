@@ -4,7 +4,7 @@
          改这里不会改到桌面端，两边要一起改。 -->
     <string name="app_name">吾爱Nova浏览器</string>
     <!-- 版本号单点。原先散在若干个字符串字面量里，改版本要改四处，漏一处就对不上。 -->
-    <string name="app_version">1.5.0</string>
+    <string name="app_version">1.5.1</string>
 
     <!-- 底栏。现在是五格：后退 / 前进 / 标签 / 工具 / 菜单。
          「内核」那一格早已换掉（移动版只有系统 WebView 真内置，
@@ -14,7 +14,6 @@
     <string name="mb_home">主页</string>
     <string name="mb_reload">刷新</string>
     <string name="mb_tabs">标签</string>
-    <string name="mb_menu">菜单</string>
     <string name="mb_tools">工具</string>
 
     <!-- 下滑浮现的胶囊搜索框。提交恒走 52ta.top 的导航搜索，输入网址也会被
@@ -32,10 +31,12 @@
     <string name="status_noimage">无图模式</string>
     <string name="status_adblock">已拦截广告</string>
 
-    <!-- 无障碍朗读。工具栏上两个图标按钮各有一条 ——
-         ImageButton 不写 contentDescription 的话，读屏软件会念包名。 -->
+    <!-- 无障碍朗读。工具栏与底栏上的纯图标按钮各有一条 ——
+         ImageButton / ImageView 不写 contentDescription 的话，读屏软件会念包名。 -->
     <string name="content_desc_home">回到首页</string>
     <string name="content_desc_reload">刷新 / 停止加载</string>
+    <string name="content_desc_back">返回上一页</string>
+    <string name="content_desc_tools">打开工具面板</string>
     <string name="content_desc_star">收藏当前页面 / 取消收藏</string>
     <string name="content_desc_ai">AI 助手</string>
     <!-- 下拉刷新的指示器球。它是纯装饰性的（刷新本身由手指动作触发，

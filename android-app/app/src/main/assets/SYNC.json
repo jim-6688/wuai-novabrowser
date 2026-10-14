@@ -15,7 +15,7 @@
     },
     {
       "source": "src/renderer/newtab.html",
-      "sha256": "33e9696f8ee59759393feeaaf7f719b6ce7e9e6ddaf17f4866ef04de536242b9"
+      "sha256": "aa514134558fbac4892db922159ada54216e0fe3e42ccbbc1dd7dc83b5d923db"
     }
   ],
   "artifacts": [
@@ -36,8 +36,8 @@
     },
     {
       "file": "android-app/app/src/main/assets/newtab.html",
-      "bytes": 30968,
-      "sha256": "33e9696f8ee59759393feeaaf7f719b6ce7e9e6ddaf17f4866ef04de536242b9"
+      "bytes": 31251,
+      "sha256": "aa514134558fbac4892db922159ada54216e0fe3e42ccbbc1dd7dc83b5d923db"
     }
   ]
 }

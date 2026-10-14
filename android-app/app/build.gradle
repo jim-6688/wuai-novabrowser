@@ -64,7 +64,7 @@ android {
         // 本轮：底栏改纯图标并加大、顶栏收敛为搜索+AI、新标签页真实 favicon 宫格、
         // 启动预载+遮罩、底栏玻璃条+顶栏投影、滚动补偿、设置页「个性化」分组、
         // 工具箱改九宫格、推荐脚本库换源脚本猫并随包内置 6 条
-        versionCode 11
+        versionCode 12
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用

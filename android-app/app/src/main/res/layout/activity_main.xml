@@ -68,13 +68,13 @@
                      地址栏只能覆盖「输入」，而这一格覆盖的是「我想搜点什么」这个起点。 -->
                 <ImageButton
                     android:id="@+id/btnSearch"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                    android:layout_width="@dimen/tap_action"
+                    android:layout_height="@dimen/tap_action"
                     android:layout_marginEnd="2dp"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/search_hint"
                     android:scaleType="centerInside"
-                    android:padding="9dp"
+                    android:padding="7dp"
                     android:src="@drawable/ic_search_nav" />
 
                 <!-- 地址栏 -->
@@ -104,13 +104,13 @@
                 <!-- 收藏（书签）按钮 -->
                 <ImageButton
                     android:id="@+id/btnStar"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                    android:layout_width="@dimen/tap_action"
+                    android:layout_height="@dimen/tap_action"
                     android:layout_marginStart="4dp"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/content_desc_star"
                     android:scaleType="centerInside"
-                    android:padding="9dp"
+                    android:padding="7dp"
                     android:src="@drawable/ic_star" />
 
                 <!-- AI 助手。原来在顶栏第二行（那一行已撤掉），现在是顶栏最右一格。
@@ -118,12 +118,12 @@
                      「这一格是去别处做一件事」。 -->
                 <ImageButton
                     android:id="@+id/btnAi"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                    android:layout_width="@dimen/tap_action"
+                    android:layout_height="@dimen/tap_action"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/content_desc_ai"
                     android:scaleType="centerInside"
-                    android:padding="9dp"
+                    android:padding="7dp"
                     android:src="@drawable/ic_ai" />
             </LinearLayout>
 
@@ -305,26 +305,32 @@
          本来也是拇指最顺的位置。
 
          行高恒定（60dp）的做法与顶栏原先一样：两个子 View 互相覆盖，
-         「行高 = 最高的那个」，胶囊 36dp < 60dp，所以它在 GONE 与 VISIBLE
+         「行高 = 最高的那个」，胶囊 40dp < 60dp，所以它在 GONE 与 VISIBLE
          之间怎么切都不会改这一行的高度 —— 网页不会被推一下。
 
-         60dp 而不是 54dp：五格改成纯图标（30dp）之后，54dp 上下的余量只剩 12dp，
-         图标贴得太近，反而比带文字时更挤。60dp 给出上下各 15dp 的呼吸，
-         也刚好是设计板上那一格的高度。
+         60dp 而不是 54dp：五格改成纯图标之后，54dp 上下的余量只剩十来 dp，
+         图标贴得太近，反而比带文字时更挤。60dp 给 26dp 的图标留出上下各 17dp
+         的呼吸，也刚好是设计板上那一格的高度。
     -->
     <!--
-      这一条是**半透明、压在网页上**的，不是把网页推上去的一行。
+      这一条**压在网页上**，不是把网页推上去的一行。
 
       「压在网页上」靠上面那个 layout_marginTop="-60dp"：负的外边距让这一条
       从网页区的下沿再往上提 60dp，正好盖住网页最后一条；LinearLayout 里后画的
       兄弟盖在先画的上面，所以它是盖上去而不是把网页挤走。负值必须与 height 相等
       （都是 60dp），改高度时这里要跟着改。
 
-      于是滚起来时：网页从半透明的底栏底下穿过去（surface_translucent，见 colors.xml），
-      而滚动态那块胶囊搜索框是**实底**（bg_search_capsule）—— 玻璃条上放一块实心输入框，
-      一虚一实，层级才分得出来。两个都半透明的话，页面文字会穿两层，输入框就糊了。
+      底色**随形态切**（见 MainActivity#applyBottomBarGround）：
+        五格工具栏时 = @color/surface（实底）
+        胶囊搜索框时 = @color/surface_translucent（玻璃条）
 
-      代价说清楚：网页最底下 60dp 会被永久挡住。所以 MainActivity#injectBarInset
+      为什么不是一直半透明：五格工具栏是常驻的一条，底下永远压着网页，
+      半透明时页面文字会从图标缝里透出来，读起来像脏、也像没对齐；
+      而滚动态的胶囊是临时浮上来的一块输入区，半透明才有层级感。
+      这里写的是初态（工具栏形态）—— 布局加载出来时就是实底，
+      不能靠代码来纠正，否则冷启动第一帧会闪一下玻璃条。
+
+      代价说清楚：网页最底下 60dp 会被挡住。所以 MainActivity#injectBarInset
       会给页面补一条同样高度的 padding-bottom，把最后一行还回来。
     -->
     <FrameLayout
@@ -332,7 +338,7 @@
         android:layout_width="match_parent"
         android:layout_height="60dp"
         android:layout_marginTop="-60dp"
-        android:background="@color/surface_translucent"
+        android:background="@color/surface"
         android:elevation="8dp">
 
         <LinearLayout
@@ -370,14 +376,14 @@
                 android:focusable="true">
 
                 <FrameLayout
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
+                    android:layout_width="@dimen/icon_action"
+                    android:layout_height="@dimen/icon_action"
                     android:layout_gravity="center"
                     android:clipChildren="false">
 
                     <ImageView
-                        android:layout_width="30dp"
-                        android:layout_height="30dp"
+                        android:layout_width="@dimen/icon_action"
+                        android:layout_height="@dimen/icon_action"
                         android:layout_gravity="center"
                         android:src="@drawable/ic_tabs"
                         android:contentDescription="@string/mb_tabs" />
@@ -396,8 +402,8 @@
                         android:textStyle="bold"
                         android:textColor="@color/badge_on_brand"
                         android:background="@drawable/bg_count_badge"
-                        android:translationX="3dp"
-                        android:translationY="-4dp" />
+                        android:translationX="2dp"
+                        android:translationY="-3dp" />
                 </FrameLayout>
             </FrameLayout>
 
@@ -413,8 +419,9 @@
           刻意用 surface + 品牌色描边（bg_search_capsule），与常态的 omnibox
           （surface_2 灰底无边框）区分开 —— 一眼能看出「现在这一格是搜索状态」。
 
-          36dp 高：底部这一行是拇指的自然落点，比它原先在顶栏时的 34dp 放大一点更好按；
-          同时 36 < 60（行高），所以它显隐不会改本行高度。
+          40dp 高：底部这一行是拇指的自然落点，比它原先在顶栏时的 34dp 放大一档更好按，
+          也刚好放下与底栏同尺幅的 26dp 放大镜（上下各留 7dp）；
+          同时 40 < 60（行高），所以它显隐不会改本行高度。
 
           初始 gone + alpha=0：不进场时它不该吃掉任何触摸。
           位移由代码给（见 MainActivity#applyReveal），从本行下沿滑进来。
@@ -422,7 +429,7 @@
         <LinearLayout
             android:id="@+id/searchCapsule"
             android:layout_width="match_parent"
-            android:layout_height="36dp"
+            android:layout_height="40dp"
             android:layout_gravity="center_vertical"
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
@@ -437,8 +444,8 @@
 
             <ImageView
                 android:id="@+id/capsuleSearch"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="@dimen/icon_action"
+                android:layout_height="@dimen/icon_action"
                 android:layout_marginEnd="8dp"
                 android:src="@drawable/ic_search"
                 android:contentDescription="@string/search_hint" />

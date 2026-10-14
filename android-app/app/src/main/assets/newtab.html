@@ -108,21 +108,25 @@ body {
 
 /* ---------------------------------------------------------------- 搜索框 */
 /* 内置主页的搜索框，与下滑胶囊共用同一个搜索目标（native 侧 navSearch），
-   但样式独立：这里落在页面正文里，用灰底圆角，不用透明悬浮那套。 */
+   但样式独立：这里落在页面正文里，用灰底圆角，不用透明悬浮那套。
+
+   48px 高、图标 20px、字号 15px：原先的 42/18/14 在真机上读起来比周围
+   都小一号 —— 上方是 64px 的品牌标，下方是 56px 的磁贴，夹在中间那一格
+   反而最轻。48 也正好是移动端输入框的常见高度，点起来更稳。 */
 .search {
     display: flex;
     align-items: center;
     gap: 8px;
     margin: 0 0 18px;
-    padding: 0 14px;
-    height: 42px;
-    border-radius: 21px;
+    padding: 0 16px;
+    height: 48px;
+    border-radius: 24px;
     background: var(--surface-2);
     border: 1px solid var(--border);
 }
 .search svg {
     flex: none;
-    width: 18px; height: 18px;
+    width: 20px; height: 20px;
     color: var(--text-4);
 }
 .search input {
@@ -133,7 +137,7 @@ body {
     background: transparent;
     color: var(--text);
     font: inherit;
-    font-size: 14px;
+    font-size: 15px;
 }
 .search input::placeholder { color: var(--text-4); }
 

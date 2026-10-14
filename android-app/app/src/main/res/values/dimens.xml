@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  图标尺幅。原先顶栏 22dp、底栏 30dp、胶囊搜索 20dp、工具宫格 26dp 各写各的，
+  同一屏里并排看就是四种大小 —— 用户的原话是「搜索太小，标签太大」。
+
+  这份文件把「哪些地方该是同一种图标」定下来，改一次就一起改：
+
+  icon_action  主操作区。顶栏三键（搜索 / 收藏 / AI）、底栏五格、滚动搜索框的
+               放大镜、工具宫格的格子图标 —— 这五处回答的是同一类问题
+               「点一下去做一件事」，尺幅必须一致。统一取 26dp。
+  tap_action   主操作区图标的点按区（顶栏三键的按钮边长）。它不是图标大小，
+               而是手指落点；40dp 是 Material 的最小可点尺寸。
+  icon_row     列表行左侧的小图标（设置行、菜单行）。它跟着 15sp 的标题走，
+               比操作图标小一档才不抢字。
+-->
+<resources>
+    <dimen name="icon_action">26dp</dimen>
+    <dimen name="tap_action">40dp</dimen>
+    <dimen name="icon_row">20dp</dimen>
+</resources>

@@ -13,9 +13,9 @@
 
     <ImageView
         android:id="@+id/btnIcon"
-        android:layout_width="30dp"
-        android:layout_height="30dp"
-        android:contentDescription="@string/mb_menu"
+        android:layout_width="@dimen/icon_action"
+        android:layout_height="@dimen/icon_action"
+        android:contentDescription="@string/content_desc_back"
         android:scaleType="fitCenter" />
 
     <!-- 文案层保留但隐藏：底栏改成纯图标后不再需要它，而 MainActivity#bindMb

@@ -18,7 +18,11 @@
         android:paddingBottom="8dp" />
 
     <!-- 两列网格。用 GridView 而不是 LinearLayout 手动拼：
-         十几个标签手动拼出来的高度会把弹层顶出屏幕，而 GridView 自己管滚动。 -->
+         十几个标签手动拼出来的高度会把弹层顶出屏幕，而 GridView 自己管滚动。
+
+         这里的 260dp 只是「真实行高测出来之前」的初始值，最终高度由
+         MainActivity#showTabSheet 按实测行高设置 —— 写死 260dp 装不下两行
+         （两张卡片加行间距要 272dp），第二行域名那半截会被切掉一截。 -->
     <GridView
         android:id="@+id/tabGrid"
         android:layout_width="match_parent"

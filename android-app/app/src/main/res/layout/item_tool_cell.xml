@@ -25,12 +25,13 @@
     android:paddingTop="12dp"
     android:paddingBottom="12dp">
 
-    <!-- 26dp：比列表行的 20dp 大一号。宫格里图标是主角（文字只是它的名字），
-         沿用 20dp 会让整格显得空。 -->
+    <!-- 与顶栏三键、底栏五格同一尺幅（@dimen/icon_action = 26dp）。
+         宫格、底栏、顶栏在同一屏里并排出现，任何一处单独写数值都会立刻
+         变成「有的图标大、有的小」——这正是尺幅令牌存在的理由。 -->
     <ImageView
         android:id="@+id/cellIcon"
-        android:layout_width="26dp"
-        android:layout_height="26dp"
+        android:layout_width="@dimen/icon_action"
+        android:layout_height="@dimen/icon_action"
         android:scaleType="fitCenter"
         android:importantForAccessibility="no" />
 

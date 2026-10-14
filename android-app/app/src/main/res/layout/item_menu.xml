@@ -22,11 +22,12 @@
     android:paddingBottom="11dp">
 
     <!-- 左侧图标。默认 gone：没有图标传进来的行不占地方。
-         20dp 与底栏/顶栏图标同尺幅，颜色统一走 @color/text_3。 -->
+         20dp 是「列表行图标」档（@dimen/icon_row），比底栏/顶栏的操作图标
+         （26dp）小一档 —— 它跟着 15sp 标题走，同尺幅会跟标题抢注意力。 -->
     <ImageView
         android:id="@+id/rowIcon"
-        android:layout_width="20dp"
-        android:layout_height="20dp"
+        android:layout_width="@dimen/icon_row"
+        android:layout_height="@dimen/icon_row"
         android:layout_marginEnd="12dp"
         android:visibility="gone"
         android:importantForAccessibility="no" />
@@ -37,13 +38,19 @@
         android:layout_weight="1"
         android:orientation="vertical">
 
+        <!-- 单行截断是硬要求，不是润色：这一行左边是 weight=1 的弹性宽度，
+             右边 rowValue 是 wrap_content。值一长（比如曾经的下载目录绝对路径），
+             标题那一格就被压到只剩一个字的宽度，于是「下载目录」四个字
+             一字一行地竖着堆起来。maxLines 钉住它不换行，挤不下就省略。 -->
         <TextView
             android:id="@+id/rowTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="@color/text"
             android:textSize="15sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <!-- 副标题。默认 gone：没有内容时不占地方，
              这样纯文字行的行高不会因为多一个空 TextView 而变高。 -->
@@ -60,13 +67,20 @@
             android:ellipsize="end" />
     </LinearLayout>
 
-    <!-- 右侧取值 / 开关。默认 gone，由 MainActivity 按行决定要不要显示。 -->
+    <!-- 右侧取值 / 开关。默认 gone，由 MainActivity 按行决定要不要显示。
+
+         maxWidth + 单行省略：这一侧是 wrap_content，放任它撑开就会把左边的
+         标题压成竖排（见上面 rowTitle 的注释）。160dp 够放「100 条」「跟随系统」
+         这类取值，又不至于把标题挤没。 -->
     <TextView
         android:id="@+id/rowValue"
         android:layout_width="wrap_content"
         android:layout_height="30dp"
         android:visibility="gone"
         android:minWidth="52dp"
+        android:maxWidth="160dp"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:gravity="center"
         android:background="@drawable/seg_track"
         android:textColor="@color/text_2"
