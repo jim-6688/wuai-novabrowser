@@ -2859,15 +2859,12 @@ public final class MainActivity extends Activity {
             }
         }
 
-        // 底栏主按钮（标签数）：蓝绿渐变 → 当前主题的「主色→强调色」渐变。
-        View tabs = findViewById(R.id.mbTabs);
-        if (tabs != null) {
-            GradientDrawable g = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                new int[]{brand, accent});
-            g.setCornerRadius(dp(12));
-            tabs.setBackground(g);
-        }
+        // 底栏五格是等宽纯图标，任何一格都不该有底色 —— 包括中间的标签格。
+        // 这里原先会给它画一块「主色→强调色」的渐变圆角底，那是它还是 56dp
+        // 主按钮时代的遗产；五格改版时 XML 里的底色删了，这段动态上色漏掉了，
+        // 结果浅色底上四格细线图标中间横着一块渐变色块，整条底栏看起来
+        // 「四个按钮 + 一个不相干的大方块」。别再给它上色：这一格的存在感
+        // 由计数徽标（品牌色小胶囊）承担，与设计稿一致。
 
         // 胶囊搜索框描边：换成当前主色。底色仍是实底 surface ——
         // 半透明的是它待着的那条底栏，不是它自己（见 bg_search_capsule）。

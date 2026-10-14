@@ -17,9 +17,17 @@
     android:width="22dp" android:height="22dp"
     android:viewportWidth="20" android:viewportHeight="20"
     android:tint="@color/brand">
-    <path android:strokeColor="#000" android:strokeWidth="1.7"
-        android:pathData="M9,9 a4.2,4.2 0 1,0 0.01,0 z" />
-    <path android:strokeColor="#000" android:strokeWidth="1.7"
-        android:strokeLineCap="round"
-        android:pathData="M12.4,12.4 L16.4,16.4" />
+    <!-- group 缩放：本工程顶栏/底栏图标统一按「视觉高（含描边）16.9 / 画布 20」
+         ≈ 22dp 归一 —— 这一档取自改动前顶栏星标 / AI 的实际渲染大小（全场最大
+         的一档），而不是把大的缩到小的那一档。线宽按缩放比反向校正，
+         保证缩放后笔画粗细与邻格一致。下同。 -->
+    <group
+        android:scaleX="1.31" android:scaleY="1.31"
+        android:pivotX="10.6" android:pivotY="10.6">
+        <path android:strokeColor="#000" android:strokeWidth="1.30"
+            android:pathData="M9,9 a4.2,4.2 0 1,0 0.01,0 z" />
+        <path android:strokeColor="#000" android:strokeWidth="1.30"
+            android:strokeLineCap="round"
+            android:pathData="M12.4,12.4 L16.4,16.4" />
+    </group>
 </vector>

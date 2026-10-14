@@ -14,15 +14,22 @@
     android:width="20dp" android:height="20dp"
     android:viewportWidth="20" android:viewportHeight="20"
     android:tint="@color/text_3">
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
-        android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M4.8,7.4 H15.2 A2,2 0 0,1 17.2,9.4 V14.8 A2,2 0 0,1 15.2,16.8 H4.8 A2,2 0 0,1 2.8,14.8 V9.4 A2,2 0 0,1 4.8,7.4 Z" />
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
-        android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M7.4,7.4 V6 A1.7,1.7 0 0,1 9.1,4.3 H10.9 A1.7,1.7 0 0,1 12.6,6 V7.4" />
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:pathData="M2.8,11 H17.2" />
+    <!-- 工具箱原图形占画布 63%（视觉高 12.5、宽 14.4），按「视觉高（含描边）
+         16.9 ≈ 22dp」统一档放大。同时被主菜单弹层「工具」行与工具格的
+         「有下载任务」切换（ic_download）共用位置，两支已统一到同一档。 -->
+    <group
+        android:scaleX="1.22" android:scaleY="1.22"
+        android:pivotX="10" android:pivotY="10.55">
+        <path android:strokeColor="#000" android:strokeWidth="1.40"
+            android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:fillColor="@android:color/transparent"
+            android:pathData="M4.8,7.4 H15.2 A2,2 0 0,1 17.2,9.4 V14.8 A2,2 0 0,1 15.2,16.8 H4.8 A2,2 0 0,1 2.8,14.8 V9.4 A2,2 0 0,1 4.8,7.4 Z" />
+        <path android:strokeColor="#000" android:strokeWidth="1.40"
+            android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:fillColor="@android:color/transparent"
+            android:pathData="M7.4,7.4 V6 A1.7,1.7 0 0,1 9.1,4.3 H10.9 A1.7,1.7 0 0,1 12.6,6 V7.4" />
+        <path android:strokeColor="#000" android:strokeWidth="1.40"
+            android:strokeLineCap="round"
+            android:pathData="M2.8,11 H17.2" />
+    </group>
 </vector>

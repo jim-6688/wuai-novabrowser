@@ -8,10 +8,18 @@
     android:width="20dp" android:height="20dp"
     android:viewportWidth="20" android:viewportHeight="20"
     android:tint="@color/text_3">
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
-        android:strokeLineJoin="round"
-        android:pathData="M4,6.5 h12 v9 h-12 z" />
-    <path android:strokeColor="#000" android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:pathData="M6.5,4.5 h7" />
+    <!-- 与其余顶栏/底栏图标同一档：视觉高（含描边）16.9 / 画布 20 ≈ 22dp。
+         方形标签原图形只占 55%，是五格里与 ic_back 并列最矮小的两枚之一；
+         上一轮做图标归一化时漏了这一支（当时它被一块渐变底遮着，看不出偏小），
+         补上与邻格一致。 -->
+    <group
+        android:scaleX="1.38" android:scaleY="1.38"
+        android:pivotX="10" android:pivotY="10">
+        <path android:strokeColor="#000" android:strokeWidth="1.16"
+            android:strokeLineJoin="round"
+            android:pathData="M4,6.5 h12 v9 h-12 z" />
+        <path android:strokeColor="#000" android:strokeWidth="1.16"
+            android:strokeLineCap="round"
+            android:pathData="M6.5,4.5 h7" />
+    </group>
 </vector>

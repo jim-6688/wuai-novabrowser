@@ -18,13 +18,20 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="22dp" android:height="22dp"
     android:viewportWidth="20" android:viewportHeight="20">
-    <path android:strokeColor="@color/brand" android:strokeWidth="1.6"
-        android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M3.4,9.4 L10,3.6 L16.6,9.4" />
-    <path android:strokeColor="@color/brand" android:strokeWidth="1.6"
-        android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M5.2,8.6 V16.2 H14.8 V8.6" />
-    <path android:strokeColor="@color/brand" android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:pathData="M8.6,16.2 V11.8 H11.4 V16.2" />
+    <!-- 房子原图形占画布 66%（视觉高 12.6），按「视觉高（含描边）16.9 ≈ 22dp」
+         统一档放大。注意这枚图标同时被主菜单弹层的「首页」行引用，
+         缩放对两处同时生效。 -->
+    <group
+        android:scaleX="1.21" android:scaleY="1.21"
+        android:pivotX="10" android:pivotY="9.9">
+        <path android:strokeColor="@color/brand" android:strokeWidth="1.41"
+            android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M3.4,9.4 L10,3.6 L16.6,9.4" />
+        <path android:strokeColor="@color/brand" android:strokeWidth="1.41"
+            android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M5.2,8.6 V16.2 H14.8 V8.6" />
+        <path android:strokeColor="@color/brand" android:strokeWidth="1.41"
+            android:strokeLineCap="round"
+            android:pathData="M8.6,16.2 V11.8 H11.4 V16.2" />
+    </group>
 </vector>

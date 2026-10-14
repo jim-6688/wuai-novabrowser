@@ -8,10 +8,16 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="22dp" android:height="22dp"
     android:viewportWidth="20" android:viewportHeight="20">
-    <path android:strokeColor="@color/accent" android:strokeWidth="1.6"
-        android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M16.5,10 a6.5,6.5 0 1,1 -1.9,-4.6" />
-    <path android:strokeColor="@color/accent" android:strokeWidth="1.6"
-        android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M16.8,2.6 V5.6 H13.8" />
+    <!-- 圆弧+箭头整体占画布 70%（视觉高 13.9），按「视觉高（含描边）16.9 ≈ 22dp」
+         统一档放大。同一枚图标也服务主菜单弹层的「刷新」行。 -->
+    <group
+        android:scaleX="1.09" android:scaleY="1.09"
+        android:pivotX="10.15" android:pivotY="9.55">
+        <path android:strokeColor="@color/accent" android:strokeWidth="1.56"
+            android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M16.5,10 a6.5,6.5 0 1,1 -1.9,-4.6" />
+        <path android:strokeColor="@color/accent" android:strokeWidth="1.56"
+            android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M16.8,2.6 V5.6 H13.8" />
+    </group>
 </vector>

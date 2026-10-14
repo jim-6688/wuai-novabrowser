@@ -12,8 +12,14 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="22dp" android:height="22dp"
     android:viewportWidth="20" android:viewportHeight="20">
-    <path android:strokeColor="@color/star" android:strokeWidth="1.5"
-        android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M10,1.5 L12.0,7.25 L18.08,7.37 L13.23,11.05 L15.0,16.88 L6.6,10 L5.0,16.88 L6.77,11.05 L1.92,7.37 L8.0,7.25 Z" />
+    <!-- 统一到「视觉高（含描边）16.9 / 画布 20」≈ 22dp —— 这正是五角星改动前
+         自己的渲染大小，所以它基本不动，其余图标放大到与它看齐。 -->
+    <group
+        android:scaleX="0.99" android:scaleY="0.99"
+        android:pivotX="10" android:pivotY="9.2">
+        <path android:strokeColor="@color/star" android:strokeWidth="1.72"
+            android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:fillColor="@android:color/transparent"
+            android:pathData="M10,1.5 L12.0,7.25 L18.08,7.37 L13.23,11.05 L15.0,16.88 L6.6,10 L5.0,16.88 L6.77,11.05 L1.92,7.37 L8.0,7.25 Z" />
+    </group>
 </vector>
