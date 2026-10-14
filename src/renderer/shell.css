@@ -71,6 +71,10 @@
   --titlebar-h: 36px;
   --tabstrip-h: 40px;
   --toolbar-h: 48px;
+  /* 收藏夹栏。32px 是这一行的下限：书签项高 24px，上下各留 4px 呼吸。
+     再压就要么项高掉到 24 以下（悬停底色贴着字），要么整行与下方网页
+     糊在一起读不出这是一条独立的栏。Chrome 的同类栏也是 32。 */
+  --bmbar-h: 32px;
   --row-h: 36px;
 
   --font: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system,
@@ -180,6 +184,36 @@ svg {
   border-radius: var(--r-pill);
   padding: 1px 7px;
 }
+/* ---------- 3b. 顶栏快捷开关 ---------- */
+/* 品牌名右边那两个小按钮。做窄做矮，是因为它们贴在品牌标识旁边 ——
+   做成 .icon-btn 那种 30px 方块，视觉重量会跟真正的工具栏按钮一样重，
+   而它们管的是「看一眼状态、顺手翻一下」，不是常用操作。 */
+.tb-quick {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--sp-2);
+  -webkit-app-region: no-drag;
+}
+.qk-btn {
+  width: 26px; height: 22px;
+  border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  color: var(--text-3);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.qk-btn:hover { background: var(--surface-2); color: var(--text); }
+.qk-btn:active { transform: scale(0.94); }
+.qk-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.qk-btn.is-on { color: var(--brand); }
+.qk-btn svg { width: 14px; height: 14px; }
+
+/* 主题格一格里放两个图标，露哪个由当前主题决定：看到太阳就是浅色。
+   不做成「图标写死、状态靠颜色」—— 那两种主题下看着一样，指示就没了。 */
+.qk-moon { display: none; }
+[data-theme="dark"] .qk-sun { display: none; }
+[data-theme="dark"] .qk-moon { display: block; }
+
 .tb-drag { flex: 1; height: 100%; }
 .tb-win { display: flex; height: 100%; -webkit-app-region: no-drag; }
 .winbtn {
@@ -457,6 +491,71 @@ svg {
 .ow-btn:hover { background: var(--surface-3); color: var(--text); }
 .ow-btn.is-on { color: var(--warn); }
 .ow-btn.is-on svg { fill: currentColor; }
+
+/* ---------- 5b. 收藏夹栏 ---------- */
+/* 地址栏与网页视口之间的一条横栏。它跟工具栏共用 surface 底色、共用一条
+   border-bottom —— 两行叠在一起读起来才是「一条顶栏的延续」，多一层阴影
+   或换个底色就会把它切成一个悬浮条。宽窄两档都在，窄档见下方移动布局段。 */
+.bookmarkbar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: var(--bmbar-h);
+  min-height: var(--bmbar-h);
+  padding: 0 var(--sp-2);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  /* 书签多了横向滚，不换行：换行会把这一行撑高，网页视口跟着矮一截，
+     而「这行多高」是用户在设置里点「地址栏下方」时就定下的预期。 */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.bookmarkbar::-webkit-scrollbar { display: none; }
+
+.bm-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 24px;
+  max-width: 190px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.bm-item:hover { background: var(--surface-2); color: var(--text); }
+.bm-item:active { transform: scale(0.97); }
+.bm-item:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* 站点图标。没有图标时退回首字母 —— 与标签条同一套降级，不额外去
+   猜 favicon.ico 的地址：那等于翻书签就往十来家站点各发一个请求。 */
+.bm-fav {
+  flex: 0 0 16px;
+  width: 16px; height: 16px;
+  border-radius: 4px;
+  display: grid; place-items: center;
+  overflow: hidden;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: 9px; font-weight: 800;
+  line-height: 1;
+}
+.bm-fav img { width: 100%; height: 100%; object-fit: contain; }
+.bm-title { overflow: hidden; text-overflow: ellipsis; }
+
+/* 空栏不留一条纯白 —— 那条空带子看着像个渲染失败的控件。
+   写一句去处，顺带把入口指出来。 */
+.bm-empty {
+  flex: 0 0 auto;
+  padding-left: var(--sp-2);
+  font-size: 11.5px;
+  color: var(--text-4);
+  white-space: nowrap;
+}
 
 /* ---------- 6. 内核模式提示条 ---------- */
 .engine-notice:not([hidden]) {
@@ -1322,8 +1421,19 @@ svg {
 [data-layout="mobile"] .titlebar { height: 26px; min-height: 26px; padding-left: var(--sp-2); }
 [data-layout="mobile"] .tb-brand .brand-name,
 [data-layout="mobile"] .brand-tag { display: none; }
+/* 快捷开关不给窄屏：这一档标题栏只剩 26px，左边品牌标、右边空着，塞两个
+   14px 图标进去，横向就没剩多少能拖窗口的地方了；何况这一档本来就有底栏
+   与抽屉两条入口通向设置。 */
+[data-layout="mobile"] .tb-quick { display: none; }
 [data-layout="mobile"] .tb-win { display: none; }
 [data-layout="mobile"] .tabstrip { display: none; }
+/* 收藏夹栏在窄屏下照旧是那一条，只是收窄：条高不动（32px 是触控能点准的
+   下限），把每一格的宽度上限与字号压半档，同屏能多露出一两格。
+   它和底栏不冲突 —— 底栏管导航，这条管「钉住的站点」，本来就是两回事。 */
+[data-layout="mobile"] .bookmarkbar { padding: 0 var(--sp-1); }
+[data-layout="mobile"] .bm-item { max-width: 132px; padding: 0 6px; gap: 5px; font-size: 11.5px; }
+[data-layout="mobile"] .bm-fav { flex: 0 0 14px; width: 14px; height: 14px; font-size: 8px; }
+[data-layout="mobile"] .bm-empty { font-size: 11px; padding-left: var(--sp-1); }
 [data-layout="mobile"] .toolbar {
   height: 52px; min-height: 52px;
   padding: 0 var(--sp-3);

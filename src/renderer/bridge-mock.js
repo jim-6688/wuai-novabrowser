@@ -347,6 +347,7 @@ if (typeof window !== 'undefined' && !window.nova) {
       searchTemplate: 'https://www.baidu.com/s?wd=%s',
       defaultEngine: 'chromium',
       layout: 'auto',
+      bookmarkBar: 'always',
       theme: 'light',
       restoreSession: true,
       session: { tabs: [], activeIndex: 0 },

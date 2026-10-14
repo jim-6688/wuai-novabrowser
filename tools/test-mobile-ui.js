@@ -60,7 +60,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const click = (el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 
   const openMobile = async () => {
-    window.eval("openSettings('mobile')");
+    // 「移动端」这一分区只在窄屏档位下列出来 —— 宽屏下它管的那两项（无图
+    // 模式、自动拼页）根本不生效，导航里就不摆它。所以先把外壳切到窄档再
+    // 开这一页；不切的话 openSettings('mobile') 会被兜底到常规，后面一整
+    // 套断言就都在对着一张空页发问。
+    window.eval("state.settings.layout = 'mobile'; applyLayout(); openSettings('mobile')");
     await sleep(40);
   };
 

@@ -247,6 +247,12 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
            color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center}
 .titlebar .bn{font-size:12px;font-weight:600;margin-left:8px}
 .titlebar .bt{font-size:9.5px;color:var(--text-3);border:1px solid var(--border-strong);border-radius:var(--r-pill);padding:1px 7px;margin-left:8px}
+/* 品牌名右边的快捷开关：主题与收藏夹栏。做窄做矮 —— 它们管的是「看一眼状态、
+   顺手翻一下」，做成 30px 方块会把视觉重量拉到跟工具栏按钮一样重。 */
+.tbq{display:flex;align-items:center;gap:2px;margin-left:6px}
+.tbq i{width:24px;height:20px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--text-3);font-style:normal}
+.tbq i svg{width:13px;height:13px}
+.tbq i.on{color:var(--brand)}
 .spacer{flex:1}
 .winbtns{display:flex}
 .winbtns i{width:40px;height:30px;display:grid;place-items:center;color:var(--text-2);font-style:normal}
@@ -258,6 +264,15 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
 
 .toolbar{height:46px;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--surface);border-bottom:1px solid var(--border)}
 .navg,.toolg{display:flex;align-items:center;gap:2px}
+
+/* 收藏夹栏：地址栏与网页之间的一条横栏。宽窄两档都有，窄档把每格宽度上限
+   与字号压半档（条高不动，32px 是触控能点准的下限）。与工具栏共用 surface
+   底色和 border-bottom —— 两行叠起来读作「一条顶栏的延续」；多一层阴影或
+   换个底色就会把它切成一个悬浮条。 */
+.bmbar{height:32px;display:flex;align-items:center;gap:1px;padding:0 8px;background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden}
+.bm{display:flex;align-items:center;gap:6px;flex:0 0 auto;height:24px;padding:0 8px;border-radius:var(--r-sm);font-size:12px;color:var(--text-2);white-space:nowrap}
+.bm.on{background:var(--surface-2);color:var(--text)}
+.bmf{flex:0 0 16px;width:16px;height:16px;border-radius:4px;display:grid;place-items:center;background:var(--surface-3);color:var(--text-3);font-size:9px;font-weight:800;line-height:1}
 
 .body{flex:1;display:flex;min-height:0}
 .drawer{width:340px;flex:0 0 340px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column}
@@ -337,6 +352,24 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
 .mtoolbar > .uibtn:first-child{color:var(--brand)}
 .mtoolbar > .uibtn:nth-child(2){color:var(--star)}
 .mtoolbar > .uibtn:nth-child(4){color:var(--accent)}
+/* U 帧的顶栏按当前实现画（搜索 / 地址栏 / 星标 / 收藏夹栏 / AI），与 H 帧那一版
+   不同 —— 所以颜色在这里重列一遍，不跟上面那几条 nth-child 规则走：那些规则
+   按「第几个」认人，位置一变就会把颜色安到别的按钮上。 */
+.mtoolbar.sb > .uibtn{color:var(--text-2)}
+.mtoolbar.sb > .uibtn:first-child{color:var(--brand)}
+.mtoolbar.sb > .uibtn:nth-child(3){color:var(--star)}
+.mtoolbar.sb > .uibtn.on{color:var(--brand);background:var(--brand-soft)}
+
+/* 收藏夹栏（移动端）。与桌面端那条是同一套语言：一格 = 首字母方块 + 一行标题。
+   条高 38px（格子 28 + 上 2 下 8），不换行、横向滚 —— 换行会把这一栏撑高，
+   而「它占多高」是用户点开它的那一刻就定下的预期。 */
+.bmar{display:flex;align-items:center;gap:4px;height:38px;padding:2px 6px 8px;background:var(--surface);overflow:hidden}
+.bmcell{display:flex;align-items:center;gap:6px;flex:0 0 auto;height:28px;padding:0 10px 0 7px;border-radius:var(--r-sm);color:var(--text-2)}
+.bmcell.on{background:var(--surface-2)}
+.bmfav{flex:0 0 16px;width:16px;height:16px;border-radius:4px;background:var(--surface-3);color:var(--text-3);
+       font-size:9px;font-weight:800;display:grid;place-items:center}
+.bmt{font-size:12.5px;white-space:nowrap}
+
 .mbar{display:flex;height:54px;background:var(--surface);border-top:1px solid var(--border)}
 .mbar div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;color:var(--text-3)}
 .mbar div svg{width:19px;height:19px}
@@ -636,6 +669,7 @@ td code{font-size:11px}
       <div class="token-row"><span class="tn">titlebar</span><span class="td">34 px（移动端 26 px）</span></div>
       <div class="token-row"><span class="tn">tabstrip</span><span class="td">38 px（移动端隐藏）</span></div>
       <div class="token-row"><span class="tn">toolbar</span><span class="td">46 px（移动端 52 px）</span></div>
+      <div class="token-row"><span class="tn">bookmarkbar</span><span class="td">32 px（移动端隐藏；可在设置里收成「仅新标签页」）</span></div>
       <div class="token-row"><span class="tn">touch target</span><span class="td">移动端 ≥ 44 px</span></div>
     </div>
 
@@ -829,11 +863,15 @@ td code{font-size:11px}
 
   <div class="frames">
     <div class="frame-wrap">
-      <div class="frame-cap"><b>A · 主界面</b> · 内核 = Chromium（原生） · 浅色</div>
+      <div class="frame-cap"><b>A · 主界面</b> · 内核 = Chromium（原生） · 浅色 · 品牌名右侧两个快捷开关（主题 / 收藏夹栏），窄档不出现</div>
       <div class="frame pc">
         <div class="titlebar">
           <span class="brandmark">N</span><span class="bn">吾爱Nova</span>
           <span class="bt">Chromium · 原生内核</span>
+          <span class="tbq">
+            <i><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.6"/><path d="M10 2.6v2M10 15.4v2M2.6 10h2M15.4 10h2M4.8 4.8l1.4 1.4M13.8 13.8l1.4 1.4M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4"/></svg></i>
+            <i class="on"><svg viewBox="0 0 20 20"><path d="M6.2 3.5h7.6v8.6l-3.8-2.9-3.8 2.9z"/><path d="M3.4 16.5h13.2"/></svg></i>
+          </span>
           <span class="spacer"></span>
           <span class="winbtns">
             <i><svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg></i>
@@ -870,6 +908,17 @@ td code{font-size:11px}
             <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/></svg></div>
             <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M3.5 6h13M3.5 10h13M3.5 14h13"/></svg></div>
           </div>
+        </div>
+
+        <!-- 收藏夹栏：贴在地址栏下方。第四个格是悬停态。
+             图标走 favicon，拿不到时退回首字母方块 —— 不为了一次渲染
+             去十来家站点各拉一个 favicon.ico。 -->
+        <div class="bmbar">
+          <div class="bm"><span class="bmf">5</span><span>52ta</span></div>
+          <div class="bm"><span class="bmf">G</span><span>GitHub</span></div>
+          <div class="bm"><span class="bmf">M</span><span>MDN Web 文档</span></div>
+          <div class="bm on"><span class="bmf">B</span><span>哔哩哔哩 · 番剧</span></div>
+          <div class="bm"><span class="bmf">D</span><span>DeepSeek</span></div>
         </div>
 
         <div class="body">
@@ -1478,6 +1527,53 @@ td code{font-size:11px}
               <p style="font-size:11px">首页按钮在<b>地址栏左侧</b>，旁边多一个<b>收藏星标</b>按钮（已收藏变实心）；不在底栏：底栏每格在 320dp 机型上已贴 44px 触控下限，再加一格会掉到线下。地址栏右侧依次是<b>刷新</b>与 <b>AI</b>（图标已改彩色、放大到 40dp，规格见 T）。<br />内核标识 <b>CR</b> 只读（点开只能看，不能切）<br />移动端 UA：Android / iOS<br />底栏第三格标签 · 第四格<b>工具</b>（下载与阅读并成一格，有任务在跑时显示「工具 N」）<br />顶部下拉即刷新（见 R）</p>
             </div>
           </div>
+          <div class="mbar">
+            <div><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg><span>后退</span></div>
+            <div><svg viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg><span>前进</span></div>
+            <div class="pri"><svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M6.5 2.5h7"/></svg><span>3</span></div>
+            <div style="color:var(--brand)"><svg viewBox="0 0 20 20"><path d="M4 6h14M4 10h14M4 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.9" fill="currentColor" stroke="none"/></svg><span>工具 2</span></div>
+            <div><svg viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h12"/></svg><span>菜单</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 收藏夹栏（移动端，按需唤出） -->
+    <div class="frame-wrap">
+      <div class="frame-cap"><b>U · 收藏夹栏（移动端）</b> · <b>不常驻</b>：点顶栏那一格才把这一条拉出来，点中某一格跳走之后自动收起 —— 手机每一行高度都金贵，一条常驻书签栏等于永久把一行网页让出去。显隐由三个条件合成（用户点开过 / 设置里开着 / 当前不是新标签页），判据落在 <code>BookmarkBar.expanded</code>，是纯逻辑、能离线单测。移出一格走<b>长按</b>：一格才 28dp 高、标题本来就截断着，再挤一个 × 进去会把标题压成两个字（桌面端那条栏是同一个取舍，那边用右键）</div>
+      <div class="frame mb">
+        <div class="screen">
+          <div class="mtoolbar sb">
+            <div class="uibtn" title="搜索"><svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.2"/><path d="M12.9 12.9L17 17"/></svg></div>
+            <div class="omni" style="flex:1">
+              <span class="lk"><svg viewBox="0 0 16 16"><path d="M4.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/><rect x="3" y="7" width="10" height="6.5" rx="1.6"/></svg></span>
+              <span class="url" style="font-size:14px"><b>52ta.top</b></span>
+            </div>
+            <div class="uibtn" title="收藏（星标）"><svg viewBox="0 0 20 20"><path d="M10 2.6l2.3 4.7 5.2.8-3.8 3.7.9 5.2L10 14.8 5.4 17l.9-5.2L2.5 8.1l5.2-.8z"/></svg></div>
+            <div class="uibtn on" title="收藏夹栏（展开中）"><svg viewBox="0 0 20 20"><path d="M6.6 2.8H13.4V11.6L10 8.8L6.6 11.6Z"/><path d="M3.6 16.4H16.4"/></svg></div>
+            <div class="uibtn" title="AI"><svg viewBox="0 0 20 20">
+              <defs><linearGradient id="aiGradB" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2D6BF5"/><stop offset="1" stop-color="#00C8A8"/></linearGradient></defs>
+              <path d="M1.6 16.4L5.1 5.2l3.5 11.2M3.2 12.5h3.8" stroke="url(#aiGradB)" fill="none"/>
+              <path d="M11.8 5.2v11.2" stroke="url(#aiGradB)" fill="none"/>
+              <path d="M16.9 1C17.17 2.52 18.38 3.73 19.9 4c-1.52.27-2.73 1.48-3 3-.27-1.52-1.48-2.73-3-3 1.52-.27 2.73-1.48 3-3z" fill="url(#aiGradB)" stroke="none"/>
+            </svg></div>
+          </div>
+
+          <!-- 展开态的这一条。第一格画成悬停 / 按下态。 -->
+          <div class="bmar">
+            <div class="bmcell on"><span class="bmfav">5</span><span class="bmt">52ta.top</span></div>
+            <div class="bmcell"><span class="bmfav">吾</span><span class="bmt">吾爱导航</span></div>
+            <div class="bmcell"><span class="bmfav">G</span><span class="bmt">GitHub</span></div>
+            <div class="bmcell"><span class="bmfav">知</span><span class="bmt">知乎</span></div>
+          </div>
+
+          <div class="vp" style="flex:1">
+            <div style="text-align:center;padding:0 20px">
+              <div class="h3" style="font-size:16px">52ta.top</div>
+              <p style="font-size:11px">顶栏那一格与左边的<b>星标</b>是两件事：星标管「当前这一页要不要收藏」，这一格管「下面这条横栏露不露出来」。展开时这一格染成品牌色。<br />设置 → 个性化 → <b>收藏夹栏</b>：关掉后连这一格都不出现，宽度还给地址栏 —— 不用它的人不该一直为它付出一格。<br />一条书签都没有时，这一栏给一句去处，不占一条什么都没写的白带子。</p>
+            </div>
+          </div>
+
           <div class="mbar">
             <div><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg><span>后退</span></div>
             <div><svg viewBox="0 0 20 20"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg><span>前进</span></div>

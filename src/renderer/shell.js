@@ -52,6 +52,8 @@ const state = {
   panel: null,
   /** 设置页当前分区 */
   settingsSection: 'general',
+  /** 设置页里走过的分区，栈顶就是当前页 —— 给左上角那个返回箭头用 */
+  settingsTrail: [],
   userDataPath: '',
   hitCounter: 0,
   downloads: [],
@@ -425,6 +427,9 @@ function mountTab(tab) {
     tab.url = ev.url;
     syncOmnibox();
     renderTabGrid();
+    // 网页里点链接跳转走的是这条事件，不经过外壳的 navigate()。
+    // 「仅新标签页」档位下，从新标签页上一跳走就得把这行收起来。
+    syncBookmarkBar();
     persistSession();
   });
   wv.addEventListener('did-navigate-in-page', (ev) => {
@@ -501,6 +506,8 @@ function activateTab(id) {
   engineNotice(activeTab().engineId);
   // 嗅探角标是「当前页」的口径，切标签页必须跟着变
   syncSniffBadge();
+  // 收藏夹栏在「仅新标签页」档位下的显隐同样跟当前页走
+  syncBookmarkBar();
   persistSession();
 }
 
@@ -513,6 +520,8 @@ function navigate(id, url) {
     else tab.webview.setAttribute('src', url);
   }
   syncOmnibox();
+  // 从新标签页跳到某个网页（或反过来）时，「仅新标签页」档位要跟着收放
+  syncBookmarkBar();
   persistSession();
 }
 
@@ -639,9 +648,30 @@ function renderTabGrid() {
  * 地址栏 / 导航
  * ------------------------------------------------------------------ */
 
+/**
+ * 地址栏右端的星标：实心 = 当前页已在书签里。
+ *
+ * 单独成函数是因为「书签变了」有两条来路 —— 切标签页（走 syncOmnibox）
+ * 和删书签（走 refreshCurrent）。原先只有点星标那一下会点亮它，
+ * 于是从收藏夹栏右键移出一条之后，实心还挂在地址栏上。
+ */
+function syncStarButton() {
+  const star = $('#omni-star');
+  if (!star) return;
+  const tab = activeTab();
+  const marked = !!tab && (state.bookmarks || []).some((b) => b.url === tab.url);
+  star.classList.toggle('is-on', marked);
+  star.title = marked ? '已在书签里' : '加入书签';
+}
+
 function syncOmnibox() {
   const tab = activeTab();
   const input = $('#omni-input');
+
+  // 星标跟地址栏里那串文字无关，所以放在下面那个 early return 之前 ——
+  // 用户正聚焦在地址栏里打字时，切标签页同样该把星标刷对。
+  syncStarButton();
+
   if (document.activeElement === input) return;
   // 内置新标签页的真身是一条 file:///…/newtab.html?theme=…&data=… 的地址，
   // data 里塞着最多 30 条候选，能有好几 KB —— 直接摊在地址栏里既长又吓人，
@@ -671,6 +701,157 @@ function syncNavButtons() {
   $('#nav-back').disabled = !canNav || !wv.canGoBack();
   $('#nav-forward').disabled = !canNav || !wv.canGoForward();
   $('#nav-reload').title = tab && tab.loading ? '停止' : '刷新';
+}
+
+/* ------------------------------------------------------------------ *
+ * 收藏夹栏
+ * ------------------------------------------------------------------ */
+
+/**
+ * 档位取值。不在表里的一律当常驻 —— 用户不该因为配置文件脏了、
+ * 或某个旧版本写过别的字，就凭空少掉一条栏。
+ */
+function bmBarMode() {
+  const v = state.settings && state.settings.bookmarkBar;
+  return (v === 'ntp' || v === 'hidden') ? v : 'always';
+}
+
+/** 档位 → 设置页上的说法。toast 与分段控件共用一份，免得两处各写一遍。 */
+const BM_BAR_LABEL = {
+  always: '地址栏下方',
+  ntp: '仅新标签页',
+  hidden: '不显示'
+};
+
+/**
+ * 上一次渲染的内容指纹。
+ * refreshCurrent() 会被嗅探刷新、下载进度这类高频事件带着跑，没有这道比对
+ * 就会不停重建 —— 表现是鼠标停在某一格上，底色一直闪。
+ */
+let bmBarSig = null;
+
+/**
+ * 渲染收藏夹栏。
+ *
+ * 位置固定在地址栏下方（往上就是标签条，这条栏没有第二处可放），
+ * 所以设置里给的三档不是「上/下」而是「什么时候露出来」。
+ * 宽屏窄屏共用这一条，差别只在样式（见 shell.css 的 [data-layout="mobile"]）。
+ */
+function renderBookmarkBar(force = false) {
+  const bar = $('#bookmark-bar');
+  if (!bar) return;
+
+  const mode = bmBarMode();
+  const tab = activeTab();
+  const onNtp = !!tab && isNewTabUrl(tab.url);
+  // 「不显示」档收起时不只设 hidden：关掉的条目还留在 DOM 里能被读到，
+  // 而「这条栏现在不在了」最好在 DOM 上也成立，不是只靠一层 CSS 挡。
+  const show = mode === 'always' || (mode === 'ntp' && onNtp);
+
+  if (!show) {
+    if (!bar.hidden) bar.hidden = true;
+    if (bar.firstChild) bar.innerHTML = '';
+    bmBarSig = null;
+    return;
+  }
+  bar.hidden = false;
+
+  const list = state.bookmarks || [];
+  // 指纹里带上 favicon：书签的标题可能不变而图标后来才拿到（页面的
+  // page-favicon-updated 比收藏动作晚），不带就会停在一个旧图标上。
+  const sig = mode + '|' + list
+    .map((b) => `${b.url}\u0001${b.title || ''}\u0001${b.favicon || ''}`)
+    .join('\u0002');
+  if (!force && sig === bmBarSig) return;
+  bmBarSig = sig;
+
+  // 空栏不留一条纯白 —— 那条空带子看着像个渲染失败的控件。
+  if (!list.length) {
+    bar.innerHTML = '<span class="bm-empty">收藏夹栏还是空的 —— 地址栏右侧的星形按钮可以把当前页钉到这里</span>';
+    return;
+  }
+
+  bar.innerHTML = list.map((b) => {
+    const host = hostOf(b.url);
+    const label = b.title || host || b.url;
+    const icon = b.favicon
+      ? `<img src="${esc(b.favicon)}" alt="" onerror="this.remove()" />`
+      : esc((host || 'N').slice(0, 1).toUpperCase());
+    return `<button class="bm-item" data-bm="${esc(b.url)}"` +
+      ` title="${esc(label)}&#10;${esc(b.url)}&#10;右键移出收藏夹栏">` +
+      `<span class="bm-fav">${icon}</span>` +
+      `<span class="bm-title">${esc(label)}</span></button>`;
+  }).join('');
+}
+
+/**
+ * 导航之后问一次要不要重画。
+ *
+ * 只有 ntp 档位的显隐跟当前页有关；另两档每次导航都重建纯属白费，
+ * 而且会把鼠标停着那一格的悬停底色打掉。
+ */
+function syncBookmarkBar() {
+  if (bmBarMode() !== 'ntp') return;
+  renderBookmarkBar();
+}
+
+/* ------------------------------------------------------------------ *
+ * 顶栏快捷开关（品牌名右侧）
+ * ------------------------------------------------------------------ */
+
+/**
+ * 同步两个快捷开关的外观。
+ *
+ * 主题格换图标靠 CSS 按 [data-theme] 走，这里只补 title；收藏夹栏格要写
+ * is-on 与 title，所以两格都得过一遍。
+ */
+function syncQuickBar() {
+  const theme = document.documentElement.dataset.theme || 'light';
+  const tbtn = $('#qk-theme');
+  if (tbtn) {
+    tbtn.title = theme === 'dark' ? '当前深色主题 · 点击切到浅色' : '当前浅色主题 · 点击切到深色';
+  }
+  const bbtn = $('#qk-bmbar');
+  if (bbtn) {
+    // 判定用配置档位，而不是此刻这条栏露没露出来：在「仅新标签页」档下，
+    // 用户在网页与新标签页之间来回走，按真实可见性画会让按钮跟着一闪一闪，
+    // 看着像坏了。这一格回答的是「这条栏开着没有」。
+    const mode = bmBarMode();
+    const on = mode !== 'hidden';
+    bbtn.classList.toggle('is-on', on);
+    bbtn.title = `收藏夹栏：${BM_BAR_LABEL[mode]} · 点击${on ? '隐藏' : '显示'}`;
+  }
+}
+
+function wireQuickBar() {
+  const tbtn = $('#qk-theme');
+  if (tbtn) {
+    tbtn.addEventListener('click', async () => {
+      const next = (document.documentElement.dataset.theme === 'dark') ? 'light' : 'dark';
+      state.settings.theme = next;
+      document.documentElement.dataset.theme = next;
+      syncQuickBar();
+      // 设置页正开着的时候，那边的分段控件不能还停在上一个主题上。
+      refreshCurrent();
+      await bridge.settings.patch({ theme: next });
+      toast(next === 'dark' ? '深色主题' : '浅色主题');
+    });
+  }
+
+  const bbtn = $('#qk-bmbar');
+  if (bbtn) {
+    bbtn.addEventListener('click', async () => {
+      // 两态开关：「仅新标签页」那一档在这里读作「开着」，点一下收起，再点
+      // 放成常驻 —— 三档之间的细微差别留给设置页。
+      const next = bmBarMode() === 'hidden' ? 'always' : 'hidden';
+      state.settings.bookmarkBar = next;
+      renderBookmarkBar(true);
+      syncQuickBar();
+      refreshCurrent();
+      await bridge.settings.patch({ bookmarkBar: next });
+      toast('收藏夹栏：' + BM_BAR_LABEL[next]);
+    });
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -1303,9 +1484,12 @@ async function buildHistory() {
 
 function buildBookmarks() {
   const list = state.bookmarks || [];
+  // 用户在书签页最可能想找的就是「那条栏去哪了」，所以在这一页指一次路。
+  const barNote = `收藏夹栏当前：<b>${esc(BM_BAR_LABEL[bmBarMode()])}</b> —— 换档在「外观」分区，`
+    + '顶栏品牌名右边那个按钮也能一键开合。';
   return `
     <h2 class="sv-h2">书签</h2>
-    <div class="sv-lead">共 ${list.length} 条。点一行就在当前标签页打开。</div>
+    <div class="sv-lead">共 ${list.length} 条。点一行就在当前标签页打开。<br />${barNote}</div>
     ${list.length ? `<div class="sv-card">${list.map((b) => `
       <div class="list-row is-click" data-url="${esc(b.url)}">
         <span class="lr-main">
@@ -1661,9 +1845,12 @@ function buildGeneral() {
 function buildAppearance() {
   const s = state.settings;
   const pref = s.layout || 'auto';
+  // 用规整后的档位画选中态，而不是 s.bookmarkBar 的原值 —— 配置里写着
+  // 别的字时，界面上显示的应该就是它实际的表现（常驻）。
+  const bmbar = bmBarMode();
   return `
     <h2 class="sv-h2">外观</h2>
-    <div class="sv-lead">布局档位决定外壳形态（PC 版三条横栏 / 移动版底栏 + 标签总览）；主题同时写入 Electron 的 nativeTheme。</div>
+    <div class="sv-lead">布局档位决定外壳形态（宽档：顶栏三行 ＋ 收藏夹栏；窄档：底栏 ＋ 标签总览）。收藏夹栏两档都有，差别只在样式宽窄。主题同时写入 Electron 的 nativeTheme。</div>
 
     <div class="panel-label">布局</div>
     <div class="panel-section">
@@ -1682,6 +1869,20 @@ function buildAppearance() {
       <div class="segmented" id="set-theme">
         <button data-theme="light" class="${s.theme === 'light' ? 'is-active' : ''}">浅色</button>
         <button data-theme="dark" class="${s.theme === 'dark' ? 'is-active' : ''}">深色</button>
+      </div>
+    </div>
+
+    <div class="panel-label">收藏夹栏位置</div>
+    <div class="panel-section">
+      <div class="segmented" id="set-bmbar">
+        <button data-bmbar="always" class="${bmbar === 'always' ? 'is-active' : ''}">地址栏下方</button>
+        <button data-bmbar="ntp" class="${bmbar === 'ntp' ? 'is-active' : ''}">仅新标签页</button>
+        <button data-bmbar="hidden" class="${bmbar === 'hidden' ? 'is-active' : ''}">不显示</button>
+      </div>
+      <div class="muted" style="padding:var(--sp-2) 0 0">
+        这条栏只有一处可放：地址栏与网页之间（再往上就是标签条）。所以这一项实际管的是
+        <b>什么时候露出来</b> —— 「仅新标签页」在浏览网页时会把这一行高度还给页面。
+        当前：${esc(BM_BAR_LABEL[bmbar])}，${(state.bookmarks || []).length} 条书签。
       </div>
     </div>
   `;
@@ -2146,8 +2347,25 @@ const SECTION_BUILDERS = {
   about: buildAbout
 };
 
+/**
+ * 当前外壳形态下该露出来的导航分组。
+ *
+ * 「移动端」那两项（无图模式、自动拼页）是给小屏看的：PC 档位下摆在导航里，
+ * 只会让人以为浏览器内置了一个手机模拟器 —— 它不是模拟器，是同一套外壳换了
+ * 个形态，那两项在 PC 上也不生效。反过来窄屏档位下，这两项才是当前该管的。
+ *
+ * 判据用 state.layout（实际生效的形态）而不是设置里的偏好值：偏好写「跟随
+ * 窗口」时，谁生效得看窗口宽度。
+ */
+function settingsNavGroups() {
+  if (state.layout === 'mobile') return SETTINGS_NAV;
+  return SETTINGS_NAV
+    .map((g) => ({ group: g.group, items: g.items.filter((it) => it.id !== 'mobile') }))
+    .filter((g) => g.items.length);
+}
+
 function findSection(id) {
-  for (const g of SETTINGS_NAV) {
+  for (const g of settingsNavGroups()) {
     const hit = g.items.find((i) => i.id === id);
     if (hit) return hit;
   }
@@ -2156,7 +2374,7 @@ function findSection(id) {
 
 function renderSettingsNav() {
   const nav = $('#settings-nav');
-  nav.innerHTML = SETTINGS_NAV.map((g) => `
+  nav.innerHTML = settingsNavGroups().map((g) => `
     <div class="sv-nav-group">${esc(g.group)}</div>
     ${g.items.map((it) => {
       const c = it.count ? it.count() : null;
@@ -2180,6 +2398,10 @@ function renderSettingsSection(id) {
   const def = findSection(id) || findSection('general');
   state.settingsSection = def.id;
   state.panel = def.id;
+  // 走到哪一页就记一笔。重绘（下载进度、嗅探命中这类）也会走到这里，
+  // 但那时栈顶正是当前分区，pushSettingsTrail 会原地不动。
+  pushSettingsTrail(def.id);
+  syncSettingsBack();
   $('#sv-path').textContent = def.label;
   renderSettingsNav();
 
@@ -2267,8 +2489,43 @@ async function syncSniffFromMain() {
   refreshSniffer(true);
 }
 
+/**
+ * 设置页的返回栈。
+ *
+ * 原先 #sv-back 和右上角的 × 绑的是同一个 closeSettings —— 一个画成返回箭头
+ * 的按钮和一个画成叉的按钮做同一件事，那个箭头就是假的。现在它管的是分区
+ * 之间的回退：左侧导航跳到哪一页就记一笔，返回沿原路退回去。
+ */
+function pushSettingsTrail(id) {
+  const t = state.settingsTrail;
+  // 目标已经在栈里就截断到那里，而不是再压一层。否则用户在「常规 ⇄ 外观」
+  // 之间来回点两下，返回得按十几次才出得去 —— 那正是浏览器返回的行为。
+  const at = t.lastIndexOf(id);
+  if (at !== -1) { t.length = at + 1; return; }
+  t.push(id);
+}
+
+/** 返回按钮的可用态。已经在第一页时没有可去的地方，置灰好过假装能点。 */
+function syncSettingsBack() {
+  const back = $('#sv-back');
+  if (!back) return;
+  const can = state.settingsTrail.length > 1;
+  back.disabled = !can;
+  back.title = can ? '返回上一页设置' : '已经在第一页设置';
+}
+
+function goSettingsBack() {
+  const t = state.settingsTrail;
+  if (t.length <= 1) return;
+  t.pop();
+  renderSettingsSection(t[t.length - 1]);
+}
+
 function openSettings(id) {
   closeDrawer();
+  // 每次从外面进设置页都从一页新历史开始：上一轮「常规 → 外观」不该让这一次
+  // 的返回按钮一推开门就是亮的。
+  state.settingsTrail = [];
   $('#settings-view').hidden = false;
   renderSettingsSection(id || state.settingsSection || 'general');
 }
@@ -2278,6 +2535,7 @@ function closeSettings() {
   if (!view || view.hidden) return;
   view.hidden = true;
   state.panel = null;
+  state.settingsTrail = [];
 }
 
 /** 菜单里的 data-panel 值 → 设置页分区 */
@@ -2310,6 +2568,12 @@ function openPanel(p) {
  * 改成把在显示的面都刷一遍，谁盖着谁不影响各自的状态同步（没显示的那几个是空操作）。
  */
 function refreshCurrent() {
+  // 收藏夹栏是常驻面，不归设置页 / 弹层那套显隐管，所以先刷它。
+  // 书签的每一次增删清最后都落到这里，不必在七八处各补一句。
+  renderBookmarkBar();
+  // 删掉的书签如果正好是当前页，星标要跟着变回空心
+  syncStarButton();
+
   const view = $('#settings-view');
   if (view && !view.hidden) renderSettingsSection(state.settingsSection);
 
@@ -2519,7 +2783,21 @@ function wireActions(root) {
       root.querySelectorAll('#set-theme button').forEach((x) => x.classList.toggle('is-active', x === b));
       state.settings.theme = b.dataset.theme;
       document.documentElement.dataset.theme = b.dataset.theme;
+      syncQuickBar();
       await bridge.settings.patch({ theme: b.dataset.theme });
+    });
+  });
+
+  root.querySelectorAll('#set-bmbar button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      root.querySelectorAll('#set-bmbar button').forEach((x) => x.classList.toggle('is-active', x === b));
+      state.settings.bookmarkBar = b.dataset.bmbar;
+      // 先落界面再落盘：这条栏的显隐是立等可看的，没道理让它等一个 IPC 往返。
+      renderBookmarkBar(true);
+      syncQuickBar();
+      await bridge.settings.patch({ bookmarkBar: b.dataset.bmbar });
+      refreshCurrent();
+      toast('收藏夹栏：' + (BM_BAR_LABEL[b.dataset.bmbar] || b.dataset.bmbar));
     });
   });
 
@@ -2830,7 +3108,9 @@ function wireActions(root) {
       else if (act === 'bookmark' || act === 'bookmark-current') {
         const t = activeTab();
         if (!t) { toast('还没有打开的标签页'); return; }
-        state.bookmarks = await bridge.bookmarks.add({ title: t.title, url: t.url });
+        state.bookmarks = await bridge.bookmarks.add({
+          title: t.title, url: t.url, favicon: t.favicon || null
+        });
         refreshCurrent();
         toast('已加入书签');
       } else if (act === 'clear-bookmarks') {
@@ -2908,7 +3188,9 @@ function wireActions(root) {
       } else if (act === 'restore-defaults') {
         const d = state.defaults || {};
         const patch = {};
-        for (const k of ['homepage', 'newTabPage', 'searchTemplate', 'defaultEngine', 'layout', 'theme', 'restoreSession']) {
+        // bookmarkBar 也在里面：恢复默认做过半截的话，会出现「主题回了浅色、
+        // 收藏夹栏却还停在上次手动收起的状态」，而设置页上写着「已恢复默认」。
+        for (const k of ['homepage', 'newTabPage', 'searchTemplate', 'defaultEngine', 'layout', 'theme', 'bookmarkBar', 'restoreSession']) {
           if (d[k] !== undefined) patch[k] = d[k];
         }
         if (d.adblock) patch.adblock = { enabled: d.adblock.enabled, cosmetic: d.adblock.cosmetic, level: d.adblock.level };
@@ -2953,8 +3235,13 @@ function applyLayout() {
   const pref = state.settings.layout || 'auto';
   const w = window.innerWidth;
   const layout = pref === 'auto' ? (w < MOBILE_BREAKPOINT ? 'mobile' : 'desktop') : pref;
+  const changed = state.layout !== layout;
   state.layout = layout;
   document.documentElement.dataset.layout = layout;
+  // 档位一跨过移动端那条线，收藏夹栏就该整条收起或放出来。窗口 resize 每次
+  // 都会走到这里，所以只在真的换了档时才重画 —— 否则拖一次窗口要把这条栏
+  // 重建几十次，鼠标碰巧停在上面时看得出来在闪。
+  if (changed) renderBookmarkBar(true);
 }
 
 /* ------------------------------------------------------------------ *
@@ -3007,9 +3294,36 @@ function wireUi() {
   $('#omni-star').addEventListener('click', async () => {
     const t = activeTab();
     if (!t) return;
-    await bridge.bookmarks.add({ title: t.title, url: t.url });
-    $('#omni-star').classList.add('is-on');
+    // 顺手把 favicon 一起存下来：收藏夹栏那一格要画图标，而书签本身只带
+    // 标题与网址。此刻标签页手上正拿着这张图，不必日后翻一次书签就往
+    // 十来家站点各发一个 favicon.ico 去猜。
+    state.bookmarks = await bridge.bookmarks.add({
+      title: t.title, url: t.url, favicon: t.favicon || null
+    });
+    // refreshCurrent 会一并把星标点亮、把收藏夹栏补上那一条
+    refreshCurrent();
     toast('已加入书签');
+  });
+
+  // 收藏夹栏：左键在当前标签页打开，右键移出。
+  // 栏里不放删除按钮 —— 一格只有 24px 高、标题本来就是截断的，再塞个 ×
+  // 进去会把标题挤成两个字，而这条栏的全部价值就是「一眼看得见标题」。
+  const bmBar = $('#bookmark-bar');
+  bmBar.addEventListener('click', (ev) => {
+    const el = ev.target.closest('[data-bm]');
+    if (!el) return;
+    const t = activeTab();
+    if (t) navigate(t.id, el.dataset.bm);
+  });
+  bmBar.addEventListener('contextmenu', async (ev) => {
+    const el = ev.target.closest('[data-bm]');
+    if (!el) return;
+    // 拦掉默认菜单。Electron 里渲染进程默认不弹，但开发工具打开时或换到
+    // 别的平台就会，而这里要的是一个「右键即移出」的确定动作。
+    ev.preventDefault();
+    state.bookmarks = await bridge.bookmarks.remove(el.dataset.bm);
+    refreshCurrent();
+    toast('已移出收藏夹栏');
   });
 
   // 工具栏
@@ -3023,7 +3337,7 @@ function wireUi() {
   $('#btn-menu').addEventListener('click', renderMenuPanel);
   $('#drawer-close').addEventListener('click', closeDrawer);
   $('#scrim').addEventListener('click', closeDrawer);
-  $('#sv-back').addEventListener('click', closeSettings);
+  $('#sv-back').addEventListener('click', goSettingsBack);
   $('#sv-close').addEventListener('click', closeSettings);
   $('#engine-notice-close').addEventListener('click', () => { $('#engine-notice').hidden = true; });
 
@@ -3057,6 +3371,7 @@ function wireUi() {
     }
   });
 
+  wireQuickBar();
   window.addEventListener('resize', applyLayout);
 }
 
@@ -3134,7 +3449,15 @@ function wireBridgeEvents() {
     }
   });
 
-  bridge.on('settings:changed', (s) => { state.settings = s; applyLayout(); });
+  // applyLayout 只在布局档位真的变了时重画收藏夹栏，而档位（bookmarkBar）
+  // 与布局是两码事，所以这里还得显式补一次 —— 设置可能来自另一个窗口。
+  bridge.on('settings:changed', (s) => {
+    state.settings = s;
+    applyLayout();
+    renderBookmarkBar(true);
+    // 设置页里改主题 / 收藏夹栏档位时，顶栏那两个快捷开关要跟着走。
+    syncQuickBar();
+  });
   bridge.on('tabs:open-request', (p) => {
     if (p.background) createTab(p.url, activeTab() ? activeTab().engineId : state.settings.defaultEngine, { activate: false });
     else createTab(p.url, activeTab() ? activeTab().engineId : state.settings.defaultEngine);
@@ -3210,6 +3533,11 @@ async function init() {
 
   document.documentElement.dataset.theme = boot.settings.theme || 'light';
   applyLayout();
+  // 放在 applyLayout 之后：这条栏要先知道 state.layout 才决定渲不渲。
+  // 此处标签页还没建，所以「仅新标签页」档位下一开始是收着的，等下面
+  // createTab → activateTab 那次 syncBookmarkBar 再把它放出来。
+  renderBookmarkBar(true);
+  syncQuickBar();
 
   if (state.isPreview) {
     const tag = $('#brand-tag');
