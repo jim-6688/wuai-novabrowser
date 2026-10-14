@@ -49,6 +49,18 @@ function readToken() {
       if (m) return m[1].replace(/^["']|["']$/g, '');
     }
   }
+  // 兜底：从 git 的凭据文件里读 gitee 的 token（很多人用 token 当 git 密码，
+  // 它就是合法的私人令牌）。路径兼容 Windows（HOME）与 macOS/Linux（~）。
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  if (home) {
+    const cred = path.join(home, '.git-credentials');
+    if (fs.existsSync(cred)) {
+      for (const line of fs.readFileSync(cred, 'utf8').split(/\r?\n/)) {
+        const m = line.match(/^https:\/\/[^:]+:([^@]+)@gitee\.com/);
+        if (m) return decodeURIComponent(m[1]);
+      }
+    }
+  }
   return '';
 }
 
@@ -73,6 +85,7 @@ function changelog() {
 
 // ---------------- HTTP ----------------
 function request(method, urlStr, opts) {
+  opts = opts || {};
   return new Promise((resolve, reject) => {
     const u = new URL(urlStr);
     const req = https.request({
@@ -136,14 +149,29 @@ async function main() {
 
   if (created.status === 201 || created.status === 200) {
     release = created.body;
-    console.log('✓ 已创建 Release: ' + tag);
+    console.log('✓ 已创建 Release: ' + tag + ' (id=' + release.id + ')');
   } else if (created.status === 422 || created.status === 400) {
-    // tag 已存在：尝试拿现有 release，走「重新上传附件」
-    console.log('  Release 已存在，改为上传附件到现有 tag');
-    release = { tag_name: tag };
+    // tag 已存在：按 tag 名拿现有 release 的 id
+    console.log('  Release 已存在，按 tag 查 id');
+    const getUrl = `${API}/repos/${OWNER}/${REPO}/releases/tags/${tag}?${qs({ access_token: token })}`;
+    const got = await request('GET', getUrl);
+    if (got.status === 200 && got.body.id) {
+      release = got.body;
+      console.log('  现有 Release id=' + release.id);
+    } else {
+      console.error('✗ 拿不到已有 Release 的 id: HTTP ' + got.status);
+      console.error(JSON.stringify(got.body, null, 2));
+      process.exit(1);
+    }
   } else {
     console.error('✗ 创建 Release 失败: HTTP ' + created.status);
     console.error(JSON.stringify(created.body, null, 2));
+    process.exit(1);
+  }
+
+  const releaseId = release.id;
+  if (!releaseId) {
+    console.error('✗ 创建/查询 Release 未返回 id');
     process.exit(1);
   }
 
@@ -175,52 +203,63 @@ async function main() {
       console.error('✗ 附件不存在: ' + f.path);
       process.exit(1);
     }
-    await uploadAsset(token, tag, f.path, f.name);
+    await uploadAsset(token, releaseId, f.path, f.name);
   }
 
   console.log('\n✓ 全部完成。Release: https://gitee.com/' + OWNER + '/' + REPO + '/releases/tag/' + tag);
 }
 
-async function uploadAsset(token, tag, filePath, fileName) {
-  // 2a. 拿预签名上传地址
-  const upUrl = `${API}/repos/${OWNER}/${REPO}/releases/${tag}/upload_url?${qs({
-    access_token: token,
-    file_name: fileName,
-  })}`;
-  const got = await request('GET', upUrl);
-  if (got.status !== 200 || !got.body.url) {
-    console.error('✗ 获取上传地址失败: HTTP ' + got.status);
-    console.error(JSON.stringify(got.body, null, 2));
-    process.exit(1);
-  }
-
-  const uploadUrl = got.body.url;
-  const headers = got.body.headers || {};
+/**
+ * 上传附件到指定 release（用 release 的整数 id）。
+ * Gitee 接口：POST /api/v5/repos/{owner}/{repo}/releases/{release_id}/attach_files
+ * multipart/form-data，字段 access_token + file。
+ */
+async function uploadAsset(token, releaseId, filePath, fileName) {
   const data = fs.readFileSync(filePath);
+  const boundary = '----NovaBoundary' + Date.now() + Math.random().toString(16).slice(2);
 
-  console.log('  上传附件: ' + fileName + ' (' + (data.length / 1024).toFixed(0) + ' KB) → ' + uploadUrl);
+  const header =
+    '--' + boundary + '\r\n' +
+    'Content-Disposition: form-data; name="access_token"\r\n\r\n' +
+    token + '\r\n' +
+    '--' + boundary + '\r\n' +
+    'Content-Disposition: form-data; name="file"; filename="' + fileName + '"\r\n' +
+    'Content-Type: application/octet-stream\r\n\r\n';
+  const footer = '\r\n--' + boundary + '--\r\n';
 
+  const body = Buffer.concat([
+    Buffer.from(header, 'utf8'),
+    data,
+    Buffer.from(footer, 'utf8'),
+  ]);
+
+  console.log('  上传附件: ' + fileName + ' (' + (data.length / 1024).toFixed(0) + ' KB) → release id=' + releaseId);
+
+  const pathStr = `/api/v5/repos/${OWNER}/${REPO}/releases/${releaseId}/attach_files`;
   const res = await new Promise((resolve, reject) => {
-    const u = new URL(uploadUrl);
     const req = https.request({
-      method: 'PUT',
-      hostname: u.hostname,
-      path: u.pathname + u.search,
-      headers: Object.assign({ 'Content-Length': data.length }, headers),
+      method: 'POST',
+      hostname: 'gitee.com',
+      path: pathStr,
+      headers: {
+        'Content-Type': 'multipart/form-data; boundary=' + boundary,
+        'Content-Length': body.length,
+      },
     }, (r) => {
       let d = '';
       r.on('data', (c) => (d += c));
       r.on('end', () => resolve({ status: r.statusCode, body: d }));
     });
     req.on('error', reject);
-    req.write(data);
+    req.write(body);
     req.end();
   });
 
   if (res.status >= 200 && res.status < 300) {
     console.log('  ✓ 上传成功: ' + fileName);
   } else {
-    console.error('  ✗ 上传失败: HTTP ' + res.status + ' ' + res.body);
+    console.error('  ✗ 上传失败: HTTP ' + res.status);
+    console.error('  ' + res.body.slice(0, 500));
     process.exit(1);
   }
 }
