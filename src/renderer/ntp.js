@@ -35,6 +35,33 @@ const OP_REMOVE = 'remove';
  */
 const MAX_CANDIDATES = 30;
 
+/**
+ * 页面上真正摆得下的格数。补位（见 {@link BUILTIN_SITES}）以它为目标：
+ * 「别让这一屏空着」。与页面侧的 MAX_SHORTCUTS 同值，两边都由这一条语义决定。
+ */
+const MAX_TILES = 7;
+
+/**
+ * 官方推荐位。候选不够填满版面时，用它们把后面的格子补齐。
+ *
+ * 为什么要补：候选一旦非空，「候选为空才兜底」这条规则就再也不会生效 ——
+ * 一个只访问过两三个站点的用户（或者刚清过历史的用户），新标签页上就只剩
+ * 两三个磁贴，内置的六个入口整体退场。用户的感受是「宫格被删了」，而不是
+ * 「我还没访问过几个站」。
+ *
+ * 与 newtab.html 里的 FALLBACK 是**同一份数据**：那边是页面自身的兜底
+ * （宿主数据没送到时也得有一屏能看的东西），这边是宿主侧的补位。两份由
+ * tools/test-newtab.js 逐条比对锁住，改一份漏一份会被测试拦下。
+ */
+const BUILTIN_SITES = [
+  { label: '主页', url: 'https://www.52ta.top/' },
+  { label: '导航', url: 'https://52ta.top/' },
+  { label: '播放器', url: 'https://misuc.52ta.top/' },
+  { label: '浏览器', url: 'https://nova.52ta.top/' },
+  { label: '百度', url: 'https://www.baidu.com/' },
+  { label: 'DeepSeek', url: 'https://chat.deepseek.com/' }
+];
+
 /** 磁贴底下只有一行的位置，名称超过这个长度就会被省略号吃掉。 */
 const MAX_LABEL = 12;
 
@@ -182,6 +209,8 @@ function buildData(sources) {
   // 去重按主机名，和页面上那条规则一致：zhihu.com 的历史里可能有几十条
   // 不同的问题页，不去重的话七个格子会被同一家占满 —— 那就不叫快捷方式了。
   const seen = Object.create(null);
+  // 另外记一份「已经出现过的完整 URL」，只给下面补位时判重用（口径不同，见那儿）。
+  const seenUrls = Object.create(null);
   const rows = [];
 
   for (const a of added) {
@@ -189,6 +218,7 @@ function buildData(sources) {
     const k = hostKey(a.url);
     if (!k || seen[k]) continue;
     seen[k] = 1;
+    seenUrls[a.url] = 1;
     rows.push({ label: sanitize(a.label) || k, url: a.url, visits: 0, pinned: true });
   }
 
@@ -197,6 +227,7 @@ function buildData(sources) {
     const k = hostKey(h.url);
     if (!k || blocked[k] || seen[k]) continue;
     seen[k] = 1;
+    seenUrls[h.url] = 1;
     rows.push({
       label: labelOf(h.title, h.url),
       url: h.url,
@@ -207,11 +238,29 @@ function buildData(sources) {
 
   rows.sort(compareCandidates);
 
+  // 真实候选不够填满版面时，用官方推荐把后面的格子补齐（见 BUILTIN_SITES）。
+  //
+  // 两个刻意的选择：
+  //   1) 追加在排序之后、不进 compareCandidates —— 这几个是垫底的，不该跟
+  //      用户自己的常去站点抢前几位；顺序也照 BUILTIN_SITES 给定，不重排。
+  //      页面侧同样把它们放在最后一堆（flags 里的 'f'），两端看法一致。
+  //   2) 判重按**完整 URL** 而不是主机名 —— 内置这几条本来就是同一家的不同
+  //      入口（「主页」是 www 那条、「导航」是裸域那条），按主机名去重会凭空
+  //      少掉两格，用户看到的就是「六宫格又缺了一角」。
+  for (const site of BUILTIN_SITES) {
+    if (rows.length >= MAX_TILES) break;
+    const k = hostKey(site.url);
+    if (!k || blocked[k] || seenUrls[site.url]) continue;
+    seenUrls[site.url] = 1;
+    rows.push({ label: site.label, url: site.url, visits: 0, pinned: false, builtin: true });
+  }
+
   const out = [];
   for (const r of rows) {
     if (out.length >= MAX_CANDIDATES) break;
     if (!r.url) continue;
-    out.push([sanitize(r.label), r.url, r.visits, r.pinned ? 'p' : '-'].join('\t'));
+    const flags = r.pinned ? 'p' : (r.builtin ? 'f' : '-');
+    out.push([sanitize(r.label), r.url, r.visits, flags].join('\t'));
   }
   return out.join('\n');
 }
@@ -367,6 +416,8 @@ const NovaNtpHost = {
   OP_ADD,
   OP_REMOVE,
   MAX_CANDIDATES,
+  MAX_TILES,
+  BUILTIN_SITES,
   MAX_LABEL,
   MODES,
   hostOf,

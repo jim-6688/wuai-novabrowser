@@ -8,6 +8,10 @@
 const fs = require('fs');
 const path = require('path');
 
+// 内置站点清单只有一份（在 ntp.js 里），宫格拿它补位、收藏夹拿它开张。
+// 在这里再抄一份 URL，就是把「内置入口有哪几个」这件事写成了两份。
+const ntp = require('../renderer/ntp');
+
 const DEFAULT_HOMEPAGE = 'https://52ta.top/';
 
 const DEFAULTS = {
@@ -114,9 +118,25 @@ const DEFAULTS = {
    * 刻意不做三档：手机上这一行本来就占地方，再给「仅新标签页」只是徒增解释成本。
    */
   bookmarkBar: 'always',
-  bookmarks: [
-    { title: '52ta', url: 'https://52ta.top/' }
-  ],
+  /**
+   * 书签。
+   *
+   * 初值就是新标签页宫格里的那六个内置入口（ntp.js 的 BUILTIN_SITES）——
+   * 同一份数据两处用：宫格拿它把不足的格子补齐，收藏夹拿它开张。
+   * 两边都是「装好就能点」，而不是先给用户一个空收藏夹让他自己去找。
+   *
+   * 老配置的补种见 seedBookmarks()：数组在 deepMerge 里是整体覆盖的，
+   * 只改这里的初值对已经装过的用户一个字节都影响不到。
+   */
+  bookmarks: ntp.BUILTIN_SITES.map((s) => ({ title: s.label, url: s.url })),
+  /**
+   * 内置站点补种标记：0 没补过，1 补过了。
+   *
+   * 补过就打标，是因为「补种」必须是一次性的：否则用户删掉某个内置书签，
+   * 下次启动又照 DEFAULTS 补回来 —— 那个删除动作就是假的。
+   * 同一个道理，新标签页那边用户点掉的站点记在 ntpShortcuts.removed 里。
+   */
+  bookmarkSeed: 0,
   history: [],
   /**
    * 新标签页上用户手工增删的快捷方式。
@@ -152,6 +172,28 @@ function deepMerge(base, patch) {
   return out;
 }
 
+/**
+ * 把内置那六个站点补进收藏夹。只做一次（见 DEFAULTS.bookmarkSeed 的说明）。
+ *
+ * 判重按**完整 URL**，不按主机名 —— 与宫格补位同一条口径。内置那几条本来
+ * 就是同一家的不同入口（「主页」是 www 那条、「导航」是裸域那条），按主机名
+ * 判重会把两条并成一条，用户数一数发现少了一个。
+ *
+ * 顺序上把补进来的接在用户已有书签**后面**：他原来的东西不该被挤位。
+ */
+function seedBookmarks() {
+  if (!cache || (cache.bookmarkSeed | 0) >= 1) return;
+  if (!Array.isArray(cache.bookmarks)) cache.bookmarks = [];
+  const have = new Set(cache.bookmarks.map((b) => (b && b.url) || ''));
+  for (const s of ntp.BUILTIN_SITES) {
+    if (!s.url || have.has(s.url)) continue;
+    have.add(s.url);
+    cache.bookmarks.push({ title: s.label, url: s.url });
+  }
+  cache.bookmarkSeed = 1;
+  scheduleFlush();
+}
+
 function init(userDataDir) {
   filePath = path.join(userDataDir, 'nova-settings.json');
   try {
@@ -161,6 +203,9 @@ function init(userDataDir) {
     cache = deepMerge(DEFAULTS, {});
     flush();
   }
+  // 放在读取之后：新配置本来就已经是那六条，这一步对它是空操作；
+  // 老配置才真的会多出几条。两边走同一条路，不必分叉。
+  seedBookmarks();
   return cache;
 }
 

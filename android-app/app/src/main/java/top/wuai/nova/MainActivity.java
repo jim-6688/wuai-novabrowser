@@ -2219,7 +2219,9 @@ public final class MainActivity extends Activity {
             if (key.isEmpty() || blocked.contains(key) || !seen.add(key)) continue;
             rows.add(new NewTab.Row(NewTab.labelOf(e.title, e.url), e.url, e.visits, false));
         }
-        return NewTab.candidates(rows);
+        // 不够填满版面时用内置推荐位补齐 —— 只访问过两三个站点的用户
+        // 也该看到一整屏入口，而不是两三个磁贴加一片空白。
+        return NewTab.candidates(NewTab.withBuiltins(rows, blocked));
     }
 
     /**

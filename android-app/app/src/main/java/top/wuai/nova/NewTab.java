@@ -5,10 +5,12 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 内置新标签页的「原生侧逻辑」：页面地址怎么拼、候选怎么编码、页面回传的动作怎么解。
@@ -46,6 +48,29 @@ public final class NewTab {
         真的有意义 —— 只送最近几条的话，一个很久以前被访问过上百次的站点永远进不了视野。 */
     public static final int MAX_CANDIDATES = 30;
 
+    /** 页面上真正摆得下的格数。补位（见 {@link #BUILTIN_SITES}）以它为目标：
+        「别让这一屏空着」。与页面侧的 MAX_SHORTCUTS、桌面端 ntp.js 的 MAX_TILES 同值。 */
+    public static final int MAX_TILES = 7;
+
+    /**
+     * 官方推荐位：候选不够填满版面时，用它们把后面的格子补齐（见 {@link #withBuiltins}）。
+     *
+     * <p>为什么要补：候选一旦非空，「候选为空才兜底」这条规则就再也不会生效 ——
+     * 一个只访问过两三个站点的用户，新标签页上就只剩两三个磁贴，内置的六个入口
+     * 整体退场。用户的感受是「宫格被删了」，而不是「我还没访问过几个站」。
+     *
+     * <p>与桌面端 {@code ntp.js} 的 {@code BUILTIN_SITES}、以及页面里的 {@code FALLBACK}
+     * 是同一份数据。三处同值：两端的宿主各有单测逐条比对，改了这份没改那份会被拦下。
+     */
+    public static final Row[] BUILTIN_SITES = {
+        new Row("主页", "https://www.52ta.top/", 0, false, true),
+        new Row("导航", "https://52ta.top/", 0, false, true),
+        new Row("播放器", "https://misuc.52ta.top/", 0, false, true),
+        new Row("浏览器", "https://nova.52ta.top/", 0, false, true),
+        new Row("百度", "https://www.baidu.com/", 0, false, true),
+        new Row("DeepSeek", "https://chat.deepseek.com/", 0, false, true)
+    };
+
     /** 一行候选，对应页面上一个磁贴。 */
     public static final class Row {
         public final String label;
@@ -53,12 +78,19 @@ public final class NewTab {
         public final int visits;
         /** 用户自己加的、或固定下来的。固定项会被页面排在前面，且不参与次数排序。 */
         public final boolean pinned;
+        /** 官方推荐位（补齐版面用的那种）。排在真实候选之后，flags 编成 {@code f}。 */
+        public final boolean builtin;
 
         public Row(String label, String url, int visits, boolean pinned) {
+            this(label, url, visits, pinned, false);
+        }
+
+        public Row(String label, String url, int visits, boolean pinned, boolean builtin) {
             this.label = label == null ? "" : label;
             this.url = url == null ? "" : url;
             this.visits = visits;
             this.pinned = pinned;
+            this.builtin = builtin;
         }
     }
 
@@ -218,6 +250,9 @@ public final class NewTab {
             @Override
             public int compare(Row a, Row b) {
                 if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+                // 推荐位排在所有真实候选之后，且内部保持给定顺序（不比 visits / label）——
+                // 掺进次数排序里的话，内置那六条的给定顺序每次都会被重排成另一个样子。
+                if (a.builtin != b.builtin) return a.builtin ? 1 : -1;
                 if (a.visits != b.visits) return b.visits - a.visits;
                 return a.label.compareTo(b.label);
             }
@@ -228,12 +263,47 @@ public final class NewTab {
             if (n >= MAX_CANDIDATES) break;
             if (r.url.isEmpty()) continue;
             if (n > 0) sb.append('\n');
+            String flags = r.pinned ? "p" : (r.builtin ? "f" : "-");
             sb.append(sanitize(r.label)).append('\t').append(r.url)
               .append('\t').append(r.visits)
-              .append('\t').append(r.pinned ? "p" : "-");
+              .append('\t').append(flags);
             n++;
         }
         return sb.toString();
+    }
+
+    /**
+     * 真实候选不够填满版面时，用 {@link #BUILTIN_SITES} 把后面的格子补齐。
+     *
+     * <p>单独一个函数、由调用方在编码前调一次，而不是塞进 {@link #candidates}：
+     * 那边是「一行候选怎么编码」的纯逻辑，混进补位之后，所有测编码的断言都得
+     * 先绕开内置那六条。
+     *
+     * <p>两个刻意的选择：
+     * <ul>
+     *   <li>判重按<b>完整 URL</b>，不按主机名 —— 内置那几条本来就是同一家的不同入口
+     *       （「主页」是 www 那条、「导航」是裸域那条），按主机名去重会凭空少两格，
+     *       用户看到的就是「六宫格又缺了一角」。</li>
+     *   <li>被用户点掉的站点（{@code blocked}，归一化主机名）一律不补 —— 否则那个 ×
+     *       就是假的，下次进新标签页它又回来了。</li>
+     * </ul>
+     *
+     * @param rows    已组装的真实候选（可为 null）
+     * @param blocked 用户点掉过的主机名集合（可为 null）
+     */
+    public static List<Row> withBuiltins(List<Row> rows, Set<String> blocked) {
+        List<Row> out = rows == null ? new ArrayList<Row>() : new ArrayList<>(rows);
+        Set<String> have = new HashSet<>();
+        for (Row r : out) have.add(r.url);
+        for (Row b : BUILTIN_SITES) {
+            if (out.size() >= MAX_TILES) break;
+            String k = hostKey(b.url);
+            if (k.isEmpty()) continue;
+            if (blocked != null && blocked.contains(k)) continue;
+            if (!have.add(b.url)) continue;
+            out.add(b);
+        }
+        return out;
     }
 
     /**

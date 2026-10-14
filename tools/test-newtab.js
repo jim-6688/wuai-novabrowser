@@ -14,6 +14,8 @@
  *   [D] 外壳接线 —— 真实 DOM（jsdom）里点档位按钮、看地址栏、发一条命令。
  *   [E] 跨端常量 —— 与 android-app 的 NewTab.java、assets 产物逐项对齐。
  *       改一边忘一边的表现是「手机上少了两个图标」，没人会为此开一个 issue。
+ *   [F] 内置推荐位 —— 候选不足时补齐版面（宫格只剩两三个格子的那类问题），
+ *       以及收藏夹拿同一份数据开张、老配置只补一次。
  */
 const path = require('path');
 const os = require('os');
@@ -51,6 +53,16 @@ const check = (name, cond, extra) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const Ntp = require(P('src/renderer/ntp.js'));
+
+/**
+ * 把宿主拼出来的候选拆开看。
+ *
+ * 分两个桶是因为 buildData 的输出里混着两种东西：真实候选（历史 + 用户加的）
+ * 与不足时补上的内置推荐位（flags 为 f）。测真实逻辑的断言只该看前者 ——
+ * 混在一起数行数的话，以后内置清单增减一条，十几条断言要跟着改数字。
+ */
+const realRows = (d) => String(d || '').split('\n').filter((l) => l && l.slice(-1) !== 'f');
+const padRows = (d) => String(d || '').split('\n').filter((l) => l && l.slice(-1) === 'f');
 
 /* ---------------------------------------------------------------- 抽取工具 */
 
@@ -222,7 +234,9 @@ function manyHosts(n) {
         { url: 'https://a.com/', title: 'A', visits: 1 }
       ]
     });
-    return d.split('\n').length === 1 && d.indexOf('https://a.com/') > 0;
+    const r = realRows(d);
+    return r.length === 1 && r[0].indexOf('https://a.com/') > 0
+      && !/about:blank|newtab\.html/.test(d);
   })());
 
   check('候选按主机名归一化去重（www 与裸域名算同一家）', (() => {
@@ -232,26 +246,27 @@ function manyHosts(n) {
         { url: 'https://zhihu.com/question/1', title: '知乎问题', visits: 30 }
       ]
     });
-    return d.split('\n').length === 1;
+    return realRows(d).length === 1;
   })());
 
   check('已移除的主机名不会再出现在候选里', (() => {
-    return Ntp.buildData({
+    const d = Ntp.buildData({
       history: [{ url: 'https://www.zhihu.com/hot', title: '知乎', visits: 9 }],
       removed: ['zhihu.com']
-    }) === '';
+    });
+    return realRows(d).length === 0 && d.indexOf('zhihu') < 0;
   })());
 
   check('名称里的制表符不会把一行拆成两行（凭空多出一个磁贴）', (() => {
-    const d = Ntp.buildData({ added: [{ label: '知\t乎', url: 'https://a.com/' }] });
-    return d.split('\n').length === 1 && d.indexOf('知 乎') === 0;
-  })(), JSON.stringify(Ntp.buildData({ added: [{ label: '知\t乎', url: 'https://a.com/' }] })));
+    const r = realRows(Ntp.buildData({ added: [{ label: '知\t乎', url: 'https://a.com/' }] }));
+    return r.length === 1 && r[0].indexOf('知 乎') === 0;
+  })(), JSON.stringify(realRows(Ntp.buildData({ added: [{ label: '知\t乎', url: 'https://a.com/' }] }))));
 
   check('自己加的那条既打 p 标记、又排在历史前面', (() => {
-    const rows = Ntp.buildData({
+    const rows = realRows(Ntp.buildData({
       added: [{ label: '我的 博客', url: 'https://blog.example.com/' }],
       history: [{ url: 'https://www.zhihu.com/', title: '知乎', visits: 99 }]
-    }).split('\n');
+    }));
     return rows.length === 2 && rows[0].indexOf('blog.example.com') > 0
       && rows[0].slice(-1) === 'p' && rows[1].slice(-1) === '-';
   })());
@@ -351,9 +366,12 @@ function manyHosts(n) {
     };
     const url = Ntp.pageUrl('file:///x/newtab.html', 'light', Ntp.buildData(src));
     const list = Page.parseData(loadParam(url)('data'));
-    return list.length === 2
+    // 末尾那条是补位来的，顺带验一下 f 标记活着到了页面 —— 少了它，
+    // 补位项会被当成普通候选跟 visits=0 的历史项一起按名称重排。
+    return list.length >= 2
       && list[0].label === '我的 博客' && list[0].pinned === true
-      && list[1].label === '知乎' && list[1].visits === 7;
+      && list[1].label === '知乎' && list[1].visits === 7
+      && list[list.length - 1].builtin === true;
   })());
 
   check('data 里没有裸露的制表符或换行',
@@ -486,6 +504,19 @@ function manyHosts(n) {
   check('设置页那句「当前：」在切回内置后也跟着回来',
     /当前：内置页/.test($('#settings-body').textContent));
 
+  // 会话恢复带回来的内置新标签页要用**当下**的候选重算。
+  // 真环境踩到的：快照里存的是上次关闭那一刻算好的地址，照原样恢复的话，
+  // 用户重启后看到的新标签页还是那时候的格数（实测就是「六宫格变回两格」）。
+  check('恢复会话时内置新标签页重新算候选，不沿用快照里的旧 data', (() => {
+    const live = ev('newTabUrl()');
+    const stale = String(live).replace(/data=[^&]*/, 'data=' + encodeURIComponent('老站\thttps://old.test/\t9\t-'));
+    const restored = ev(`restoreUrlFor(${JSON.stringify(stale)})`);
+    return restored === live && String(restored).indexOf('old.test') < 0;
+  })());
+  check('恢复会话时普通页面照旧原样还给用户',
+    ev("restoreUrlFor('https://example.com/')") === 'https://example.com/',
+    ev("restoreUrlFor('https://example.com/')"));
+
   /* ================================================================ [E] */
   console.log('\n[E] 与安卓端 NewTab.java / assets 产物对齐');
   const java = fs.readFileSync(P('android-app/app/src/main/java/top/wuai/nova/NewTab.java'), 'utf8');
@@ -509,6 +540,94 @@ function manyHosts(n) {
     const a = fs.readFileSync(P('src/renderer/newtab.html'));
     const b = fs.readFileSync(P('android-app/app/src/main/assets/newtab.html'));
     return a.length === b.length && Buffer.compare(a, b) === 0;
+  })());
+
+  /* ================================================================ [F] */
+  console.log('\n[F] 内置推荐位（候选不足时补齐版面）');
+  // 这一组守的是一个很容易复发的用户可感问题：候选一旦非空，「候选为空才兜底」
+  // 就再也不会生效 —— 一个只访问过两三个站点的用户看到的是一片空白，
+  // 而他的感受是「宫格被删了」。
+
+  const shortData = Ntp.buildData({ history: [{ url: 'https://a.com/', title: 'A', visits: 3 }] });
+  check('候选不足时用内置推荐补齐到版面格数',
+    realRows(shortData).length + padRows(shortData).length === Ntp.MAX_TILES
+      && Ntp.MAX_TILES === Page.MAX_SHORTCUTS,
+    `真实 ${realRows(shortData).length} + 补位 ${padRows(shortData).length}，格数 ${Ntp.MAX_TILES}`);
+  check('补位项排在真实候选之后（不跟用户的常去站点抢前几位）',
+    shortData.split('\n')[0].slice(-1) === '-' && shortData.split('\n').slice(-1)[0].slice(-1) === 'f');
+
+  check('候选够填满版面时一条都不补', (() => {
+    const d = Ntp.buildData({ history: manyHosts(9) });
+    // 9 条真实候选照原样送出去（页面自己截到 7 格），一条补位都不掺
+    return padRows(d).length === 0 && realRows(d).length === 9;
+  })());
+
+  check('被用户点掉的主机名不会被补回来（否则那个 × 是假的）', (() => {
+    const d = Ntp.buildData({ removed: ['52ta.top'] });
+    const urls = padRows(d).map((l) => l.split('\t')[1]);
+    return realRows(d).length === 0 && !urls.some((u) => Ntp.hostKey(u) === '52ta.top')
+      && urls.length === Ntp.BUILTIN_SITES.length - 2;
+  })());
+
+  check('判重按完整 URL：同一家的两个入口都保留（少一个就是「宫格缺一角」）', (() => {
+    const urls = padRows(Ntp.buildData({})).map((l) => l.split('\t')[1]);
+    return urls.length === Ntp.BUILTIN_SITES.length
+      && urls.indexOf('https://www.52ta.top/') >= 0
+      && urls.indexOf('https://52ta.top/') >= 0;
+  })());
+
+  check('用户自己加的那条排在补位项前面', (() => {
+    const lines = Ntp.buildData({ added: [{ label: '我的', url: 'https://mine.test/' }] })
+      .split('\n').filter(Boolean);
+    return lines[0].slice(-1) === 'p' && lines[lines.length - 1].slice(-1) === 'f';
+  })());
+
+  check('页面兜底清单与宿主内置清单逐条一致', (() => {
+    const fb = Page.parseData(Page.FALLBACK);
+    return fb.length === Ntp.BUILTIN_SITES.length
+      && fb.every((r, i) => r.label === Ntp.BUILTIN_SITES[i].label && r.url === Ntp.BUILTIN_SITES[i].url);
+  })(), `${Page.parseData(Page.FALLBACK).length} vs ${Ntp.BUILTIN_SITES.length}`);
+
+  check('安卓端内置清单与桌面端逐条一致', (() => {
+    const jb = [...java.matchAll(/new Row\("([^"]*)",\s*"([^"]*)",\s*0,\s*false,\s*true\)/g)]
+      .map((m) => ({ label: m[1], url: m[2] }));
+    return jb.length === Ntp.BUILTIN_SITES.length
+      && jb.every((r, i) => r.label === Ntp.BUILTIN_SITES[i].label && r.url === Ntp.BUILTIN_SITES[i].url);
+  })(), `${[...java.matchAll(/new Row\("([^"]*)",\s*"([^"]*)",\s*0,\s*false,\s*true\)/g)].length} 条`);
+
+  check('版面格数三处同值（页面 / 桌面宿主 / 安卓宿主）',
+    javaConst(java, 'int', 'MAX_TILES') === String(Ntp.MAX_TILES)
+      && Page.MAX_SHORTCUTS === Ntp.MAX_TILES,
+    `页面 ${Page.MAX_SHORTCUTS} · 桌面 ${Ntp.MAX_TILES} · 安卓 ${javaConst(java, 'int', 'MAX_TILES')}`);
+
+  check('「候选够了就不补」的判据在安卓端也在（withBuiltins 先看格数）',
+    /out\.size\(\)\s*>=\s*MAX_TILES/.test(java));
+
+  /* ---- 收藏夹：同一份数据开张 ---- */
+  const settings = require(P('src/main/settings.js'));
+  check('收藏夹初值就是这六个内置入口（与宫格同源）', (() => {
+    const bm = settings.DEFAULTS.bookmarks || [];
+    return bm.length === Ntp.BUILTIN_SITES.length
+      && bm.every((b, i) => b.title === Ntp.BUILTIN_SITES[i].label && b.url === Ntp.BUILTIN_SITES[i].url);
+  })(), `${(settings.DEFAULTS.bookmarks || []).length} 条`);
+
+  check('老配置升级时补进收藏夹，且只补一次', (() => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-seed-'));
+    const file = path.join(dir, 'nova-settings.json');
+    // 老配置长这样：只有用户自己的那条，没有 bookmarkSeed 键
+    fs.writeFileSync(file, JSON.stringify({
+      bookmarks: [{ title: '52ta', url: 'https://52ta.top/' }]
+    }));
+    const first = settings.init(dir);
+    const urls = first.bookmarks.map((b) => b.url);
+    const okFirst = first.bookmarkSeed === 1
+      && urls.length === Ntp.BUILTIN_SITES.length
+      && urls[0] === 'https://52ta.top/';          // 用户原来那条没被挤位
+    // 再来一次：这次用户已经删掉过某个内置书签，不该被补回来
+    first.bookmarks = first.bookmarks.filter((b) => b.url !== 'https://chat.deepseek.com/');
+    fs.writeFileSync(file, JSON.stringify(first));
+    const second = settings.init(dir);
+    return okFirst && !second.bookmarks.some((b) => b.url === 'https://chat.deepseek.com/');
   })());
 
   console.log(`\n${fail === 0 ? '全部通过' : '有失败项'}：${pass} 通过 / ${fail} 失败`);

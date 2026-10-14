@@ -336,14 +336,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   clickNav('bookmarks');
   await sleep(30);
-  check('书签分区列出 2 条示例', $$('#settings-body .list-row[data-url]').length === 2,
-        `实际 ${$$('#settings-body .list-row[data-url]').length}`);
-  check('每条书签带删除按钮', $$('#settings-body [data-unbookmark]').length === 2);
+  // 数量跟着预览桥里的示例书签走，不写死 —— 那几条是配置初值（新标签页宫格
+  // 里的六个内置入口），以后增减一次就要来这儿改一次数字，属于白挨的维护。
+  const bmCount = $$('#settings-body .list-row[data-url]').length;
+  check('书签分区把配置里的书签都列出来了',
+        bmCount > 0 && bmCount === window.eval('state.settings.bookmarks.length'),
+        `界面 ${bmCount} / 配置 ${window.eval('state.settings.bookmarks.length')}`);
+  check('每条书签带删除按钮', $$('#settings-body [data-unbookmark]').length === bmCount);
   check('书签分区有「把当前页加入书签」', !!$('#settings-body [data-act="bookmark-current"]'));
 
   $$('#settings-body [data-unbookmark]')[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   await sleep(50);
-  check('删除后只剩 1 条', $$('#settings-body .list-row[data-url]').length === 1,
+  check('删除后少了一条', $$('#settings-body .list-row[data-url]').length === bmCount - 1,
         `实际 ${$$('#settings-body .list-row[data-url]').length}`);
 
   clickNav('history');

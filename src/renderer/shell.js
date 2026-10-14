@@ -160,6 +160,20 @@ function isNewTabUrl(url) {
 }
 
 /**
+ * 恢复会话时，快照里的这个地址该还原成什么。
+ *
+ * 内置新标签页是个例外：它地址里那串 data 是**上次算好的候选**，照原样恢复的话，
+ * 这次启动看到的还是那时候的历史与「已移除」清单 —— 用户刚点掉的站点照旧出现、
+ * 候选不足时补上的那几个内置入口也不会来（表现就是「六宫格变回两格」）。
+ * 它的入参本来就是当下的状态，重新算一次才是它该有的样子。
+ *
+ * 其余地址一律原样返回：会话恢复的承诺就是「把上次那几页还给你」。
+ */
+function restoreUrlFor(snapshotUrl) {
+  return isNewTabUrl(snapshotUrl) ? newTabUrl() : snapshotUrl;
+}
+
+/**
  * 新标签页的候选：用户自己加的 + 历史里的常去站点。
  *
  * 排序、去重、上限、截断全在 ntp.js 里（那一段能单独跑单测），这里只负责
@@ -3660,7 +3674,8 @@ async function init() {
     && saved && Array.isArray(saved.tabs) && saved.tabs.length;
 
   if (canRestore) {
-    saved.tabs.forEach((t) => createTab(t.url, t.engineId, { activate: false }));
+    // 内置新标签页走 restoreUrlFor 现算（原因见那个函数），其余页面照旧按快照恢复
+    saved.tabs.forEach((t) => createTab(restoreUrlFor(t.url), t.engineId, { activate: false }));
     const idx = Math.min(Math.max(0, Number(saved.activeIndex) || 0), state.tabs.length - 1);
     activateTab(state.tabs[idx].id);
   } else {

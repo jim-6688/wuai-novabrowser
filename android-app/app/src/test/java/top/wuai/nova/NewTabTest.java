@@ -7,7 +7,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -182,6 +184,77 @@ public class NewTabTest {
     public void 空列表编码成空串() {
         assertEquals("", NewTab.candidates(null));
         assertEquals("", NewTab.candidates(new ArrayList<NewTab.Row>()));
+    }
+
+    // -------------------------------------------------------- 内置推荐位补位
+    //
+    // 守的是「宫格被删了」那类反馈：候选一旦非空，页面那条「候选为空才兜底」
+    // 就再也不会生效，只访问过两三个站点的用户会看到一片空白。
+
+    @Test
+    public void 候选不足时补齐到版面格数() {
+        List<NewTab.Row> rows = new ArrayList<>();
+        rows.add(new NewTab.Row("A", "https://a.com/", 3, false));
+        List<NewTab.Row> out = NewTab.withBuiltins(rows, new HashSet<String>());
+        assertEquals(NewTab.MAX_TILES, out.size());
+        assertEquals(7, NewTab.MAX_TILES);
+    }
+
+    @Test
+    public void 候选够填满版面时一条都不补() {
+        List<NewTab.Row> rows = new ArrayList<>();
+        for (int i = 0; i < 9; i++) {
+            rows.add(new NewTab.Row("S" + i, "https://s" + i + ".test/", 9 - i, false));
+        }
+        assertEquals(9, NewTab.withBuiltins(rows, new HashSet<String>()).size());
+    }
+
+    @Test
+    public void 补位项垫底且带f标记() {
+        List<NewTab.Row> rows = new ArrayList<>();
+        rows.add(new NewTab.Row("A", "https://a.com/", 3, false));
+        String[] lines = NewTab.candidates(NewTab.withBuiltins(rows, new HashSet<String>())).split("\n");
+        assertEquals(NewTab.MAX_TILES, lines.length);
+        assertTrue(lines[0].endsWith("\t-"));
+        assertTrue(lines[lines.length - 1].endsWith("\tf"));
+    }
+
+    @Test
+    public void 被用户点掉的主机名不会被补回来() {
+        Set<String> blocked = new HashSet<>();
+        blocked.add("52ta.top");
+        List<NewTab.Row> out = NewTab.withBuiltins(new ArrayList<NewTab.Row>(), blocked);
+        for (NewTab.Row r : out) {
+            assertFalse("52ta.top".equals(NewTab.hostKey(r.url)));
+        }
+        // 主页与导航同属 52ta.top，两条都不该回来
+        assertEquals(NewTab.BUILTIN_SITES.length - 2, out.size());
+    }
+
+    @Test
+    public void 判重按完整URL同一家的两个入口都保留() {
+        List<NewTab.Row> rows = new ArrayList<>();
+        rows.add(new NewTab.Row("导航", "https://52ta.top/", 0, false));
+        List<NewTab.Row> out = NewTab.withBuiltins(rows, new HashSet<String>());
+        int nav = 0;
+        int home = 0;
+        for (NewTab.Row r : out) {
+            if ("https://52ta.top/".equals(r.url)) nav++;
+            if ("https://www.52ta.top/".equals(r.url)) home++;
+        }
+        // 「导航」已经在了就不重复补；「主页」是同一家的另一个入口，必须补上 ——
+        // 按主机名去重的话这里会是 0，用户看到的就是「宫格缺一角」。
+        assertEquals(1, nav);
+        assertEquals(1, home);
+    }
+
+    @Test
+    public void 自己加的候选排在补位项前面() {
+        List<NewTab.Row> rows = new ArrayList<>();
+        rows.add(new NewTab.Row("我的", "https://mine.test/", 0, true));
+        String[] lines = NewTab.candidates(NewTab.withBuiltins(rows, new HashSet<String>())).split("\n");
+        assertEquals("我的\thttps://mine.test/\t0\tp", lines[0]);
+        assertTrue(lines[lines.length - 1].endsWith("\tf"));
     }
 
     // ------------------------------------------------------------ 动作解析

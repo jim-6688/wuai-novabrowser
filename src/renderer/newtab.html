@@ -477,6 +477,12 @@ var NovaNtp = (function () {
     /**
      * 解析原生传来的候选文本。每行 `label<TAB>url<TAB>visits<TAB>flags`。
      * 坏行直接跳过：这一页是拿来用的，不是拿来校验上游的。
+     *
+     * flags 三种取值，可以叠加（现在只会单独出现）：
+     *   p —— 用户自己加的，排在最前，不参与次数排序
+     *   f —— 官方推荐位，宿主在候选不够填满版面时补在末尾的（见 ntp.js 的
+     *        BUILTIN_SITES）。它和普通候选一样能点、能删，只是排序时垫底
+     *   - —— 普通候选（历史里的常去站点）
      */
     function parseData(text) {
         var out = [];
@@ -488,46 +494,61 @@ var NovaNtp = (function () {
             var f = line.split(SEP);
             var url = (f[1] || '').trim();
             if (!url) continue;
+            var flags = f[3] || '';
             out.push({
                 label: (f[0] || '').trim() || shortName(url),
                 url: url,
                 visits: parseInt(f[2], 10) || 0,
-                pinned: (f[3] || '').indexOf('p') >= 0
+                pinned: flags.indexOf('p') >= 0,
+                builtin: flags.indexOf('f') >= 0
             });
         }
         return out;
     }
 
     /**
-     * 排序：固定项按给定顺序占前排，其余按访问次数降序，同 host 只留第一个，
-     * 最后截到上限。
+     * 排序：固定项按给定顺序占前排，常去站点按访问次数降序居中，官方推荐位
+     * 保序垫底，同 host 只留第一个，最后截到上限。
      *
      * 「同 host 去重」而不是「同 url 去重」：zhihu.com 会出现十条不同的问题页，
      * 按 url 去重的话这七个格子可能全被同一家占满 —— 那就不叫快捷方式了。
+     *
+     * 推荐位（flags 里的 f）单独一堆、不参与次数排序，两头都图个稳：
+     * 掺进 rest 里跟 visits=0 的普通候选一起按名称排，内置那六条的给定顺序
+     * 每次都会被重排成另一个样子，看着像随机。
      */
     function rank(cands, max) {
         var cap = (max === undefined || max === null) ? MAX_SHORTCUTS : max;
         var seen = {};
         var pinned = [];
         var rest = [];
+        var builtin = [];
         for (var i = 0; i < (cands || []).length; i++) {
             var c = cands[i];
             if (!c || !c.url) continue;
             var h = hostOf(c.url);
             if (seen[h]) continue;
             seen[h] = 1;
-            (c.pinned ? pinned : rest).push(c);
+            if (c.pinned) pinned.push(c);
+            else if (c.builtin) builtin.push(c);
+            else rest.push(c);
         }
         rest.sort(function (a, b) {
             if (b.visits !== a.visits) return b.visits - a.visits;
             // 次数相同时按名称定序，否则每次刷新顺序都会抖
             return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0);
         });
-        return pinned.concat(rest).slice(0, cap);
+        return pinned.concat(rest, builtin).slice(0, cap);
     }
 
-    /** 候选为空时的兜底：官网宣传图里那七个，顺序也一样。
-        收不到原生数据时（同步出错、注入失败）也得有一屏能看的东西，不能白屏。 */
+    /** 候选为空时的兜底：官网宣传图里那六个，顺序也一样。
+        收不到原生数据时（同步出错、注入失败）也得有一屏能看的东西，不能白屏。
+        与 ntp.js 的 BUILTIN_SITES 是同一份数据 —— 那边是宿主在候选不够时
+        补到版面末尾用的（flags 为 f），这里是页面在一条数据都没收到时的
+        最后一道兜底（flags 为 p，直接占前排）。两份由 tools/test-newtab.js
+        逐条比对，改一份漏一份会被拦下。
+        注意两边 flags 不同不代表数据不同：那一位说的是「这批项该怎么排序」，
+        不是「这是哪几条站点」。 */
     var FALLBACK = '主页\thttps://www.52ta.top/\t0\tp\n'
         + '导航\thttps://52ta.top/\t0\tp\n'
         + '播放器\thttps://misuc.52ta.top/\t0\tp\n'

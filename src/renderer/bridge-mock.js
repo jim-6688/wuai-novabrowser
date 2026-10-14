@@ -359,9 +359,15 @@ if (typeof window !== 'undefined' && !window.nova) {
         sources: { adtchrome: true, abp: true, builtin: true }
       },
       extensions: [],
+      // 与真实配置的初值对齐：新标签页宫格里的那六个内置入口，装好就能点。
+      // 预览里照抄同一份，截图与真机才是同一个画面。
       bookmarks: [
-        { title: '52ta', url: 'https://52ta.top/' },
-        { title: '百度', url: 'https://www.baidu.com/' }
+        { title: '主页', url: 'https://www.52ta.top/' },
+        { title: '导航', url: 'https://52ta.top/' },
+        { title: '播放器', url: 'https://misuc.52ta.top/' },
+        { title: '浏览器', url: 'https://nova.52ta.top/' },
+        { title: '百度', url: 'https://www.baidu.com/' },
+        { title: 'DeepSeek', url: 'https://chat.deepseek.com/' }
       ],
       history: []
     },
