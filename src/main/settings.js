@@ -138,6 +138,12 @@ const DEFAULTS = {
    */
   bookmarkSeed: 0,
   /**
+   * 内置地址修订标记：0 没修过，1 修过了（见 fixBookmarkUrls）。
+   * 与 bookmarkSeed 分开记：那一个是「种子用掉了没有」，这一个是
+   * 「写错的地址改过来了没有」，两件事的时机不一样。
+   */
+  bookmarkFix: 0,
+  /**
    * 桌面快捷方式补建标记：0 没补过，1 补过了。
    *
    * 只有免安装（绿色版）这条路用得上 —— 走安装包进来的用户，图标是 NSIS 安装器
@@ -204,6 +210,53 @@ function seedBookmarks() {
   scheduleFlush();
 }
 
+/**
+ * 内置地址里写错过的那几个 —— 老用户也要改过来。
+ *
+ * 为什么不能只改 ntp.js：BUILTIN_SITES 只对**新装**的人生效。老用户收藏夹里
+ * 那一条是上一个版本种下去的（书签是整条存下来的，不是存个「内置第 3 条」的
+ * 引用），文件里躺着的就是那个错地址 —— 光改常量，他看到的仍然是错的。
+ *
+ * 这是**修订一处已知的错误**，不是每次启动都去覆盖用户的编辑：所以同样只做一次。
+ * 用户如果自己把地址改回了错的，也认他的 —— 打过标就不再动。
+ *
+ * 顺带把宫格那边的删除记录也接上：用户点掉过这条内置项的话，ntpShortcuts.removed
+ * 里记的是**旧主机名**。改了地址而不同步，新主机名不在名单里，那个 × 就等于白点了
+ * —— 他删掉的站点过一版又自己回来了。
+ */
+const URL_FIXES = [
+  // 播放器：misuc → music（2026-10 修订）
+  ['https://misuc.52ta.top/', 'https://music.52ta.top/']
+];
+
+const hostOf = (u) => { try { return new URL(u).hostname; } catch { return ''; } };
+
+function fixBookmarkUrls() {
+  if (!cache || (cache.bookmarkFix | 0) >= 1) return;
+  if (!Array.isArray(cache.bookmarks)) cache.bookmarks = [];
+
+  for (const bm of cache.bookmarks) {
+    if (!bm) continue;
+    for (const [wrong, right] of URL_FIXES) {
+      if (bm.url === wrong) bm.url = right;
+    }
+  }
+
+  const removed = cache.ntpShortcuts && cache.ntpShortcuts.removed;
+  if (Array.isArray(removed)) {
+    for (const [wrong, right] of URL_FIXES) {
+      const oldHost = hostOf(wrong);
+      const newHost = hostOf(right);
+      if (oldHost && newHost && removed.includes(oldHost) && !removed.includes(newHost)) {
+        removed.push(newHost);
+      }
+    }
+  }
+
+  cache.bookmarkFix = 1;
+  scheduleFlush();
+}
+
 function init(userDataDir) {
   filePath = path.join(userDataDir, 'nova-settings.json');
   try {
@@ -213,9 +266,10 @@ function init(userDataDir) {
     cache = deepMerge(DEFAULTS, {});
     flush();
   }
-  // 放在读取之后：新配置本来就已经是那六条，这一步对它是空操作；
-  // 老配置才真的会多出几条。两边走同一条路，不必分叉。
+  // 顺序有讲究：先补种再修订。新装的人由补种拿到正确地址（DEFAULTS 就是对的），
+  // 修订对他是个空操作；老用户补种早就用掉了，靠修订把存下来的错地址改过来。
   seedBookmarks();
+  fixBookmarkUrls();
   return cache;
 }
 

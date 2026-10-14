@@ -56,7 +56,7 @@ const MAX_TILES = 7;
 const BUILTIN_SITES = [
   { label: '主页', url: 'https://www.52ta.top/' },
   { label: '导航', url: 'https://52ta.top/' },
-  { label: '播放器', url: 'https://misuc.52ta.top/' },
+  { label: '播放器', url: 'https://music.52ta.top/' },
   { label: '浏览器', url: 'https://nova.52ta.top/' },
   { label: '百度', url: 'https://www.baidu.com/' },
   { label: 'DeepSeek', url: 'https://chat.deepseek.com/' }

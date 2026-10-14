@@ -65,7 +65,7 @@ public final class NewTab {
     public static final Row[] BUILTIN_SITES = {
         new Row("主页", "https://www.52ta.top/", 0, false, true),
         new Row("导航", "https://52ta.top/", 0, false, true),
-        new Row("播放器", "https://misuc.52ta.top/", 0, false, true),
+        new Row("播放器", "https://music.52ta.top/", 0, false, true),
         new Row("浏览器", "https://nova.52ta.top/", 0, false, true),
         new Row("百度", "https://www.baidu.com/", 0, false, true),
         new Row("DeepSeek", "https://chat.deepseek.com/", 0, false, true)

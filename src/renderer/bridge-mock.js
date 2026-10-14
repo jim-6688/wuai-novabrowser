@@ -364,7 +364,7 @@ if (typeof window !== 'undefined' && !window.nova) {
       bookmarks: [
         { title: '主页', url: 'https://www.52ta.top/' },
         { title: '导航', url: 'https://52ta.top/' },
-        { title: '播放器', url: 'https://misuc.52ta.top/' },
+        { title: '播放器', url: 'https://music.52ta.top/' },
         { title: '浏览器', url: 'https://nova.52ta.top/' },
         { title: '百度', url: 'https://www.baidu.com/' },
         { title: 'DeepSeek', url: 'https://chat.deepseek.com/' }

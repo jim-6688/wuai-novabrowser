@@ -630,6 +630,40 @@ function manyHosts(n) {
     return okFirst && !second.bookmarks.some((b) => b.url === 'https://chat.deepseek.com/');
   })());
 
+  /* ---- 内置地址改错过之后的修订 ---- */
+  // 书签是**整条**存下来的，不是存个「内置第 3 条」的引用。所以上游把某个内置
+  // 地址改对，只对装上新版本的人有效 —— 已经装过的那份文件里躺着的仍是错地址。
+  // 少了这一步，用户报「播放器打不开」时改完常量，他会说「还是打不开」。
+  check('写错过的内置地址，老用户那份也改过来', (() => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-fix-'));
+    fs.writeFileSync(path.join(dir, 'nova-settings.json'), JSON.stringify({
+      bookmarks: [
+        { title: '52ta', url: 'https://52ta.top/' },
+        { title: '播放器', url: 'https://misuc.52ta.top/' }
+      ],
+      bookmarkSeed: 1,
+      ntpShortcuts: { added: [], removed: ['misuc.52ta.top'] }
+    }));
+    const s = settings.init(dir);
+    const urls = s.bookmarks.map((b) => b.url);
+    return s.bookmarkFix === 1
+      && urls.includes('https://music.52ta.top/')
+      && !urls.some((u) => u.includes('misuc'))
+      && urls[0] === 'https://52ta.top/'                    // 用户自己那条没被碰
+      && urls.length === 2                                  // 也没顺手补种（种子早用掉了）
+      && s.ntpShortcuts.removed.includes('music.52ta.top');  // 他删过的一直算数
+  })());
+
+  check('修订也只做一次 —— 用户自己把地址改回去了，就认他的', (() => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-fix2-'));
+    fs.writeFileSync(path.join(dir, 'nova-settings.json'), JSON.stringify({
+      bookmarks: [{ title: '播放器', url: 'https://misuc.52ta.top/' }],
+      bookmarkSeed: 1,
+      bookmarkFix: 1
+    }));
+    return settings.init(dir).bookmarks.some((b) => b.url === 'https://misuc.52ta.top/');
+  })());
+
   console.log(`\n${fail === 0 ? '全部通过' : '有失败项'}：${pass} 通过 / ${fail} 失败`);
   process.exit(fail === 0 ? 0 : 1);
 })();
