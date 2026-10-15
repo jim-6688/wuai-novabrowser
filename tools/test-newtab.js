@@ -634,6 +634,34 @@ function manyHosts(n) {
       && jb.every((r, i) => r.label === Ntp.BUILTIN_SITES[i].label && r.url === Ntp.BUILTIN_SITES[i].url);
   })(), `${[...java.matchAll(/new Row\("([^"]*)",\s*"([^"]*)",\s*0,\s*false,\s*true\)/g)].length} 条`);
 
+  // 上面前一条只守「两端一致」—— 改一处改两处，它照样是绿的。
+  // 而用户要的是「这六条本身不许动」，所以这里把内容也钉死：
+  // 要增删或改地址必须先改这一条，并且在 commit 里说清为什么。
+  check('这六条固定入口不许被改动（地址逐字钉死）', (() => {
+    const PINNED = [
+      ['主页', 'https://www.52ta.top/'],
+      ['导航', 'https://52ta.top/'],
+      ['播放器', 'https://music.52ta.top/'],
+      ['浏览器', 'https://nova.52ta.top/'],
+      ['百度', 'https://www.baidu.com/'],
+      ['DeepSeek', 'https://chat.deepseek.com/']
+    ];
+    return Ntp.BUILTIN_SITES.length === PINNED.length
+      && PINNED.every((p, i) =>
+        Ntp.BUILTIN_SITES[i].label === p[0] && Ntp.BUILTIN_SITES[i].url === p[1]);
+  })(), Ntp.BUILTIN_SITES.map((s) => s.url).join(' '));
+
+  // 页面侧那份兜底清单也是同一批地址（FALLBACK 给 flags 'p'，位置不同），
+  // 同样钉死 —— 否则数据一旦不同步，用户看到的是「有时候六个有时候五个」。
+  check('页面兜底清单与这六条同一批地址', (() => {
+    const fb = Page.parseData(Page.FALLBACK);
+    const pinnedUrls = [
+      'https://www.52ta.top/', 'https://52ta.top/', 'https://music.52ta.top/',
+      'https://nova.52ta.top/', 'https://www.baidu.com/', 'https://chat.deepseek.com/'
+    ];
+    return fb.length === pinnedUrls.length && pinnedUrls.every((u, i) => fb[i].url === u);
+  })(), Page.parseData(Page.FALLBACK).map((r) => r.url).join(' '));
+
   check('版面格数三处同值（页面 / 桌面宿主 / 安卓宿主）',
     javaConst(java, 'int', 'MAX_TILES') === String(Ntp.MAX_TILES)
       && Page.MAX_SHORTCUTS === Ntp.MAX_TILES,

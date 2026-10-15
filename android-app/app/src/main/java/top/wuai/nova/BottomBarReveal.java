@@ -53,6 +53,14 @@ public final class BottomBarReveal {
     public static final int UP_THRESHOLD = 60;
     /** 距顶部不足它 → 无条件恢复底栏。 */
     public static final int TOP_ZONE = 40;
+    /**
+     * 手指上划累计超过它 → 换成胶囊（见 {@link #onSwipe(int)}）。
+     *
+     * <p>比 {@link #DOWN_THRESHOLD} 小：手势位移与内容长度无关，
+     * 90px 在任何设备上都是一次很小的动作；用页内滚动那档 120px 的话，
+     * 用户得划得更远才出胶囊，反而像是没生效。
+     */
+    public static final int GESTURE_THRESHOLD = 90;
 
     private State state = State.SHOW_BAR;
     /** 同方向上尚未达阈值的位移累积。方向反转时清零。 */
@@ -157,6 +165,46 @@ public final class BottomBarReveal {
             state = State.SHOW_CAPSULE;
             accum = 0;  // 触发后清零，避免紧接着一帧又因为残留累积抖动
         } else if (accum <= -UP_THRESHOLD) {
+            state = State.SHOW_BAR;
+            accum = 0;
+        }
+        return state;
+    }
+
+    /**
+     * 喂一次**手指上划**（不是页面滚动），返回喂完之后应该显示的状态。
+     *
+     * <p><b>为什么需要这一条路</b>：{@link #onScroll(int)} 靠的是页内滚动距离，
+     * 于是它只在<b>能滚动的长页面</b>上有效 —— 新标签页、搜索结果页、
+     * 短文章、还有那些本身 {@code overflow:hidden} 的页面全都滚不动，
+     * 用户上划多少次都不会出胶囊。用户反馈「这个功能没有了」正是这么来的：
+     * 不是被谁关掉，是他在一个滚不动的页面上试了很多次。
+     *
+     * <p>底栏本来就在拇指够得到的地方，上划是那里的自然手势，
+     * 与「内容区里滑动」不是一回事 —— 所以两条路各走各的判定，互不干扰：
+     * 页内滚动照旧交给 {@link #onScroll(int)}，手势交给这里。
+     *
+     * @param dy 本次手指位移：<b>向上为正</b>（手指从下往上），
+     *           向下为负。与 {@link #onScroll(int)} 的符号约定相反，
+     *           因为那一路的 dy 是 scrollY 之差，含义天然是反的。
+     * @return 应当显示的状态；与上次相同就表示无需改变
+     */
+    public State onSwipe(int dy) {
+        if (dy == 0) return state;
+        if (!hasBaseline) {
+            // 还没拿到过基准（用户没滚过页面就直接上划）：先立一个，
+            // 否则下面 accum 的判定会把第一帧当成一大段位移
+            hasBaseline = true;
+            lastY = 0;
+        }
+        // 方向反转清零累积：与页内滚动同一套防抖，手势来回蹭不会连闪
+        if ((dy > 0 && accum < 0) || (dy < 0 && accum > 0)) accum = 0;
+        accum += dy;
+
+if (accum >= GESTURE_THRESHOLD) {
+            state = State.SHOW_CAPSULE;
+            accum = 0;
+        } else if (accum <= -GESTURE_THRESHOLD) {
             state = State.SHOW_BAR;
             accum = 0;
         }

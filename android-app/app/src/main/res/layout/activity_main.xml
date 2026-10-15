@@ -63,19 +63,25 @@
                 android:paddingTop="6dp"
                 android:paddingBottom="2dp">
 
-                <!-- 搜索入口：点一下聚焦地址栏。原先这里是应用 logo（点开主菜单），
-                     现在主菜单移进工具箱（底栏「工具」→ 菜单行），顶栏左端让给搜索 ——
-                     地址栏只能覆盖「输入」，而这一格覆盖的是「我想搜点什么」这个起点。 -->
+                <!-- 品牌标识：点开主菜单。
+                     上一版这里是搜索按钮（点一下聚焦地址栏），用户反馈「意义不大」——
+                     地址栏本来就在这一行正中间，点两下就聚焦了；这一格放在最左端
+                     占的是从「界面从哪开始」读起来的头一个位置，而品牌标回答的正是
+                     「这是哪个应用」。搜索的起点交给底栏上划那条搜索胶囊（见
+                     BottomBarReveal），那里才是真正的「我想搜点什么」。
+
+                     padding比右边几个键小 1dp：logo 本身有方形底，
+                     四周留白一多就显得比旁边的搜索键小一号。 -->
                 <ImageButton
-                    android:id="@+id/btnSearch"
+                    android:id="@+id/btnBrand"
                     android:layout_width="@dimen/tap_action"
                     android:layout_height="@dimen/tap_action"
-                    android:layout_marginEnd="2dp"
+                    android:layout_marginEnd="4dp"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/search_hint"
+                    android:contentDescription="@string/content_desc_brand"
                     android:scaleType="centerInside"
-                    android:padding="7dp"
-                    android:src="@drawable/ic_search_nav" />
+                    android:padding="6dp"
+                    android:src="@drawable/ic_brand" />
 
                 <!-- 地址栏 -->
                 <FrameLayout

@@ -937,6 +937,9 @@ public final class MainActivity extends Activity {
         reveal.reset(web != null ? web.getScrollY() : 0);
         shownReveal = BottomBarReveal.State.SHOW_BAR;
         setupScrollReveal();
+        // 手势那条路补的是页内滚动的盲区（新标签页、短页面滚不动）。
+        // 与 setupScrollReveal 并列而不是塞进去：两条路喂的是不同的判定入口。
+        setupSwipeToSearch();
         setupPullRefresh();
         syncChrome();
         syncNoImageChip();
@@ -1327,20 +1330,25 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 顶栏那三个按钮：左端搜索、右端收藏与 AI。
+     * 顶栏那几个按钮：左端品牌标、右端收藏、收藏夹与 AI。
      *
      * <p>这里原先还有第二行（阅读 / 观影 / 翻译 / AI 四个功能键）。撤掉的理由是
      * 那一行为了「一屏直达」让顶栏常驻 96dp 的厚度，而四个功能在工具箱里都有行
      * （{@code sheet_tools} 的 toolRead / toolTranslate / toolMovie / toolAi），
      * 下滑一次就到。顶栏收回一行之后，网页多出整整一行的高度。
      *
-     * <p>左端原先是应用 logo（点开主菜单）。主菜单没有丢：工具箱最下面新加了一行
-     * 「菜单」指向同一个 {@link #showMenuSheet()}，而工具箱在底栏拇指位。
-     * 那个位置让给搜索 —— 地址栏只能覆盖「我已经知道要输什么」，
-     * 这一格覆盖的是「我想搜点什么」这个起点。
+     * <p><b>左端这一格换过一轮又换回来</b>：先是 logo（点主菜单），中间改成搜索
+     * 按钮（点一下聚焦地址栏），用户反馈「意义不大」—— 地址栏就这一行正中间，
+     * 点两下也就聚焦了；而这一格是最左端的第一眼位置，品牌标回答的正是
+     * 「这是哪个应用」。搜索的起点交给底栏上划那条搜索胶囊
+     * （{@link BottomBarReveal} + {@code searchCapsule}），那里才是真正的
+     * 「我想搜点什么」，而且不占常驻宽度。
      */
     private void setupTopBar() {
-        findViewById(R.id.btnSearch).setOnClickListener(v -> focusOmnibox());
+        findViewById(R.id.btnBrand).setOnClickListener(v -> {
+            mountMain();
+            showMenuSheet();
+        });
         findViewById(R.id.btnAi).setOnClickListener(v -> {
             mountMain();
             showAiSheet();
@@ -1678,6 +1686,67 @@ public final class MainActivity extends Activity {
             shownReveal = BottomBarReveal.State.SHOW_BAR;
             applyReveal(BottomBarReveal.State.SHOW_BAR, true);
         }
+    }
+
+    /**
+     * 底栏区域的手指上划：任何页面都能唤出那条搜索胶囊。
+     *
+     * <p><b>这条手势是为了补 {@code onScrollChangeListener} 的盲区</b>。
+     * 滚动态原本只由页内滚动驱动，于是只在<b>能滚动的长页面</b>上有效 ——
+     * 新标签页、搜索结果页、短文章、以及自身 {@code overflow:hidden} 的页面
+     * 全都滚不动，用户上划多少次都不会出胶囊。用户反馈「这个功能没有了」就是
+     * 在一个滚不动的页面上试出来的：不是被谁关掉，是它压根没被触发过。
+     *
+     * <p>挂在底栏那一行上，而不是全局：底栏本来就在拇指够得到的地方，
+     * 从那里往上划是自然手势；而网页内容区里向上划是要滚内容的，
+     * 在那里抢手势会和浏览冲突。设了 {@code onTouchListener} 的 View 必须
+     * 自己把事件转给原来的处理者，所以这里先remember 再转发。
+     */
+    private void setupSwipeToSearch() {
+        final View bar = mobileBar;
+        if (bar == null) return;
+
+        bar.setOnTouchListener(new android.view.View.OnTouchListener() {
+            private float downY;
+            private boolean tracking;
+
+            @Override
+            public boolean onTouch(View v, android.view.MotionEvent ev) {
+                // 关掉「上划显示搜索」时完全不接管，界面跟页内滚动一起不动
+                if (!settings.swipeUpSearch) return false;
+                switch (ev.getActionMasked()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        downY = ev.getY();
+                        tracking = true;
+                        break;
+                    case android.view.MotionEvent.ACTION_MOVE: {
+                        if (!tracking) return false;
+                        // 手指往上走 = dy 为正。取增量而不是累计位移：
+                        // 手指按住不动时 move 事件连着来，累计量会一直涨，
+                        // 一次长按就能触发胶囊。
+                        int dy = Math.round(downY - ev.getY());
+                        downY = ev.getY();
+                        if (dy != 0) {
+                            BottomBarReveal.State s = reveal.onSwipe(dy);
+                            if (s != shownReveal) {
+                                shownReveal = s;
+                                applyReveal(s, true);
+                            }
+                        }
+                        break;
+                    }
+                    case android.view.MotionEvent.ACTION_UP:
+                    case android.view.MotionEvent.ACTION_CANCEL:
+                        tracking = false;
+                        break;
+                    default:
+                        break;
+                }
+                // 一律返回 false：底栏那一行的点击（五个格子各自的点击）
+                // 必须照常工作，这个监听只旁路地观察手势，不吃掉任何事件。
+                return false;
+            }
+        });
     }
 
     /**

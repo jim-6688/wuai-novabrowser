@@ -134,4 +134,81 @@ public class BottomBarRevealTest {
         assertEquals(CAP, r.onScroll(280));  // 用户继续下划一帧
         assertEquals(CAP, r.onScroll(235));  // 再回划 45px：没到阈值，不该弹回来
     }
+    /* ================================================================
+     * 手指上划那条路（onSwipe）
+     *
+     * 补的是页内滚动的盲区：新标签页、短文章、overflow:hidden 的页面
+     * 全都滚不动，用户上划多少次都不出胶囊 —— 用户反馈「这个功能没有了」
+     * 就是这么来的。这一组用例钉住手势侧的判定。
+     * ================================================================ */
+
+    @Test
+    public void 上划够阈值就出胶囊() {
+        BottomBarReveal r = new BottomBarReveal();
+        assertEquals(BAR, r.onSwipe(10));   // 一点点：不动
+        assertEquals(BAR, r.onSwipe(10));
+        assertEquals(CAP, r.onSwipe(BottomBarReveal.GESTURE_THRESHOLD - 20));
+    }
+
+    @Test
+    public void 下滑回来() {
+        BottomBarReveal r = new BottomBarReveal();
+        r.onSwipe(BottomBarReveal.GESTURE_THRESHOLD);
+        assertEquals(CAP, r.state());
+        assertEquals(BAR, r.onSwipe(-BottomBarReveal.GESTURE_THRESHOLD));
+    }
+
+    @Test
+    public void 方向反转就清零累积_来回蹭不会连闪() {
+        BottomBarReveal r = new BottomBarReveal();
+        r.onSwipe(BottomBarReveal.GESTURE_THRESHOLD - 30);
+        // 反向走回去：这一次反向下移把累积清掉了，
+        // 所以再上划同样的距离仍然不够 —— 两者凑不到阈值
+        r.onSwipe(-10);
+        r.onSwipe(-10);
+        assertEquals(BAR, r.onSwipe(BottomBarReveal.GESTURE_THRESHOLD - 30));
+        assertEquals(BAR, r.state());
+    }
+
+    @Test
+    public void 没滚过页面就直接上划_第一帧不误触发() {
+        // 场景：用户在新标签页（从未滚动）直接上划。
+        // 第一帧不该被当成一大段位移 —— 少了这条，一划就弹胶囊。
+        BottomBarReveal r = new BottomBarReveal();
+        assertEquals(BAR, r.onSwipe(5));
+        assertEquals(BAR, r.state());
+    }
+
+    @Test
+    public void 零位移不动() {
+        BottomBarReveal r = new BottomBarReveal();
+        assertEquals(BAR, r.onSwipe(0));
+        assertEquals(BAR, r.state());
+    }
+
+    @Test
+    public void 手势路与页内滚动路互不干扰() {
+        // 两条路各管各的：滚过页面之后上划照样能出胶囊（不是被 onScroll 锁住）
+        BottomBarReveal r = new BottomBarReveal();
+        r.onScroll(400);
+        r.syncBaseline(400);
+        assertEquals(CAP, r.onSwipe(BottomBarReveal.GESTURE_THRESHOLD));
+    }
+
+    @Test
+    public void reset之后回到常态_且手势路仍可用() {
+        BottomBarReveal r = new BottomBarReveal();
+        r.onSwipe(BottomBarReveal.GESTURE_THRESHOLD);
+        assertEquals(CAP, r.state());
+        r.reset(0);
+        assertEquals(BAR, r.state());
+        assertEquals(CAP, r.onSwipe(BottomBarReveal.GESTURE_THRESHOLD));
+    }
+
+    @Test
+    public void 阈值比页内滚动那档小() {
+        // 刻意小：手势位移与内容长度无关，用页内滚动的 120px 门槛
+        // 会让用户划得更远才出胶囊，像是没生效
+        assertEquals(true, BottomBarReveal.GESTURE_THRESHOLD < BottomBarReveal.DOWN_THRESHOLD);
+    }
 }

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  顶栏左端的品牌标识。与官网 logo.png、newtab.html 里那颗内联 SVG 同款：
+  蓝入青绿出的圆角方块 + 白色四角星 + 倾斜环与小卫星。
+
+  为什么重新画而不是复用一张位图：
+    1) 这个图标在顶栏只有 24dp（@dimen/tap_action 减去 padding），
+       位图在这个尺寸下会糊，而它是整个界面的品牌锚点；
+    2) 矢量能跟着深浅色主题走 —— 深色底上品牌蓝偏暗，
+       画一版亮一档的颜色比给整张图加滤镜更可控。
+
+  渐变角度与色标与官网的品牌渐变一致（#5B84FF → #3D6BFF → #00B8A2）。
+  注意：XML 注释里不能出现两个连字符组成的序列（CSS 变量名那种），
+  写在这里会让 aapt 直接报 ParseError —— 踩过一次。
+
+  圆角的实现：矢量图不支持给 path 设圆角，所以直接用带圆角弧线的路径画方块，
+  而不是「方块 + 四角挖圆」（后者在背景不透明时会露馅）。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="52"
+    android:viewportHeight="52">
+
+    <path android:pathData="M13,0 L39,0 A13,13 0 0 1 52,13 L52,39 A13,13 0 0 1 39,52 L13,52 A13,13 0 0 1 0,39 L0,13 A13,13 0 0 1 13,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="52"
+                android:endY="52"
+                android:type="linear">
+                <item android:offset="0" android:color="#FF5B84FF" />
+                <item android:offset="0.5" android:color="#FF3D6BFF" />
+                <item android:offset="1" android:color="#FF00B8A2" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 倾斜环（轨道），半透明白 -->
+    <path
+        android:pathData="M9,27 a17,6.4 0 1,0 34,0 a17,6.4 0 1,0 -34,0"
+        android:strokeColor="#B3FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.45"
+        android:fillColor="#00000000" />
+
+    <!-- 四角星 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M26,10.5 Q26,26 40,26 Q26,26 26,41.5 Q26,26 12,26 Q26,26 26,10.5 Z" />
+
+    <!-- 小卫星 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M39.4,18.1 a2.5,2.5 0 1,0 0.01,0 Z" />
+</vector>
