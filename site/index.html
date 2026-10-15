@@ -46,22 +46,23 @@
     <section class="hero">
         <div class="wrap hero-grid">
             <div>
-                <span class="eyebrow"><i></i>开源 · 双端 · 能力与边界如实标注</span>
-                <h1>不足 400 KB 的浏览器，<br><em>把该做的事做扎实</em></h1>
+                <span class="eyebrow"><i></i>开源浏览器 · Windows 与 Android 双端 · 能力与边界如实标注</span>
+                <h1>不内置内核的浏览器，<br><em>把安装包与内存都省下来</em></h1>
                 <p class="lede">
-                    吾爱Nova 是一款面向移动端的开源浏览器。<b>安装包不足 400 KB</b>——
-                    它不内置内核，渲染交由系统 WebView（Chromium）完成，省下的是上百 MB
-                    的下载与一份常驻内存。多线程下载、广告拦截、用户脚本、无图模式与自动拼页，
-                    应有尽有；做不到的，也在文档里逐条写明。
+                    吾爱Nova 是一款同时提供 <b>Windows 桌面版</b>与 <b>Android 手机版</b>的开源浏览器。
+                    两端都<b>不内置浏览器内核</b>：Android 版交由系统 WebView（Chromium）渲染，
+                    桌面版提供原生内核 / 原生宿主 / 兼容层三档渲染路径，由用户在设置中自行选择，
+                    省下的是上百 MB 的下载与一份常驻内存。多线程下载、广告拦截、用户脚本、
+                    无图模式与自动拼页两端均已具备；做不到的部分，在下方逐条写明。
                 </p>
                 <div class="hero-actions">
-                    <a class="btn btn-primary btn-lg" href="#download">下载 Android 版</a>
+                    <a class="btn btn-primary btn-lg" href="#download">下载</a>
                     <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
                 </div>
                 <div class="hero-meta">
                     <span id="verLatest">最新版本 1.6.3（16）</span>
                     <span id="verDate">更新于 2026-10-15</span>
-                    <span><i></i>Android 7.0 及以上</span>
+                    <span><i></i>Windows 10 及以上 · Android 7.0 及以上</span>
                     <span><i></i>不内置内核 · 零个 .so</span>
                 </div>
             </div>
@@ -112,52 +113,52 @@
             <div class="grid">
                 <div class="card">
                     <div class="fico">⇩</div>
-                    <h3>多线程下载引擎</h3>
+                    <h3><span class="tag">双端</span>多线程下载引擎</h3>
                     <p>基于 Range 分片并行下载，支持断点续传与分片校验。服务器不支持分片时<b>如实退回单线程</b>，实际生效的线程数可在下载详情中查看。</p>
                 </div>
                 <div class="card">
                     <div class="fico g">🛡</div>
-                    <h3>广告拦截</h3>
+                    <h3><span class="tag">双端</span>广告拦截</h3>
                     <p>网络规则与元素隐藏两级拦截，内置三源规则，支持订阅源自动更新，无需手动维护最新规则。</p>
                 </div>
                 <div class="card">
                     <div class="fico">◎</div>
-                    <h3>第三方脚本拦截</h3>
+                    <h3><span class="tag">双端</span>第三方脚本拦截</h3>
                     <p>严格隐私模式：拦下一切非同源的脚本、跟踪像素与第三方资源，默认不把你的浏览行为共享给任何第三方。</p>
                 </div>
                 <div class="card">
                     <div class="fico g">⌕</div>
-                    <h3>划词搜索 + 翻译</h3>
+                    <h3><span class="tag">双端</span>划词搜索 + 翻译</h3>
                     <p>页面里选中文字即可一键搜索或打开有道翻译（国内可用、免密钥），当前页不丢。</p>
                 </div>
                 <div class="card">
                     <div class="fico">ⓘ</div>
-                    <h3>网页安全面板</h3>
+                    <h3><span class="tag">双端</span>网页安全面板</h3>
                     <p>一眼看清当前页的资源构成、SSL 证书状态与本次会话的拦截统计，技术细节不藏私。</p>
                 </div>
                 <div class="card">
                     <div class="fico">⚙</div>
-                    <h3>用户脚本</h3>
+                    <h3><span class="tag">双端</span>用户脚本</h3>
                     <p>按网址规则注入用户脚本，行为与 Tampermonkey 类扩展同源；可一键停用。内置「网页限制解除」等口碑脚本，开箱即用。</p>
                 </div>
                 <div class="card">
                     <div class="fico g">✦</div>
-                    <h3>推荐脚本库</h3>
+                    <h3><span class="tag">双端</span>推荐脚本库</h3>
                     <p>按公开装机量精选的脚本清单随包内置，点哪条装哪条；<b>许可允许的那些正文也随包发</b>，断网照样装。装前自动检测脚本能力并如实列出，避免装了跑不起来。</p>
                 </div>
                 <div class="card">
                     <div class="fico g">◐</div>
-                    <h3>无图模式 + 自动拼页</h3>
+                    <h3><span class="tag">双端</span>无图模式 + 自动拼页</h3>
                     <p>三档控图，验证码与关键缩略图<b>智能放行</b>不误伤；列表页自动拼接下一页，兼顾省流与连续阅读。</p>
                 </div>
                 <div class="card">
                     <div class="fico">▣</div>
-                    <h3>多标签 · 本地历史</h3>
+                    <h3><span class="tag">双端</span>多标签 · 本地历史</h3>
                     <p>标签总览、切换后还原滚动位置；浏览记录仅存本机，无痕模式下<b>不写入任何记录</b>。</p>
                 </div>
                 <div class="card">
                     <div class="fico g">↑</div>
-                    <h3>应用内自动更新</h3>
+                    <h3><span class="tag">双端</span>应用内自动更新</h3>
                     <p>新版本后台静默下载，界面仅提示「重启更新」。下载包带 <b>sha256 校验</b>，官网直链与 Gitee Releases <b>双源互为兜底</b>。</p>
                 </div>
                 <div class="card">
@@ -187,7 +188,45 @@
                        新标签页自带常用入口与插件商店入口，扩展与收藏夹开箱可用。</p>
                 </div>
             </div>
-            <p class="grid-note">标 <span class="tag">PC</span> 的能力为电脑版独有；其余功能手机端与电脑端均已具备。</p>
+            <p class="grid-note">标 <span class="tag">双端</span> 的能力两端均已具备；标 <span class="tag">PC</span> 的为电脑版独有。手机版独有的能力见下方<a href="#mobile-only">「只有手机版有」</a>一节。</p>
+        </div>
+    </section>
+
+    <!-- ======================== 手机版独有能力 ======================== -->
+    <!--
+      单独开一节而不是继续往上面那张网格里塞：网格是「两端共通的能力」，
+      手机版独有的那些混进去会让「双端」这个标签失去意义 —— 读者分不清
+      哪一项在电脑上能不能用。
+    -->
+    <section class="section" id="mobile-only">
+        <div class="wrap">
+            <div class="sec-head">
+                <span class="kicker">ANDROID ONLY</span>
+                <h2>只有手机版有的能力</h2>
+                <p class="sec-lede">下列功能依赖触屏交互与系统能力，在电脑版上没有对应物。</p>
+            </div>
+            <div class="grid">
+                <div class="card">
+                    <div class="fico">⇧</div>
+                    <h3><span class="tag">Android</span>上划唤出搜索框</h3>
+                    <p>在底栏区域向上滑动即唤出胶囊搜索框，地址栏与标签栏同时收起，网页净增一屏高度。任何页面都可触发——包括新标签页这类本身不滚动的页面。</p>
+                </div>
+                <div class="card">
+                    <div class="fico g">★</div>
+                    <h3><span class="tag">Android</span>星形收藏与收藏夹</h3>
+                    <p>地址栏右侧星形按钮一键收藏。收藏夹面板逐条列出，每条显示标题与网址，可点开也可单条删除；支持导出为 JSON，并可直接导入 Chrome / Edge 导出的 HTML。</p>
+                </div>
+                <div class="card">
+                    <div class="fico">☰</div>
+                    <h3><span class="tag">Android</span>底栏工具箱</h3>
+                    <p>下载、阅读模式、翻译、观影、篡改猴、广告拦截、网页安全与收藏夹集中于一格之内；面板右上角直达设置，下拉或轻扫即可关闭。</p>
+                </div>
+                <div class="card">
+                    <div class="fico g">◐</div>
+                    <h3><span class="tag">Android</span>AI 助手</h3>
+                    <p>顶栏右端常驻入口，内嵌对话窗口，支持下拉切换服务商与输入框直问；免登录的服务排在最前。</p>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -479,13 +518,70 @@
 
          图由 tools/shot.js 用 Electron 真渲染抓出来（npm run shots:win），
          所以图里的每一个像素都来自实际运行的界面。 -->
+<!-- ======================== 两端对照 ======================== -->
+    <!--
+      这一节放在功能列表与「只有手机版有」之间，因为它是**回答「该下哪一端」的地方**。
+      前面那些卡片按能力分组，两端都有；这里按端分组，一眼能看出各自装什么、
+      体积多少、适合谁 —— 而这正是双端产品最该讲清楚而最容易含糊过去的一处。
+    -->
+    <section class="section" id="compare">
+        <div class="wrap">
+            <div class="sec-head">
+                <span class="kicker">PLATFORMS</span>
+                <h2>两端对照</h2>
+                <p>两端共享同一套核心能力（拦截、下载、脚本、无图），但在扩展生态与交互形态上各有侧重。以下按端列出实际差异，便于判断哪一端更符合你的使用方式。</p>
+            </div>
+            <div class="cmp">
+                <div class="cmp-col">
+                    <div class="cmp-hd">
+                        <span class="cmp-os">Windows</span>
+                        <strong>电脑版 · v1.0.2</strong>
+                        <span class="cmp-size">约 74 MB</span>
+                    </div>
+                    <ul class="cmp-list">
+                        <li><b>扩展</b><span>拖入 .crx 即自动安装</span></li>
+                        <li><b>渲染</b><span>原生内核 / 原生宿主 / 兼容层 三档可选</span></li>
+                        <li><b>AI</b><span>侧边窗口，内嵌对话，不打断当前页</span></li>
+                        <li><b>下载</b><span>地址栏旁浮窗，按连接分格显示进度</span></li>
+                        <li><b>内核更新</b><span>跟随应用，自动更新</span></li>
+                        <li class="no"><b>触屏手势</b><span>不适用（桌面端无此形态）</span></li>
+                    </ul>
+                </div>
+                <div class="cmp-col">
+                    <div class="cmp-hd">
+                        <span class="cmp-os">Android</span>
+                        <strong>手机版 · v1.6.3</strong>
+                        <span class="cmp-size">不足 500 KB</span>
+                    </div>
+                    <ul class="cmp-list">
+                        <li><b>渲染</b><span>交由系统 WebView（Chromium），零个 .so</span></li>
+                        <li><b>上划</b><span>底栏上划唤出搜索框，任意页面可触发</span></li>
+                        <li><b>收藏</b><span>星形一键收藏，面板可导入导出</span></li>
+                        <li><b>工具</b><span>底栏工具箱集中八项入口</span></li>
+                        <li><b>内核更新</b><span>跟随系统，无法独立升级</span></li>
+                        <li class="no"><b>浏览器扩展</b><span>不提供；用户脚本与篡改猴独立管理</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======================== 桌面版截图 ========================
+         下面的图不是画出来的，是程序真跑起来抓的。
+
+         为什么不统一成一种做法：画出来的图与实现各走各的，改了代码图不会跟着变，
+         官网就会开始说谎；而这一节的几张（AI 侧窗、下载浮窗、新标签页）恰恰是
+         本轮刚做出来的新东西，正是最需要「就是长这样」而不是「大概长这样」的。
+
+         图由 tools/shot.js 用 Electron 真渲染抓出来（npm run shots:win），
+         所以图里的每一个像素都来自实际运行的界面。 -->
     <section class="section tint" id="pc-shots">
         <div class="wrap">
             <div class="sec-head">
                 <span class="kicker">DESKTOP</span>
                 <h2>电脑版的实际界面</h2>
-                <p>以下均为程序真实运行的截图，未做任何修饰。电脑版是目前功能最全的一端 ——
-                   拖入即装扩展、地址栏旁的下载浮窗、AI 侧边窗口与三档内核切换都在这一端。</p>
+                <p>以下均为程序真实运行的截图，未做任何修饰。电脑版在扩展生态与窗口形态上更完整 ——
+                   拖入即装扩展、地址栏旁的下载浮窗、AI 侧边窗口与三档渲染路径切换都在这一端。</p>
             </div>
 
             <div class="pcshots">
@@ -533,21 +629,24 @@
         <div class="wrap">
             <div class="sec-head">
                 <span class="kicker">HONESTY</span>
-                <h2>先说清楚「我们没有」什么</h2>
-                <p>这一节比功能列表更重要。每一项取舍都明示代价，让你带着判断使用，而非被宣传语引导。</p>
+                <h2>已知限制与技术取舍</h2>
+                <p>下列各项均标注了实际代价与适用边界。请在使用前确认它们是否符合你的需求——我们认为如实说明局限，比罗列功能更有价值。</p>
             </div>
             <div class="honest">
                 <div class="card">
                     <h3><span class="tag b">取舍</span>为什么不内置内核</h3>
-                    <p>安装包不足 400 KB，是因为 APK 中<b>零个 .so</b>——渲染交由系统 WebView（Chromium）完成。
+                    <p>Android 版安装包不足 400 KB，是因为 APK 中<b>零个 .so</b>——渲染交由系统 WebView（Chromium）完成。
                        换来的是极小的体积与更低的内存占用；代价是内核版本跟随系统，无法独立升级。
+                       桌面版同理不内置内核，但体积极大（约 74 MB），因为三档运行时各自携带了一份。
                        我们认为对多数用户这是值得的取舍，但你应当了解这笔账。</p>
                 </div>
                 <div class="card">
                     <h3><span class="tag t">如实</span>桌面端三档运行时的标注</h3>
-                    <p>桌面版提供 Chromium / Gecko / IE(Trident) 三档运行时，<b>仅 Chromium 为完整内核</b>，
-                       其余两档为如实标注的兼容层——界面如实呈现，不做虚假选择。支持安装
-                       <code>.crx</code> 与 <code>.xpi</code> 扩展。</p>
+                    <p>桌面版提供三档渲染路径，由用户在设置中自行选择：<b>原生内核</b>（进程内渲染）、
+                       <b>原生宿主</b>（由独立宿主进程渲染 Gecko / Trident），以及<b>兼容层</b>
+                       （用 Chromium 渲染，但完整伪造目标内核的 UA、文档模式与 API 垫片）。
+                       <b>兼容层不等于真内核</b>——原生宿主二进制不存在时会自动降级为兼容层，
+                       界面如实标注当前实际生效的那一档。扩展方面支持拖入 <code>.crx</code> 自动安装。</p>
                 </div>
                 <div class="card">
                     <h3><span class="tag t">如实</span>无图模式的边界</h3>
@@ -568,9 +667,15 @@
         <div class="wrap">
             <div class="sec-head">
                 <span class="kicker">DOWNLOAD</span>
-                <h2>下载 Android 版</h2>
-                <p>官网直链与 Gitee Releases 内容一致，互为备份，任选其一即可。</p>
+                <h2>下载</h2>
+                <p>两端分别提供安装包，官网直链与 Gitee Releases 内容一致、互为备份，任选其一即可。</p>
             </div>
+
+            <!-- 手机版（Android）。下列版本号与下载链接由 assets/js/app.js
+                 在页面加载时从 version.json 写入（id 见那几个 dlVer / dlBtns 等），
+                 所以改版本只需改 version.json 一处 —— 唯独下面那条
+                 <li>版本码</li> 是硬编码的，改版本时记得一并改。 -->
+            <h3 class="dl-os">Android 手机版</h3>
             <div class="dl-box">
                 <div class="dl-version">
                     <strong id="dlVer">v1.6.3</strong>
@@ -583,7 +688,7 @@
                 </div>
                 <ul class="dl-facts" id="dlFacts">
                     <li><span>版本</span><span>1.6.3</span></li>
-                    <li><span>版本码</span><span>13</span></li>
+                    <li><span>版本码</span><span>16</span></li>
                     <li><span>更新日期</span><span>2026-10-15</span></li>
                 </ul>
             </div>
@@ -599,10 +704,11 @@
      首次运行 Windows 可能提示「未知发布者」；用 Windows 自带解压器解压时，
      「来自网络」标记还会传给解压产物 —— 根治要么买代码签名证书，
      要么用 7-Zip 之类不传播该标记的工具解压。 -->
-            <div class="dl-box" style="margin-top:32px;">
+            <h3 class="dl-os">Windows 电脑版</h3>
+            <div class="dl-box">
                 <div class="dl-version">
-                    <strong>v1.0.2</strong>
-                    <span>PC 版 · Windows</span>
+                    <strong id="dlPcVer">v1.0.2</strong>
+                    <span>Windows x64</span>
                 </div>
                 <p class="dl-note">桌面版约 74 MB，提供 <b>ZIP 压缩包</b>与 <b>EXE 安装程序</b>两种形式，内容完全一致，解压或直接运行均可。
                    <b>建议优先选 ZIP</b>：部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示，套一层压缩包后下载这一步更干净。

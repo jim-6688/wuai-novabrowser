@@ -1040,6 +1040,111 @@ img { max-width: 100%; display: block; }
 
 /* ---------- 下载区 ---------- */
 
+/* 两个下载盒子各自的小标题（Android / Windows）。
+   原来这一节只有一个盒子、一个 h2 写着「下载 Android 版」，而 PC 版是塞在
+   下面第二个盒子里的 —— 于是 PC 版既没有标题、也读不出它与手机版是并列关系。
+   盒子本身已经用 ::before 画了一条顶边作区分，标题再补一层文字，
+   两个平台才真正读作「并列的两项」而不是「主项 + 附注」。 */
+/* ===================== 两端对照 =====================
+   两栏并排。刻意用 flex 而不是 grid：两栏内容长度天然不等（电脑版条目多、
+   手机版少），等高对齐时短的那栏底部会留一大片空白，而两栏的表头必须齐平。
+   flex 下各自按内容高度伸展，视觉上仍是两块对齐的版。 */
+.cmp {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.cmp-col {
+  flex: 1 1 300px;
+  min-width: 0;
+  padding: 22px 24px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.cmp-hd {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 14px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cmp-os {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.cmp-hd strong {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.cmp-size {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+}
+
+.cmp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cmp-list li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* 最后一条不画虚线：与 dl-facts 同一个理由 —— 底边那条线加上去像是被切断。 */
+.cmp-list li:last-child { border-bottom: none; }
+
+.cmp-list b {
+  flex: 0 0 76px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* 该端不具备的那一项：留着它、并明说「不提供」——
+   隐去不说会让读者以为两端等价，而差异正是这一节要讲的东西。 */
+.cmp-list li.no b,
+.cmp-list li.no span {
+  color: var(--text-4);
+}
+
+.dl-os {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dl-os::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 .dl-box {
     background: var(--surface);
     border: 1px solid var(--border);
