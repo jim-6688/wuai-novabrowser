@@ -1,6 +1,6 @@
 {
   "installCommand": "echo skip-install",
-  "buildCommand": "rm -rf dist && mkdir -p dist && cp -R assets download index.html version.json dist/",
+  "buildCommand": "if exist dist rmdir /s /q dist & mkdir dist & xcopy /e /i /q assets dist\\assets\\ & xcopy /e /i /q download dist\\download\\ & copy /y index.html dist\\ & copy /y version.json dist\\ & exit /b 0",
   "outputDirectory": "./dist",
   "nodeVersion": "20.18.0",
   "headers": [
