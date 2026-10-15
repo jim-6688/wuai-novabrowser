@@ -32,18 +32,12 @@ public class NovaSettingsTest {
         assertTrue(s.adblockEnabled);
         assertEquals("system", s.theme);
         assertTrue(s.swipeUpSearch);
-        assertTrue("收藏夹栏入口默认开着", s.bookmarkBarButton);
+        // 原先这里还断言「收藏夹栏入口默认开着」。那条横栏与它的开关都已退场
+        // （收藏夹改在工具箱里开列表），字段随之删除，断言也一并去掉。
     }
 
-    @Test
-    public void 老配置缺收藏夹栏键时入口保持显示() {
-        // 与上划显示搜索同一条规矩：新增开关不该让老用户的顶栏凭空少一格。
-        Map<String, String> m = new HashMap<>(new NovaSettings().toMap());
-        m.remove("bookmarkBarButton");
-        assertTrue(NovaSettings.fromMap(m).bookmarkBarButton);
-        m.put("bookmarkBarButton", "false");
-        assertFalse(NovaSettings.fromMap(m).bookmarkBarButton);
-    }
+    // 原先这里有一条「老配置缺收藏夹栏键时入口保持显示」。字段已随那条横栏
+    // 一起删除，这条用例也就没有对象可测了 —— 留着会编译不过。
 
     @Test
     public void 老配置缺上划显示搜索键时保持开启() {
@@ -68,7 +62,6 @@ public class NovaSettingsTest {
         s.theme = "dark";
         s.defaultEngine = "trident";
         s.swipeUpSearch = false;
-        s.bookmarkBarButton = false;
 
         NovaSettings back = NovaSettings.fromMap(s.toMap());
         assertEquals("image-av", back.noImage);
@@ -77,7 +70,6 @@ public class NovaSettingsTest {
         assertEquals("dark", back.theme);
         assertEquals("trident", back.defaultEngine);
         assertFalse(back.swipeUpSearch);
-        assertFalse(back.bookmarkBarButton);
     }
 
     @Test

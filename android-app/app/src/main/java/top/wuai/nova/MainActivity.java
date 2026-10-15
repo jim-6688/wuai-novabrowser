@@ -238,23 +238,6 @@ public final class MainActivity extends Activity {
     private View mobileBar;
     /** 顶栏那一行。滚动时整行收起，把这 52dp 还给网页。 */
     private View topRow;
-    /**
-     * 收藏夹栏（地址栏下方那一条横向书签栏）。
-     *
-     * <p>与桌面端那条不同，移动端这一条<b>不常驻</b>：默认收着，从底栏工具箱里
-     * 那一格「收藏夹」点出来，点中某一格跳走之后自动收起。手机每一行高度都金贵，
-     * 一条常驻书签栏等于永久把一行网页让出去；唤出入口也从顶栏挪进了工具箱，
-     * 把顶栏的宽度还给地址栏。
-     *
-     * <p>{@link #bmBarOpen} 是「用户点开过没有」，跨 {@link #mountMain} 重装保留；
-     * 它和另外两个条件（设置里的开关、当前是不是新标签页）合成最终显隐，
-     * 判据在 {@link BookmarkBar#expanded}。
-     */
-    private View bookmarkBar;
-    /** 收藏夹栏里那一排格子。内容由 {@link #renderBookmarkBar} 重建。 */
-    private LinearLayout bookmarkBarRow;
-    /** 用户点过唤出键没有。默认 false —— 「默认收起，按需唤出」。 */
-    private boolean bmBarOpen = false;
     /** 滚动态的胶囊搜索框。与 {@link #mobileBar} 叠在同一行里（布局里的 bottomRow）。 */
     private View searchCapsule;
     /**
@@ -911,8 +894,6 @@ public final class MainActivity extends Activity {
         capsuleSearch = findViewById(R.id.capsuleSearch);
         bottomRow = findViewById(R.id.bottomRow);
         refreshHost = findViewById(R.id.webHost);
-        bookmarkBar = findViewById(R.id.bookmarkBar);
-        bookmarkBarRow = findViewById(R.id.bookmarkBarRow);
 
         // 重新 inflate 出来的进度条是全新的：XML 没写 visibility，默认 visible、progress=0。
         // 而复用的 WebView 此刻早已加载完（空闲）—— 不把进度条复位的话，
@@ -925,7 +906,6 @@ public final class MainActivity extends Activity {
         setupBottomBar();
         setupStarButton();
         setupTopBar();
-        setupBookmarkBar();
         setupOmnibox();
         // 滚动显隐。状态机复位成「底栏可见」，与新 inflate 出来的 XML 初态对齐 ——
         // 否则从「胶囊」状态返回主界面时，界面显示的是底栏、状态机却以为是胶囊，
@@ -1417,8 +1397,6 @@ public final class MainActivity extends Activity {
             toast(getString(R.string.bookmark_added));
         }
         updateStarState();
-        // 收藏夹栏开着的时候，收一条要当场多一格、取消一条要当场少一格。
-        refreshBookmarkBar();
     }
 
     /** 按当前 url 刷新星标图标（已收藏=实心，否则=描边）。 */
@@ -1430,130 +1408,12 @@ public final class MainActivity extends Activity {
         star.setImageResource(on ? R.drawable.ic_star_filled : R.drawable.ic_star);
     }
 
-    // ---------------------------------------------------------- 收藏夹栏
-    //
-    // 移动端这条栏是「按需唤出」的一条：默认收着，点顶栏那一格拉出来，
-    // 点中某一格跳走之后自动收起。手机上每一行高度都金贵，一条常驻书签栏
-    // 等于永久把一行网页让出去；而书签本身在菜单与书签面板里另有入口，
-    // 这条栏的价值是「常去的那几个站，一次点到」。
-    //
-    // 三个条件（用户点开过 / 设置里开着 / 当前不是新标签页）怎么合成最终显隐，
-    // 在 BookmarkBar.expanded 里 —— 那一份是纯逻辑，能离线单测。
-
-    private void setupBookmarkBar() {
-        // 顶栏的唤出键已撤掉（收进底栏工具箱的 toolBmBar），所以这里不再绑点击。
-        // 底栏那一格调的是 toggleBookmarkBar 的同一套逻辑，见 showToolsSheet。
-        // 从弹层返回会重新 inflate：格子是空的，而 bmBarOpen 还记着展开状态。
-        // 不补这一次重画，展开态会变成一条什么都没有的空白带。
-        if (bmBarOpen) renderBookmarkBar();
-        syncBmBarButton();
-        applyBookmarkBarVisibility();
-    }
-
-    private void toggleBookmarkBar() {
-        bmBarOpen = !bmBarOpen;
-        // 懒渲染：收着的时候不建格子。这条栏默认收着，若每次都预先建好，
-        // 冷启动会白白 inflate 一遍全部书签的格子 —— 而多数人多数时候并不展开它。
-        if (bmBarOpen) renderBookmarkBar();
-        syncBmBarButton();
-        applyBookmarkBarVisibility();
-    }
-
-    private void closeBookmarkBar() {
-        if (!bmBarOpen) return;
-        bmBarOpen = false;
-        syncBmBarButton();
-        applyBookmarkBarVisibility();
-    }
-
-    /** 书签增删之后重画。没展开时什么都不做 —— 内容等下次展开再建。 */
-    private void refreshBookmarkBar() {
-        if (bmBarOpen) renderBookmarkBar();
-    }
-
-    private void renderBookmarkBar() {
-        if (bookmarkBarRow == null) bookmarkBarRow = findViewById(R.id.bookmarkBarRow);
-        if (bookmarkBarRow == null) return;
-        bookmarkBarRow.removeAllViews();
-
-        List<BookmarkStore.Bookmark> list = store.bookmarks();
-        if (list.isEmpty()) {
-            // 空栏给一句去处，不留一条什么都没写的白带子 —— 那看着像渲染失败了。
-            TextView empty = new TextView(this);
-            empty.setText(R.string.bookmark_bar_empty);
-            empty.setTextSize(11.5f);
-            empty.setTextColor(color(R.color.text_4));
-            empty.setPadding(dp(6), dp(6), dp(6), dp(6));
-            bookmarkBarRow.addView(empty);
-            return;
-        }
-        for (BookmarkStore.Bookmark b : list) bookmarkBarRow.addView(bookmarkBarCell(b));
-    }
-
-    private View bookmarkBarCell(final BookmarkStore.Bookmark b) {
-        View cell = LayoutInflater.from(this)
-            .inflate(R.layout.item_bookmark_bar, bookmarkBarRow, false);
-
-        String label = BookmarkBar.label(b.title, b.url);
-        ((TextView) cell.findViewById(R.id.bmbFav)).setText(BookmarkBar.letter(label));
-        ((TextView) cell.findViewById(R.id.bmbTitle)).setText(label);
-        // 标题下面补一行主机名，与桌面端那条栏一致。没有它的话，一长条书签里
-        // 「知乎」和「知乎回答」分不出来，得逐个点进去才知道跳哪。
-        TextView sub = cell.findViewById(R.id.bmbUrl);
-        String host = BookmarkBar.host(b.url);
-        sub.setText(host);
-        // 与标题同一处退化：主机名取不到就整行隐去，不留一条「·」或空白
-        sub.setVisibility(host.isEmpty() ? View.GONE : View.VISIBLE);
-        cell.setContentDescription(host.isEmpty() ? label : label + "，" + host);
-
-        cell.setOnClickListener(v -> {
-            mountMain();
-            go(b.url);
-            // 「按需唤出」的另一半是「看完就收」：跳走之后把这一行高度还给网页。
-            // 想接着点下一个，再按一次唤出键就是了。
-            closeBookmarkBar();
-        });
-
-        // 移出走长按。格子里不放 ×：一格才 28dp 高、标题本来就截断着，
-        // 再往里挤一个删除键会把标题压成两个字。桌面端那条栏是同一个取舍（那边用右键）。
-        cell.setOnLongClickListener(v -> {
-            new NovaAlert(this, "移出收藏夹栏", "会把「" + label + "」从书签里删掉。")
-                .positive("移出", () -> {
-                    store.removeBookmark(b.url);
-                    renderBookmarkBar();
-                    updateStarState();
-                })
-                .negative("取消", null)
-                .show();
-            return true;
-        });
-        return cell;
-    }
-
-    /**
-     * 收藏夹栏唤出键的染色同步。**唤出键已撤掉**（收进底栏工具箱的 toolBmBar），
-     * 所以这里退化成空实现 —— 保留调用点是为了不改动
-     * {@code setupBookmarkBar} / {@code toggleBookmarkBar} 之间的调用次序。
-     *
-     * <p>原先这一格回答的是「下面那条栏开着没有」，靠染色而不是换图标：
-     * 它和旁边星标管的是两件事（星标管当前页收不收藏），换图标会让两个键
-     * 看起来更像。搬进工具箱后，那一格是整格点开、形态固定，状态改由
-     * {@link #applyBookmarkBarVisibility} 负责，这里不再有键可染。
-     */
-    private void syncBmBarButton() {
-        // 顶栏不再有唤出键（btnBmBar 已从 activity_main.xml 移除）。
-        // findViewById 会返回 null，这里刻意什么都不做：
-        // 方法留着是为了不打乱其余调用点的次序，将来若把键加回来，
-        // 只需删掉这个空壳、把染色两行搬回来即可。
-    }
-
-    private void applyBookmarkBarVisibility() {
-        if (bookmarkBar == null) bookmarkBar = findViewById(R.id.bookmarkBar);
-        if (bookmarkBar == null) return;
-        boolean show = BookmarkBar.expanded(bmBarOpen, NewTab.isNewTab(currentUrl()),
-            settings.bookmarkBarButton);
-        bookmarkBar.setVisibility(show ? View.VISIBLE : View.GONE);
-    }
+    // 收藏夹栏（bookmarkBar）已整体退场：那条横栏永久占着地址栏下方一行，
+    // 而它能给的只有「一眼扫到常去站点」—— 书签列表（工具箱 → 收藏夹）
+    // 给的更多且不占常驻高度。相关的一整套（renderBookmarkBar /
+    // bookmarkBarCell / applyBookmarkBarVisibility / syncBmBarButton /
+    // bmBarOpen、设置里的开关、item_bookmark_bar.xml、BookmarkBar 那个类）
+    // 一并删掉，不留「控制一个不存在的东西」的开关。
 
     private String currentUrl() {
         Tab t = current();
@@ -2679,9 +2539,6 @@ public final class MainActivity extends Activity {
         if (topBar == null) topBar = findViewById(R.id.topBar);
         if (topBar == null) return;
         topBar.setVisibility(NewTab.isNewTab(url) ? View.INVISIBLE : View.VISIBLE);
-        // 收藏夹栏跟着顶栏那一行走：它的显隐判据里有一条就是「当前是不是新标签页」，
-        // 而唯一知道页面换了的地方是这里。
-        applyBookmarkBarVisibility();
     }
 
     // ------------------------------------------------------------ 用户脚本
@@ -3435,25 +3292,17 @@ public final class MainActivity extends Activity {
             mountMain();
             showMenuSheet();
         });
-        // 收藏夹。与上面九格唯一的差别：**先 mountMain() 再拉栏**。
-        // 其余每格是「关掉弹层、去开另一个弹层」，而收藏夹栏不是弹层 ——
-        // 它是主视图顶栏下方的一条横栏，得先把主视图装回来才挂得上。
-        // 顺序反了会对着已脱离的视图操作，栏拉不出来。
-        toolCell(sheet, R.id.toolBmBar, R.drawable.ic_bookmark_bar, "收藏夹", () -> {
-            if (!settings.bookmarkBarButton) {
-                // 设置里关着这一项时，横栏（含原顶栏那一格）整个不存在。
-                // 不做点什么的话，用户点了就是「没反应」—— 最难排查的一种。
-                // 退到书签面板：书签都还在，只是没有那条横栏可一键跳。
-                mountMain();
-                showBookmarksSheet();
-                toast(getString(R.string.bm_bar_off_hint));
-                return;
-            }
+        // 收藏夹。横栏（原bookmarkBar）已经整体退场，这一格现在直接开书签列表。
+        //
+        // 为什么不留横栏：它是一条按需唤出的横条，代价却是**永久占掉地址栏
+        // 下方一行** —— 无论收着还是展开，网页视口都要让出它的高度。
+        // 而它能给的只有「一眼扫到常去站点」，书签列表给的更多：
+        // 看得到全部、每条带网址、能点 × 删。列表本来就是更完整的那个形态。
+        //
+        // 接线与上面九格一样：先 mountMain() 再开另一个弹层。
+        toolCell(sheet, R.id.toolBmBar, R.drawable.ic_bookmark, "收藏夹", () -> {
             mountMain();
-            bmBarOpen = true;
-            renderBookmarkBar();
-            syncBmBarButton();
-            applyBookmarkBarVisibility();
+            showBookmarksSheet();
         });
     }
 
@@ -3739,10 +3588,9 @@ public final class MainActivity extends Activity {
         });
         row.findViewById(R.id.bmRemove).setOnClickListener(v -> {
             store.removeBookmark(b.url);
+            // 重新弹一次：列表是自己重画的，不重画的话删掉的那条还在原地。
             showBookmarksSheet();
-            // 面板与收藏夹栏看的是同一份数据：在面板里删掉的那条，栏里也该立刻消失。
             // 星标同理 —— 删掉的可能正是当前这一页。
-            refreshBookmarkBar();
             updateStarState();
         });
         return row;
@@ -4669,19 +4517,9 @@ public final class MainActivity extends Activity {
                 repaintToggle(sheet, R.id.setSwipeUpSearch, settings.swipeUpSearch);
             });
 
-        setToggleRow(sheet, R.id.setBookmarkBar, "收藏夹栏",
-            "顶栏那一格：点一下在地址栏下方拉出一条书签栏，点中书签跳走后自动收起；关掉则连入口都不出现",
-            settings.bookmarkBarButton, false, () -> {
-                settings.bookmarkBarButton = !settings.bookmarkBarButton;
-                store.save(settings);
-                // 关掉时连同展开态一起收掉。判据在 BookmarkBar.expanded 里就是这么写的，
-                // 这里也要跟着把状态清掉 —— 否则会留下一条收不回去的栏：
-                // 那时唤出键已经隐去，没人能再把它关掉。
-                if (!settings.bookmarkBarButton) bmBarOpen = false;
-                syncBmBarButton();
-                applyBookmarkBarVisibility();
-                repaintToggle(sheet, R.id.setBookmarkBar, settings.bookmarkBarButton);
-            });
+        // 这里原先有一个「收藏夹栏」开关（setBookmarkBar）。连同横栏一起删掉了 ——
+        // 它的说明本就写着「点一下在地址栏下方拉出一条书签栏」，横栏不存在之后，
+        // 留一个开关就是在控制一个不存在的东西：按了没反应，比没有更让人困惑。
 
         // ---- 阅读增强
         setRow(sheet, R.id.setNoImage, "无图模式", null,

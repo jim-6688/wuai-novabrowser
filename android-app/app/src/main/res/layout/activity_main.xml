@@ -139,35 +139,26 @@
                     android:src="@drawable/ic_ai" />
             </LinearLayout>
 
-            <!-- 收藏夹栏。默认 gone —— 它是「按需唤出」的一条，不是常驻的一条。
+            <!-- 收藏夹栏（原 bookmarkBar）已整体移除。
 
-                 放在 topBar 之后的同一块里，于是滚动时顶栏整块 GONE 的那套逻辑
-                 自动带着它一起走，这条栏不用自己再处理一次滚动。
+                 去掉的理由：它是一条「按需唤出」的横栏，代价却是**永久占掉
+                 地址栏下方一行** —— 而那条横幅无论收着还是展开，网页视口都要
+                 让出它的高度。手机上每一行高度都金贵，而「一次点到常去站点」
+                 这件事，书签列表（工具箱 → 收藏夹）已经做得更好：能看全、
+                 带网址、能点 × 删。横栏能给的只有「一眼扫到」，不值这一行。
 
-                 横向滚动而不是换行：换行会把这一栏撑高，网页视口跟着缩一截，
-                 而「这条栏占多高」是用户点开它的那一刻就已经定下的预期。
+                 替代路径：底栏工具箱里那一格「收藏夹」直接开列表。
 
-                 scrollbars=none：横条的滚动条在移动端只会横在字下面，
-                 而这本来也不是一条需要看见滚动条的东西。 -->
-            <HorizontalScrollView
-                android:id="@+id/bookmarkBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@color/surface"
-                android:fillViewport="false"
-                android:paddingTop="2dp"
-                android:paddingBottom="8dp"
-                android:scrollbars="none"
-                android:visibility="gone">
+                 这条栏原本还牵连三处，现在一并退场（不留「控制一个不存在的东西」
+                 的开关）：
+                   · MainActivity 里 renderBookmarkBar / bookmarkBarCell /
+                     applyBookmarkBarVisibility / syncBmBarButton / bmBarOpen
+                   · 设置里的「收藏夹栏」开关（它的说明本就写着「点一下在地址栏
+                     下方拉出一条书签栏」）
+                   · res/layout/item_bookmark_bar.xml 与 BookmarkBar 里只为它
+                     存在的 expanded() / label() / letter() / host()
 
-                <LinearLayout
-                    android:id="@+id/bookmarkBarRow"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp" />
-            </HorizontalScrollView>
+                 topBar 之后的那个 LinearLayout 保留（还要装别的东西）。 -->
 
         </LinearLayout>
 

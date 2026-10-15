@@ -38,9 +38,6 @@
     <string name="content_desc_back">返回上一页</string>
     <string name="content_desc_tools">打开工具面板</string>
     <string name="content_desc_star">收藏当前页面 / 取消收藏</string>
-    <!-- 顶栏那个把收藏夹栏拉出来 / 收起来的格子。与上面的星标分得很清楚：
-         星标管「当前这一页要不要收藏」，这一格管「下面那条横栏露不露出来」。 -->
-    <string name="content_desc_bookmark_bar">收藏夹栏</string>
 
     <!-- 顶栏左端品牌标识的无障碍标签。写「菜单」而不是「吾爱Nova」：
          这一格点开的是菜单，而 TalkBack 读的是「这一格做什么」，
@@ -115,11 +112,7 @@
     <string name="bookmark_empty">还没有书签。打开网页后点工具栏的星标即可收藏。</string>
     <string name="bookmark_added">已收藏</string>
     <string name="bookmark_removed">已取消收藏</string>
-    <!-- 收藏夹栏拉到一半、一条书签都没有时占位的那一句。 -->
-    <string name="bookmark_bar_empty">还没有书签。点顶栏的星标可以把当前页收进来。</string>
 
-    <!-- 收藏夹栏被关掉时，从工具箱点「收藏夹」的兜底提示。 -->
-    <string name="bm_bar_off_hint">收藏夹栏已在设置里关掉，先给你打开书签列表；想用那条横栏可在设置中打开</string>
 
     <string name="sheet_history">历史</string>
     <string name="history_empty">还没有浏览记录。只记录 http/https 网页，无痕模式下不记。</string>

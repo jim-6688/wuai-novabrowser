@@ -101,9 +101,8 @@
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
                 <include layout="@layout/item_menu" android:id="@+id/setSwipeUpSearch" />
-                <View android:layout_width="match_parent" android:layout_height="1dp"
-                    android:background="@drawable/divider_row" />
-                <include layout="@layout/item_menu" android:id="@+id/setBookmarkBar" />
+                <!-- 这里原先是「收藏夹栏」那一行（setBookmarkBar）。随横栏一起删掉了：
+                     收藏夹现在收在底栏工具箱那一格里，直接开列表。 -->
             </LinearLayout>
 
             <!-- ============ 阅读增强 ============ -->

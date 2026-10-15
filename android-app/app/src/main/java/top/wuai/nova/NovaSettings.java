@@ -71,20 +71,10 @@ public final class NovaSettings {
      */
     public boolean swipeUpSearch = true;
     /**
-     * 顶栏那个「收藏夹（书签栏）」唤出按钮是否显示。
-     *
-     * <p>默认开。这条栏在移动端<b>不常驻</b> —— 手机上每一行高度都金贵，
-     * 常驻一条书签栏等于永久让出一行给网页之外的东西。点顶栏那一格把它拉出来，
-     * 点中某个书签跳走之后自动收起。
-     *
-     * <p>关掉这一项则连入口都不出现，顶栏那一格宽度还给地址栏。不用这条栏的人
-     * 不该一直为它付出一格。
-     *
-     * <p>与桌面版 {@code bookmarkBar}（always / ntp / hidden）<b>刻意不同名</b>：
-     * 那一个是「什么时候露出来」的三档，移动端这套是「有没有入口」的布尔，
-     * 同名不同值域迟早会让读配置的人以为它们是一回事。
-     */
-    public boolean bookmarkBarButton = true;
+    /* bookmarkBarButton 与它那套三档显隐已随收藏夹栏一起退场（2026-10）。
+       保留这段注释是为了说明「为什么读配置里那个旧键会没有」：老用户的
+       settings.json 里仍然带着它，只是没有人再读 —— 与其读到之后假装它还有效，
+       不如让它安静地留在文件里，将来若要恢复横栏还能看出原来是怎么设计的。 */
     public boolean adblockEnabled = true;
     /** 第三方请求拦截（严格隐私模式）：拦一切非同源子资源。默认关，避免影响老用户。 */
     public boolean thirdPartyBlock = false;
@@ -230,7 +220,6 @@ public final class NovaSettings {
         m.put(K_THEME, theme);
         m.put(K_ACCENT_THEME, accentTheme);
         m.put("swipeUpSearch", String.valueOf(swipeUpSearch));
-        m.put("bookmarkBarButton", String.valueOf(bookmarkBarButton));
         m.put("adblockEnabled", String.valueOf(adblockEnabled));
         m.put("thirdPartyBlock", String.valueOf(thirdPartyBlock));
         m.put("noImage", noImage);
@@ -275,7 +264,6 @@ public final class NovaSettings {
         // 默认 true：老配置里没有这个键，bool() 走 fallback，于是升级上来的用户
         // 保持现在的行为（上划换搜索框）—— 新增开关不该让任何人的界面突然变了。
         s.swipeUpSearch = bool(m.get("swipeUpSearch"), s.swipeUpSearch);
-        s.bookmarkBarButton = bool(m.get("bookmarkBarButton"), s.bookmarkBarButton);
         s.adblockEnabled = bool(m.get("adblockEnabled"), s.adblockEnabled);
         s.thirdPartyBlock = bool(m.get("thirdPartyBlock"), s.thirdPartyBlock);
         s.noImage = NoImagePolicy.Level.fromId(m.get("noImage")).id;
