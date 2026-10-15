@@ -897,6 +897,36 @@ img { max-width: 100%; display: block; }
 
 .card .fico.g { background: linear-gradient(135deg, #34D399, #00B8A2); }
 
+/* 功能区卡片的「PC」角标。
+   刻意复刻 .honest .tag 的药丸样式与配色，只是作用域不同 ——
+   两处角标长得一样，读者才会把它们当成同一类标记（「这一条有前提」）。 */
+.grid .card h3 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+.grid .tag {
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--brand-soft);
+    color: var(--brand);
+    white-space: nowrap;
+}
+
+/* 网格下方的角标说明句。做成居中偏淡的一行 —— 它是图例不是正文，
+   抢眼就变成在替正文吆喝了。 */
+.grid-note {
+    margin: 18px 0 0;
+    text-align: center;
+    color: var(--text-2);
+    font-size: 13.5px;
+}
+
+/* 图例里的角标要跟着句子走，字号略小一点才对。 */
+.grid-note .tag {
+    font-size: 11px;
+    vertical-align: 1px;
+}
+
 .card h3 { font-size: 16.5px; margin-bottom: 6px; }
 
 .card p { color: var(--text-2); font-size: 14px; }

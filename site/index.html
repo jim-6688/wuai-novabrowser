@@ -145,7 +145,34 @@
                     <h3>应用内自动更新</h3>
                     <p>新版本后台静默下载，界面仅提示「重启更新」。下载包带 <b>sha256 校验</b>，官网直链与 Gitee Releases <b>双源互为兜底</b>。</p>
                 </div>
+                <div class="card">
+                    <div class="fico">⇩</div>
+                    <h3><span class="tag">PC</span>拖入即装扩展</h3>
+                    <p>把下载好的 <code>.crx</code> / <code>.zip</code> / <code>.xpi</code>
+                       直接拖进浏览器窗口即自动安装，不必再翻菜单选文件。火狐扩展会先做清单归一化与
+                       <code>browser.* → chrome.*</code> 桥接，并如实列出做了哪些兼容改动。</p>
+                </div>
+                <div class="card">
+                    <div class="fico g">▤</div>
+                    <h3><span class="tag">PC</span>地址栏旁的下载浮窗</h3>
+                    <p>开始下载即在地址栏旁自动弹出，就地看到进度、速度与剩余时间，可暂停、继续或直接打开文件夹。
+                       不想被打扰时手动收起，之后的下载也不会再自动弹出。</p>
+                </div>
+                <div class="card">
+                    <div class="fico">✦</div>
+                    <h3><span class="tag">PC</span>AI 助手侧边窗口</h3>
+                    <p>页面右侧滑出 AI 面板：写好内容、右侧下拉选 AI，结果就在面板里看。
+                       <b>免登录的排在最前</b>（DeepSeek / Kimi / 通义千问 / 豆包），也可自定义地址；
+                       「带入当前页」能把选中文字带进输入框。</p>
+                </div>
+                <div class="card">
+                    <div class="fico g">⬢</div>
+                    <h3><span class="tag">PC</span>三档内核可切换</h3>
+                    <p>地址栏右端随时切换 Chromium / Gecko / IE(Trident) 运行时，兼容层如实标注。
+                       新标签页自带常用入口与插件商店入口，扩展与收藏夹开箱可用。</p>
+                </div>
             </div>
+            <p class="grid-note">标 <span class="tag">PC</span> 的能力为电脑版独有；其余功能手机端与电脑端均已具备。</p>
         </div>
     </section>
 
@@ -489,25 +516,32 @@
             </div>
 
             <!-- PC 版（Windows）。安装包走 Gitee Release 附件（78MB 不进 git 仓库），
-                 官网这里只放一个指向 Gitee 的下载按钮。
+     官网这里只放指向 Gitee 的下载按钮。
 
-                 发的是 ZIP 而不是裸 exe：浏览器对「直接下载 .exe」会弹
-                 「不常下载的文件」风险提示，套一层压缩包之后下载这一步就干净了。
-                 压缩包里就是原来那个安装程序，向导 / 快捷方式 / 卸载项都照旧，
-                 只是多一步解压。 -->
+     ZIP 与 EXE 两种形式都给：ZIP 为主推（浏览器对「直接下载 .exe」会弹
+     「不常下载的文件」风险提示，套一层压缩包之后下载这一步就干净了），
+     EXE 作为不便解压时的直选项。两者内容一致，同一个安装程序。
+
+     边界要说清楚：这只解决「下载」这一步。EXE 未做代码签名，
+     首次运行 Windows 可能提示「未知发布者」；用 Windows 自带解压器解压时，
+     「来自网络」标记还会传给解压产物 —— 根治要么买代码签名证书，
+     要么用 7-Zip 之类不传播该标记的工具解压。 -->
             <div class="dl-box" style="margin-top:32px;">
                 <div class="dl-version">
                     <strong>v0.3.0</strong>
                     <span>PC 版 · Windows</span>
                 </div>
-                <p class="dl-note">桌面版约 74 MB，以 ZIP 压缩包提供 —— 下载后解压，运行里面的安装程序即可。提供 Chromium 真内核 + Gecko / IE 兼容层，支持 .crx / .xpi 扩展。</p>
+                <p class="dl-note">桌面版约 74 MB，提供 <b>ZIP 压缩包</b>与 <b>EXE 安装程序</b>两种形式，内容完全一致，解压或直接运行均可。
+                   <b>建议优先选 ZIP</b>：部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示，套一层压缩包后下载这一步更干净。
+                   安装程序未做代码签名，首次运行时 Windows 可能提示「未知发布者」——这是自签包的固有现象，不是文件损坏。</p>
                 <div class="dl-list">
-                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.0/nova-pc-0.3.0-win-x64-setup.zip" download>Gitee Releases · PC 安装包（ZIP）</a>
+                    <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.0/nova-pc-0.3.0-win-x64-setup.zip" download>Gitee Releases · ZIP 压缩包（推荐）</a>
+                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.0/nova-pc-0.3.0-win-x64-setup.exe" download>Gitee Releases · EXE 安装程序</a>
                 </div>
                 <ul class="dl-facts">
                     <li><span>版本</span><span>0.3.0</span></li>
                     <li><span>平台</span><span>Windows x64</span></li>
-                    <li><span>大小</span><span>约 74 MB（ZIP）</span></li>
+                    <li><span>大小</span><span>约 74 MB</span></li>
                 </ul>
             </div>
         </div>

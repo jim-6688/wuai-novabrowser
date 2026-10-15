@@ -32,6 +32,12 @@
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
     "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.0/nova-pc-0.3.0-win-x64-setup.zip",
     "size": 78063135,
-    "sha256": "408df7b14f01e1d2de687dbec795cf0522b2857fe9c999774f5a6431f2fbb412"
+    "sha256": "408df7b14f01e1d2de687dbec795cf0522b2857fe9c999774f5a6431f2fbb412",
+    "exe": {
+      "label": "EXE 安装程序",
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.0/nova-pc-0.3.0-win-x64-setup.exe",
+      "size": 78065003,
+      "sha256": "2ec78374c2e58a4045a465abc1f7b4c7871c66099befc76be26aeda4c2155ef4"
+    }
   }
 }
