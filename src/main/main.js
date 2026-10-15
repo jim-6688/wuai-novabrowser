@@ -33,6 +33,7 @@ const { NoMedia, PLACEHOLDER_CSS, PLACEHOLDER_JS } = require('./nomedia');
 const { wireRequestGate: installRequestGate } = require('./request-gate');
 const { FaviconCache, hostsFromNtpData } = require('./favicon-cache');
 const updater = require('./updater');
+const bookmarksIo = require('./bookmarks-io');
 const desktopShortcut = require('./desktop-shortcut');
 
 const IS_DEV = process.argv.includes('--dev');
@@ -1026,6 +1027,71 @@ function registerIpc() {
   handle('bookmarks:add', (bm) => { settings.addBookmark(bm); return settings.get('bookmarks'); });
   handle('bookmarks:remove', (url) => { settings.removeBookmark(url); return settings.get('bookmarks'); });
   handle('bookmarks:clear', () => { settings.patch({ bookmarks: [] }); return []; });
+
+  /* ----------------------- 书签导入 / 导出 -----------------------
+   * 格式与清洗规则都在 src/main/bookmarks-io.js（纯逻辑，可离线单测）；
+   * 这一段只负责「挑文件、读文件、写文件」三件 IO。
+   *
+   * 导出给的是自家 JSON；导入**也认 Chrome / Edge 导出的 HTML** ——
+   * 「导入」最要紧的用途就是从别的浏览器搬过来，不认那种格式的话
+   * 这个功能在真正需要它的场景里是废的。
+   */
+  handle('bookmarks:export', async () => {
+    const list = settings.get('bookmarks', []);
+    if (!list.length) return { canceled: true, reason: '还没有书签可导出' };
+    const stamp = new Date().toISOString().slice(0, 10);
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: '导出书签',
+      defaultPath: `nova-bookmarks-${stamp}.json`,
+      filters: [{ name: '书签文件', extensions: ['json'] }]
+    });
+    if (res.canceled || !res.filePath) return { canceled: true };
+    const doc = bookmarksIo.buildExport(list, app.getVersion());
+    try {
+      // 缩进 2：用户多半会用记事本打开确认一下内容，
+      // 压成一行的 JSON 那种黑压压一片，看着就不敢碰
+      await fs.promises.writeFile(res.filePath, JSON.stringify(doc, null, 2), 'utf8');
+    } catch (e) {
+      return { error: '写入失败：' + (e && e.message ? e.message : String(e)) };
+    }
+    return { path: res.filePath, count: doc.count };
+  });
+
+  handle('bookmarks:import', async () => {
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: '导入书签',
+      // .html / .htm 也列上：那是 Chrome / Edge 导出的那份
+      filters: [{ name: '书签文件', extensions: ['json', 'html', 'htm'] }],
+      properties: ['openFile']
+    });
+    if (res.canceled || !res.filePaths.length) return { canceled: true };
+    let text;
+    try {
+      text = await fs.promises.readFile(res.filePaths[0], 'utf8');
+    } catch (e) {
+      return { error: '读取失败：' + (e && e.message ? e.message : String(e)) };
+    }
+    const parsed = bookmarksIo.parseImport(text);
+    if (!parsed.items.length) return { error: parsed.reason || '这个文件里没有书签' };
+
+    const cur = settings.get('bookmarks', []);
+    const m = bookmarksIo.merge(cur, parsed.items);
+    settings.patch({ bookmarks: m.merged });
+    send('settings:changed', settings.all());
+    // 顺带更新收藏夹栏与书签列表的图标缓存：导入进来的大多没抓过图标，
+    // 不 kick 一次的话它们会一直停在首字母上
+    if (faviconCache && typeof faviconCache.refreshIfStale === 'function') {
+      faviconCache.refreshIfStale(m.merged.map((b) => b.url));
+    }
+    return {
+      added: m.added,
+      dup: m.dup,
+      skipped: parsed.skipped,
+      reason: parsed.reason,
+      total: m.merged.length,
+      bookmarks: m.merged
+    };
+  });
 
   /* --- 下载 --- */
   handle('download:list', () => dlManager.list());

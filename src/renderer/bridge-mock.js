@@ -628,7 +628,12 @@ const MOCK_UPDATE = {
         state.settings.bookmarks = state.settings.bookmarks.filter((b) => b.url !== url);
         return state.settings.bookmarks;
       },
-      clear: async () => { state.settings.bookmarks = []; return []; }
+      clear: async () => { state.settings.bookmarks = []; return []; },
+      /* 导入导出：预览模式下开不了文件对话框，一律当作「用户取消了」。
+         不能假装成功 —— 那样评审点一下看到「导入完成：新增 0 条」，
+         会以为真导入成功了。 */
+      import: async () => ({ canceled: true }),
+      export: async () => ({ canceled: true })
     },
 
     history: {

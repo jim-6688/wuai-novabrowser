@@ -519,12 +519,14 @@ svg {
 }
 .bookmarkbar::-webkit-scrollbar { display: none; }
 
+/* 高度从 24px 抬到 34px：标题下面多了一行主机名。
+   字号各小一号（12 / 10.5 对原来单行的 12.5），两行并排也不显得压。 */
 .bm-item {
   display: flex;
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
-  height: 24px;
+  height: 34px;
   max-width: 190px;
   padding: 0 var(--sp-2);
   border-radius: var(--r-sm);
@@ -551,7 +553,30 @@ svg {
   line-height: 1;
 }
 .bm-fav img { width: 100%; height: 100%; object-fit: contain; }
-.bm-title { overflow: hidden; text-overflow: ellipsis; }
+/* 标题与主机名各自成行、共享一个 min-width:0 的父级。
+   不给父级 min-width:0 的话，flex 子项的固有宽度会把格子顶开 ——
+   横向排着的格子会越排越宽，最后把整条栏撑破。
+   与新标签页磁贴那处（.qk span）是同一个坑，同一个解法。 */
+.bm-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.bm-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 只到主机名、不带 https:// 与 www.：这一行是给「分得清哪一家」用的，
+   不是给「能照着敲回去」用的 —— 那是地址栏的活。
+   整条路径写进来只会把格子撑宽，多出来的那部分标题里已经有了。 */
+.bm-host {
+  font-size: 10.5px;
+  color: var(--text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
 
 /* 空栏不留一条纯白 —— 那条空带子看着像个渲染失败的控件。
    写一句去处，顺带把入口指出来。 */

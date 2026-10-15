@@ -99,7 +99,11 @@ contextBridge.exposeInMainWorld('nova', {
     list: () => ipcRenderer.invoke('bookmarks:list'),
     add: (bm) => ipcRenderer.invoke('bookmarks:add', bm),
     remove: (url) => ipcRenderer.invoke('bookmarks:remove', url),
-    clear: () => ipcRenderer.invoke('bookmarks:clear')
+    clear: () => ipcRenderer.invoke('bookmarks:clear'),
+    /** 导入：文件挑选用主进程的对话框，渲染层不碰文件系统 */
+    import: () => ipcRenderer.invoke('bookmarks:import'),
+    /** 导出：同上 */
+    export: () => ipcRenderer.invoke('bookmarks:export')
   },
   history: {
     list: (limit) => ipcRenderer.invoke('history:list', limit),

@@ -66,4 +66,27 @@ public final class BookmarkBar {
         }
         return "•";
     }
+
+    /**
+     * 收藏夹栏里标题下面那一行显示的网址。
+     *
+     * <p><b>只到主机名，不给整条路径</b>：横栏的可用宽度有限，而这一行是给
+     * 「分得清」用的 —— 看到 {@code zhihu.com} 就能区分是哪一家，
+     * 看到 {@code zhuanlan.zhihu.com/…} 只会把那一格撑得很宽、
+     * 而多出来的那部分本来就是标题里有的信息。
+     *
+     * <p>去掉 {@code www.} 前缀：它不携带任何区分信息（同一个站必然是同一个
+     * 主机），却占掉一行里最贵的两三个字符。
+     *
+     * <p>与标题一样是<b>纯函数</b>：这一层解析项目里已经有一份
+     * {@link NewTab#hostOf}，这里直接借它而不是自己再写一遍 —— 重复的解析
+     * 规则散在三处时，改一次要记着改三处，而漏掉的那一处要到「某处显示得跟别处
+     * 不一样」才被发现。
+     */
+    public static String host(String url) {
+        String h = NewTab.hostOf(url);
+        if (h == null) return "";
+        if (h.startsWith("www.")) return h.substring(4);
+        return h;
+    }
 }

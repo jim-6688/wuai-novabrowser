@@ -872,10 +872,18 @@ function renderBookmarkBar(force = false) {
     const icon = src
       ? `<img src="${esc(src)}" alt="" onerror="this.remove()" />`
       : esc((host || 'N').slice(0, 1).toUpperCase());
+    // 标题下面补一行主机名（与安卓那条栏一致）。没有它的话，一长条书签里
+    // 「知乎」和「知乎回答」分不出来，得逐个点进去才知道跳哪。
+    // 只到主机名、不带 https:// 与 www.：这一行是给「分得清哪一家」用的，
+    // 整条路径写进来只会把格子撑宽 —— 而那部分信息标题里已经有了。
+    const hostLine = (host || '').replace(/^www\./, '');
     return `<button class="bm-item" data-bm="${esc(b.url)}"` +
       ` title="${esc(label)}&#10;${esc(b.url)}&#10;右键移出收藏夹栏">` +
       `<span class="bm-fav">${icon}</span>` +
-      `<span class="bm-title">${esc(label)}</span></button>`;
+      `<span class="bm-text">` +
+      `<span class="bm-title">${esc(label)}</span>` +
+      (hostLine ? `<span class="bm-host">${esc(hostLine)}</span>` : '') +
+      `</span></button>`;
   }).join('');
 }
 
@@ -1712,6 +1720,18 @@ function buildBookmarks() {
     <div class="btn-row">
       <button class="btn btn-primary" data-act="bookmark-current">把当前页加入书签</button>
       <button class="btn" data-act="clear-bookmarks" ${list.length ? '' : 'disabled'}>清空全部书签</button>
+    </div>
+    <h2 class="sv-h2" style="margin-top:28px">导入 / 导出</h2>
+    <div class="sv-lead">
+      导出成一份 JSON 文件；导入除自家 JSON 外，也认<b>Chrome / Edge 导出的 HTML</b>
+      —— 换浏览器时最要紧的就是这一步。<br />
+      同一家站的不同页面会各留一条（那是你真的收过的）；已在的书签不会被覆盖，
+      导入只追加。
+    </div>
+    <div class="btn-row">
+      <button class="btn" data-act="bookmarks-import" ${list.length ? '' : 'disabled'}
+              title="${list.length ? '' : '还没有书签，先收几条再导出'}">从文件导入…</button>
+      <button class="btn" data-act="bookmarks-export" ${list.length ? '' : 'disabled'}>导出书签…</button>
     </div>
   `;
 }
@@ -3461,6 +3481,28 @@ function wireActions(root) {
         state.bookmarks = await bridge.bookmarks.clear();
         refreshCurrent();
         toast('书签已清空');
+      } else if (act === 'bookmarks-import') {
+        // 导入：文件对话框在主进程那边（渲染层不碰文件系统）。
+        // 取消时返回 { canceled:true } —— 那不是错误，别弹红色的提示。
+        const r = await bridge.bookmarks.import();
+        if (!r || r.canceled) return;
+        if (r.error) {
+          toast('导入失败：' + r.error, 4200);
+          return;
+        }
+        if (r.bookmarks) state.bookmarks = r.bookmarks;
+        refreshCurrent();
+        // 如实报数：加了几条、重复几条、跳过几条。
+        // 只说「导入成功」的话，用户不知道自己那份文件里有多少被合并掉了。
+        const bits = [`导入完成：新增 ${r.added} 条`];
+        if (r.dup) bits.push(`已在书签里 ${r.dup} 条`);
+        if (r.skipped) bits.push(`跳过 ${r.skipped} 条`);
+        toast(`${bits.join(' · ')}，当前共 ${r.total} 条`, 4200);
+      } else if (act === 'bookmarks-export') {
+        const r = await bridge.bookmarks.export();
+        if (!r || r.canceled) return;
+        if (r.error) { toast(r.error, 4200); return; }
+        toast(`已导出 ${r.count} 条书签`, 3200);
       } else if (act === 'newtab-builtin') { await setNtpMode('start'); }
       else if (act === 'newtab-homepage') { await setNtpMode('homepage'); }
       else if (act === 'newtab-blank') { await setNtpMode('blank'); }

@@ -1497,7 +1497,14 @@ public final class MainActivity extends Activity {
         String label = BookmarkBar.label(b.title, b.url);
         ((TextView) cell.findViewById(R.id.bmbFav)).setText(BookmarkBar.letter(label));
         ((TextView) cell.findViewById(R.id.bmbTitle)).setText(label);
-        cell.setContentDescription(label);
+        // 标题下面补一行主机名，与桌面端那条栏一致。没有它的话，一长条书签里
+        // 「知乎」和「知乎回答」分不出来，得逐个点进去才知道跳哪。
+        TextView sub = cell.findViewById(R.id.bmbUrl);
+        String host = BookmarkBar.host(b.url);
+        sub.setText(host);
+        // 与标题同一处退化：主机名取不到就整行隐去，不留一条「·」或空白
+        sub.setVisibility(host.isEmpty() ? View.GONE : View.VISIBLE);
+        cell.setContentDescription(host.isEmpty() ? label : label + "，" + host);
 
         cell.setOnClickListener(v -> {
             mountMain();
