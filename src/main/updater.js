@@ -202,7 +202,7 @@ function configure(updater) {
 
 /** 启动一次检查。**永不 reject**：更新失败不是致命错误，界面照常用。 */
 async function start(currentVersion, handlers, manifestUrl, httpGet) {
-  const state = { status: 'idle', info: null, error: '' };
+  const state = { status: 'idle', info: null, error: '', lastCheckAt: '' };
   const emit = () => { if (handlers && typeof handlers.onState === 'function') handlers.onState({ ...state }); };
 
   state.status = 'checking';
@@ -215,6 +215,10 @@ async function start(currentVersion, handlers, manifestUrl, httpGet) {
     // check 内部已经兜过大部分情况，这里只是最后一道
     info = { updateAvailable: false, reason: String(e && e.message || e) };
   }
+
+  // 不管结果如何都记下这次检查的时间：界面上「上次检查：…」要靠它，
+  // 而「查了但失败了」与「从没查过」在界面上必须读得出区别。
+  state.lastCheckAt = new Date().toISOString();
 
   if (!info.updateAvailable) {
     state.status = 'idle';

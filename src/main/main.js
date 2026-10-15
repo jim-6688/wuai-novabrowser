@@ -769,6 +769,12 @@ function registerIpc() {
     noImageCss: PLACEHOLDER_CSS,
     noImageJs: PLACEHOLDER_JS,
     platform: process.platform,
+    /** 应用自身的版本号（package.json 的 version）。
+     *
+     * <p>此前「关于」面板把版本号**写死成 0.1.0**，而实际早已是 1.0.x ——
+     * 根因是这里没把版本号交给渲染层，而渲染层没有别的地方能拿到它。
+     * 版本号只有一个来源（package.json），这里只透传，不再另抄一份。 */
+    appVersion: app.getVersion(),
     versions: {
       electron: process.versions.electron,
       chrome: process.versions.chrome,

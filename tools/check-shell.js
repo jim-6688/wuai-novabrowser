@@ -139,6 +139,8 @@ console.log('\n[8] 站点图标链路');
 const mainJs = fs.readFileSync(P('src/main/main.js'), 'utf8');
 const preload = fs.readFileSync(P('src/preload/preload.js'), 'utf8');
 const mockJs = fs.readFileSync(P('src/renderer/bridge-mock.js'), 'utf8');
+const mainMod = fs.readFileSync(P('src/main/main.js'), 'utf8');
+const updaterMod = fs.readFileSync(P('src/main/updater.js'), 'utf8');
 const newtab = fs.readFileSync(P('src/renderer/newtab.html'), 'utf8');
 const toJava = (rel) => P('android-app/app/src/main/' + rel);
 [
@@ -282,6 +284,57 @@ const shopMod = fs.readFileSync(P('src/main/ext-store.js'), 'utf8');
     /data-store-open[\s\S]{0,400}?closeSettings\(\)/.test(shopShell)],
   ['「已经装过」不当成错误报红（它确实没出错，只是没有新东西）',
     /r\.already[\s\S]{0,200}?toast\(/.test(shopShell)]
+].forEach(([name, pass]) => pass ? ok(name) : bad(name));
+
+/* ------------------------------------------------------------------
+ * 菜单入口与「关于」里的更新功能
+ * ------------------------------------------------------------------ */
+const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('function renderSourceCards'));
+
+[
+  ['菜单里「设置」排在「新建标签页」之前（用户要求把设置与关于提到上面）',
+    menuBody.indexOf('data-panel="settings"') > -1
+      && menuBody.indexOf('data-panel="settings"') < menuBody.indexOf('data-act="new-tab"')],
+  ['菜单里「关于」也排在「新建标签页」之前',
+    menuBody.indexOf('data-panel="about"') > -1
+      && menuBody.indexOf('data-panel="about"') < menuBody.indexOf('data-act="new-tab"')],
+  ['菜单里「设置」与「关于」各只有一处（挪位置时容易留下重复的那一份）',
+    (menuBody.match(/data-panel="settings"/g) || []).length === 1
+      && (menuBody.match(/data-panel="about"/g) || []).length === 1],
+  ['「关于」那一行的副标题用 upVer()，不再是写死的版本号',
+    /data-panel="about"[\s\S]{0,320}?\$\{esc\(upVer\(\)\)\}/.test(menuBody)],
+  ['更新按钮的委托挂在 document 上（原来绑 #update-body，「关于」里的按钮点不动）',
+    /document\.addEventListener\('click',[\s\S]{0,200}?closest\('\[data-up\]'\)/.test(js)],
+  ['「关于」面板里有检查更新，且照抄顶栏那套状态机而不是另写一份',
+    /function buildAbout[\s\S]{0,3000}?data-up="check"/.test(js)
+      && /function buildAbout[\s\S]{0,3000}?data-up="download"/.test(js)
+      && /function buildAbout[\s\S]{0,3000}?data-up="install"/.test(js)],
+  // 取委托处理器那**一段**来看（从 closest('[data-up]') 到下一个不同缩进的顶层块），
+  // 不要用「从 data-up="check" 起 N 字符」那种宽松匹配 —— 中间隔着注释，
+  // 窗口宽度得试好几遍，而其中一段注释里还正好出现了 openPanel('about')
+  // （那句是在解释「为什么不用它」），于是宽松匹配会两头都判错。
+  ['更新按钮动作后重画当前分区（用 refreshCurrent 刷当前分区，而不是 openPanel 把人弹走）',
+    (() => {
+      const i = js.indexOf("closest('[data-up]')");
+      const seg = js.slice(i, i + 2400);
+      // 这段注释是 **// 行注释**，只去 /* */ 块注释是不够的 —— 试过一次，
+      // 结果「解释为什么不用 openPanel」那两行照样被当成代码判进去了。
+      const segCode = seg
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+      return /refreshCurrent\(\)/.test(segCode) && !/openPanel\(/.test(segCode);
+    })()],
+  ['「关于」里的版本号不再是写死的 0.1.0（那值早就过期了）',
+    !/版本<\/span><b>0\.1\.0</.test(js) && /版本<\/span><b>\$\{esc\(upVer\(\)\)\}/.test(js)],
+  ['应用版本号由主进程经 bootstrap 透传（package.json 是唯一来源）',
+    /appVersion: app\.getVersion\(\)/.test(mainMod)
+      && /state\.appVersion = boot\.appVersion/.test(js)],
+  ['预览桥也给了 appVersion（否则预览里版本号一片空白）',
+    /appVersion:/.test(mockJs)],
+  ['updater 记下上次检查时间（「查过但失败」与「从没查过」要读得出区别）',
+    /lastCheckAt/.test(updaterMod)],
+  ['fmtWhen 用本地时区渲染，不是截 ISO 字符串（否则钟点差几个小时）',
+    /function fmtWhen[\s\S]{0,600}?getHours\(\)/.test(js)]
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

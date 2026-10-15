@@ -128,6 +128,29 @@ function toast(msg, ms = 2200) {
 }
 
 /** 千分位数字 —— 规则数以十万计时可读性很重要 */
+/**
+ * ISO 时间戳 → 「今天 15:42」/「10 月 14 日 15:42」这样的本地化短串。
+ *
+ * <p>刻意用**本地时区**而不是截 ISO 字符串：update.lastCheckAt 存的是
+ * UTC，截出来的时间会比用户看到的钟点差几个小时，而「上次检查」这句话
+ * 的全部意义就是让人知道「我刚才那次检查是什么时候」。
+ *
+ * <p>今天的不写日期 —— 「今天 15:42」比「10 月 15 日 15:42」更贴近
+ * 「刚才那次」的语感。跨天才补日期，年份与当前不同则连年一起写。
+ */
+function fmtWhen(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const now = new Date();
+  const sameDay = d.getFullYear() === now.getFullYear()
+    && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  if (sameDay) return `今天 ${hm}`;
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const md = `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+  return sameYear ? `${md} ${hm}` : `${d.getFullYear()} 年 ${md} ${hm}`;
+}
+
 function fmtNum(n) {
   return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
@@ -978,6 +1001,33 @@ function closeDrawer() {
   state.panel = null;
 }
 
+/**
+ * 当前应用版本号（来自 package.json，经主进程 bootstrap 透传）。
+ *
+ * <p>取不到时给一个显眼的占位而不是静默空着 —— 「关于」里版本号那一栏
+ * 空着会让人以为这是不支持显示，而实际是漏传了。
+ */
+function upVer() {
+  return state.appVersion || '版本未知';
+}
+
+/**
+ * 菜单里「关于」那一行右端的角标：有新版可更新时显示版本号，否则不占位。
+ *
+ * <p>此前这一格恒为空，而更新状态只由顶栏那个齿轮按钮表达 ——
+ * 于是「有新版」这件事在菜单里完全看不出来，用户不会去点那个齿轮。
+ * 这里把它带过来，是给顶栏那处补一个不必先扫视工具栏的入口。
+ */
+function updateTail() {
+  const s = state.update || {};
+  if (s.status === 'available') {
+    return `<span style="color:var(--brand)">${esc((s.info && s.info.version) || '有新版')}</span>`;
+  }
+  if (s.status === 'downloading') return `${Math.round(s.percent || 0)}%`;
+  if (s.status === 'ready') return '<span style="color:var(--brand)">可安装</span>';
+  return '›';
+}
+
 function renderMenuPanel() {
   const tab = activeTab();
   const e = tab ? engine(tab.engineId) : engine(state.settings.defaultEngine);
@@ -993,6 +1043,18 @@ function renderMenuPanel() {
         ${esc(e.notes)}<br />
         <span style="color:var(--text-4)">UA：${esc(e.userAgent)}</span>
       </div>
+    </div>
+
+    <div class="panel-label">应用</div>
+    <div class="list-row is-click" data-panel="settings">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg></span>
+      <span class="lr-main"><span class="lr-title">设置</span><span class="lr-sub">常规 / 内核 / 拦截 / 数据</span></span>
+      <span class="lr-tail">›</span>
+    </div>
+    <div class="list-row is-click" data-panel="about">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg></span>
+      <span class="lr-main"><span class="lr-title">关于吾爱Nova</span><span class="lr-sub">${esc(upVer())}</span></span>
+      <span class="lr-tail">${updateTail()}</span>
     </div>
 
     <div class="panel-label">导航</div>
@@ -1044,16 +1106,6 @@ function renderMenuPanel() {
       <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/></svg></span>
       <span class="lr-main"><span class="lr-title">下载</span></span>
       <span class="lr-tail">${state.downloads.length}</span>
-    </div>
-    <div class="list-row is-click" data-panel="settings">
-      <span class="lr-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg></span>
-      <span class="lr-main"><span class="lr-title">设置</span><span class="lr-sub">常规 / 内核 / 拦截 / 数据</span></span>
-      <span class="lr-tail">›</span>
-    </div>
-    <div class="list-row is-click" data-panel="about">
-      <span class="lr-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg></span>
-      <span class="lr-main"><span class="lr-title">关于吾爱Nova</span><span class="lr-sub">多内核浏览器 · 0.1.0</span></span>
-      <span class="lr-tail">›</span>
     </div>
   `);
   wireActions($('#drawer-body'));
@@ -2534,6 +2586,43 @@ function buildEngines() {
 
 function buildAbout() {
   const v = state.__versions || {};
+  const u = state.update || {};
+  const notes = Array.isArray(u.info && u.info.notes) && u.info.notes.length
+    ? `<ul class="up-notes">${u.info.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`
+    : '';
+  // 「检查更新」这一块照抄顶栏浮层那套状态机（renderUpdatePanel）：
+  // 两处各写一份的话，有一天状态多一档就会只改一处。
+  let updBlock;
+  if (u.status === 'checking') {
+    updBlock = '<p class="up-none">正在检查更新…</p>';
+  } else if (u.status === 'error') {
+    updBlock = `<p class="up-err">检查失败：${esc(u.error || '未知原因')}</p>
+      <button class="btn" data-up="check">重试</button>`;
+  } else if (u.status === 'downloading') {
+    const pct = Math.round(u.percent || 0);
+    updBlock = `<div class="up-ver">正在下载 ${esc((u.info && u.info.version) || '')}</div>
+      <div class="up-bar"><i style="width:${pct}%"></i></div>
+      <p class="up-none">${pct}%。下载的是变化的那部分，不是整个安装包。</p>`;
+  } else if (u.status === 'ready') {
+    updBlock = `<div class="up-ver">${esc((u.info && u.info.version) || '')} 已下载完毕</div>
+      <p class="up-none">重启后生效。当前页面里未保存的内容会丢失。</p>
+      <button class="btn btn-primary" data-up="install">重启并安装</button>`;
+  } else if (u.status === 'available') {
+    updBlock = `<div class="up-ver">新版本 ${esc((u.info && u.info.version) || '')}</div>
+      ${notes}
+      <div class="up-actions">
+        <button class="btn btn-primary" data-up="download">下载更新</button>
+        <button class="btn" data-up="later">稍后再说</button>
+      </div>`;
+  } else {
+    // idle：没有待处理的更新。
+    // **不写「当前已是最新版本」** —— 检查失败时状态也是 idle 之外的一档，
+    // 而这一档的语义是「还没查过」，把两者说成同一句就是不准确的。
+    updBlock = `<p class="up-none">${u.lastCheckAt
+      ? `上次检查：${esc(fmtWhen(u.lastCheckAt))}。`
+      : '尚未检查过。'}下载只包含变化的那部分，通常远小于完整安装包。</p>
+      <button class="btn" data-up="check">检查更新</button>`;
+  }
   return `
     <h2 class="sv-h2">关于吾爱Nova</h2>
     <div class="panel-section" style="text-align:center;padding-top:var(--sp-2)">
@@ -2542,9 +2631,12 @@ function buildAbout() {
       <div class="muted" style="padding-top:var(--sp-1)">多内核 · 双端 · 内置广告拦截</div>
     </div>
 
+    <div class="panel-label">检查更新</div>
+    <div class="sv-card">${updBlock}</div>
+
     <div class="panel-label">运行时</div>
     <div class="sv-card">
-      <div class="kv"><span>版本</span><b>0.1.0</b></div>
+      <div class="kv"><span>版本</span><b>${esc(upVer())}</b></div>
       <div class="kv"><span>Electron</span><b>${esc(v.electron || '-')}</b></div>
       <div class="kv"><span>Chromium</span><b>${esc(v.chrome || '-')}</b></div>
       <div class="kv"><span>Node</span><b>${esc(v.node || '-')}</b></div>
@@ -4120,29 +4212,42 @@ function wireUi() {
     const panel = $('#update-panel');
     if (panel) $('#update-close').addEventListener('click', closeUpdatePanel);
 
-    const body = $('#update-body');
-    if (body) {
-      body.addEventListener('click', async (ev) => {
-        const t = ev.target.closest('[data-up]');
-        if (!t) return;
-        const act = t.dataset.up;
-        if (act === 'check') {
-          t.disabled = true;
-          try { await bridge.update.check(); } catch { /* 主进程已兜 */ }
-          t.disabled = false;
-          renderUpdatePanel();
-        } else if (act === 'download') {
-          t.disabled = true;
-          toast('开始下载更新…');
-          try { await bridge.update.download(); } catch { /* 状态里有错误 */ }
-          renderUpdatePanel();
-        } else if (act === 'install') {
-          await bridge.update.install();
-        } else if (act === 'later') {
-          closeUpdatePanel();
-        }
-      });
-    }
+    /* 更新相关的按钮**一律靠委托**处理，挂在 document 上而不是某个容器上。
+     *
+     * <p>原因：这些按钮现在出现在**两个地方** —— 顶栏那个齿轮浮层（#update-body）
+     * 与「关于」面板（#drawer-body 里，走菜单 → 关于进来）。原先绑在 #update-body 上，
+     * 于是「关于」里那几个按钮**点不动**：它们渲染出来了、有样式、就是不响应。
+     * 那种「看起来能点其实不能」比没有按钮更难排查。
+     *
+     * <p>挂 document 的代价是事件多走一层 closest()，换来的是新增一个入口
+     * 不必记得回来补一行绑定 —— 而这次错的正是这一处。 */
+    document.addEventListener('click', async (ev) => {
+      const t = ev.target.closest('[data-up]');
+      if (!t) return;
+      const act = t.dataset.up;
+      if (act === 'check') {
+        t.disabled = true;
+        try { await bridge.update.check(); } catch { /* 主进程已兜 */ }
+        t.disabled = false;
+        renderUpdatePanel();
+        // 「关于」面板里那几个按钮不会自动重画（它不是 renderUpdatePanel 管的），
+        // 所以状态一变就 refreshCurrent() 重画当前分区。
+        // 用它而不是 openPanel('about')：后者会 openSettings 把设置视图整个打开，
+        // 而用户此刻正站在设置里的「关于」分区上——那会把人从当前位置弹走。
+        refreshCurrent();
+      } else if (act === 'download') {
+        t.disabled = true;
+        toast('开始下载更新…');
+        try { await bridge.update.download(); } catch { /* 状态里有错误 */ }
+        renderUpdatePanel();
+        refreshCurrent();
+      } else if (act === 'install') {
+        await bridge.update.install();
+      } else if (act === 'later') {
+        closeUpdatePanel();
+        refreshCurrent();
+      }
+    });
 
     // 状态同步：主进程推来的每一帧都画一遍。
     bridge.on('update:state', (s) => applyUpdateState(s));
@@ -4405,6 +4510,7 @@ async function init() {
   state.sniffFormats = boot.sniffFormats || null;
   state.sniffStats = boot.sniffStats || null;
   state.__versions = boot.versions;
+  state.appVersion = boot.appVersion || '';
   state.platform = boot.platform;
   state.noMedia = boot.nomedia || null;
   state.noImageCss = boot.noImageCss || '';

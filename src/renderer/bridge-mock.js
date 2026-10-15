@@ -458,6 +458,7 @@ if (typeof window !== 'undefined' && !window.nova) {
       { title: '某个只在 IE 下能打开的老系统', url: 'http://legacy.example.com/login.aspx', ts: now - 7200000, visits: 1 },
       { title: 'Firefox 扩展文档 - MDN', url: 'https://developer.mozilla.org/zh-CN/docs/Mozilla/Add-ons', ts: now - 86400000, visits: 2 }
     ],
+    appVersion: '1.0.3（预览）',
     versions: { electron: '30.x（预览）', chrome: '126.0.6478.0（预览）', node: '20.x（预览）' },
     platform: 'win32',
     allowlist: []
@@ -534,6 +535,7 @@ const MOCK_UPDATE = {
       noImageCss: 'html.nova-no-image img{background-color:rgba(128,132,140,.16)!important;}',
       noImageJs: "document.documentElement.classList.add('nova-no-image');",
       platform: state.platform,
+      appVersion: state.appVersion,
       versions: state.versions,
       allowlist: state.allowlist
     }),
