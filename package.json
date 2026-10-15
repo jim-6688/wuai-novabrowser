@@ -1,7 +1,7 @@
 {
   "name": "nova-browser",
   "productName": "吾爱Nova浏览器",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "多内核浏览器原型：Chromium / Gecko / IE(Trident) 内核切换，PC 与移动双端，内置广告拦截，支持 Chromium 插件与火狐扩展",
   "author": "WuAi",

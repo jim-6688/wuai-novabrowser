@@ -65,7 +65,7 @@ android {
         // 收藏夹横栏整体退场，改由工具箱那一格直接开列表；
         // 顶栏左端换回品牌标；「上划显示搜索框」在任何页面都能触发；
         // 新标签页六个固定入口加门禁钉死
-        versionCode 15
+        versionCode 16
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用

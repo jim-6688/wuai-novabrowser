@@ -227,11 +227,13 @@ public final class MainActivity extends Activity {
     private TextView statusStrip;
     private TextView noImageChip;
     /**
-     * 顶栏上装「搜索 + 地址栏 + 收藏 + AI」的那一行。
+     * 顶栏上装「品牌标 + 地址栏 + 收藏 + AI」的那一行。
      *
-     * <p>内置新标签页上整行隐去（{@link View#INVISIBLE}），而不是把整条顶栏收掉：
-     * 那一页页内自带搜索框，顶栏再挂一个地址栏就是两个搜索入口；但整行消失会让
-     * 页面内容上跳一次 —— 用户刚点完「新建标签页」，看到的就是上面少了一截。
+     * <p>内置新标签页上<b>整行收掉</b>（{@link View#GONE}），而不只是隐去内容：
+     * 那一页页内自带品牌标与宫格，顶栏再挂一个地址栏既重复、又在状态栏下方
+     * 留下一条 48dp 的白色空带。原先是 {@code INVISIBLE}（为避免内容上跳），
+     * 2026-10 改成 {@code GONE} —— 换页面时那一下跳本来就看不出来，
+     * 而白带是一天都要看着它的。理由详见 {@link #applyChromeFor}。
      */
     private View topBar;
     /** 五格底栏。滚动时整条淡出，位置上换成 {@link #searchCapsule}。 */
@@ -2534,10 +2536,27 @@ public final class MainActivity extends Activity {
      * 用户点完「新建标签页」看到的第一件事就是页面跳了一下。
      * 所以隐内容、留行高（{@link View#INVISIBLE} 仍然参与布局）。
      */
+    /**
+     * 内置新标签页上把顶栏**整行收掉**（{@link View#GONE}），而不只是隐去内容。
+     *
+     * <p><b>为什么改</b>：原先是 {@link View#INVISIBLE}，理由是「整行消失会让页面
+     * 内容上跳一次」。但那个理由只对了一半 —— 它确实避免了那一下跳，
+     * 代价却是**在状态栏下方留下一条 48dp 的白色空带**：内容不可见，
+     * 高度却仍被占着，而那一带的背景是 {@code surface}（白），于是屏幕上
+     * 明明是空无一物却横着一截白色。用户看到的就是「新标签页上面有个白框」。
+     *
+     * <p>代价用另一种方式化解：新标签页是<b>从别处跳过来的</b>，那一下本就在
+     * 切页面（整屏都换了），而不是在同一个页面里滚动。所以「多出/少掉一条
+     * 地址栏的高度」在这里根本看不出来 —— 与其为一个看不出的跳换一条看得见的
+     * 白带，不如把高度还回去。
+     *
+     * <p>而同一个 {@code topBar} 在**网页之间**切换时仍要跟着当前页走：
+     * 从新标签页跳到某个站，那一行要回来；跳回去，它要让开。
+     */
     private void applyChromeFor(String url) {
         if (topBar == null) topBar = findViewById(R.id.topBar);
         if (topBar == null) return;
-        topBar.setVisibility(NewTab.isNewTab(url) ? View.INVISIBLE : View.VISIBLE);
+        topBar.setVisibility(NewTab.isNewTab(url) ? View.GONE : View.VISIBLE);
     }
 
     // ------------------------------------------------------------ 用户脚本

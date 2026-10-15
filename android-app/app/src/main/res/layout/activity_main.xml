@@ -26,16 +26,19 @@
          它们在顶栏有常驻入口）。顶栏从 96dp 收回 48dp，网页多出一行。
 
          滚动时这一整块收起（setVisibility(GONE)），高度还给网页。
-         内置新标签页上只隐去内容（INVISIBLE），行高保留 —— 那一页页内自带搜索框，
-         顶栏再挂一个地址栏就是两个入口，但整行收掉又会让人觉得「上面少了点什么」，
-         而且内容会随之上跳。
+         内置新标签页上整块收掉（GONE，见 MainActivity#applyChromeFor）。
+    -->
+    <!--
+      背景刻意**不在这一层**，改由内层 topBar 自己带：
+      曾经这个 FrameLayout 有 android:background="@color/surface"（白），
+      而新标签页上 topBar 是收掉的 —— 于是那一行没了、白色却还留着，
+      屏幕上就是状态栏下方横着一条 48dp 的白带（内容什么都不剩，只剩底色）。
+      背景跟着「真的有内容的那一行」走，才不会留下一块没有主人的底色。
     -->
     <FrameLayout
         android:id="@+id/topRow"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/surface"
-        android:elevation="8dp">
+        android:layout_height="wrap_content">
 
         <!--
           这里原来有一条 1dp 的硬分隔线（@color/border）。撤掉，改由 elevation 的
@@ -43,6 +46,10 @@
 
           4dp → 8dp：4dp 的投影在浅色底上几乎看不见（当初那条硬线就是为了补这件事
           才加的），8dp 才有明确的悬浮感。底栏用同一个值，两条看起来才是同一套东西。
+
+          elevation 与背景都已挪到内层 topBar 上（2026-10）：这一层现在只是一个
+          装它的壳，而新标签页上它是空的 —— 背景与阴影留在壳上，就会在内容都收走
+          之后留下一条带底色和阴影的空带。
         -->
 
         <LinearLayout
@@ -50,13 +57,20 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- 顶栏那一行：搜索 + 地址栏 + 收藏 + AI。
-                 这一行的 id 是 topBar —— 内置新标签页上整套内容会被置为
-                 INVISIBLE（见 MainActivity#applyChromeFor），保留它占的高度。 -->
+            <!-- 顶栏那一行：品牌标 + 地址栏 + 收藏 + AI。
+                 这一行的 id 是 topBar —— 内置新标签页上整行收掉
+                 （View.GONE，见 MainActivity#applyChromeFor）。
+
+                 白底挂在这**一行**上，而不是外层那个 FrameLayout：
+                 只有真正有内容的那一行才该有底色。挂在外层的话，新标签页上
+                 这一行没了、外层还在，用户看到的就是一条什么都没有的
+                 白带（状态栏下方横着的那个白框）。 -->
             <LinearLayout
                 android:id="@+id/topBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="@color/surface"
+                android:elevation="8dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingStart="6dp"
