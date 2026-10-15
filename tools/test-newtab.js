@@ -672,6 +672,42 @@ function manyHosts(n) {
   // 上面前一条只守「两端一致」—— 改一处改两处，它照样是绿的。
   // 而用户要的是「这六条本身不许动」，所以这里把内容也钉死：
   // 要增删或改地址必须先改这一条，并且在 commit 里说清为什么。
+  // 钉住「删掉一条之后后面的往前补位」：这条曾经只存在于安卓侧，
+  // 桌面端漏了 —— 表现是删掉「主页」之后第 1 格永久空着，后面五条原地不动。
+  // 两端共用同一个页面（newtab.html 由 mobile:sync 逐字节复制），
+  // 而候选数据由各自的宿主拼，于是这类不一致只能靠单测守住。
+  //
+  // 三个前提（写这两条用例时各踩一次）：
+  //     要看内置那六条的 label，得走 Page.parseData —— realRows / padRows
+  //     返回的是**原始字符串**（'主页\thttps://…\t0\tf'），不是对象。
+  //
+  // 另外两个前提（各踩一次）：
+  //  1) removed 里给的是**归一化之后**的主机名（hostKey 去掉了 www. 前缀），
+  //     写 'www.52ta.top' 是匹配不上的；
+  //  2) 别拿「主页」当样本 —— 它与「导航」共享主机名 52ta.top（只有 www 前缀之差），
+  //     而判重也是按主机名，于是删一个会连带去掉两个，是两格不是一格。
+  //     用独占主机的「播放器」（music.52ta.top）才测得出「少一格、补一格」。
+  //  1) removed 里给的是**归一化之后**的主机名（hostKey 去掉了 www. 前缀），
+  //     写 'www.52ta.top' 是匹配不上的；
+  //  2) 别拿「主页」当样本 —— 它与「导航」共享主机名 52ta.top（只有 www 前缀之差），
+  //     而判重也是按主机名，于是删一个会连带去掉两个，是两格不是一格。
+  //     用独占主机的「播放器」（music.52ta.top）才测得出「少一格、补一格」。
+  check('删掉一条之后，后面的内置网址往前补位（不留空格）', (() => {
+    const rows = Page.parseData(Ntp.buildData({ removed: ['music.52ta.top'] }))
+      .filter((r) => r.builtin);
+    const want = ['主页', '导航', '浏览器', '百度', 'DeepSeek'];
+    return rows.length === 5 && rows.every((r, i) => r.label === want[i]);
+  })(), Page.parseData(Ntp.buildData({ removed: ['music.52ta.top'] }))
+    .filter((r) => r.builtin).map((r) => r.label).join(' '));
+
+  check('删掉最后一条时前面五条都不动（DeepSeek 不往前挪）', (() => {
+    const rows = Page.parseData(Ntp.buildData({ removed: ['chat.deepseek.com'] }))
+      .filter((r) => r.builtin);
+    const want = ['主页', '导航', '播放器', '浏览器', '百度'];
+    return rows.length === 5 && rows.every((r, i) => r.label === want[i]);
+  })(), Page.parseData(Ntp.buildData({ removed: ['chat.deepseek.com'] }))
+    .filter((r) => r.builtin).map((r) => r.label).join(' '));
+
   check('这六条固定入口不许被改动（地址逐字钉死）', (() => {
     const PINNED = [
       ['主页', 'https://www.52ta.top/'],

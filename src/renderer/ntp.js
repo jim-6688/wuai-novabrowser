@@ -271,7 +271,14 @@ function buildData(sources) {
   //      那正是它会随候选多少而增减的根因。现在只有「用户自己删过这一格」才让它缺席。
   for (const site of BUILTIN_SITES) {
     const k = hostKey(site.url);
-    if (!k || blocked[k] || seenUrls[site.url]) continue;
+    if (!k || seenUrls[site.url]) continue;
+    // 用户点掉的那一条：跳过它，但**继续往下走** —— 后面的内置网址会往前补位。
+    // 于是删掉「主页」之后是 导航/播放器/浏览器/百度/DeepSeek 依次上移一格，
+    // 而不是让第 1 格永久空着（那正是「固定入口」最该在的位置）。
+    //
+    // 注意这个「跳过」不等于「那一格没人管」：版面永远由还剩下的内置网址填满，
+    // 用户自己加的排在它们之后。DeepSeek 仍是这六条里的最后一条。
+    if (blocked[k]) continue;
     seenUrls[site.url] = 1;
     rows.push({ label: site.label, url: site.url, visits: 0, pinned: false, builtin: true });
   }

@@ -77,7 +77,7 @@
 
     <!-- 「内置」徽章。内置脚本是浏览器替用户装上的，列表里要能一眼区分。 -->
     <string name="plugin_builtin">内置</string>
-    <string name="sheet_bookmarks">书签</string>
+    <string name="sheet_bookmarks">收藏夹</string>
 
     <!-- 地址栏空的时候显示什么。默认是提示语；停在内置新标签页上时换成
          「新标签页」—— 那一页的真身是一条又长又吓人的 file:///android_asset/…，
@@ -109,7 +109,7 @@
     <string name="action_confirm">确定</string>
     <string name="action_exit">退出</string>
 
-    <string name="bookmark_empty">还没有书签。打开网页后点工具栏的星标即可收藏。</string>
+    <string name="bookmark_empty">还没有收藏。打开网页后点顶栏的星标即可收藏。</string>
     <string name="bookmark_added">已收藏</string>
     <string name="bookmark_removed">已取消收藏</string>
 

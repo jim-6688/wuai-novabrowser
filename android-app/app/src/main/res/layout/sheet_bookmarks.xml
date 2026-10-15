@@ -62,7 +62,7 @@
         android:layout_marginTop="14dp"
         android:gravity="center"
         android:background="@drawable/row"
-        android:text="清空书签"
+        android:text="清空收藏"
         android:textColor="@color/text_2"
         android:textSize="14sp" />
 </LinearLayout>

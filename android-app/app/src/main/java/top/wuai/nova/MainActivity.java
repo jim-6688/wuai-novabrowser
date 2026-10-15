@@ -3041,7 +3041,28 @@ public final class MainActivity extends Activity {
         TextView t = sheet.findViewById(R.id.sheetTitle);
         if (t != null) t.setText(title);
         View close = sheet.findViewById(R.id.sheetClose);
-        if (close != null) close.setOnClickListener(v -> mountMain());
+        if (close != null) {
+            // 工具栏那一格的右上角是**齿轮**（进设置），其余弹层仍是 ×（关闭）。
+            // 两者共用 sheet_head.xml，所以图标与行为都得在这里按布局分派 ——
+            // 换个图标却仍只管关闭，会让人以为齿轮是设置、结果面板关了。
+            //
+            // 声明成 ImageView：换图标要调 setImageResource，而那是 ImageView 的方法，
+            // View 上没有（写成 View 会「找不到符号」）。
+            boolean isTools = layoutRes == R.layout.sheet_tools;
+            ImageView icon = (ImageView) close;
+            if (isTools) {
+                icon.setImageResource(R.drawable.ic_settings);
+                close.setContentDescription(getString(R.string.sheet_settings));
+                close.setOnClickListener(v -> {
+                    mountMain();          // 先把工具栏收掉，否则设置叠在它上面
+                    showSettings();
+                });
+            } else {
+                icon.setImageResource(R.drawable.ic_close);
+                close.setContentDescription(getString(R.string.action_close_tab));
+                close.setOnClickListener(v -> mountMain());
+            }
+        }
 
         setContentView(root);
         openSheetView = sheet;
@@ -3577,8 +3598,8 @@ public final class MainActivity extends Activity {
         sheet.findViewById(R.id.bmClear).setOnClickListener(v -> {
             final int n = store.bookmarks().size();
             if (n == 0) return;
-            new NovaAlert(this, "清空书签",
-                "会删除全部 " + n + " 条书签，无法撤销。")
+            new NovaAlert(this, "清空收藏夹",
+                "会删除全部 " + n + " 条收藏，无法撤销。")
                 .positive("清空", () -> {
                     store.clearBookmarks();
                     showBookmarksSheet();

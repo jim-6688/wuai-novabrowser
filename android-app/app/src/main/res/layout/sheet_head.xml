@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  弹层头。四种弹层共用：标题 + 一条拖柄 + 关闭键。
+  弹层头。四种弹层共用：标题 + 一条拖柄 + 右上角那一键。
   拖柄不是装饰 —— 它明确告诉用户「往下拉/往下划可以关掉」，底部弹层没有这个提示
-  会让人以为只能点右上角那个 ×。
+  会让人以为只能点右上角那一键。
+
+  右上角那一键有两种形态，由 MainActivity#openSheet 按布局分派（图标与行为都换）：
+  · 工具栏（sheet_tools）→ 齿轮，点它进设置
+  · 其余弹层 → ×，点它关闭
+  刻意不放两个键：那一角只有一个位置，而多一个「×」在手机上会让弹层显得拥挤。
+  工具栏仍可下拉关闭（拖柄还在），所以换成齿轮不把关掉的出路拿走。
 -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"

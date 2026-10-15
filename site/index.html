@@ -5,7 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>吾爱Nova浏览器 · 轻量、省流、可扩展的开源浏览器</title>
     <meta name="description" content="吾爱Nova 是面向移动端的开源浏览器：安装包不足 400 KB，不内置内核、渲染交由系统 Chromium 完成。提供多线程下载、广告拦截、用户脚本、无图模式与自动拼页，能力与边界均如实标注。">
-    <link rel="icon" type="image/png" href="assets/img/logo.png">
+    <!--
+      网站图标。原来只声明了 logo.png（192×192），而 favicon 的标准位置是根目录下的
+      /favicon.ico —— 没有它时浏览器要去 HTML 里翻 rel="icon"，爬虫与某些抓取器
+      干脆不翻，于是站点在书签、标签页、历史记录里显示成一个空白方块。
+
+      三个都留着，它们各有各的用处：
+      · favicon.ico（16/32/48 三尺寸）—— 无 rel 标签时浏览器自动去根目录找的那个
+      · favicon-32.png—— 新标签页与书签用；比 192 的 logo.png 小得多，
+                          列表里渲染成 16px 时不会因为缩放而糊
+      · logo.png —— 保留给不支持 ico 的老浏览器作最后兜底
+      顺序按「越靠前越优先」，所以先 ico 再 32px png 最后大图。
+    -->
+    <link rel="icon" href="assets/img/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
+    <link rel="apple-touch-icon" href="assets/img/favicon-32.png">
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>

@@ -313,6 +313,13 @@ public final class NewTab {
         for (Row b : BUILTIN_SITES) {
             String k = hostKey(b.url);
             if (k.isEmpty()) continue;
+            // 用户点掉的那一条：跳过它，**继续往下走** —— 后面的会往前补位。
+            // 于是删掉「主页」之后是 导航/播放器/浏览器/百度/DeepSeek 依次上移一格，
+            // 而不是让第 1 格永久空着。
+            //
+            // 桌面端 ntp.js 曾经在这里是 return 而不是 continue，于是删掉一条之后
+            // 后面的内置网址全都不上了 —— 两端表现不一致，而这一屏是两端共用的
+            // （newtab.html 由 mobile:sync 逐字节复制）。**改这里之前先看那边。**
             if (blocked != null && blocked.contains(k)) continue;
             if (!have.add(b.url)) continue;
             out.add(b);
