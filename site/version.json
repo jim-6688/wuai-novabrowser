@@ -1,42 +1,43 @@
 {
-  "version": "1.6.3",
-  "versionCode": 16,
+  "version": "1.6.4",
+  "versionCode": 17,
   "channel": "release",
   "updatedAt": "2026-10-15",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复手机端新标签页顶部横着一条白色空框 —— 顶栏那一行没有收掉，只是内容看不见，而背景还留在外层容器上",
-    "手机端工具箱收敛到八格：AI 助手与主菜单在顶栏已经有常驻入口，不再在工具箱里各放一份",
-    "手机端：收藏夹不再在地址栏下方那条横栏显示，改为在底栏工具箱里点「收藏夹」直接开列表",
-    "新标签页不再显示浏览历史，只保留内置的六个固定入口与你自己添加的 —— 每次打开长得都一致",
-    "电脑端与手机端：新标签页的六个固定入口位置锁死，并加了门禁钉住，以后不会被改乱"
+    "修复新标签页删掉一个内置网址之后不补位的问题 —— 后面的会自动往前补（电脑端此前是漏的，手机端本来就正常）",
+    "手机版工具栏右上角换成齿轮图标，点它直接进设置",
+    "手机版：收藏夹面板内的「书签」改称「收藏夹」",
+    "新标签页不再显示浏览历史，只保留内置的六个固定入口与你自己添加的",
+    "电脑端与手机端：新标签页的六个固定入口顺序锁定（DeepSeek 在第六位），删除后自动补位",
+    "官网改版：补齐电脑版介绍，新增「两端对照」与「只有手机版有」两节，并加了网站图标"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.3.apk",
-      "size": 486846,
-      "sha256": "f0017ddba5feae34cd2dbd0ff38f13954c49085815254f9c0a442699c4db9ac5"
+      "url": "download/nova-1.6.4.apk",
+      "size": 487002,
+      "sha256": "f34b42bbed310a8035e32d8f7d94f23bf47343f6c691ce3318b51cfca03a9fa5"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.3/nova-1.6.3.apk",
-      "size": 486846,
-      "sha256": "f0017ddba5feae34cd2dbd0ff38f13954c49085815254f9c0a442699c4db9ac5"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.4/nova-1.6.4.apk",
+      "size": 487002,
+      "sha256": "f34b42bbed310a8035e32d8f7d94f23bf47343f6c691ce3318b51cfca03a9fa5"
     }
   ],
   "pc": {
-    "version": "1.0.2",
+    "version": "1.0.3",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.3/nova-pc-1.0.2-win-x64-setup.zip",
-    "size": 78076265,
-    "sha256": "bdabad392de9163e2510c0c6007647d91e1c19e05d037877b15e13caaa77e44a",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.4/nova-pc-1.0.3-win-x64-setup.zip",
+    "size": 78075785,
+    "sha256": "0b6406a92f0f2c057152f465e81c632041c15a69b94be95c3206bcf239f9c6f5",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.3/nova-pc-1.0.2-win-x64-setup.exe",
-      "size": 78078363,
-      "sha256": "51c683b7a6af608db3252c9ab88951d0fc529f70bb214c2e18b46ee617a4eb6e"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.4/nova-pc-1.0.3-win-x64-setup.exe",
+      "size": 78077885,
+      "sha256": "6bd4e36e569808eb9cfc6eb7357f6ccb4233300acbef9ea84abe20e9b537c693"
     }
   }
 }

@@ -61,11 +61,11 @@ android {
         applicationId 'top.wuai.nova'
         minSdk 24
         targetSdk 35
-        // 本轮：书签导入导出（认 Chrome / Edge 的 HTML）；
-        // 收藏夹横栏整体退场，改由工具箱那一格直接开列表；
-        // 顶栏左端换回品牌标；「上划显示搜索框」在任何页面都能触发；
-        // 新标签页六个固定入口加门禁钉死
-        versionCode 16
+        // 本轮：新标签页删掉一条内置网址之后，后面的往前补位（桌面端此前是漏的）；
+        // 收藏夹面板内「书签」改称「收藏夹」；
+        // 工具栏右上角换齿轮，点它进设置；
+        // 新标签页不再显示浏览历史，只保留内置六条与自己添加的
+        versionCode 17
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用
