@@ -202,24 +202,31 @@ function compareCandidates(a, b) {
 }
 
 /**
- * 把三个来源合成页面要的那段文本：`label<TAB>url<TAB>visits<TAB>flags`，
+ * 把两个来源合成页面要的那段文本：`label<TAB>url<TAB>visits<TAB>flags`，
  * 一行一条，最多 `MAX_CANDIDATES` 条。
  *
- * @param {{added?:Array, history?:Array, removed?:Array}} sources
+ * <p><b>刻意不收浏览历史</b>（2026-10）。曾经收过，排序规则是「访问次数多的
+ * 靠前」—— 而这一屏的用途是「挑个地方开始浏览」，不是「回顾去过的地方」。
+ * 混进来的后果是：新标签页每次打开长得都不一样（谁的浏览记录不一样），
+ * 而「固定入口」这个承诺也就没了。历史会自己变化，磁贴不该跟着抖。
+ *
+ * <p>现在只有两个来源：用户自己加的（{@code added}）与内置那六条
+ * （{@link BUILTIN_SITES}，无条件追加）。所以新标签页上是**确定的**：
+ * 除了用户自己加的那几条，剩下永远是那六个。
+ *
+ * @param {{added?:Array, removed?:Array}} sources
  *        added   用户自己加的（pinned）
- *        history 浏览历史（带 visits）
  *        removed 用户点掉过的归一化主机名
  */
 function buildData(sources) {
   const src = sources || {};
   const added = Array.isArray(src.added) ? src.added : [];
-  const history = Array.isArray(src.history) ? src.history : [];
   const removed = Array.isArray(src.removed) ? src.removed : [];
 
   const blocked = Object.create(null);
   for (const k of removed) if (k) blocked[k] = 1;
 
-  // 去重按主机名，和页面上那条规则一致：zhihu.com 的历史里可能有几十条
+  // 去重按主机名，和页面上那条规则一致：zhihu.com 的收藏里可能有几条
   // 不同的问题页，不去重的话七个格子会被同一家占满 —— 那就不叫快捷方式了。
   const seen = Object.create(null);
   // 另外记一份「已经出现过的完整 URL」，只给下面补位时判重用（口径不同，见那儿）。
@@ -228,25 +235,20 @@ function buildData(sources) {
 
   for (const a of added) {
     if (!a || !a.url) continue;
+    // 协议过滤对**用户自己加的**这条同样要紧（2026-10 补回）：
+    // 以前这个判断只长在 history 那个循环里，删掉浏览历史之后它跟着没了，
+    // 于是用户手滑加一个 about:blank 或 file:// 就会亮在新标签页上 ——
+    // 后者还会把本机路径当站点名显示出来。
+    if (!recordable(a.url)) continue;
     const k = hostKey(a.url);
-    if (!k || seen[k]) continue;
+    // 「用户点掉过的那几家不再出现」这条对**自己加的**同样要紧（2026-10 补回）：
+    // 以前这个判断也只长在 history 那个循环里，删掉浏览历史之后跟着没了。
+    // 用户在新标签页上长按 × 掉一家，转头它又出现在自己加的那批里 ——
+    // 那次 × 就成了假的。
+    if (!k || blocked[k] || seen[k]) continue;
     seen[k] = 1;
     seenUrls[a.url] = 1;
     rows.push({ label: sanitize(a.label) || k, url: a.url, visits: 0, pinned: true });
-  }
-
-  for (const h of history) {
-    if (!h || !recordable(h.url)) continue;
-    const k = hostKey(h.url);
-    if (!k || blocked[k] || seen[k]) continue;
-    seen[k] = 1;
-    seenUrls[h.url] = 1;
-    rows.push({
-      label: labelOf(h.title, h.url),
-      url: h.url,
-      visits: parseInt(h.visits, 10) || 0,
-      pinned: false
-    });
   }
 
   rows.sort(compareCandidates);

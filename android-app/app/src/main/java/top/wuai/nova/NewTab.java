@@ -293,7 +293,21 @@ public final class NewTab {
      * @param blocked 用户点掉过的主机名集合（可为 null）
      */
     public static List<Row> withBuiltins(List<Row> rows, Set<String> blocked) {
-        List<Row> out = rows == null ? new ArrayList<Row>() : new ArrayList<>(rows);
+        // 协议过滤放在这里而不是调用方：**这是候选进版面的最后一道闸**，
+        // 放在入口的话每加一个来源（用户自己加的、以后再有的导入）就可能漏一处。
+        // about:blank 是空白页本身，file:// 会把本机路径当站点名亮在新标签页上。
+        List<Row> out = new ArrayList<>();
+        if (rows != null) {
+            for (Row r : rows) {
+                if (r == null || !recordable(r.url)) continue;
+                // 用户点掉过的那几家不再出现 —— 这一条对「用户自己加的」同样要紧。
+                // 用户在新标签页上长按 × 掉一家，转头它又出现在自己加的那批里，
+                // 那次 × 就是假的。
+                String rk = hostKey(r.url);
+                if (rk.isEmpty() || (blocked != null && blocked.contains(rk))) continue;
+                out.add(r);
+            }
+        }
         Set<String> have = new HashSet<>();
         for (Row r : out) have.add(r.url);
         for (Row b : BUILTIN_SITES) {
@@ -304,6 +318,17 @@ public final class NewTab {
             out.add(b);
         }
         return out;
+    }
+
+    /**
+     * 只有 http/https 值得进新标签页的候选。
+     *
+     * <p>与桌面端 {@code ntp.js} 的 {@code recordable} 同义，两边要一起改。
+     */
+    public static boolean recordable(String url) {
+        if (url == null) return false;
+        String s = url.trim().toLowerCase(java.util.Locale.ROOT);
+        return s.startsWith("http://") || s.startsWith("https://");
     }
 
     /**

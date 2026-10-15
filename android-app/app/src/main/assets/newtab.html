@@ -507,24 +507,22 @@ var NovaNtp = (function () {
     }
 
     /**
-     * 排序：**内置推荐位先占位**，用户自己加的与历史里的常去站点填剩下的格子，
+     * 排序：**内置推荐位先占位**，用户自己加的填剩下的格子，
      * 同 host 只留第一个，最后截到上限。
      *
-     * 顺序是 builtin → pinned → rest：内置那六条（flags 里的 f）排在最前，
-     * 它们的位置因此是固定的 —— 刷新页面、访问的站点变多，都不会让它们挪位或消失。
+     * 只有两档了：builtin（内置那六条，flags 里的 f）与 pinned（用户自己加的）。
+     * 排在最前的 builtin 因此是**固定**的 —— 刷新页面、自己加了多少条，
+     * 都不会让它们挪位或消失。
      * 「固定」是这个产品的承诺之一，放在后面就废了（截断会把它们整条截掉）。
      *
-     * 「同 host 去重」而不是「同 url 去重」：zhihu.com 会出现十条不同的问题页，
-     * 按 url 去重的话这七个格子可能全被同一家占满 —— 那就不叫快捷方式了。
-     *
-     * pinned（用户自己加的）排在 rest 前面：用户明确加的那一条应该在
-     * 历史里同次数的站点之前，不该按字母序被挤到后面。
+     * 「同 host 去重」而不是「同 url 去重」：用户可能收藏了 zhihu.com 上
+     * 好几条不同的专栏/问题页，按 url 去重的话这几个格子会被同一家占满 ——
+     * 那就不叫快捷方式了。
      */
     function rank(cands, max) {
         var cap = (max === undefined || max === null) ? MAX_SHORTCUTS : max;
         var seen = {};
         var pinned = [];
-        var rest = [];
         var builtin = [];
         for (var i = 0; i < (cands || []).length; i++) {
             var c = cands[i];
@@ -534,20 +532,20 @@ var NovaNtp = (function () {
             seen[h] = 1;
             if (c.pinned) pinned.push(c);
             else if (c.builtin) builtin.push(c);
-            else rest.push(c);
+            /* 其余的一律丢掉。
+               曾经这里还有第三档 rest（按访问次数排序的浏览历史），2026-10 起
+               新标签页**不再显示浏览历史** —— 那一屏的用途是「挑个地方开始
+               浏览」而不是「回顾去过的地方」，而历史每次都在变，混进来会让
+               这一屏长得不一样，固定入口也就没了。
+               留着这一档只会让人以为还有第三档；真要恢复浏览历史，
+               该改的是宿主侧的候选来源，而不是这里。 */
         }
-        rest.sort(function (a, b) {
-            if (b.visits !== a.visits) return b.visits - a.visits;
-            // 次数相同时按名称定序，否则每次刷新顺序都会抖
-            return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0);
-        });
-        /* 内置推荐位（flags 里的 f）**先占位**，用户自己加的与历史里的填剩下的格子。
-           刻意放在 pinned/rest 前面而不是后面：截断（slice）发生在最后，
+        /* 内置推荐位（flags 里的 f）**先占位**，用户自己加的填剩下的格子。
+           刻意放在 pinned 前面而不是后面：截断（slice）发生在最后，
            垫底的话候选一多，这六条就被整条截掉 —— 而「固定」的意思正是
-           它们不该随用户访问了哪些站点而增减。取用时从这六条里往后挑，
-           挑到把版面填满为止，多的那几条本轮不显示、下一轮还在原地。
-           pinned（用户自己加的）排第二优先，被删掉的固定位它来补。 */
-        var slots = builtin.concat(pinned, rest);
+           它们不该随用户加了多少条而增减。取用时从这六条里往后挑，
+           挑到把版面填满为止，多的那几条本轮不显示、下一轮还在原地。 */
+        var slots = builtin.concat(pinned);
         return slots.slice(0, cap);
     }
 

@@ -2166,19 +2166,18 @@ public final class MainActivity extends Activity {
     private String ntpData() {
         List<NewTab.Row> rows = new ArrayList<>(store.ntpAdded());
         Set<String> blocked = store.ntpRemoved();
-        // 去重按主机名，和页面上那条规则一致：zhihu.com 的历史里可能有几十条
+        // 去重按主机名，和页面上那条规则一致：用户可能收藏了同一家好几条
         // 不同的问题页，不去重的话七个格子会被同一家占满。
         Set<String> seen = new HashSet<>();
         for (NewTab.Row r : rows) seen.add(NewTab.hostKey(r.url));
 
-        for (HistoryStore.Entry e : store.history()) {
-            if (!HistoryStore.recordable(e.url)) continue;
-            String key = NewTab.hostKey(e.url);
-            if (key.isEmpty() || blocked.contains(key) || !seen.add(key)) continue;
-            rows.add(new NewTab.Row(NewTab.labelOf(e.title, e.url), e.url, e.visits, false));
-        }
-        // 不够填满版面时用内置推荐位补齐 —— 只访问过两三个站点的用户
-        // 也该看到一整屏入口，而不是两三个磁贴加一片空白。
+        // 刻意**不收浏览历史**（2026-10，与桌面端 ntp.js 同一时刻、同一理由）：
+        // 这一屏的用途是「挑个地方开始浏览」，不是「回顾去过的地方」。
+        // 混进来的后果是新标签页每次打开长得都不一样，而「固定入口」这个
+        // 承诺也就没了 —— 历史会自己变，磁贴不该跟着抖。
+        // 于是这里只剩两个来源：用户自己加的，与无条件追加的内置六条。
+        // 真要恢复浏览历史，该改的是这里和 ntp.js 两处，而不是页面上那套排序。
+
         return NewTab.candidates(NewTab.withBuiltins(rows, blocked));
     }
 

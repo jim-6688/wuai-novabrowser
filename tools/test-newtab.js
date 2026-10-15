@@ -154,34 +154,51 @@ function manyHosts(n) {
   const bili = { label: '哔哩', url: 'https://www.bilibili.com/', visits: 9, pinned: false };
   const tieba = { label: '贴吧', url: 'https://tieba.baidu.com/', visits: 5, pinned: false };
 
-  check('同主机去重：同一家只占一格（取先来的那条，哪怕它次数更少）', (() => {
-    const r = Page.rank([zhihu, zhihuSub, bili], 7);
-    return r.length === 2 && r[0].url === zhihu.url;
-  })(), JSON.stringify(Page.rank([zhihu, zhihuSub, bili], 7).map((x) => x.label)));
+  // 曾经这一组是用 history 项（zhihu / bili / tieba）验证「同主机去重」与
+  // 「其余按访问次数降序」的。2026-10 起新标签页**不再显示浏览历史**，
+  // 那些项在 rank 里会被直接丢掉 —— 于是这两条断言的对象已经不存在，
+  // 改成验证真实的新规则：只有 pinned 与 builtin 两档能上版。
+  check('浏览历史不再上版（既不是内置、也不是用户自己加的，一律丢掉）', (() => {
+    const r = Page.rank([zhihu, bili, tieba], 7);
+    return r.length === 0;
+  })(), JSON.stringify(Page.rank([zhihu, bili, tieba], 7).map((x) => x.label)));
 
-  check('其余按访问次数降序', (() => {
-    const r = Page.rank([tieba, bili, zhihu], 7);
-    return r[0].url === zhihu.url && r[1].url === bili.url && r[2].url === tieba.url;
+  check('用户自己加的与内置的那六条都保留，且同主机去重', (() => {
+    const pinned = { label: '我的博客', url: 'https://blog.example.com/', visits: 0, pinned: true };
+    const pinnedSub = { label: '博客第二篇', url: 'https://blog.example.com/post/2', visits: 0, pinned: true };
+    const b = { label: '导航', url: 'https://52ta.top/', visits: 0, builtin: true };
+    const r = Page.rank([pinned, pinnedSub, b], 7);
+    // 同主机只留先来的那一条
+    return r.length === 2 && r[0].url === b.url && r[1].url === pinned.url;
   })());
 
   check('固定项排在最前面，且不参与次数排序', (() => {
     const pinned = { label: '我的博客', url: 'https://blog.example.com/', visits: 0, pinned: true };
-    const r = Page.rank([tieba, bili, pinned, zhihu], 7);
-    return r.length === 4 && r[0].url === pinned.url;
+    const pinned2 = { label: '另一个', url: 'https://two.example.com/', visits: 0, pinned: true };
+    // tieba / bili / zhihu 是 history 项，rank 会丢掉它们 —— 所以这里只放两条 pinned
+    const r = Page.rank([pinned, pinned2], 7);
+    return r.length === 2 && r[0].url === pinned.url;
   })());
 
   check('超过 7 格就截断（第 8 格永远留给「＋添加」）', (() => {
-    return Page.MAX_SHORTCUTS === 7 && Page.rank(manyHosts(12), Page.MAX_SHORTCUTS).length === 7;
+    // 用 pinned 造 12 条：history 项会被 rank 丢掉，拿它们测截断会得到 0 条。
+    const many = manyHosts(12).map((h) => ({ url: h.url, label: h.title, pinned: true }));
+    return Page.MAX_SHORTCUTS === 7 && Page.rank(many, Page.MAX_SHORTCUTS).length === 7;
   })());
 
-  check('次数相同时按名称定序（否则每次刷新顺序都会抖）', (() => {
-    // 用「苹果 / 香蕉」而不是「甲 / 乙」：比的是码点，乙 U+4E59 < 甲 U+7532，
-    // 与日常语感相反，拿甲乙来写会得到一个看起来像 bug 的期望值。
-    const a = { label: '香蕉', url: 'https://b.example.com/', visits: 3, pinned: false };
-    const b = { label: '苹果', url: 'https://a.example.com/', visits: 3, pinned: false };
-    const r = Page.rank([a, b], 7);
-    return r[0].label === '苹果' && r[1].label === '香蕉';
+  // 钉住这次的承诺：新标签页上只有内置那六条与用户自己加的，浏览历史一律不上版。
+  // 「历史」这个来源一旦被谁加回来（多半是为了「智能推荐」），这条会立刻红。
+  check('浏览历史完全不进候选（buildData 只认 added）', (() => {
+    const withHistory = Ntp.buildData({
+      added: [{ url: 'https://mine.test/', label: '我的' }],
+      history: [{ url: 'https://from-history.test/', title: '不该出现', visits: 999 }]
+    });
+    return !withHistory.includes('from-history.test');
   })());
+
+  // 原先这里有一条「次数相同时按名称定序」—— 它测的是「浏览历史那一档按名称
+  // 定序以免刷新时抖」。那一档 2026-10 起已经不存在了（新标签页不显示浏览
+  // 历史），于是这条断言的对象没了。留着它反而会让人以为还有第三档。
 
   check('磁贴底色按主机名定，同一个站点每次进来都一样', (() => {
     return Page.gradOf('https://www.zhihu.com/hot') === Page.gradOf('https://www.zhihu.com/question/1');
@@ -208,7 +225,12 @@ function manyHosts(n) {
 
   check('内置位在版面上永远占前排（候选再多也不被截掉）', (() => {
     const b = { label: '导航', url: 'https://52ta.top/', visits: 0, builtin: true };
-    const r = Page.rank([zhihu, bili, b, tieba], 3);
+    const mine = [
+      { url: 'https://a.test/', label: 'A', pinned: true },
+      { url: 'https://b.test/', label: 'B', pinned: true },
+      { url: 'https://c.test/', label: 'C', pinned: true }
+    ];
+    const r = Page.rank(mine.concat([b]), 3);
     // 截到 3 格时第一个必须还是内置那条：截断发生在排序之后，
     // 内置位排在后面的话会被整条截掉，「固定」就是空话。
     return r.length === 3 && r[0].builtin === true;
@@ -243,10 +265,10 @@ function manyHosts(n) {
 
   check('候选里只有 http/https，about:blank 与 file:// 一律不进', (() => {
     const d = Ntp.buildData({
-      history: [
-        { url: 'about:blank', title: '新标签页', visits: 99 },
-        { url: 'file:///preview/newtab.html', title: '本地页', visits: 50 },
-        { url: 'https://a.com/', title: 'A', visits: 1 }
+      added: [
+        { url: 'about:blank', label: '新标签页' },
+        { url: 'file:///preview/newtab.html', label: '本地页' },
+        { url: 'https://a.com/', label: 'A' }
       ]
     });
     const r = realRows(d);
@@ -256,7 +278,7 @@ function manyHosts(n) {
 
   check('候选按主机名归一化去重（www 与裸域名算同一家）', (() => {
     const d = Ntp.buildData({
-      history: [
+      added: [
         { url: 'https://www.zhihu.com/hot', title: '知乎', visits: 9 },
         { url: 'https://zhihu.com/question/1', title: '知乎问题', visits: 30 }
       ]
@@ -266,7 +288,7 @@ function manyHosts(n) {
 
   check('已移除的主机名不会再出现在候选里', (() => {
     const d = Ntp.buildData({
-      history: [{ url: 'https://www.zhihu.com/hot', title: '知乎', visits: 9 }],
+      added: [{ url: 'https://www.zhihu.com/hot', label: '知乎' }],
       removed: ['zhihu.com']
     });
     return realRows(d).length === 0 && d.indexOf('zhihu') < 0;
@@ -277,17 +299,21 @@ function manyHosts(n) {
     return r.length === 1 && r[0].indexOf('知 乎') === 0;
   })(), JSON.stringify(realRows(Ntp.buildData({ added: [{ label: '知\t乎', url: 'https://a.com/' }] }))));
 
-  check('自己加的那条既打 p 标记、又排在历史前面', (() => {
+  // 用例名里那个「排在历史前面」已经过期：2026-10 起新标签页不显示浏览历史，
+  // 没有「历史」那一档可排了。现在验证的是「自己加的每一条都打 p 标记」。
+  check('自己加的每一条都打 p 标记', (() => {
     const rows = realRows(Ntp.buildData({
-      added: [{ label: '我的 博客', url: 'https://blog.example.com/' }],
-      history: [{ url: 'https://www.zhihu.com/', title: '知乎', visits: 99 }]
+      added: [
+        { label: '我的 博客', url: 'https://blog.example.com/' },
+        { url: 'https://www.zhihu.com/', label: '知乎' }
+      ]
     }));
     return rows.length === 2 && rows[0].indexOf('blog.example.com') > 0
-      && rows[0].slice(-1) === 'p' && rows[1].slice(-1) === '-';
+      && rows[0].slice(-1) === 'p' && rows[1].slice(-1) === 'p';
   })());
 
   check('候选上限 30 条',
-    Ntp.buildData({ history: manyHosts(60) }).split('\n').length === Ntp.MAX_CANDIDATES
+    Ntp.buildData({ added: manyHosts(60).map((h) => ({ url: h.url, label: h.title })) }).split('\n').length === Ntp.MAX_CANDIDATES
     && Ntp.MAX_CANDIDATES === 30);
 
   check('加进去的站点会从「已移除」里清掉（否则加了不出现）', (() => {
@@ -381,16 +407,20 @@ function manyHosts(n) {
 
   check('宿主拼的 data 参数能被页面读回成同一批候选', (() => {
     const src = {
-      added: [{ label: '我的 博客', url: 'https://blog.example.com/' }],
-      history: [{ url: 'https://www.zhihu.com/hot', title: '知乎 - 有问题', visits: 7 }]
+      added: [
+        { label: '我的 博客', url: 'https://blog.example.com/' },
+        { url: 'https://www.zhihu.com/hot', label: '知乎 - 有问题' }
+      ]
     };
     const url = Ntp.pageUrl('file:///x/newtab.html', 'light', Ntp.buildData(src));
     const list = Page.parseData(loadParam(url)('data'));
     // 末尾那条是补位来的，顺带验一下 f 标记活着到了页面 —— 少了它，
-    // 补位项会被当成普通候选跟 visits=0 的历史项一起按名称重排。
+    // 内置位就与用户自己加的混作一谈，「固定」这个承诺也没了。
+    // （原先这里还断言 list[1].visits === 7，那是浏览历史才有的字段，
+    //   2026-10 起新标签页不再收历史，于是断言改成只看 p 标记。）
     return list.length >= 2
       && list[0].label === '我的 博客' && list[0].pinned === true
-      && list[1].label === '知乎' && list[1].visits === 7
+      && list[1].label === '知乎 - 有问题' && list[1].pinned === true
       && list[list.length - 1].builtin === true;
   })());
 
@@ -568,16 +598,21 @@ function manyHosts(n) {
   // 就再也不会生效 —— 一个只访问过两三个站点的用户看到的是一片空白，
   // 而他的感受是「宫格被删了」。
 
-  const shortData = Ntp.buildData({ history: [{ url: 'https://a.com/', title: 'A', visits: 3 }] });
+  const shortData = Ntp.buildData({ added: [{ url: 'https://a.com/', label: 'A' }] });
   check('候选不足时用内置推荐补齐到版面格数',
     realRows(shortData).length + padRows(shortData).length === Ntp.MAX_TILES
       && Ntp.MAX_TILES === Page.MAX_SHORTCUTS,
     `真实 ${realRows(shortData).length} + 补位 ${padRows(shortData).length}，格数 ${Ntp.MAX_TILES}`);
-  check('补位项排在真实候选之后（不跟用户的常去站点抢前几位）',
-    shortData.split('\n')[0].slice(-1) === '-' && shortData.split('\n').slice(-1)[0].slice(-1) === 'f');
+  check('补位项排在用户自己加的那些之后（都是 p，只有补位的是 f）', (() => {
+    // 原先这条断言第一行是 '-' 标记 —— 那是浏览历史才有的标记，
+    // 新标签页不收历史之后不再有 '-'，现在每一行都是 p 或 f。
+    const first = shortData.split('\n')[0].slice(-1);
+    const last = shortData.split('\n').slice(-1)[0].slice(-1);
+    return (first === 'p' || first === 'f') && last === 'f';
+  })());
 
   check('候选够填满版面时内置位依然在（固定入口不随候选增减）', (() => {
-    const d = Ntp.buildData({ history: manyHosts(9) });
+    const d = Ntp.buildData({ added: manyHosts(9).map((h) => ({ url: h.url, label: h.title })) });
     // 真实候选照原样送出去，内置那六条**照样追加**。
     // 这条断言钉的是「固定」二字：老实现是「候选够 7 条就一条都不补」，
     // 于是用户多访问几个站点，这六条整体消失、清次历史又回来 —— 网址来回改。
