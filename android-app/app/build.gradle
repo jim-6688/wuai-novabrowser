@@ -61,9 +61,10 @@ android {
         applicationId 'top.wuai.nova'
         minSdk 24
         targetSdk 35
-        // 本轮：AI 助手改真窗口（内嵌对话 + 下拉选 AI + 输入框），
-        // 移动端与电脑端同一套语义
-        versionCode 13
+        // 本轮：AI 助手改真窗口（内嵌对话 + 下拉选 AI + 输入框）；
+        // 新标签页固定入口不再随候选增减、磁贴定宽省略号；
+        // 收藏夹从顶栏收进底栏工具箱
+        versionCode 14
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用
