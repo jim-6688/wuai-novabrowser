@@ -55,3 +55,6 @@ dist/
 # Gitee 发布令牌：私密，绝不入库
 .env
 .gitee-token
+
+# EdgeOne Pages 部署工具的产物副本（真正的项目关联在 project.json，要入库）
+site/.edgeone/assets/
