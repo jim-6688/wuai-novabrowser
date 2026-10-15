@@ -1314,7 +1314,7 @@ public final class MainActivity extends Activity {
      *
      * <p>这里原先还有第二行（阅读 / 观影 / 翻译 / AI 四个功能键）。撤掉的理由是
      * 那一行为了「一屏直达」让顶栏常驻 96dp 的厚度，而四个功能在工具箱里都有行
-     * （{@code sheet_tools} 的 toolRead / toolTranslate / toolMovie / toolAi），
+     * （{@code sheet_tools} 的 toolRead / toolTranslate / toolMovie），
      * 下滑一次就到。顶栏收回一行之后，网页多出整整一行的高度。
      *
      * <p><b>左端这一格换过一轮又换回来</b>：先是 logo（点主菜单），中间改成搜索
@@ -3270,10 +3270,9 @@ public final class MainActivity extends Activity {
             mountMain();
             toggleCinemaMode();
         });
-        toolCell(sheet, R.id.toolAi, R.drawable.ic_ai, "AI 助手", () -> {
-            mountMain();
-            showAiSheet();
-        });
+        // AI 助手原先在这一格，现在撤掉了：顶栏右端（btnAi）就是它，
+        // 而那是一格**常驻**入口。工具箱的价值正在于「不想用时不占地方」，
+        // 一个顶栏随时能点的功能不必在这里再放一份。
         toolCell(sheet, R.id.toolPlugins, R.drawable.ic_plugin, "篡改猴", () -> {
             mountMain();
             showPluginSheet();
@@ -3286,24 +3285,19 @@ public final class MainActivity extends Activity {
             mountMain();
             showSiteInfoSheet();
         });
-        // 末格：出口型入口。顶栏那个 logo 撤掉之后（那一格让给了搜索），
-        // 这里是主菜单的唯一下沉入口 —— 底栏拇指位一次到。
-        toolCell(sheet, R.id.toolMenu, R.drawable.ic_menu, "主菜单", () -> {
-            mountMain();
-            showMenuSheet();
-        });
         // 收藏夹。横栏（原bookmarkBar）已经整体退场，这一格现在直接开书签列表。
         //
         // 为什么不留横栏：它是一条按需唤出的横条，代价却是**永久占掉地址栏
         // 下方一行** —— 无论收着还是展开，网页视口都要让出它的高度。
         // 而它能给的只有「一眼扫到常去站点」，书签列表给的更多：
         // 看得到全部、每条带网址、能点 × 删。列表本来就是更完整的那个形态。
-        //
-        // 接线与上面九格一样：先 mountMain() 再开另一个弹层。
         toolCell(sheet, R.id.toolBmBar, R.drawable.ic_bookmark, "收藏夹", () -> {
             mountMain();
             showBookmarksSheet();
         });
+        // 原先这里还有一格「主菜单」（toolMenu），同样撤掉了：主菜单现在挂在
+        // 顶栏左端的品牌标上（左上角点开就是它）。理由与上面 AI 那格一样 ——
+        // 顶栏的常驻入口够用，工具箱不必再放一份副本。
     }
 
     /**

@@ -16,8 +16,22 @@
   这里原先还有一行「深浅模式」，已撤掉：那个动作在「设置 → 个性化 → 主题」
   里有一份，同一个开关留两处入口，早晚会出现两处说法不一样。
 
-  视图 id 沿用改建前的那一套（toolDownloads / toolRead / …）：改的是排列方式，
-  不是这些入口的语义，id 跟着变只会让 MainActivity 的 diff 更难看懂。
+视图 id 沿用改建前的那一套（toolDownloads / toolRead / …）：改的是排列方式，
+    不是这些入口的语义，id 跟着变只会让 MainActivity 的 diff 更难看懂。
+
+    现在是**三行八格**（原来十格，含已撤掉的两格）：
+      1) 下载 / 阅读模式 / 翻译网页
+      2) 观影模式 / 篡改猴
+      3) 广告拦截 / 网页安全 / 收藏夹
+    第三行三格、第二行两格是「去掉两格之后剩下的」—— 刻意不为了凑满
+    而把某格拉宽成两列：格子的宽度是它的语义（每格一样宽才读得出这是一宫格），
+    为了填满而拉宽最后一格会让它看起来像另一个东西。
+
+    已撤掉的两格（2026-10）都在顶栏有常驻入口了，不再需要工具箱里的副本：
+      · toolMenu —— 主菜单移到顶栏左端的品牌标（左上角）
+      · toolAi —— AI 助手在顶栏右端
+    同一件事在顶栏占一格，代价是「那一格一直在」；而工具箱要的是
+    「不想用的时候不占任何地方」。这两个入口都属于前者。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -67,9 +81,6 @@
             <include layout="@layout/item_tool_cell" android:id="@+id/toolMovie"
                 android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" />
-            <include layout="@layout/item_tool_cell" android:id="@+id/toolAi"
-                android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" />
             <include layout="@layout/item_tool_cell" android:id="@+id/toolPlugins"
                 android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" />
@@ -86,20 +97,6 @@
             <include layout="@layout/item_tool_cell" android:id="@+id/toolSiteInfo"
                 android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" />
-            <include layout="@layout/item_tool_cell" android:id="@+id/toolMenu"
-                android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" />
-        </LinearLayout>
-
-        <!-- 第十格：收藏夹。原来是顶栏那个唤出键（见 activity_main 的 btnBmBar），
-             收进这里是因为顶栏每一格都要争宽度，而手机上「一行高度」比「一格宽度」更金贵。
-             独占一行、只放一格：九宫格是三行三列，硬塞进第六行会多出一行只挂一格的空行，
-             不如明明白白地给它一行的宽度来得稳。 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
             <include layout="@layout/item_tool_cell" android:id="@+id/toolBmBar"
                 android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" />
