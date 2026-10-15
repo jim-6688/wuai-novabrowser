@@ -219,6 +219,34 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
 .chg{margin-top:8px;padding:8px 12px;border-radius:var(--r-sm);background:rgba(255,159,10,.14);font-size:10.5px;color:var(--text-2);line-height:1.6;font-family:var(--font)}
 .chg b{color:#C97A00}
 
+/* 扩展商店（D 帧）：两个真能到达的入口 + 粘地址取包装。
+   那两个入口不是同一个色：Edge 店用内核蓝、脚本猫用品牌蓝 —— 两行长得一模一样，
+   只靠文字区分的话，扫一眼分不出点的是哪个。 */
+.stbox{margin:0 16px 8px;padding:12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2)}
+.stsub{font-size:10.5px;line-height:1.7;color:var(--text-3)}
+.strow{display:flex;align-items:center;gap:12px;margin-top:8px;padding:8px 12px;
+       border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface)}
+.stic{width:26px;height:26px;flex:0 0 26px;border-radius:var(--r-xs);display:grid;place-items:center;
+      font-size:12px;font-weight:700;color:#fff;background:var(--so,#2D6BF5)}
+.stic.lg{width:34px;height:34px;flex:0 0 34px;border-radius:var(--r-sm);
+         background:var(--surface-3);color:var(--text-3);font-size:13px}
+.stmn{flex:1;min-width:0;display:flex;flex-direction:column}
+.stmn b{font-size:12px;font-weight:600;color:var(--text)}
+.stmn i{font-style:normal;font-size:10px;color:var(--text-4);margin-top:1px;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stgo{font-size:10.5px;font-weight:600;color:var(--brand)}
+.stpaste{display:flex;gap:8px;margin-top:8px}
+.stinp{flex:1;min-width:0;height:30px;display:flex;align-items:center;padding:0 12px;
+       border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);
+       font-size:11px;color:var(--text-4);font-family:var(--mono);
+       white-space:nowrap;overflow:hidden}
+.stbtn{height:30px;padding:0 14px;border-radius:var(--r-sm);font-size:11.5px;
+       border:1px solid var(--border-strong);color:var(--text-2);
+       display:inline-flex;align-items:center;flex:0 0 auto}
+.stbtn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+.sthit{display:flex;align-items:center;gap:12px;margin-top:8px;padding:12px;
+       border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface)}
+
 /* 视口占位 */
 .vp{flex:1;position:relative;background:var(--surface);display:grid;place-items:center;overflow:hidden;
     background-image:radial-gradient(circle at 50% 32%,rgba(45,107,245,.10),transparent 62%)}
@@ -1133,8 +1161,8 @@ td code{font-size:11px}
 
     <!-- 扩展 -->
     <div class="frame-wrap">
-      <div class="frame-cap"><b>D · 扩展（含火狐兼容处理披露）</b> · 同样是那扇设置窗口，只是停在「扩展」这一页；窗口一关网页还在原处，不会被顶走</div>
-      <div class="frame pc setwin" style="height:600px">
+      <div class="frame-cap"><b>D · 扩展（商店 + 取包装 + 火狐兼容处理披露）</b> · 同样是那扇设置窗口，只是停在「扩展」这一页；窗口一关网页还在原处，不会被顶走。<br />商店那一段先把话讲明：商店页上的「获取」按钮在本应用里<b>点不动</b> —— 它调的是浏览器自家的安装接口，第三方外壳没有这套东西。所以拆成两步：商店照常打开逛，看好了把那个扩展的页面地址粘下来，查一次详情、确认无误再装。</div>
+      <div class="frame pc setwin" style="height:660px">
         <div class="toolbar" style="border-bottom:1px solid var(--border)">
           <div class="navg">
             <div class="uibtn"><svg viewBox="0 0 20 20"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></div>
@@ -1172,21 +1200,36 @@ td code{font-size:11px}
                 <div class="svitem"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg><span>关于吾爱Nova</span></div>
               </div>
               <div class="svmain">
-                <div class="panel-label" style="margin-top:0">已安装</div>
+                <div class="panel-label" style="margin-top:0">扩展商店</div>
+                <div class="stbox">
+                  <div class="stsub">商店页上那个「获取」按钮在外壳里点不动 —— 它调的是浏览器自家的安装接口。所以拆成两步：商店照常打开逛，看好了把那个扩展的页面地址粘下来装。</div>
+                  <div class="strow">
+                    <span class="stic" style="--so:#0A84C6">E</span>
+                    <span class="stmn"><b>Edge 加载项商店</b><i>微软官方扩展库，可直接装进 Nova</i></span>
+                    <span class="stgo">打开</span>
+                  </div>
+                  <div class="strow">
+                    <span class="stic" style="--so:#3D6BFF">脚</span>
+                    <span class="stmn"><b>脚本猫</b><i>用户脚本市场（得先装 Tampermonkey）</i></span>
+                    <span class="stgo">打开</span>
+                  </div>
+                  <div class="stpaste">
+                    <span class="stinp">…/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloen…</span>
+                    <span class="stbtn">查询</span>
+                  </div>
+                  <div class="sthit">
+                    <span class="stic lg">T</span>
+                    <span class="stmn"><b>Tampermonkey</b><i>Jan Biniok · 1332 万次安装 · v5.5.1 · Manifest V3</i></span>
+                    <span class="stbtn pri">安装</span>
+                  </div>
+                </div>
+                <div class="panel-label">已安装 · 2</div>
                 <div class="extc" style="margin:0 16px 8px;background:transparent">
                   <div class="ic">u</div>
                   <div style="flex:1;min-width:0">
                     <div class="nm">uBlock Origin Lite <span class="src-tag s-cr">Chromium 商店</span></div>
                     <div class="ds">高效宽频内容过滤器，拦截广告与追踪脚本。</div>
                     <div class="mt">v1.52.2 · Manifest V3 · CRX v3</div>
-                  </div>
-                </div>
-                <div class="extc" style="margin:0 16px 8px;background:transparent">
-                  <div class="ic">D</div>
-                  <div style="flex:1;min-width:0">
-                    <div class="nm">Dark Reader <span class="src-tag s-cr">Chromium 商店</span></div>
-                    <div class="ds">为每个网站生成暗色主题，护眼且可调。</div>
-                    <div class="mt">v4.9.86 · Manifest V3 · CRX v3</div>
                   </div>
                 </div>
                 <div class="extc" style="margin:0 16px 8px;background:transparent">

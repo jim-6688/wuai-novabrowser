@@ -25,6 +25,7 @@ const ntp = require('../renderer/ntp');
 const { EngineRegistry } = require('./engines');
 const { adblock } = require('./adblock');
 const { ExtensionManager } = require('./extensions');
+const extStore = require('./ext-store');
 const { DownloadManager } = require('./downloader');
 const { Sniffer, FORMAT_STATS } = require('./sniffer');
 const { wireSniffer: wireSnifferSession } = require('./sniffer-wire');
@@ -68,6 +69,8 @@ const downloadPassthrough = new Set();
 
 const registry = new EngineRegistry();
 let extManager = null;
+/** 从商店取的 .crx 落在这里。见 bootstrap 里的说明：这份要长期留着。 */
+let extStoreDir = null;
 let dlManager = null;
 let dlPersistTimer = null;
 let sniffer = null;
@@ -184,6 +187,13 @@ async function bootstrap() {
   });
   const extSessionFactory = () => session.fromPartition('persist:nova-chromium');
   extManager.onChange = (list) => send('ext:changed', list);
+
+  // 从商店取的包单独放一层，与「用户自己选的文件」分开。
+  //
+  // 这一份必须长期留着：settings 里记的是扩展的装载来源路径，下次启动要照着
+  // 它恢复装载。用户自己选的文件在下载目录里、本来就不归我们管；商店下下来
+  // 的没有一个别的地方存在，删了就等于「装过一次，重启后扩展不见了」。
+  extStoreDir = path.join(app.getPath('userData'), 'extensions', 'store');
 
   for (const rec of settings.get('extensions', [])) {
     try {
@@ -894,6 +904,40 @@ function registerIpc() {
     return { installed };
   });
   handle('ext:remove', (id) => extManager.remove(id, () => session.fromPartition('persist:nova-chromium')));
+
+  /* --- 从 Edge 加载项商店装（模块头解释了为什么必须由外壳自己取包） --- */
+
+  // 只查详情、不下载。装之前先让用户看清装的是什么 —— 商店页上的名字
+  // 与装完之后的卡片对得上，是这件事可信的全部来源。
+  handle('ext:store-info', (input) => extStore.fetchDetail(input, { chromeVersion: process.versions.chrome }));
+
+  handle('ext:store-install', async (input) => {
+    const parsed = extStore.parseStoreInput(input);
+    if (!parsed) return { error: '认不出扩展。请粘贴商店里那个扩展的页面地址，或者 32 位的扩展 ID。' };
+
+    // 「已经装过」的判据用 settings 里记的 storeId，**不是** Chromium 给的
+    // electronId —— 真环境实测：loadExtension 对解包目录按路径重新派生 ID，
+    // 同一个扩展每次解到新目录就得到一个新 ID，拿它判重永远判不中，
+    // 用户多点一次「安装」就会真的多出一份。
+    const existed = settings.get('extensions', []).find((r) => r.storeId === parsed.crxId);
+    if (existed) return { already: true, name: existed.name };
+
+    const dest = path.join(extStoreDir, parsed.crxId + '.crx');
+    const dl = await extStore.downloadCrx(input, dest, { chromeVersion: process.versions.chrome });
+    if (dl.error) return { error: dl.error };
+
+    try {
+      const info = await extManager.install(dest, () => session.fromPartition('persist:nova-chromium'));
+      // 与「安装扩展」那条路同一套记账，否则重启后恢复装载找不到它。
+      // storeId 单独记一份：恢复装载按 path 装，但「装没装过」得按商店 ID 认。
+      const recs = settings.get('extensions', []).filter((r) => r.path !== dest);
+      recs.push({ id: info.id, name: info.name, path: dest, source: info.source, storeId: parsed.crxId });
+      settings.patch({ extensions: recs });
+      return { installed: info };
+    } catch (err) {
+      return { error: '装载失败：' + err.message };
+    }
+  });
 
   handle('history:list', (limit = 200) => settings.get('history', []).slice(0, limit));
   handle('history:clear', () => { settings.clearHistory(); return []; });

@@ -93,7 +93,13 @@ function extractZip(buf, destDir) {
  * ========================================================================== */
 
 function stripCrxHeader(buf) {
-  if (buf.readUInt32LE(0) !== 0x43723234) throw new Error('不是 CRX 文件（魔数不符）');
+  // 按字节比，不按 readUInt32LE 比。
+  //
+  // 这里原先写的是 `readUInt32LE(0) !== 0x43723234` —— 那个常量是把 "Cr24"
+  // 按书写顺序直接拼出来的，可 readUInt32LE 是小端读取，读同一个文件得到的是
+  // 0x34327243。两边永远不相等，于是**任何一个 .crx 都会被判成「不是 CRX 文件」**，
+  // 安装路径整条是死的。按字节比没有这个坑，也一眼看得出在比什么。
+  if (buf.subarray(0, 4).toString('latin1') !== 'Cr24') throw new Error('不是 CRX 文件（魔数不符）');
   const version = buf.readUInt32LE(4);
   if (version === 2) {
     const pubKeyLen = buf.readUInt32LE(8);
@@ -218,6 +224,60 @@ function normalizeFirefoxExtension(dir) {
 }
 
 /* ========================================================================== *
+ * manifest 本地化占位符
+ * ========================================================================== */
+
+/**
+ * 解 manifest 里的 `__MSG_xxx__` 占位符。
+ *
+ * 商店里的扩展大量用它做本地化：manifest 写 `__MSG_extName__`，
+ * 真名字放在 `_locales/<locale>/messages.json`。不解的话，装完的卡片上
+ * 写的是一串占位符（真环境实测 Tampermonkey 就是这样）—— 用户看到的是
+ * 一个显然没做完的东西，而它其实只差一步。
+ *
+ * 顺序按 Chrome 的近似来：先中文（用户是中文环境），再 default_locale，
+ * 再英文。全都没命中时退回 key 本身 —— 界面上看到 "extName" 好歹比
+ * "__MSG_extName__" 像一个有意的决定；真想把它做好，得把 Chrome 的
+ * locale fallback 整套搬来，那超出这一步该做的事。
+ *
+ * @returns {string} 原样返回（不是占位符时）或解析出的文案
+ */
+function resolveMessage(dir, manifest, value) {
+  if (typeof value !== 'string') return value;
+  const m = /^__MSG_(.+?)__$/.exec(value.trim());
+  if (!m) return value;
+  const key = m[1];
+
+  const locales = ['zh_CN', 'zh', manifest && manifest.default_locale, 'en', 'en_US']
+    .filter(Boolean);
+  // default_locale 没写（或写错了）时，扫一遍 _locales 里有什么就用什么 ——
+  // 目录里总共有哪几种语言是事实，比「猜一个常见的」可靠。
+  try {
+    for (const f of fs.readdirSync(path.join(dir, '_locales'))) {
+      if (!locales.includes(f)) locales.push(f);
+    }
+  } catch { /* 没有 _locales 目录：这个占位符本来就没得解 */ }
+
+  for (const loc of locales) {
+    try {
+      const msgs = JSON.parse(
+        fs.readFileSync(path.join(dir, '_locales', loc, 'messages.json'), 'utf8'));
+      // 先精确找；找不到再做一次大小写不敏感的匹配 —— 有些扩展在 manifest 里
+      // 写 __MSG_ExtName__ 而 messages.json 里是 extName，两边差一个头字母。
+      // Chrome 对这里是严格匹配（那样会显示成 key），宽容一点没有代价。
+      let hit = msgs[key];
+      if (!hit) {
+        const lower = key.toLowerCase();
+        hit = Object.keys(msgs).find((k) => k.toLowerCase() === lower);
+        hit = hit && msgs[hit];
+      }
+      if (hit && typeof hit.message === 'string') return hit.message;
+    } catch { /* 这个语言没有或读不懂，试下一个 */ }
+  }
+  return key;
+}
+
+/* ========================================================================== *
  * 扩展管理器
  * ========================================================================== */
 
@@ -272,15 +332,20 @@ class ExtensionManager {
     if (!fs.existsSync(manifestPath)) throw new Error('扩展目录内缺少 manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
-    const id = manifest.name.replace(/[^\w-]+/g, '-').toLowerCase();
+    // 名字与描述先过一遍本地化占位符。内部 id 也从这里派生：
+    // `__MSG_extName__` 派生出来的是 "-msg-extname-"，而解析出的
+    // 真名字派生出来就是一个正常的 slug（Tampermonkey → tampermonkey）。
+    const displayName = resolveMessage(extDir, manifest, manifest.name);
+    const id = String(displayName || manifest.name || 'extension')
+      .replace(/[^\w-]+/g, '-').toLowerCase();
     const electronExtension = await sessionFactory().loadExtension(extDir, { allowFileAccess: true });
 
     const info = {
       id,
       electronId: electronExtension.id,
-      name: manifest.name,
+      name: displayName,
       version: manifest.version,
-      description: manifest.description || '',
+      description: resolveMessage(extDir, manifest, manifest.description || ''),
       manifestVersion: manifest.manifest_version,
       source,
       packageVersion: pkgVersion,
@@ -340,5 +405,6 @@ module.exports = {
   listZipEntries,
   stripCrxHeader,
   normalizeFirefoxExtension,
+  resolveMessage,
   BROWSER_POLYFILL
 };

@@ -22,7 +22,7 @@ const jsFiles = [
   'src/main/adblock-lists.js', 'src/main/extensions.js', 'src/main/main.js',
   'src/main/downloader.js', 'src/main/sniffer.js', 'src/main/sniffer-wire.js',
   'src/main/nomedia.js', 'src/main/request-gate.js', 'src/main/favicon-cache.js',
-  'src/main/desktop-shortcut.js',
+  'src/main/desktop-shortcut.js', 'src/main/ext-store.js',
   'src/preload/preload.js', 'src/renderer/bridge-mock.js',
   'src/renderer/autopage.js', 'src/renderer/shell.js', 'tools/preview.js'
 ];
@@ -228,6 +228,47 @@ const pkgJson = require(P('package.json'));
       && shortcutMod.includes(`const SHORTCUT_BASENAME = '${pkgJson.productName}'`)],
   ['安装版的路没被动过（NSIS 仍然自己建快捷方式）',
     pkgJson.build.nsis.createDesktopShortcut === true]
+].forEach(([name, pass]) => pass ? ok(name) : bad(name));
+
+/* 10. 扩展商店：打开入口 + 从商店取包装上 */
+// 这条链子断掉的表现同样是安静的：按钮点得动、界面也没错，只是什么都不发生。
+// 另外这里钉一个具体的决定 —— **不列 Greasy Fork**。实测那个域名与它的
+// update 子域在国内连 15 秒无响应（DNS 被解析到 Facebook 的地址段），
+// 安卓端吃过一次亏才换到脚本猫。哪天有人「顺手补一个常用脚本站」补上它，
+// 这一条会红。
+console.log('\n[10] 扩展商店（入口 + 取包装上）');
+const shopShell = fs.readFileSync(P('src/renderer/shell.js'), 'utf8');
+const shopMod = fs.readFileSync(P('src/main/ext-store.js'), 'utf8');
+[
+  ['主进程引了这个模块',
+    /require\('\.\/ext-store'\)/.test(mainJs)],
+  ['两个 IPC 通道都注册了（查详情 / 取包装）',
+    /handle\('ext:store-info'/.test(mainJs) && /handle\('ext:store-install'/.test(mainJs)],
+  ['preload 把两个方法都挂到桥上',
+    /storeInfo:\s*\(input\)\s*=>\s*ipcRenderer\.invoke\('ext:store-info'/.test(preload)
+      && /storeInstall:\s*\(input\)\s*=>\s*ipcRenderer\.invoke\('ext:store-install'/.test(preload)],
+  ['外壳走的是这两个桥方法（不是自己拼 URL 去 fetch）',
+    /bridge\.extensions\.storeInfo\(/.test(shopShell) && /bridge\.extensions\.storeInstall\(/.test(shopShell)],
+  ['取了包就落盘到 userData 下，且路径记进 settings 供重启恢复装载',
+    /extStoreDir = path\.join\(app\.getPath\('userData'\)/.test(mainJs)
+      && /downloadCrx\(input, dest[\s\S]{0,600}?path: dest/.test(mainJs)],
+  ['「已装过」的判重记在 settings 的 storeId 上',
+    /r\.storeId === parsed\.crxId/.test(mainJs) && /storeId: parsed\.crxId/.test(mainJs)],
+  ['取包地址是 Edge 的接口（Chrome 应用店那套在国内不可达）',
+    /edge\.microsoft\.com\/extensionwebstorebase/.test(shopMod)],
+  ['商店入口只列今天真可达的两个站',
+    /microsoftedge\.microsoft\.com\/addons/.test(shopShell)
+      && /scriptcat\.org/.test(shopShell)],
+  ['STORE_LINKS 里没有一个入口地址指向 Greasy Fork（国内恒不可达，安卓端已换过一轮）',
+    !/url:\s*'[^']*greasyfork/i.test(shopShell) && !/greasyfork/i.test(shopMod)],
+  ['输入框内容存在 state 里（这个分区会被推送整体重绘，只靠 DOM 值会丢字）',
+    /extStore:\s*\{\s*draft:/.test(shopShell) && /extStore\.draft = storeInput\.value/.test(shopShell)],
+  ['预览桥也给了这两个方法（否则预览里点一下就是 undefined 报错）',
+    /storeInfo:/.test(mockJs) && /storeInstall:/.test(mockJs)],
+  ['打开商店会把设置窗口收起来（不然新标签页正好被那扇窗口盖住）',
+    /data-store-open[\s\S]{0,400}?closeSettings\(\)/.test(shopShell)],
+  ['「已经装过」不当成错误报红（它确实没出错，只是没有新东西）',
+    /r\.already[\s\S]{0,200}?toast\(/.test(shopShell)]
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

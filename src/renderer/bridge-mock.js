@@ -581,7 +581,27 @@ if (typeof window !== 'undefined' && !window.nova) {
         state.extensions = state.extensions.filter((e) => e.id !== id);
         setTimeout(() => emit('ext:changed', state.extensions), 0);
         return true;
-      }
+      },
+      // 预览里照抄一份真商店会返回的形状（字段与 ext-store.js 的
+      // summarizeDetail 对齐），这样详情卡片和真机上长得一样。
+      storeInfo: async (input) => {
+        const s = String(input || '');
+        if (!/[a-p]{32}/.test(s)) {
+          return { error: '认不出扩展。请粘贴商店里那个扩展的页面地址，或者 32 位的扩展 ID。' };
+        }
+        return {
+          crxId: 'iikmkjmpaadaobahmlepeloendndfphd',
+          source: 'edge',
+          detail: {
+            crxId: 'iikmkjmpaadaobahmlepeloendndfphd',
+            name: 'Tampermonkey', version: '5.5.1', developer: 'Jan Biniok',
+            installs: 13321147, installsText: '1332 万',
+            icon: '', description: 'Change the web at will with userscripts',
+            manifestVersion: 3
+          }
+        };
+      },
+      storeInstall: async () => ({ error: 'UI 预览模式下不可安装扩展' })
     },
 
     bookmarks: {

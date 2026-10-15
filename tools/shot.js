@@ -136,6 +136,21 @@ app.whenReady().then(async () => {
   await js("closeTabGrid(); openSheet();");
   await shot('19-mobile-engine-sheet');
 
+  // 扩展面板（回桌面宽度拍）。
+  // 只拍初始态的话，「粘了地址之后长什么样、能不能装」这一半信息看不到 ——
+  // 而那一半正是这一块存在的理由，所以顺手把查询也跑一遍。
+  // 预览桥返回的是照真商店形状写的一份假详情（见 bridge-mock），
+  // 网络一个请求都不发，写死的字段不会随时间漂。
+  win.setContentSize(1280, 820);
+  await new Promise((r) => setTimeout(r, 300));
+  // 19 拍的是内核弹层，它还开着 —— 不关的话正好把扩展面板下半截盖住
+  await js("state.settings.layout='desktop'; applyLayout(); closeSheet(); openSettings('extensions');");
+  await js("(function(){var i=document.querySelector('#store-input');"
+    + "i.value='https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd';"
+    + 'state.extStore.draft=i.value;return 1})()');
+  await js('runStoreQuery()');
+  await shot('20-set-extensions');
+
   console.log('DONE');
   server.close();
   app.exit(0);

@@ -42,6 +42,14 @@ const state = {
   /** 出厂默认值，由主进程随 bootstrap 下发，供「恢复默认设置」使用 */
   defaults: null,
   extensions: [],
+  /**
+   * 扩展商店那一块的状态。
+   *
+   * draft 必须存在这里而不是只放在输入框的 DOM 值上：这个分区会因为各种推送
+   * （下载进度、嗅探命中、扩展列表变化）整体重绘，重绘一发生输入框就是新的，
+   * 用户刚粘进去的地址会没。与下载页的 dlDraft 同一个道理。
+   */
+  extStore: { draft: '', busy: false, detail: null, error: '' },
   bookmarks: [],
   /**
    * 站点图标表：主机名 → data: URI。由主进程按站点抓取并落盘（见
@@ -1507,6 +1515,79 @@ function scheduleSniffProbe() {
   batch.forEach((rec, i) => setTimeout(() => probeOne(rec), 120 * i));
 }
 
+/**
+ * 扩展面板里那两个「去哪找」的入口。
+ *
+ * 脚本站为什么是脚本猫而不是 Greasy Fork：与安卓端 ScriptCatalog 的判断
+ * 完全一致 —— 同一台机器实测，greasyfork.org 与 update.greasyfork.org
+ * 连 15 秒无响应（DNS 被解析到 Facebook 的地址段，是污染返回），
+ * scriptcat.org 2.8 秒可达。一个装不上的库，推荐得再好也是零。
+ *
+ * Chrome 应用店同理不在列表里：chromewebstore.google.com 与取包接口
+ * clients2.google.com 都不可达，列出来只会浪费用户点一次。
+ */
+const STORE_LINKS = [
+  {
+    id: 'edge',
+    name: 'Edge 加载项商店',
+    note: '微软官方扩展库，可直接装进 Nova',
+    mark: 'E',
+    accent: '#0A84C6',
+    url: 'https://microsoftedge.microsoft.com/addons/Microsoft-Edge-Extensions-Home'
+  },
+  {
+    id: 'scriptcat',
+    name: '脚本猫',
+    note: '用户脚本市场（得先装 Tampermonkey）',
+    mark: '脚',
+    accent: '#3D6BFF',
+    url: 'https://scriptcat.org/'
+  }
+];
+
+/** 商店那一块。查询结果与错误都在这里长出来，不另开弹层。 */
+function storeBox(st) {
+  const d = st.detail;
+  return `
+    <div class="store-box">
+      <div class="store-title">扩展商店</div>
+      <div class="store-sub">
+        商店页上那个「获取」按钮在本应用里点不动 —— 它调的是浏览器自家的安装接口，
+        第三方外壳没有这套东西，点了不会有任何反应。所以拆成两步：
+        商店照常打开逛，看好了把那个扩展的页面地址粘下来装。
+      </div>
+      <div class="store-open-row">
+        ${STORE_LINKS.map((s) => `
+          <button class="store-open" data-store-open="${esc(s.id)}">
+            <span class="so-icon" style="--so:${esc(s.accent)}">${esc(s.mark)}</span>
+            <span class="so-main"><b>${esc(s.name)}</b><i>${esc(s.note)}</i></span>
+            <span class="so-go">打开</span>
+          </button>`).join('')}
+      </div>
+      <div class="store-paste">
+        <input id="store-input" type="text" spellcheck="false"
+               placeholder="粘贴扩展页面地址，或 32 位扩展 ID"
+               value="${esc(st.draft)}" />
+        <button class="btn" data-act="store-query" ${st.busy ? 'disabled' : ''}>${st.busy ? '请稍候…' : '查询'}</button>
+      </div>
+      ${st.error ? `<div class="store-err">${esc(st.error)}</div>` : ''}
+      ${d ? `
+        <div class="store-hit">
+          <div class="sh-icon">${d.icon
+            ? `<img src="${esc(d.icon)}" alt="" onerror="this.remove()" />`
+            : esc((d.name || 'E').slice(0, 1))}</div>
+          <div class="sh-main">
+            <div class="sh-name">${esc(d.name)}</div>
+            <div class="sh-meta">${esc(d.developer || '未知开发者')} · ${esc(d.installsText)}次安装 · v${esc(d.version)} · Manifest V${esc(String(d.manifestVersion))}</div>
+            ${d.description ? `<div class="sh-desc">${esc(d.description)}</div>` : ''}
+          </div>
+          <button class="btn btn-primary" data-act="store-install"
+                  ${st.busy || state.isPreview ? `disabled title="UI 预览模式"` : ''}>${st.busy ? '处理中…' : '安装'}</button>
+        </div>` : ''}
+    </div>
+  `;
+}
+
 function buildExtensions() {
   const list = state.extensions;
   return `
@@ -1517,8 +1598,10 @@ function buildExtensions() {
       依赖 Gecko 专有 API 的功能不可用 —— 每张卡片会列出实际做了哪些改动。
     </div>
     <div class="btn-row" style="padding-top:0">
-      <button class="btn btn-primary" data-act="install-ext" ${state.isPreview ? 'disabled title="UI 预览模式"' : ''}>安装扩展</button>
+      <button class="btn btn-primary" data-act="install-ext" ${state.isPreview ? 'disabled title="UI 预览模式"' : ''}>从本地文件安装</button>
     </div>
+    ${storeBox(state.extStore)}
+    <div class="sv-sub-h">已安装${list.length ? ` · ${list.length}` : ''}</div>
     ${list.length ? list.map((x) => `
       <div class="ext-card">
         <div class="ext-icon">${x.icon ? `<img src="${esc(x.icon)}" alt="" />` : esc((x.name || 'E').slice(0, 1))}</div>
@@ -2812,6 +2895,60 @@ function buildPrivacy() {
  * 交互接线（抽屉与设置页正文共用）
  * ------------------------------------------------------------------ */
 
+/**
+ * 查一次商店详情。
+ *
+ * 全程只改 state 再重绘，不直接动 DOM —— 重绘是这一块唯一的出口。
+ * 顺手往输入框里写一句「查询中」或改个按钮文案的做法，会在这块被任何
+ * 一次推送重绘之后被打回原形，两个出口迟早对不上。
+ */
+async function runStoreQuery() {
+  const raw = state.extStore.draft;
+  state.extStore.busy = true;
+  state.extStore.detail = null;
+  state.extStore.error = '';
+  refreshCurrent();
+
+  let r = null;
+  try { r = await bridge.extensions.storeInfo(raw); } catch { r = null; }
+
+  state.extStore.busy = false;
+  if (r && r.detail) state.extStore.detail = r.detail;
+  else state.extStore.error = (r && r.error) || '查询失败，稍后再试';
+  refreshCurrent();
+}
+
+/** 装。成功之后把输入框清掉，免得用户对着一条已经装上的地址再点一次。 */
+async function runStoreInstall() {
+  const raw = state.extStore.draft;
+  if (!raw) { toast('先粘一个扩展地址'); return; }
+
+  state.extStore.busy = true;
+  state.extStore.error = '';
+  refreshCurrent();
+
+  let r = null;
+  try { r = await bridge.extensions.storeInstall(raw); } catch { r = null; }
+
+  state.extStore.busy = false;
+  if (!r) {
+    state.extStore.error = '安装失败，稍后再试';
+  } else if (r.error) {
+    state.extStore.error = r.error;
+  } else if (r.already) {
+    // 「已经装过」不是错误，但它也确实没有新东西出现，
+    // 写成红色的报错会让人以为失败了。
+    state.extStore.detail = null;
+    toast(`已经装过「${r.name}」了`);
+  } else if (r.installed) {
+    state.extStore.detail = null;
+    state.extStore.draft = '';
+    state.extensions = await bridge.extensions.list();
+    toast(`已装好「${r.installed.name}」`);
+  }
+  refreshCurrent();
+}
+
 function wireActions(root) {
   root.querySelectorAll('[data-toggle]').forEach((sw) => {
     sw.addEventListener('click', async () => {
@@ -2983,6 +3120,31 @@ function wireActions(root) {
       state.allowlist = await bridge.adblock.allowlistRemove(host);
       refreshCurrent();
       toast(`已移出白名单：${host}`);
+    });
+  });
+
+  // 商店输入框的内容同步进 state。这个分区会被各种推送（下载进度、嗅探命中、
+  // 扩展列表变化）整体重绘，只靠 DOM 值的话，用户打到一半来一次重绘字就没了。
+  const storeInput = root.querySelector('#store-input');
+  if (storeInput) {
+    storeInput.addEventListener('input', () => { state.extStore.draft = storeInput.value; });
+    storeInput.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      const v = storeInput.value.trim();
+      state.extStore.draft = v;
+      if (v) runStoreQuery();
+    });
+  }
+
+  // 「打开商店」：在新标签页里开，并把设置窗口收起来 —— 不然新开的页正好
+  // 被这扇窗口盖着，用户会以为点了没反应。
+  root.querySelectorAll('[data-store-open]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const link = STORE_LINKS.find((s) => s.id === b.dataset.storeOpen);
+      if (!link) return;
+      closeSettings();
+      createTab(link.url, state.settings.defaultEngine);
     });
   });
 
@@ -3233,6 +3395,14 @@ function wireActions(root) {
           refreshCurrent();
           toast(`已导入 ${r.imported} 条规则`);
         } else toast(r && r.note ? r.note : '未导入任何文件');
+      } else if (act === 'store-query') {
+        const input = root.querySelector('#store-input');
+        const raw = (input ? input.value : '').trim();
+        if (!raw) { toast('先粘一个扩展地址'); return; }
+        state.extStore.draft = raw;
+        await runStoreQuery();
+      } else if (act === 'store-install') {
+        await runStoreInstall();
       } else if (act === 'install-ext') {
         const r = await bridge.extensions.install();
         state.extensions = await bridge.extensions.list();
