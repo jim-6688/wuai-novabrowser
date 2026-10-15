@@ -3684,6 +3684,19 @@ function openAiPanel() {
   const ai = currentAi();
   const wv = $('#ai-webview');
   if (wv && ai.url && !wv.getAttribute('src')) wv.src = ai.url;
+  // 面板从 hidden 变可见后，webview 要过一会儿才 attach 并触发 dom-ready。
+  // 之前若用户「打开面板 → 直接点发送」，那次发送的内容会等不到事件。
+  // 这里主动补一次：等就绪后把暂存内容送进去（没有暂存就什么都不做）。
+  if (wv && state.aiPending) {
+    whenAiWebViewReady().then((ok) => {
+      if (!ok) return;
+      const text = state.aiPending;
+      if (!text) return;
+      aiInject(text).then((r) => {
+        if (r === 'ok' || r === 'no-input' || r === 'err') state.aiPending = '';
+      });
+    });
+  }
 }
 
 function closeAiPanel() {
@@ -3695,11 +3708,58 @@ function closeAiPanel() {
   setTimeout(() => { if (!panel.classList.contains('is-open')) panel.hidden = true; }, 240);
 }
 
+/**
+ * AI 面板里的 <webview> 是否已经可用（挂进 DOM 且 dom-ready 触发过）。
+ *
+ * <b>为什么必须判断</b>：Electron 的 webview 在 attach 到 DOM 之后、要等
+ * {@code dom-ready} 事件触发，方法才可用 —— 在那之前调 executeJavaScript /
+ * reload 会抛
+ * {@code The WebView must be attached to the DOM and the dom-ready event emitted…}。
+ * 这个错有个特别之处：<b>它会一路冒泡到 init() 的 catch</b>，
+ * 弹出一句「初始化失败」，而真实原因只是「那个面板还没打开」——
+ * 用户看到的是「浏览器启动失败」，排查时完全摸不到头绪（就是这次踩的）。
+ *
+ * <p>面板默认是 hidden 的，webview 在它第一次打开之前根本没 attach，
+ * 所以「面板开着」也不等于「就绪」。只能用事件记账。
+ */
+function aiWebViewReady() {
+  const wv = $('#ai-webview');
+  // getWebContentsId 是 Electron 用来确认 webview 已就绪的探针：它同样要求
+  // dom-ready，但它不抛异常（未就绪时返回 0），适合拿来做判断而不打扰用户。
+  if (!wv) return false;
+  try { return wv.getWebContentsId() > 0; } catch { return false; }
+}
+
+/** 等 webview 就绪；已经就绪就立刻 resolve。超时按失败算，不无限等。 */
+function whenAiWebViewReady(timeout = 8000) {
+  const wv = $('#ai-webview');
+  if (!wv) return Promise.resolve(false);
+  if (aiWebViewReady()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      wv.removeEventListener('dom-ready', onReady);
+      resolve(ok);
+    };
+    const onReady = () => { if (aiWebViewReady()) finish(true); };
+    const timer = setTimeout(() => finish(false), timeout);
+    wv.addEventListener('dom-ready', onReady);
+    // 挂载可能已经发生过、只是事件早于我们这次监听到达，再补探测一次
+    if (aiWebViewReady()) finish(true);
+  });
+}
+
 /** 把文本带入 AI 网页对话的输入框（best-effort，跨域注入由宿主执行、不受页面 CSP 限制）。 */
 async function aiInject(text) {
   const wv = $('#ai-webview');
   const ai = currentAi();
   if (!wv || !wv.getAttribute('src') || !ai.sel) return 'no-target';
+  // 未就绪时不要硬调 —— 抛出来的错会冒泡到 init 的 catch，变成一句误导人的
+  // 「初始化失败」。这里等它就绪（最多 8 秒），超时当没注入成。
+  if (!(await whenAiWebViewReady())) return 'not-ready';
   const code = '(function(){'
     + 'try{'
     + 'var el=document.querySelector(' + JSON.stringify(ai.sel) + ');'
@@ -3858,12 +3918,24 @@ function wireUi() {
     const wv = $('#ai-webview');
     if (wv && !custom && wv.getAttribute('src') !== ai.url) wv.src = ai.url;
   });
-  // webview 载入完成后，若发送时还没在目标对话页、暂存了内容，则补注入
+  // webview 载入完成后，若发送时还没在目标对话页、暂存了内容，则补注入。
+  //
+  // 两个事件都挂：dom-ready 保证「面板刚打开、webview 首次可用」这一路也能补上
+  // （只有 did-finish-load 的话，面板一直没打开过就永远等不到那次事件，
+  // 用户点发送看到的是「正在打开…」然后内容没了）。
+  // 注入走 aiInject，它自己会等就绪并在失败时如实返回，不会把异常抛到外面。
   const aiWv = $('#ai-webview');
   if (aiWv) {
-    aiWv.addEventListener('did-finish-load', () => {
-      if (state.aiPending) { aiInject(state.aiPending); state.aiPending = ''; }
-    });
+    const flushPending = async () => {
+      if (!state.aiPending) return;
+      const text = state.aiPending;
+      const r = await aiInject(text);
+      // 只在真的注入进去（或明确失败）后才清暂存，否则失败一次内容就没了
+      if (r === 'ok' || r === 'no-input' || r === 'err') state.aiPending = '';
+      if (r === 'not-ready' || r === 'exec-fail') toast('对话页还没准备好，请再点一次发送');
+    };
+    aiWv.addEventListener('did-finish-load', flushPending);
+    aiWv.addEventListener('dom-ready', flushPending);
   }
 
   // 拖拽安装扩展：把 .crx/.zip/.xpi 拖进浏览器窗口即装。见 wireDropInstall。
@@ -4165,5 +4237,8 @@ async function init() {
 
 init().catch((err) => {
   console.error(err);
-  toast('初始化失败：' + err.message, 6000);
+  // 带上栈。只打 message 的话，像「The WebView must be attached to the DOM…」
+  // 这类错完全看不出是谁调的 —— 而它恰恰是从 init() 里某一处抛出来的，
+  // 栈是唯一的线索。原来这行只弹 message，害得排查只能靠猜。
+  toast('初始化失败：' + (err && err.message ? err.message : String(err)), 6000);
 });
