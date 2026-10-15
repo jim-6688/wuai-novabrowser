@@ -6,12 +6,14 @@
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复新标签页删掉一个内置网址之后不补位的问题 —— 后面的会自动往前补（电脑端此前是漏的，手机端本来就正常）",
-    "手机版工具栏右上角换成齿轮图标，点它直接进设置",
-    "手机版：收藏夹面板内的「书签」改称「收藏夹」",
-    "新标签页不再显示浏览历史，只保留内置的六个固定入口与你自己添加的",
-    "电脑端与手机端：新标签页的六个固定入口顺序锁定（DeepSeek 在第六位），删除后自动补位",
-    "官网改版：补齐电脑版介绍，新增「两端对照」与「只有手机版有」两节，并加了网站图标"
+    "书签页新增「从已安装的浏览器导入」：检测到 Chrome / Edge / Brave / Vivaldi / Opera 时点一下就把它的书签读进来，不用自己去翻 %LOCALAPPDATA%",
+    "修复自动更新点了「下载更新」必然失败的问题 —— 从发布起就一直是坏的，现在下载与安装两档都通了",
+    "修复「导出书签后再导入」会丢条目：内部页（file:// 的新标签页等）此前只导得出、导不回来",
+    "修复移除扩展后重启浏览器它又装回来（删除这条路径此前漏了记账）",
+    "修复网页里点下载链接时下载条不显示进度、也不计入下载浮窗（漏认 Chromium 的 progressing 状态）",
+    "修复导入书签后站点图标一直出不来（传给图标缓存的是完整网址而不是主机名）",
+    "「关于」面板新增检查更新；菜单里的「设置」与「关于」提到最前面",
+    "「关于」里的版本号此前一直显示 0.1.0，现改为读真实版本；并显示上次检查时间"
   ],
   "downloads": [
     {
@@ -28,14 +30,14 @@
     }
   ],
   "pc": {
-    "version": "1.0.3",
+    "version": "1.0.4",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.4/nova-pc-1.0.3-win-x64-setup.zip",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.4/nova-pc-1.0.4-win-x64-setup.zip",
     "size": 78075785,
     "sha256": "0b6406a92f0f2c057152f465e81c632041c15a69b94be95c3206bcf239f9c6f5",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.4/nova-pc-1.0.3-win-x64-setup.exe",
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.4/nova-pc-1.0.4-win-x64-setup.exe",
       "size": 78077885,
       "sha256": "6bd4e36e569808eb9cfc6eb7357f6ccb4233300acbef9ea84abe20e9b537c693"
     }

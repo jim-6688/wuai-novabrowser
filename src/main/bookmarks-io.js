@@ -26,6 +26,20 @@ const FORMAT = 'nova-bookmarks';
 const FORMAT_VERSION = 1;
 
 /**
+ * 这个协议该不该进新标签页的候选 / 书签表。
+ *
+ * <p>两个来源用的是**同一个判断**（新标签页的磁贴、书签的导入），
+ * 所以只有一处定义。分成两处写的话，迟早有一处放宽了而另一处没有 ——
+ * 而「导出→导入应当恒等」这条承诺正是这么被打破的：buildExport 只看
+ * typeof url === 'string' 就放行 file:// 与 about:blank，而 normalize
+ * 用 /https?|是否/ 拦掉了它们，于是用户导出的备份自己导不回来。
+ */
+function importable(url) {
+  if (!url) return false;
+  return /^https?:\/\//i.test(String(url).trim());
+}
+
+/**
  * 把内部那份书签整理成导出用的形状。
  *
  * @param {Array<{title?:string,url:string,favicon?:string}>} list
@@ -34,7 +48,7 @@ const FORMAT_VERSION = 1;
  */
 function buildExport(list, version) {
   const items = (list || [])
-    .filter((b) => b && typeof b.url === 'string' && b.url.trim())
+    .filter((b) => b && importable(b.url))
     .map((b) => {
       const url = b.url.trim();
       // 标题为空时**在导出这一步就用地址顶上**，而不是留个空字符串出去。
@@ -47,6 +61,9 @@ function buildExport(list, version) {
       if (b.favicon) o.favicon = b.favicon;
       return o;
     });
+    // skipped 一并带出去：内部页（file:// 的新标签页、about:blank）导不出去，
+    // 界面要能如实告诉用户「少了几条」，否则他对着数量对不上会以为文件坏了。
+  const skipped = (list || []).length - items.length;
   return {
     format: FORMAT,
     version: FORMAT_VERSION,
@@ -54,6 +71,7 @@ function buildExport(list, version) {
     appVersion: String(version || ''),
     exportedAt: new Date().toISOString(),
     count: items.length,
+    skipped,
     bookmarks: items
   };
 }
@@ -148,7 +166,7 @@ function normalize(arr) {
   for (const b of arr) {
     if (!b || typeof b !== 'object') { skipped++; continue; }
     const url = String(b.url || '').trim();
-    if (!/^https?:\/\//i.test(url)) { skipped++; continue; }
+    if (!importable(url)) { skipped++; continue; }
     const key = url.replace(/\/+$/, '').toLowerCase();
     if (seen.has(key)) { skipped++; continue; }
     seen.add(key);

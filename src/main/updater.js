@@ -266,7 +266,29 @@ function downloadAndInstall(state, handlers) {
     try {
       // 有些版本只认 autoDownload 开关，这里两者都设上
       u.autoDownload = true;
-      u.downloadUpdate(file);
+
+      /* 必须先让 electron-updater 自己查一遍，再 downloadUpdate。
+       *
+       * <p>原因（踩过，且首版就是这么写的）：{@code downloadUpdate(cancellationToken)}
+       * 的第一参数是**取消令牌**而不是文件名 —— 传文件名进去会被忽略。真正致命的是
+       * 它开头那句 {@code if (this.updateInfoAndProvider == null) reject(...)}：
+       * 那个字段**只在 {@code checkForUpdates()} 里赋值**。
+       *
+       * <p>而本文件里的 {@link check} 是自己读 version.json 实现的，
+       * 从没调用过 electron-updater 的 {@code checkForUpdates} ——
+       * 于是 updateInfoAndProvider 恒为 null，点「下载更新」**必然失败**，
+       * 用户看到的是一句莫明其妙的「Please check update first」。
+       * 也就是说自动更新从上线起就只有「发现新版」这一档是通的。
+       *
+       * <p>所以这里显式调一次 {@code checkForUpdates}：它走通用的 version.json
+       * 格式（{@code {latest, files[]}}）并把内部状态填好，与我们自己的 check()
+       * 读的是同一份清单，两边结论应当一致 —— 一致性由 tools/test-updater.js 钉住。
+       *
+       * <p>事件绑定放在这之后：checkForUpdates 与 download 都是异步，
+       * 而 progress / downloaded / error 三个监听此刻装上仍来得及（见下）。 */
+      u.checkForUpdates()
+        .then(() => u.downloadUpdate())
+        .catch((e) => reject(e));
     } catch (e) {
       reject(e);
       return;

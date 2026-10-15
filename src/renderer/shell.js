@@ -1785,7 +1785,69 @@ function buildBookmarks() {
               title="${list.length ? '' : '还没有书签，先收几条再导出'}">从文件导入…</button>
       <button class="btn" data-act="bookmarks-export" ${list.length ? '' : 'disabled'}>导出书签…</button>
     </div>
+
+    <h2 class="sv-h2" style="margin-top:28px">从已安装的浏览器导入</h2>
+    <div class="sv-lead">
+      检测到本机装了哪些浏览器，点一下直接把它的书签读进来 —— 不用自己去
+      <code>%LOCALAPPDATA%</code> 里翻文件。检测只看文件在不在，<b>不会读你其它浏览器的书签内容</b>。
+    </div>
+    <div id="bm-browsers">${renderBrowserList()}</div>
   `;
+}
+
+/**
+ * 已检测到的浏览器列表。
+ *
+ * <p>检测是**异步**的（要问主进程），所以这个函数先把外壳画出来、
+ * 再由调用方把真结果塞回来。在结果回来之前显示的是一行「正在检测…」——
+ * 而不是空白：空白会被读成「没检测到任何浏览器」，而那是个错误的结论。
+ */
+/**
+ * 检测结果。**null 表示「还在检测中」**，而不是「没检测到」——
+ * 两者在界面上必须读得出区别：空白会被当成后者，而那是个错误结论。
+ */
+let stateBrowsers = null;
+
+/** 问主进程要检测结果，然后重画那一块。 */
+async function detectBrowsers() {
+  try {
+    const r = await bridge.bookmarks.browsers();
+    stateBrowsers = (r && r.browsers) || [];
+  } catch (e) {
+    // 预览模式（bridge-mock 没有这个方法）或检测本身出错：
+    // 给一句人话，而不是留一块空白让人以为没装浏览器
+    stateBrowsers = [];
+    const box = $('#bm-browsers');
+    if (box) {
+      box.innerHTML = '<p class="muted" style="padding:10px 0">'
+        + '检测不可用（' + esc(String(e && e.message || e)) + '）。'
+        + '请改用上方「从文件导入」。</p>';
+    }
+    return;
+  }
+  const box = $('#bm-browsers');
+  if (box) box.innerHTML = renderBrowserList();
+}
+
+function renderBrowserList(given) {
+  const s = given === undefined ? stateBrowsers : given;
+  if (s === null) return '<p class="muted" style="padding:10px 0">正在检测已安装的浏览器…</p>';
+  if (!s.length) {
+    return '<p class="sv-empty" style="padding:14px 0">没有检测到可读取书签的浏览器。'
+      + '如果你用的是 Firefox 或其他浏览器，请改用上方「从文件导入」，'
+      + '在那个浏览器里导出 HTML 后再导入。</p>';
+  }
+  return s.map((b) => `
+    <div class="list-row ${b.supported ? 'is-click' : ''}" ${b.supported ? `data-browser="${esc(b.id)}"` : ''}>
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6.5v.01M10 9v5"/></svg></span>
+      <span class="lr-main">
+        <span class="lr-title">${esc(b.name)}</span>
+        <span class="lr-sub">${b.supported
+          ? (b.profile ? `配置 ${esc(b.profile)} · ` : '') + '点一下导入它的书签'
+          : esc(b.note || '格式暂不支持')}</span>
+      </span>
+      ${b.supported ? '<span class="lr-tail">导入</span>' : ''}
+    </div>`).join('');
 }
 
 /* ------------------------------------------------------------------ *
@@ -1802,9 +1864,16 @@ const DL_STATE = {
   completed: { label: '已完成', cls: 'is-done' },
   error: { label: '失败', cls: 'is-error' },
   canceled: { label: '已取消', cls: 'is-canceled' },
-  // Chromium 内建下载器沿用的原始状态名
+  // Chromium 内建下载器沿用的原始状态名。
+  // **progressing 也在这一列里**：Electron 的 session 'updated' 事件把 state
+  // 原样透传，而那里的取值正是 'progressing' | 'interrupted' ——
+  // 漏了它的话，网页里点下载链接（关掉「接管页面触发的下载」之后走的就是这条）
+  // 会得到一个英文原文的 pill、没有进行中的高亮，而且因为它不在
+  // activeDownloads() 的白名单里，这条任务**根本不会出现在地址栏旁的
+  // 下载小窗与角标计数中** —— 下载在进行中，界面却当作没有。
   cancelled: { label: '已取消', cls: 'is-canceled' },
-  interrupted: { label: '已中断', cls: 'is-error' }
+  interrupted: { label: '已中断', cls: 'is-error' },
+  progressing: { label: '下载中', cls: 'is-active' }
 };
 
 function fmtBytes(n) {
@@ -1914,8 +1983,10 @@ function dlTaskRow(t) {
  * renderDownloadPopover 里直接复用 wireActions 把暂停 / 取消 / 打开都接上。
  */
 function activeDownloads() {
+  // progressing 必须在列：它是 Chromium 内建下载器的进行中状态（见 DL_STATE 注释），
+  // 漏了它这条任务就不会进地址栏旁的浮窗与角标
   return (state.downloads || []).filter((t) =>
-    ['probing', 'downloading', 'progress', 'queued', 'paused'].includes(t.state));
+    ['probing', 'downloading', 'progress', 'progressing', 'queued', 'paused'].includes(t.state));
 }
 
 /** 更新地址栏下载图标的角标（进行中任务数）。 */
@@ -2931,6 +3002,9 @@ const PANEL_ALIAS = {
 /** 兼容旧入口（菜单行、盾牌/扩展按钮、快捷键、?panel= 深链接） */
 function openPanel(p) {
   openSettings(PANEL_ALIAS[p] || 'general');
+  // 进书签页时才去检测浏览器：检测要问主进程要文件是否存在，
+  // 没必要在启动时就做 —— 而且用户可能只是路过设置。
+  if ((PANEL_ALIAS[p] || p) === 'bookmarks') detectBrowsers();
 }
 
 /**
@@ -3701,6 +3775,37 @@ function wireActions(root) {
 
   root.querySelectorAll('[data-panel]').forEach((row) => {
     row.addEventListener('click', () => openPanel(row.dataset.panel));
+  });
+
+  /* 「从已安装的浏览器导入」的那几行。用**委托**挂在 root 上而不是逐行绑定：
+   * 这些行是检测完才渲出来的（buildBookmarks 里先渲一个「正在检测…」的占位），
+   * 逐行绑定的话每次重画都要重新绑一遍 —— 而 detectBrowsers() 正好会重画。
+   * 漏绑的后果是那一行渲染出来了、就是点不动。 */
+  root.addEventListener('click', async (ev) => {
+    const row = ev.target.closest('[data-browser]');
+    if (!row) return;
+    const id = row.dataset.browser;
+    row.style.opacity = '0.6';
+    row.style.pointerEvents = 'none';
+    try {
+      const r = await bridge.bookmarks.fromBrowser(id);
+      if (r && r.error) {
+        toast(r.error, 4600);
+      } else if (r) {
+        if (r.bookmarks) state.bookmarks = r.bookmarks;
+        refreshCurrent();
+        // 如实报数：加了几条、重复几条 —— 只说「导入成功」的话，
+        // 用户不知道自己那份书签里有多少本来就有了
+        const bits = [`已从 ${r.from} 导入 ${r.added} 条`];
+        if (r.dup) bits.push(`已在书签里 ${r.dup} 条`);
+        toast(`${bits.join(' · ')}，当前共 ${r.total} 条`, 4200);
+      }
+    } catch (e) {
+      toast('导入失败：' + String(e && e.message || e), 4200);
+    } finally {
+      row.style.opacity = '';
+      row.style.pointerEvents = '';
+    }
   });
 }
 

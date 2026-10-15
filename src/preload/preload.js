@@ -103,7 +103,11 @@ contextBridge.exposeInMainWorld('nova', {
     /** 导入：文件挑选用主进程的对话框，渲染层不碰文件系统 */
     import: () => ipcRenderer.invoke('bookmarks:import'),
     /** 导出：同上 */
-    export: () => ipcRenderer.invoke('bookmarks:export')
+    export: () => ipcRenderer.invoke('bookmarks:export'),
+    /** 列出本机装了哪些浏览器（检测只看文件在不在，不读内容） */
+    browsers: () => ipcRenderer.invoke('bookmarks:browsers'),
+    /** 从某个已检测到的浏览器直接读书签 */
+    fromBrowser: (id) => ipcRenderer.invoke('bookmarks:from-browser', id)
   },
   history: {
     list: (limit) => ipcRenderer.invoke('history:list', limit),

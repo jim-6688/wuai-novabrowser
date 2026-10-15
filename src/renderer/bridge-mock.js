@@ -635,7 +635,12 @@ const MOCK_UPDATE = {
          不能假装成功 —— 那样评审点一下看到「导入完成：新增 0 条」，
          会以为真导入成功了。 */
       import: async () => ({ canceled: true }),
-      export: async () => ({ canceled: true })
+      export: async () => ({ canceled: true }),
+      /* 浏览器检测：预览是网页里跑的，没有文件系统可查。
+         返回空数组 → 界面上会显示「没有检测到可读取书签的浏览器」并指向
+         「从文件导入」——这在预览里是**正确**的呈现，不是假装失败。 */
+      browsers: async () => ({ ok: true, browsers: [] }),
+      fromBrowser: async () => ({ error: '预览模式不支持读取本机浏览器' })
     },
 
     history: {

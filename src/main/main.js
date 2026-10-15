@@ -34,6 +34,7 @@ const { wireRequestGate: installRequestGate } = require('./request-gate');
 const { FaviconCache, hostsFromNtpData } = require('./favicon-cache');
 const updater = require('./updater');
 const bookmarksIo = require('./bookmarks-io');
+const browsersDetect = require('./browsers-detect');
 const desktopShortcut = require('./desktop-shortcut');
 
 const IS_DEV = process.argv.includes('--dev');
@@ -844,7 +845,9 @@ function registerIpc() {
    */
 
   // 当前更新状态。渲染层重启后会来问一次，所以不能只靠推送。
-  let updaterState = { status: 'idle', info: null, error: '' };
+  // lastCheckAt 每一处构造 updaterState 都要带上：整体替换会把 updater.start()
+  // 写进去的值抹掉，而「关于」面板读的是它
+  let updaterState = { status: 'idle', info: null, error: '', lastCheckAt: '' };
 
   const pushUpdater = () => {
     send('update:state', { ...updaterState, currentVersion: app.getVersion() });
@@ -874,7 +877,12 @@ function registerIpc() {
       await updater.downloadAndInstall(updaterState, {
         onProgress: (p) => send('update:progress', p),
         onDownloaded: (info) => {
-          updaterState = { status: 'ready', info: { ...updaterState.info, ...info }, error: '' };
+          updaterState = {
+            status: 'ready',
+            info: { ...updaterState.info, ...info },
+            error: '',
+            lastCheckAt: updaterState.lastCheckAt || ''
+          };
           pushUpdater();
         },
         onError: (msg) => {
@@ -991,7 +999,18 @@ function registerIpc() {
       return { error: err.message };
     }
   });
-  handle('ext:remove', (id) => extManager.remove(id, () => session.fromPartition('persist:nova-chromium')));
+  /* 删除也**必须记账** —— 三条安装路径都往 settings.extensions 写了记录
+     （见上面 ext:install / ext:install-path / ext:store-install），
+     而 bootstrap() 的恢复循环会照着这些记录重新 install。
+     少了这一步：用户移除一个扩展 → 重启浏览器 → 它又回来了；
+     对从商店装的还会顺带占住 storeId，导致再点安装直接提示「已经装过」。
+     典型的「加功能时三处都写了、删功能时漏了一处」。 */
+  handle('ext:remove', async (id) => {
+    const r = await extManager.remove(id, () => session.fromPartition('persist:nova-chromium'));
+    const recs = settings.get('extensions', []).filter((x) => x.id !== id);
+    settings.patch({ extensions: recs });
+    return r;
+  });
 
   /* --- 从 Edge 加载项商店装（模块头解释了为什么必须由外壳自己取包） --- */
 
@@ -1042,6 +1061,64 @@ function registerIpc() {
    * 「导入」最要紧的用途就是从别的浏览器搬过来，不认那种格式的话
    * 这个功能在真正需要它的场景里是废的。
    */
+  /* ----------------------- 从已安装的浏览器导入 -----------------------
+   * 「导入书签」最要紧的用法是从别的浏览器搬过来。让用户自己去找
+   * %LOCALAPPDATA% 下的 Bookmarks 文件不现实，而浏览器「导出 HTML」
+   * 虽然通用，但要多点几步 —— 所以先检测，检测到了就一键读。
+   *
+   * 检测只**看文件在不在**，不读内容：检测结果本身不该泄露
+   * 「这个浏览器里有哪些站点」。
+   */
+  handle('bookmarks:browsers', () => {
+    try {
+      const list = browsersDetect.detectBrowsers((p) => fs.existsSync(p));
+      return { ok: true, browsers: list };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message || e), browsers: [] };
+    }
+  });
+
+  handle('bookmarks:from-browser', async (id) => {
+    const found = browsersDetect.detectBrowsers((p) => fs.existsSync(p))
+      .find((b) => b.id === id);
+    if (!found) return { error: '没有找到这个浏览器（可能刚被卸载）' };
+    if (!found.supported) return { error: found.note || '这个浏览器的书签格式暂不支持' };
+
+    let items;
+    try {
+      items = browsersDetect.parseChromiumBookmarks(
+        await fs.promises.readFile(found.file, 'utf8')
+      );
+    } catch (e) {
+      // 读不到就说读不到，不猜。常见原因是浏览器正开着、文件被锁。
+      return { error: '读取失败：' + String(e && e.message || e) };
+    }
+    if (!items.length) {
+      return { error: `${found.name} 里没有可导入的网址书签` };
+    }
+
+    // 合并规则与从文件导入**完全一致**（同一个 merge）：
+    // 已在的不覆盖、只追加 —— 用户本地改过的名字是ta自己的劳动。
+    const m = bookmarksIo.merge(settings.get('bookmarks', []), items);
+    settings.patch({ bookmarks: m.merged });
+    send('settings:changed', settings.all());
+    if (faviconCache) {
+      // 传**主机名**而不是完整 URL —— refreshOne 内部会自己拼 https://，
+      // 传 URL 会拼成 https://https://a.com/ 这种废地址（这个坑踩过一次）
+      const hosts = [];
+      for (const b of m.merged) {
+        try { hosts.push(new URL(b.url).hostname); } catch { /* 不是网址，跳过 */ }
+      }
+      if (hosts.length && typeof faviconCache.refreshIfStale === 'function') {
+        faviconCache.refreshIfStale(hosts);
+      }
+    }
+    return {
+      added: m.added, dup: m.dup, total: m.merged.length,
+      from: found.name, bookmarks: m.merged
+    };
+  });
+
   handle('bookmarks:export', async () => {
     const list = settings.get('bookmarks', []);
     if (!list.length) return { canceled: true, reason: '还没有书签可导出' };
@@ -1087,7 +1164,16 @@ function registerIpc() {
     // 顺带更新收藏夹栏与书签列表的图标缓存：导入进来的大多没抓过图标，
     // 不 kick 一次的话它们会一直停在首字母上
     if (faviconCache && typeof faviconCache.refreshIfStale === 'function') {
-      faviconCache.refreshIfStale(m.merged.map((b) => b.url));
+      // 传**主机名**，不是完整 URL —— refreshOne 内部自己会拼 https://，
+      // 传 URL 会拼成 https://https://a.com//favicon.ico 这种废地址，
+      // 结果是每次导入都白跑 3×N 次无效请求、图标永远出不来。
+      // （另外三个调用点 injectFavicons / warmFavicons / favicon:json 都传对了，
+      //   只有这一处漏了。）
+      const hosts = [];
+      for (const b of m.merged) {
+        try { hosts.push(new URL(b.url).hostname); } catch { /* 不是网址，跳过 */ }
+      }
+      if (hosts.length) faviconCache.refreshIfStale(hosts);
     }
     return {
       added: m.added,

@@ -1,7 +1,7 @@
 {
   "name": "nova-browser",
   "productName": "吾爱Nova浏览器",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "多内核浏览器原型：Chromium / Gecko / IE(Trident) 内核切换，PC 与移动双端，内置广告拦截，支持 Chromium 插件与火狐扩展",
   "author": "WuAi",
@@ -19,7 +19,7 @@
     "filters:fetch": "bash tools/fetch-filters.sh",
     "filters:check": "node tools/check-filters.js",
     "filters": "bash tools/fetch-filters.sh && node tools/check-filters.js",
-    "test": "node tools/check-shell.js && node tools/test-engines.js && node tools/test-adblock.js && node tools/test-engine-menu.js && node tools/test-downloader.js && node tools/test-downloads-ui.js && node tools/test-sniffer.js && node tools/test-sniffer-ui.js && node tools/test-nomedia.js && node tools/test-autopage.js && node tools/test-mobile-ui.js && node tools/test-builtin-userscript.js && node tools/test-newtab.js && node tools/test-bookmark-bar.js && node tools/test-favicon-cache.js && node tools/test-desktop-shortcut.js && node tools/test-ext-store.js && node tools/test-updater.js && node tools/test-bookmarks-io.js && node tools/test-downloader-degrade-qa.js",
+    "test": "node tools/check-shell.js && node tools/test-engines.js && node tools/test-adblock.js && node tools/test-engine-menu.js && node tools/test-downloader.js && node tools/test-downloads-ui.js && node tools/test-sniffer.js && node tools/test-sniffer-ui.js && node tools/test-nomedia.js && node tools/test-autopage.js && node tools/test-mobile-ui.js && node tools/test-builtin-userscript.js && node tools/test-newtab.js && node tools/test-bookmark-bar.js && node tools/test-favicon-cache.js && node tools/test-desktop-shortcut.js && node tools/test-ext-store.js && node tools/test-updater.js && node tools/test-bookmarks-io.js && node tools/test-browsers-detect.js && node tools/test-downloader-degrade-qa.js",
     "test:downloader": "node tools/test-downloader.js",
     "test:downgrade-qa": "node tools/test-downloader-degrade-qa.js",
     "test:downloads-ui": "node tools/test-downloads-ui.js",

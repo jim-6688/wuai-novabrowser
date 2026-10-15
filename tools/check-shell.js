@@ -46,8 +46,16 @@ const usedIds = new Set([...js.matchAll(/\$\$?\('#([A-Za-z0-9_-]+)'\)/g)].map((m
 /**
  * 这些 id 不在 shell.html 里 —— 它们由设置页正文的 buildXxx() 在运行时渲染出来，
  * 所以「HTML 里查不到」是正常的，不能算缺陷。
+ *
+ * 加新条目时的规矩：**只加真正由 JS 运行时生成的**，并在这里说明是谁生成的。
+ * 加一个静态就在 HTML 里的 id 进来，等于把一条真缺陷的检测关掉了。
  */
-const dynamicIds = new Set(['dl-url']);
+const dynamicIds = new Set([
+  'dl-url',            // buildDownloads()
+  'bm-browsers'        // buildBookmarks() 的「从已安装的浏览器导入」那一块；
+                       // 内容还是异步的（detectBrowsers() 回填），所以连它内部的
+                       // 那几行也是 JS 生成的
+]);
 console.log(`  HTML id ${htmlIds.size} 个 / JS 引用 ${usedIds.size} 个`);
 const missingIds = [...usedIds].filter((id) => !htmlIds.has(id) && !dynamicIds.has(id));
 missingIds.length ? bad('JS 引用但 HTML 不存在: ' + missingIds.join(', '))
@@ -141,6 +149,8 @@ const preload = fs.readFileSync(P('src/preload/preload.js'), 'utf8');
 const mockJs = fs.readFileSync(P('src/renderer/bridge-mock.js'), 'utf8');
 const mainMod = fs.readFileSync(P('src/main/main.js'), 'utf8');
 const updaterMod = fs.readFileSync(P('src/main/updater.js'), 'utf8');
+const bmIo = fs.readFileSync(P('src/main/bookmarks-io.js'), 'utf8');
+const bdMod = fs.readFileSync(P('src/main/browsers-detect.js'), 'utf8');
 const newtab = fs.readFileSync(P('src/renderer/newtab.html'), 'utf8');
 const toJava = (rel) => P('android-app/app/src/main/' + rel);
 [
@@ -334,7 +344,51 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['updater 记下上次检查时间（「查过但失败」与「从没查过」要读得出区别）',
     /lastCheckAt/.test(updaterMod)],
   ['fmtWhen 用本地时区渲染，不是截 ISO 字符串（否则钟点差几个小时）',
-    /function fmtWhen[\s\S]{0,600}?getHours\(\)/.test(js)]
+    /function fmtWhen[\s\S]{0,600}?getHours\(\)/.test(js)],
+  ['书签页有「从已安装的浏览器导入」这一块',
+    /buildBookmarks[\s\S]{0,4000}?id="bm-browsers"/.test(js)],
+  ['检测结果里 null（检测中）与空数组（没有）读得出区别',
+    /let stateBrowsers = null/.test(js) && /正在检测已安装的浏览器/.test(js)],
+  ['那几行用委托绑定（检测完才渲出来，逐行绑定会漏绑 → 渲染出来却点不动）',
+    /addEventListener\('click'[\s\S]{0,300}?closest\('\[data-browser\]'\)/.test(js)],
+  ['从浏览器导入后如实报数（加了几条 / 重复几条）',
+    /已从 \$\{r\.from\} 导入 \$\{r\.added\} 条/.test(js)],
+  ['导入图标刷新传的是主机名，不是完整 URL（否则拼成 https://https://… ）',
+    /refreshIfStale\(hosts\)/.test(mainMod) && !/refreshIfStale\(m\.merged\.map/.test(mainMod)],
+  ['导出与导入用同一个协议闸 importable（分开写会打破「导出→导入恒等」）',
+    /function importable/.test(bmIo) && /buildExport[\s\S]{0,400}?importable\(b\.url\)/.test(bmIo)
+      && /if \(!importable\(url\)\)/.test(bmIo)],
+  ['导出结果带 skipped（内部页导不出去，界面要能如实说少了几条）',
+    /skipped,/.test(bmIo) && /const skipped = \(list \|\| \[\]\)\.length - items\.length/.test(bmIo)],
+  ['检测只问「文件在不在」，不读内容（检测结果不该泄露有哪些站点）',
+    /detectBrowsers\(\(p\) => fs\.existsSync\(p\)\)/.test(mainMod)],
+  ['检测在进入书签页时才触发，不在启动时',
+    /=== 'bookmarks'\) detectBrowsers\(\)/.test(js)],
+  ['Firefox 列为不支持但要说明原因并给出路（不让它神秘消失）',
+    /places\.sqlite/.test(bdMod) && /导出为 HTML/.test(bdMod)],
+  ['预览桥给了 browsers / fromBrowser',
+    /browsers: async/.test(mockJs) && /fromBrowser: async/.test(mockJs)],
+
+  /* --- 自动更新（这条链路从上线起就是断的，务必钉住） --- */
+  ['downloadUpdate 之前先 checkForUpdates',
+    // downloadUpdate(cancellationToken) 的第一参数是取消令牌而非文件名；
+    // 且它开头就要求 updateInfoAndProvider 非空，而那个字段**只在
+    // checkForUpdates() 里赋值**。不补这一句，点「下载更新」必然失败。
+    /checkForUpdates\(\)[\s\S]{0,120}?\.downloadUpdate\(\)/.test(updaterMod)],
+  ['downloadUpdate 不再被当成「接收文件名」的函数调用',
+    !/downloadUpdate\(file\)/.test(updaterMod) && !/downloadUpdate\(fileName\)/.test(updaterMod)],
+  ['主进程构造 updaterState 的两处都带 lastCheckAt（整体替换会抹掉它）',
+    (mainMod.match(/lastCheckAt/g) || []).length >= 3],
+
+  /* --- 扩展删除记账 --- */
+  ['ext:remove 也写回 settings.extensions（三条安装路径都写了，唯独删除漏了 → 重启又装回来）',
+    /handle\('ext:remove'[\s\S]{0,500}?settings\.patch\(\{ extensions: recs \}\)/.test(mainMod)],
+
+  /* --- 下载状态机 --- */
+  ['DL_STATE 认得 progressing（Chromium 内建下载器的进行中状态）',
+    /progressing:\s*\{\s*label: '下载中'/.test(js)],
+  ['activeDownloads 的白名单含 progressing（否则不进浮窗与角标）',
+    /'probing', 'downloading', 'progress', 'progressing', 'queued', 'paused'/.test(js)]
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');
