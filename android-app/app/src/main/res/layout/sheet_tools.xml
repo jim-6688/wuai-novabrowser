@@ -90,5 +90,19 @@
                 android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" />
         </LinearLayout>
+
+        <!-- 第十格：收藏夹。原来是顶栏那个唤出键（见 activity_main 的 btnBmBar），
+             收进这里是因为顶栏每一格都要争宽度，而手机上「一行高度」比「一格宽度」更金贵。
+             独占一行、只放一格：九宫格是三行三列，硬塞进第六行会多出一行只挂一格的空行，
+             不如明明白白地给它一行的宽度来得稳。 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolBmBar"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

@@ -113,24 +113,11 @@
                     android:padding="7dp"
                     android:src="@drawable/ic_star" />
 
-                <!-- 收藏夹栏的唤出键。移动端这条栏不常驻：点一下在地址栏下方拉出
-                     一条横向书签栏，点中某一格跳走之后自动收起。手机上每一行高度
-                     都金贵，没有理由让一条常驻书签栏一直占着。
-
-                     位置在星标与 AI 之间：它和星标是同一类事（都关于收藏），
-                     放在一起读得通；而右端的 AI 是「去别处做一件事」，与它们不同。
-                     关掉设置里的「收藏夹栏」这一项时，这一格整个隐去，
-                     宽度还给地址栏。 -->
-                <ImageButton
-                    android:id="@+id/btnBmBar"
-                    android:layout_width="@dimen/tap_action"
-                    android:layout_height="@dimen/tap_action"
-                    android:layout_marginStart="2dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/content_desc_bookmark_bar"
-                    android:scaleType="centerInside"
-                    android:padding="7dp"
-                    android:src="@drawable/ic_bookmark_bar" />
+                <!-- 收藏夹栏的唤出键已撤掉 —— 它收进底栏工具箱里那一格了
+                     （sheet_tools 的 toolBmBar）。顶栏每一格都要争宽度，
+                     而这一格与左端搜索、右端 AI 相比并不常用，让位给地址栏更值。
+                     下面那个 include 出来的 bookmarkBar 本身不动：
+                     它是「按需唤出」的那条横栏，唤出入口换了地方，栏还是同一条。 -->
 
                 <!-- AI 助手。原来在顶栏第二行（那一行已撤掉），现在是顶栏最右一格。
                      图标本身就是品牌渐变，与左端的搜索按钮一蓝一绿呼应，一眼能认出

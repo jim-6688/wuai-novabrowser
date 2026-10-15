@@ -241,9 +241,10 @@ public final class MainActivity extends Activity {
     /**
      * 收藏夹栏（地址栏下方那一条横向书签栏）。
      *
-     * <p>与桌面端那条不同，移动端这一条<b>不常驻</b>：默认收着，点顶栏
-     * {@code btnBmBar} 才拉出来，点中某一格跳走之后自动收起。手机每一行高度都金贵，
-     * 一条常驻书签栏等于永久把一行网页让出去。
+     * <p>与桌面端那条不同，移动端这一条<b>不常驻</b>：默认收着，从底栏工具箱里
+     * 那一格「收藏夹」点出来，点中某一格跳走之后自动收起。手机每一行高度都金贵，
+     * 一条常驻书签栏等于永久把一行网页让出去；唤出入口也从顶栏挪进了工具箱，
+     * 把顶栏的宽度还给地址栏。
      *
      * <p>{@link #bmBarOpen} 是「用户点开过没有」，跨 {@link #mountMain} 重装保留；
      * 它和另外两个条件（设置里的开关、当前是不是新标签页）合成最终显隐，
@@ -1432,8 +1433,8 @@ public final class MainActivity extends Activity {
     // 在 BookmarkBar.expanded 里 —— 那一份是纯逻辑，能离线单测。
 
     private void setupBookmarkBar() {
-        View btn = findViewById(R.id.btnBmBar);
-        if (btn != null) btn.setOnClickListener(v -> toggleBookmarkBar());
+        // 顶栏的唤出键已撤掉（收进底栏工具箱的 toolBmBar），所以这里不再绑点击。
+        // 底栏那一格调的是 toggleBookmarkBar 的同一套逻辑，见 showToolsSheet。
         // 从弹层返回会重新 inflate：格子是空的，而 bmBarOpen 还记着展开状态。
         // 不补这一次重画，展开态会变成一条什么都没有的空白带。
         if (bmBarOpen) renderBookmarkBar();
@@ -1515,18 +1516,20 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 唤出键自身：设置关掉时整格隐去（宽度还给地址栏），展开时染成品牌色。
+     * 收藏夹栏唤出键的染色同步。**唤出键已撤掉**（收进底栏工具箱的 toolBmBar），
+     * 所以这里退化成空实现 —— 保留调用点是为了不改动
+     * {@code setupBookmarkBar} / {@code toggleBookmarkBar} 之间的调用次序。
      *
-     * <p>为什么靠染色而不是换一个实心图标：这一格回答的是「下面那条栏开着没有」，
-     * 而它和旁边星标的图标本来就是两种东西（星标管当前页收不收藏）—— 换图标
-     * 会让两个键看起来更像；染色只改状态，不动形状。
+     * <p>原先这一格回答的是「下面那条栏开着没有」，靠染色而不是换图标：
+     * 它和旁边星标管的是两件事（星标管当前页收不收藏），换图标会让两个键
+     * 看起来更像。搬进工具箱后，那一格是整格点开、形态固定，状态改由
+     * {@link #applyBookmarkBarVisibility} 负责，这里不再有键可染。
      */
     private void syncBmBarButton() {
-        ImageButton btn = findViewById(R.id.btnBmBar);
-        if (btn == null) return;
-        btn.setVisibility(settings.bookmarkBarButton ? View.VISIBLE : View.GONE);
-        btn.setImageTintList(ColorStateList.valueOf(
-            color(bmBarOpen ? R.color.brand : R.color.text_3)));
+        // 顶栏不再有唤出键（btnBmBar 已从 activity_main.xml 移除）。
+        // findViewById 会返回 null，这里刻意什么都不做：
+        // 方法留着是为了不打乱其余调用点的次序，将来若把键加回来，
+        // 只需删掉这个空壳、把染色两行搬回来即可。
     }
 
     private void applyBookmarkBarVisibility() {
@@ -3355,6 +3358,26 @@ public final class MainActivity extends Activity {
         toolCell(sheet, R.id.toolMenu, R.drawable.ic_menu, "主菜单", () -> {
             mountMain();
             showMenuSheet();
+        });
+        // 收藏夹。与上面九格唯一的差别：**先 mountMain() 再拉栏**。
+        // 其余每格是「关掉弹层、去开另一个弹层」，而收藏夹栏不是弹层 ——
+        // 它是主视图顶栏下方的一条横栏，得先把主视图装回来才挂得上。
+        // 顺序反了会对着已脱离的视图操作，栏拉不出来。
+        toolCell(sheet, R.id.toolBmBar, R.drawable.ic_bookmark_bar, "收藏夹", () -> {
+            if (!settings.bookmarkBarButton) {
+                // 设置里关着这一项时，横栏（含原顶栏那一格）整个不存在。
+                // 不做点什么的话，用户点了就是「没反应」—— 最难排查的一种。
+                // 退到书签面板：书签都还在，只是没有那条横栏可一键跳。
+                mountMain();
+                showBookmarksSheet();
+                toast(getString(R.string.bm_bar_off_hint));
+                return;
+            }
+            mountMain();
+            bmBarOpen = true;
+            renderBookmarkBar();
+            syncBmBarButton();
+            applyBookmarkBarVisibility();
         });
     }
 

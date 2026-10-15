@@ -201,12 +201,33 @@ public class NewTabTest {
     }
 
     @Test
-    public void 候选够填满版面时一条都不补() {
+    public void 候选够填满版面时内置位依然在() {
+        // 守的是「网址来回改」：老实现是「候选够 7 条就一条都不补」，
+        // 于是用户多访问几个站点，这六条固定入口整体消失、清次历史又回来。
+        // 固定入口的意义正在于它固定，所以改成无条件追加。
         List<NewTab.Row> rows = new ArrayList<>();
         for (int i = 0; i < 9; i++) {
             rows.add(new NewTab.Row("S" + i, "https://s" + i + ".test/", 9 - i, false));
         }
-        assertEquals(9, NewTab.withBuiltins(rows, new HashSet<String>()).size());
+        List<NewTab.Row> out = NewTab.withBuiltins(rows, new HashSet<String>());
+        assertEquals(9 + NewTab.BUILTIN_SITES.length, out.size());
+    }
+
+    @Test
+    public void 内置位不随候选多少而增减() {
+        // 同一条固定入口，在候选 2 条与候选 20 条两种情形下都出现、顺序也一致。
+        List<NewTab.Row> few = new ArrayList<>();
+        few.add(new NewTab.Row("A", "https://a.test/", 3, false));
+        few.add(new NewTab.Row("B", "https://b.test/", 2, false));
+        List<NewTab.Row> many = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            many.add(new NewTab.Row("S" + i, "https://s" + i + ".test/", 20 - i, false));
+        }
+        String[] a = NewTab.candidates(NewTab.withBuiltins(few, new HashSet<String>())).split("\n");
+        String[] b = NewTab.candidates(NewTab.withBuiltins(many, new HashSet<String>())).split("\n");
+        String tailA = a[a.length - NewTab.BUILTIN_SITES.length];
+        String tailB = b[b.length - NewTab.BUILTIN_SITES.length];
+        assertEquals(tailA, tailB);
     }
 
     @Test

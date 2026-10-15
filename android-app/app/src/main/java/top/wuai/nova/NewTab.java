@@ -273,20 +273,21 @@ public final class NewTab {
     }
 
     /**
-     * 真实候选不够填满版面时，用 {@link #BUILTIN_SITES} 把后面的格子补齐。
+     * 把内置推荐位 {@link #BUILTIN_SITES} 无条件追加到候选末尾。
      *
-     * <p>单独一个函数、由调用方在编码前调一次，而不是塞进 {@link #candidates}：
-     * 那边是「一行候选怎么编码」的纯逻辑，混进补位之后，所有测编码的断言都得
-     * 先绕开内置那六条。
+     * <p><b>为什么无条件</b>：原来这一段是「候选不足 {@link #MAX_TILES} 才补齐」，
+     * 于是用户多访问几个站点、候选一超过七条，那六条固定入口就整体消失，
+     * 清一次历史又回来 —— 同一屏内容在「随时会变的规则」里，用户看到的就是
+     * 「网址来回改」。固定入口的意义正在于它固定。
      *
-     * <p>两个刻意的选择：
-     * <ul>
-     *   <li>判重按<b>完整 URL</b>，不按主机名 —— 内置那几条本来就是同一家的不同入口
-     *       （「主页」是 www 那条、「导航」是裸域那条），按主机名去重会凭空少两格，
-     *       用户看到的就是「六宫格又缺了一角」。</li>
-     *   <li>被用户点掉的站点（{@code blocked}，归一化主机名）一律不补 —— 否则那个 ×
-     *       就是假的，下次进新标签页它又回来了。</li>
-     * </ul>
+     * <p>排序在 {@link #candidates} 里做（builtin 垫底），页面再排一次
+     * （builtin 提到最前占位）—— 两边排的是不同的东西：这边排是为了让
+     * {@code candidates} 上限内保住常去站点，页面排是为了决定 7 格版面谁上谁下。
+     *
+     * <p><b>判重按完整 URL</b>，不按主机名 —— 内置那几条本来就是同一家的不同入口
+     * （「主页」是 www 那条、「导航」是裸域那条），按主机名去重会凭空少两格。
+     * <b>被用户点掉的站点</b>（{@code blocked}）一律不补 —— 否则那个 ×
+     * 就是假的，下次进新标签页它又回来了。
      *
      * @param rows    已组装的真实候选（可为 null）
      * @param blocked 用户点掉过的主机名集合（可为 null）
@@ -296,7 +297,6 @@ public final class NewTab {
         Set<String> have = new HashSet<>();
         for (Row r : out) have.add(r.url);
         for (Row b : BUILTIN_SITES) {
-            if (out.size() >= MAX_TILES) break;
             String k = hostKey(b.url);
             if (k.isEmpty()) continue;
             if (blocked != null && blocked.contains(k)) continue;

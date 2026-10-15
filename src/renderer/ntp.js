@@ -241,17 +241,23 @@ function buildData(sources) {
 
   rows.sort(compareCandidates);
 
-  // 真实候选不够填满版面时，用官方推荐把后面的格子补齐（见 BUILTIN_SITES）。
+  // 内置推荐位：**无条件**追加，不看候选够不够（见 BUILTIN_SITES）。
   //
-  // 两个刻意的选择：
+  // 为什么无条件：原来这一段是「候选不足 7 条才补齐」。于是用户多访问几个站点、
+  // 候选一超过 7 条，那六条固定入口就整体消失；等哪天清一次历史它又回来 ——
+  // 同一屏内容在「随时会变的规则」里，用户的说法是「网址来回改」。
+  // 固定入口的意义正在于它固定：它在，数据就在；它不在，用户才会以为产品出问题了。
+  //
+  // 三个刻意的选择：
   //   1) 追加在排序之后、不进 compareCandidates —— 这几个是垫底的，不该跟
   //      用户自己的常去站点抢前几位；顺序也照 BUILTIN_SITES 给定，不重排。
   //      页面侧同样把它们放在最后一堆（flags 里的 'f'），两端看法一致。
   //   2) 判重按**完整 URL** 而不是主机名 —— 内置这几条本来就是同一家的不同
   //      入口（「主页」是 www 那条、「导航」是裸域那条），按主机名去重会凭空
   //      少掉两格，用户看到的就是「六宫格又缺了一角」。
+  //   3) 不受 MAX_TILES 约束 —— 补位这一段原本靠 rows.length >= MAX_TILES 提前退出，
+  //      那正是它会随候选多少而增减的根因。现在只有「用户自己删过这一格」才让它缺席。
   for (const site of BUILTIN_SITES) {
-    if (rows.length >= MAX_TILES) break;
     const k = hostKey(site.url);
     if (!k || blocked[k] || seenUrls[site.url]) continue;
     seenUrls[site.url] = 1;

@@ -113,6 +113,9 @@
     <!-- 收藏夹栏拉到一半、一条书签都没有时占位的那一句。 -->
     <string name="bookmark_bar_empty">还没有书签。点顶栏的星标可以把当前页收进来。</string>
 
+    <!-- 收藏夹栏被关掉时，从工具箱点「收藏夹」的兜底提示。 -->
+    <string name="bm_bar_off_hint">收藏夹栏已在设置里关掉，先给你打开书签列表；想用那条横栏可在设置中打开</string>
+
     <string name="sheet_history">历史</string>
     <string name="history_empty">还没有浏览记录。只记录 http/https 网页，无痕模式下不记。</string>
     <string name="history_visits">%1$d 次</string>

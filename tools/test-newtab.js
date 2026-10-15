@@ -206,6 +206,21 @@ function manyHosts(n) {
     return list.length === 6;
   })());
 
+  check('内置位在版面上永远占前排（候选再多也不被截掉）', (() => {
+    const b = { label: '导航', url: 'https://52ta.top/', visits: 0, builtin: true };
+    const r = Page.rank([zhihu, bili, b, tieba], 3);
+    // 截到 3 格时第一个必须还是内置那条：截断发生在排序之后，
+    // 内置位排在后面的话会被整条截掉，「固定」就是空话。
+    return r.length === 3 && r[0].builtin === true;
+  })());
+
+  check('用户自己加的排在历史候选之前、但让内置位先占排', (() => {
+    const b = { label: '导航', url: 'https://52ta.top/', visits: 0, builtin: true };
+    const mine = { label: '我的', url: 'https://mine.example.com/', visits: 0, pinned: true };
+    const r = Page.rank([zhihu, mine, b], 7);
+    return r[0].builtin === true && r[1].pinned === true;
+  })());
+
   /* ================================================================ [B] */
   console.log('\n[B] 宿主侧纯函数（src/renderer/ntp.js）');
 
@@ -561,10 +576,29 @@ function manyHosts(n) {
   check('补位项排在真实候选之后（不跟用户的常去站点抢前几位）',
     shortData.split('\n')[0].slice(-1) === '-' && shortData.split('\n').slice(-1)[0].slice(-1) === 'f');
 
-  check('候选够填满版面时一条都不补', (() => {
+  check('候选够填满版面时内置位依然在（固定入口不随候选增减）', (() => {
     const d = Ntp.buildData({ history: manyHosts(9) });
-    // 9 条真实候选照原样送出去（页面自己截到 7 格），一条补位都不掺
-    return padRows(d).length === 0 && realRows(d).length === 9;
+    // 真实候选照原样送出去，内置那六条**照样追加**。
+    // 这条断言钉的是「固定」二字：老实现是「候选够 7 条就一条都不补」，
+    // 于是用户多访问几个站点，这六条整体消失、清次历史又回来 —— 网址来回改。
+    return padRows(d).length === Ntp.BUILTIN_SITES.length && realRows(d).length === 9;
+  })());
+
+  check('候选多少，内置位的位置与条数都不变（刷新不跳位）', (() => {
+    // 同一条内置入口，在候选 0 条与候选 20 条两种情形下都出现、且顺序一致。
+    const few = padRows(Ntp.buildData({ history: manyHosts(2) })).map((l) => l.split('\t')[1]);
+    const many = padRows(Ntp.buildData({ history: manyHosts(20) })).map((l) => l.split('\t')[1]);
+    return few.length === many.length
+      && few.length === Ntp.BUILTIN_SITES.length
+      && few.every((u, i) => u === many[i]);
+  })());
+
+  check('用户点掉某个固定入口后不再补它，其余固定入口仍在（那个 × 是真的）', (() => {
+    const d = Ntp.buildData({ removed: ['music.52ta.top'] });
+    const urls = padRows(d).map((l) => l.split('\t')[1]);
+    return realRows(d).length === 0
+      && !urls.some((u) => Ntp.hostKey(u) === 'music.52ta.top')
+      && urls.length === Ntp.BUILTIN_SITES.length - 1;
   })());
 
   check('被用户点掉的主机名不会被补回来（否则那个 × 是假的）', (() => {
@@ -605,8 +639,11 @@ function manyHosts(n) {
       && Page.MAX_SHORTCUTS === Ntp.MAX_TILES,
     `页面 ${Page.MAX_SHORTCUTS} · 桌面 ${Ntp.MAX_TILES} · 安卓 ${javaConst(java, 'int', 'MAX_TILES')}`);
 
-  check('「候选够了就不补」的判据在安卓端也在（withBuiltins 先看格数）',
-    /out\.size\(\)\s*>=\s*MAX_TILES/.test(java));
+  check('「固定入口无条件补齐」在安卓端同样成立（withBuiltins 不看格数提前退）',
+    // 反向断言：安卓端**不能**再有 out.size() >= MAX_TILES 的提前退出。
+    // 那是「候选够 7 条就不补」的根因，两端必须一起去掉，否则手机上
+    // 这六条仍会随候选多少而增减 —— 正是用户说的「网址来回改」。
+    !/out\.size\(\)\s*>=\s*MAX_TILES/.test(java));
 
   /* ---- 收藏夹：同一份数据开张 ---- */
   const settings = require(P('src/main/settings.js'));
