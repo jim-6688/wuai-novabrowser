@@ -36,11 +36,15 @@ const API = 'https://gitee.com/api/v5';
 
 // ---------------- 参数解析 ----------------
 function parseArgs(argv) {
-  const out = { apk: null, pc: null, dry: false };
+  const out = { apk: null, pc: null, dry: false, tag: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--apk') out.apk = argv[++i];
     else if (a === '--pc') out.pc = argv[++i];
+    // 只改 PC 的那一版（安卓没重发）必须显式给 tag —— 默认的 tag 跟着
+    // strings.xml 的 app_version 走，不给的话会去复用上一版的 Release，
+    // 表现为「文件传到旧版本下面去了」，而且配额算在旧版本头上。
+    else if (a === '--tag') out.tag = argv[++i];
     else if (a === '--dry' || a === '--dry-run') out.dry = true;
   }
   return out;
@@ -132,11 +136,14 @@ async function main() {
   }
 
   const ver = appVersion();
-  const tag = 'v' + ver;
+  const tag = args.tag || ('v' + ver);
+  // 只发 PC 那一版时，报出来的版本要用 PC 自己的号 ——
+  // 否则 Release 标题写着 1.6.4 而附件是 1.0.4，看的人会以为安卓也发了。
+  const shownVer = /^v1\.0\./.test(tag) ? 'PC ' + tag.slice(1) : ver;
   const body = changelog() + '\n\n（由 tools/publish-gitee.js 自动发布）';
 
   console.log('== 吾爱Nova浏览器 · 自动发布 Gitee Release ==');
-  console.log('版本: ' + ver + '  tag: ' + tag);
+  console.log('版本: ' + shownVer + '  tag: ' + tag);
 
   // 1. 创建 Release（若已存在则 Gitee 会报错，走更新逻辑）
   const createUrl = `${API}/repos/${OWNER}/${REPO}/releases?${qs({ access_token: token })}`;
