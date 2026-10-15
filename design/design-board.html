@@ -172,6 +172,9 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border
 .src-tag{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:var(--r-pill)}
 .s-cr{background:var(--brand-soft);color:var(--brand)}
 .s-ff{background:rgba(255,113,57,.16);color:#D4501C}
+/* 「镜像」标签：提示这个名字取自 Chrome 应用店的国内镜像站，不是 Google 官方页。
+   内容与官方一致，但来源该说清楚 —— 所以它比线上那张「查到了」的卡片更该被看见。 */
+.s-mir{background:var(--surface-3);color:var(--text-3)}
 
 .row{display:flex;align-items:center;gap:12px;min-height:34px;padding:8px 16px;font-size:12.5px;color:var(--text-2)}
 .row .ri{flex:0 0 18px;color:var(--text-3)}
@@ -1161,7 +1164,7 @@ td code{font-size:11px}
 
     <!-- 扩展 -->
     <div class="frame-wrap">
-      <div class="frame-cap"><b>D · 扩展（商店 + 取包装 + 火狐兼容处理披露）</b> · 同样是那扇设置窗口，只是停在「扩展」这一页；窗口一关网页还在原处，不会被顶走。<br />商店那一段先把话讲明：商店页上的「获取」按钮在本应用里<b>点不动</b> —— 它调的是浏览器自家的安装接口，第三方外壳没有这套东西。所以拆成两步：商店照常打开逛，看好了把那个扩展的页面地址粘下来，查一次详情、确认无误再装。</div>
+      <div class="frame-cap"><b>D · 扩展（商店 + 取包装 + 火狐兼容处理披露）</b> · 同样是那扇设置窗口，只是停在「扩展」这一页；窗口一关网页还在原处，不会被顶走。<br />商店那一段先把话讲明：商店页上的「获取」按钮在本应用里<b>点不动</b> —— 它调的是浏览器自家的安装接口，第三方外壳没有这套东西。所以拆成两步：商店照常打开逛，看好了把那个扩展的页面地址粘下来，查一次详情、确认无误再装。<br />三个入口里，Chrome 应用店那个指向的<b>不是</b> Google 的域名 —— 那个在国内连不上，做成入口只会打开一张白屏；给的是收录同一批扩展、用同一套 ID 的国内镜像站。</div>
       <div class="frame pc setwin" style="height:660px">
         <div class="toolbar" style="border-bottom:1px solid var(--border)">
           <div class="navg">
@@ -1202,10 +1205,15 @@ td code{font-size:11px}
               <div class="svmain">
                 <div class="panel-label" style="margin-top:0">扩展商店</div>
                 <div class="stbox">
-                  <div class="stsub">商店页上那个「获取」按钮在外壳里点不动 —— 它调的是浏览器自家的安装接口。所以拆成两步：商店照常打开逛，看好了把那个扩展的页面地址粘下来装。</div>
+                  <div class="stsub">商店页上那个「获取」按钮在外壳里点不动 —— 它调的是浏览器自家的安装接口。所以拆成两步：商店照常打开逛，看好了把地址粘下来装。<br>Chrome 应用店在国内连不上，给的是它的国内镜像站：同一批扩展、同一套 ID。</div>
                   <div class="strow">
                     <span class="stic" style="--so:#0A84C6">E</span>
                     <span class="stmn"><b>Edge 加载项商店</b><i>微软官方扩展库，可直接装进 Nova</i></span>
+                    <span class="stgo">打开</span>
+                  </div>
+                  <div class="strow">
+                    <span class="stic" style="--so:#4285F4">C</span>
+                    <span class="stmn"><b>Chrome 应用店</b><i>国内镜像站，扩展可直接装进 Nova</i></span>
                     <span class="stgo">打开</span>
                   </div>
                   <div class="strow">
@@ -1214,12 +1222,12 @@ td code{font-size:11px}
                     <span class="stgo">打开</span>
                   </div>
                   <div class="stpaste">
-                    <span class="stinp">…/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloen…</span>
+                    <span class="stinp">…/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo</span>
                     <span class="stbtn">查询</span>
                   </div>
                   <div class="sthit">
-                    <span class="stic lg">T</span>
-                    <span class="stmn"><b>Tampermonkey</b><i>Jan Biniok · 1332 万次安装 · v5.5.1 · Manifest V3</i></span>
+                    <span class="stic lg">篡</span>
+                    <span class="stmn"><b>Tampermonkey 篡改猴<span class="src-tag s-mir">镜像</span></b><i>未知开发者 · 246万+次安装 · v5.5.1</i></span>
                     <span class="stbtn pri">安装</span>
                   </div>
                 </div>

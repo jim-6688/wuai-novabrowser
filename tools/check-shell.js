@@ -254,11 +254,24 @@ const shopMod = fs.readFileSync(P('src/main/ext-store.js'), 'utf8');
       && /downloadCrx\(input, dest[\s\S]{0,600}?path: dest/.test(mainJs)],
   ['「已装过」的判重记在 settings 的 storeId 上',
     /r\.storeId === parsed\.crxId/.test(mainJs) && /storeId: parsed\.crxId/.test(mainJs)],
-  ['取包地址是 Edge 的接口（Chrome 应用店那套在国内不可达）',
+  ['Edge 那条取包接口还在（可达，且直出 CRX3）',
     /edge\.microsoft\.com\/extensionwebstorebase/.test(shopMod)],
-  ['商店入口只列今天真可达的两个站',
+  ['Chrome 应用店走的是国内镜像，入口没指向 chromewebstore.google.com',
+    /CHROME_MIRROR\s*=\s*'https:\/\/chrome\.zzzmh\.cn'/.test(shopMod)
+      && !/url:\s*'[^']*chromewebstore\.google\.com/i.test(shopShell)],
+  ['商店入口列的三个站今天都真可达（Edge 商店 / Chrome 应用店镜像 / 脚本猫）',
     /microsoftedge\.microsoft\.com\/addons/.test(shopShell)
+      && /chrome\.zzzmh\.cn/.test(shopShell)
       && /scriptcat\.org/.test(shopShell)],
+  ['两个商店的 ID 不是同一套编号 —— Chrome 来源直接走镜像，不去问 Edge',
+    /parsed\.source === 'chrome'\)\s*return fetchChromeDetail/.test(shopMod)],
+  ['镜像给的是套娃 zip，取包时得把里面的 .crx 掏出来（否则装载那步报缺 manifest.json）',
+    /function extractCrxFromMirrorZip/.test(shopMod)
+      && /\.crx\$\/i\.test\(e\.name\)/.test(shopMod)],
+  ['镜像直链优先取不带签名的那条（带签名的会过期，扩展重启就装不回来）',
+    /bare[\s\S]{0,160}?return CHROME_MIRROR \+ bare\[0\]/.test(shopMod)],
+  ['扩展包上限容得下镜像站那种偏胖的包（实测 Adblock Plus 70 MB，64 MB 会误杀）',
+    /MAX_CRX_BYTES = 192 \* 1024 \* 1024/.test(shopMod)],
   ['STORE_LINKS 里没有一个入口地址指向 Greasy Fork（国内恒不可达，安卓端已换过一轮）',
     !/url:\s*'[^']*greasyfork/i.test(shopShell) && !/greasyfork/i.test(shopMod)],
   ['输入框内容存在 state 里（这个分区会被推送整体重绘，只靠 DOM 值会丢字）',

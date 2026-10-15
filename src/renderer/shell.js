@@ -1536,6 +1536,22 @@ const STORE_LINKS = [
     url: 'https://microsoftedge.microsoft.com/addons/Microsoft-Edge-Extensions-Home'
   },
   {
+    /**
+     * 这里给的是镜像站，不是 chromewebstore.google.com。
+     *
+     * 那个地址在国内连不上（实测 15 秒超时无响应），做成入口只会打开一张
+     * 白屏 —— 用户会以为浏览器坏了。镜像站收录的是同一批扩展、用的是同一套
+     * ID，从它上面复制的地址粘回本应用照样能装，所以入口指向它是有意义的；
+     * 指向 Google 那个域名则只是把「打不开」这件事换了个地方发生。
+     */
+    id: 'chrome',
+    name: 'Chrome 应用店',
+    note: '国内镜像站，扩展可直接装进 Nova',
+    mark: 'C',
+    accent: '#4285F4',
+    url: 'https://chrome.zzzmh.cn/'
+  },
+  {
     id: 'scriptcat',
     name: '脚本猫',
     note: '用户脚本市场（得先装 Tampermonkey）',
@@ -1548,6 +1564,16 @@ const STORE_LINKS = [
 /** 商店那一块。查询结果与错误都在这里长出来，不另开弹层。 */
 function storeBox(st) {
   const d = st.detail;
+  // 各商店给的字段不一样：Edge 有开发者与精确安装量但是 Manifest V2/V3，
+  // 镜像那边给的是「246万+」这种量级写法、没有开发者、也读不到 Manifest 版本。
+  // 与其给缺的那几项编个默认值，不如把这一行按实际有的拼 —— 少一项就少一项。
+  const metaBits = d ? [
+    d.developer || '未知开发者',
+    d.installsText ? d.installsText + '次安装' : '',
+    d.version ? 'v' + d.version : '',
+    d.manifestVersion ? 'Manifest V' + d.manifestVersion : ''
+  ].filter(Boolean) : [];
+
   return `
     <div class="store-box">
       <div class="store-title">扩展商店</div>
@@ -1555,6 +1581,10 @@ function storeBox(st) {
         商店页上那个「获取」按钮在本应用里点不动 —— 它调的是浏览器自家的安装接口，
         第三方外壳没有这套东西，点了不会有任何反应。所以拆成两步：
         商店照常打开逛，看好了把那个扩展的页面地址粘下来装。
+        <br /><br />
+        Chrome 应用店本身（chromewebstore.google.com）在国内连不上，这里给的是
+        它的国内镜像站：收录的是同一批扩展、用的是同一套 ID，从上面复制的地址
+        粘进来照样能装。
       </div>
       <div class="store-open-row">
         ${STORE_LINKS.map((s) => `
@@ -1577,8 +1607,9 @@ function storeBox(st) {
             ? `<img src="${esc(d.icon)}" alt="" onerror="this.remove()" />`
             : esc((d.name || 'E').slice(0, 1))}</div>
           <div class="sh-main">
-            <div class="sh-name">${esc(d.name)}</div>
-            <div class="sh-meta">${esc(d.developer || '未知开发者')} · ${esc(d.installsText)}次安装 · v${esc(d.version)} · Manifest V${esc(String(d.manifestVersion))}</div>
+            <div class="sh-name">${esc(d.name)}${d.mirror
+              ? '<span class="sh-tag" title="Chrome 应用店的国内镜像站">镜像</span>' : ''}</div>
+            <div class="sh-meta">${metaBits.map(esc).join(' · ')}</div>
             ${d.description ? `<div class="sh-desc">${esc(d.description)}</div>` : ''}
           </div>
           <button class="btn btn-primary" data-act="store-install"

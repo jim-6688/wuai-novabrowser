@@ -28,7 +28,9 @@ const P = (rel) => path.join(root, rel);
 
 const {
   parseStoreInput, detailApi, crxApi, formatInstalls, summarizeDetail,
-  fetchDetail, downloadCrx
+  fetchDetail, downloadCrx,
+  CHROME_MIRROR, CHROME_MIRROR_INFO, summarizeMirror, parseMirrorDownloadUrl,
+  extractCrxFromMirrorZip
 } = require(P('src/main/ext-store.js'));
 
 let pass = 0;
@@ -38,11 +40,12 @@ const check = (name, cond, extra) => {
   else { fail++; console.log('  FAIL  ' + name + (extra ? '  ' + extra : '')); }
 };
 
-/** 造一条假的 fetch 响应。arrayBuffer 吃 Buffer，json 吃对象。 */
+/** 造一条假的 fetch 响应。arrayBuffer 吃 Buffer，json 吃对象，text 吃字符串。 */
 const res = (status, body, opts = {}) => ({
   ok: status >= 200 && status < 300,
   status,
   json: async () => (opts.rawJson ? JSON.parse(body) : body),
+  text: async () => (Buffer.isBuffer(body) ? body.toString('utf8') : String(body)),
   arrayBuffer: async () => body
 });
 
@@ -121,6 +124,56 @@ function miniZip(name, content) {
   eocd.writeUInt32LE(lfh.length + nameBuf.length + comp.length, 16);
 
   return Buffer.concat([lfh, nameBuf, comp, cd, nameBuf, eocd]);
+}
+
+/**
+ * 造一个多文件的最小合法 ZIP。
+ *
+ * miniZip 只写单文件，而镜像站那个套娃包里除了 .crx 还塞了一份说明 txt ——
+ * 「有没有挑对条目」正是要验的东西，单文件测不出来。
+ */
+function multiZip(files) {
+  const parts = [];
+  const cds = [];
+  let offset = 0;
+
+  for (const [name, content] of files) {
+    const data = Buffer.from(content);
+    const nameBuf = Buffer.from(name, 'utf8');
+    const comp = zlib.deflateRawSync(data);
+
+    const lfh = Buffer.alloc(30);
+    lfh.writeUInt32LE(0x04034b50, 0);
+    lfh.writeUInt16LE(20, 4);
+    lfh.writeUInt16LE(8, 8);
+    lfh.writeUInt32LE(comp.length, 18);
+    lfh.writeUInt32LE(data.length, 22);
+    lfh.writeUInt16LE(nameBuf.length, 26);
+    parts.push(lfh, nameBuf, comp);
+
+    const cd = Buffer.alloc(46);
+    cd.writeUInt32LE(0x02014b50, 0);
+    cd.writeUInt16LE(20, 4);
+    cd.writeUInt16LE(20, 6);
+    cd.writeUInt16LE(8, 10);
+    cd.writeUInt32LE(comp.length, 20);
+    cd.writeUInt32LE(data.length, 24);
+    cd.writeUInt16LE(nameBuf.length, 28);
+    cd.writeUInt32LE(offset, 42);
+    cds.push(cd, nameBuf);
+
+    offset += lfh.length + nameBuf.length + comp.length;
+  }
+
+  const cdBuf = Buffer.concat(cds);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(files.length, 8);
+  eocd.writeUInt16LE(files.length, 10);
+  eocd.writeUInt32LE(cdBuf.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+
+  return Buffer.concat([...parts, cdBuf, eocd]);
 }
 
 const tmpDirs = [];
@@ -469,6 +522,140 @@ const TM_ID = 'iikmkjmpaadaobahmlepeloendndfphd';
 
   check('default_locale 没写、也没命中的 key，扫描目录兜底后仍落回 key',
     resolveMessage(mkExt({ fr: { other: { message: 'x' } } }), {}, '__MSG_extName__') === 'extName');
+
+  console.log('\n[I] Chrome 应用店：走国内镜像');
+
+  // 结构照抄真实页面（实测 2026-10 的 chrome.zzzmh.cn 详情页）。
+  // 名字只在 <h1> 里、三个数字只在 .chrome-subtitle 里 —— 页面上别处
+  // 也挂着「相关推荐」的卡片，解析规则一放宽就会把别人的名字安在这个 ID 上。
+  const TM_CHROME_ID = 'dhdgffkkebhmkfjojejmpbldmpobfkfo';
+  const MIRROR_HTML = [
+    '<!DOCTYPE html><html><head>',
+    '<title>Tampermonkey 篡改猴(油猴脚本)_5.5.1_Chrome插件下载_极简插件</title>',
+    '<meta property="og:image" content="/v3/crx/bb90e83d26b3439aa362788efd0da6a9/logo/thumb.jpeg">',
+    '<meta property="og:description" content="自由地改变网络 &amp; 提升浏览体验。">',
+    '</head><body>',
+    '<h1 class="chrome-title">Tampermonkey 篡改猴(油猴脚本)</h1>',
+    '<div class="chrome-subtitle">',
+    '  <span><i class="iconfont icon-ic_app"></i>5.5.1</span>',
+    '  <span><i\n class="iconfont icon-time"></i>2026-10-04</span>',
+    '  <span><i\n class="iconfont icon-download"></i>246万+</span>',
+    '</div>',
+    '<div class="chrome-download-btns">',
+    '  <a href="https://cdn3.zzzmh.cn/v3/crx/bb90e83d26b3439aa362788efd0da6a9/' + TM_CHROME_ID + '.zip?auth_key=1793-abc">推荐下载</a>',
+    '  <a href="/v3/crx/bb90e83d26b3439aa362788efd0da6a9/' + TM_CHROME_ID + '.zip">备用下载</a>',
+    '</div>',
+    '</body></html>'
+  ].join('\n');
+
+  const md = summarizeMirror(MIRROR_HTML, TM_CHROME_ID);
+  check('名字从 <h1> 拿，不是从整页里捞',
+    md && md.name === 'Tampermonkey 篡改猴(油猴脚本)', md && md.name);
+  check('版本从 .chrome-subtitle 的 ic_app 项拿', md && md.version === '5.5.1', md && md.version);
+  check('更新时间从 icon-time 项拿（跨行的标签也认）',
+    md && md.updated === '2026-10-04', md && md.updated);
+  check('安装量原样保留「246万+」，不换算成一个假精确的数字',
+    md && md.installsText === '246万+' && md.installs === 0, md && md.installsText);
+  check('图标相对路径补成绝对地址',
+    md && md.icon === CHROME_MIRROR + '/v3/crx/bb90e83d26b3439aa362788efd0da6a9/logo/thumb.jpeg',
+    md && md.icon);
+  check('描述里的 HTML 实体被解码',
+    md && md.description === '自由地改变网络 & 提升浏览体验。', md && md.description);
+  check('标了 mirror，界面据此提示来源',
+    md && md.mirror === true);
+  check('页面上找不到 <h1> 时返回 null，不猜',
+    summarizeMirror('<html><body>空空如也</body></html>', TM_CHROME_ID) === null);
+  check('传进来不是字符串也返回 null', summarizeMirror(null, TM_CHROME_ID) === null);
+
+  const dlUrl = parseMirrorDownloadUrl(MIRROR_HTML, TM_CHROME_ID);
+  check('下载直链优先取不带签名的备用地址',
+    dlUrl === CHROME_MIRROR + '/v3/crx/bb90e83d26b3439aa362788efd0da6a9/' + TM_CHROME_ID + '.zip', dlUrl);
+  check('拿到的直链里没有 auth_key（不会过期）', dlUrl && !/auth_key/.test(dlUrl));
+
+  const signedOnly = '<a href="https://cdn3.zzzmh.cn/v3/crx/bb90e83d26b3439aa362788efd0da6a9/' +
+    TM_CHROME_ID + '.zip?auth_key=99-x">推荐下载</a>';
+  check('只有带签名的地址时退回它（总比取不到强）',
+    /auth_key=99-x$/.test(parseMirrorDownloadUrl(signedOnly, TM_CHROME_ID)));
+  check('页面上一条下载地址都没有时返回空串',
+    parseMirrorDownloadUrl('<html></html>', TM_CHROME_ID) === '');
+  check('别人的 ID 不会误命中（页面里挂着相关推荐）',
+    parseMirrorDownloadUrl(MIRROR_HTML, 'cfhdojbkjhnklbpkdaibdccddilifddb') === '');
+
+  // 套娃：镜像站发的是普通 zip，里面装着 .crx 加一份说明 txt
+  const innerCrx = crx3(Buffer.from('PK\x03\x04payload'));
+  const nest = multiZip([
+    [TM_CHROME_ID + '_5.5.1_chrome.zzzmh.cn.crx', innerCrx],
+    ['安装说明.txt', '解压后把 crx 拖进扩展页']
+  ]);
+  const dug = extractCrxFromMirrorZip(nest);
+  check('从套娃 zip 里掏出 .crx（挑对条目，不是那份 txt）',
+    dug && Buffer.compare(dug, innerCrx) === 0, dug ? dug.length + ' 字节' : 'null');
+  check('zip 里没有 .crx 时返回 null，不硬凑',
+    extractCrxFromMirrorZip(multiZip([['readme.txt', 'x']])) === null);
+  check('镜像站哪天直接给 crx 也认（原样返回）',
+    Buffer.compare(extractCrxFromMirrorZip(innerCrx), innerCrx) === 0);
+  check('空 buffer 返回 null', extractCrxFromMirrorZip(Buffer.alloc(0)) === null);
+  check('不是 zip 也不是 crx 的垃圾数据返回 null',
+    extractCrxFromMirrorZip(Buffer.from('<!DOCTYPE html><html>404</html>')) === null);
+
+  // CHROME_URL 在 [A] 段就定义过了，这里直接用同一个地址（同一个 ID）
+
+  {
+    // Chrome 来源直接走镜像，不去 Edge 商店空跑 ——
+    // 两个商店的 ID 不是同一套编号，拿 Chrome 的 ID 问 Edge 是问不到的。
+    const f = recorder((url) => (url.includes('/info/') ? res(200, MIRROR_HTML) : res(404, '')));
+    const out = await fetchDetail(CHROME_URL, { fetchImpl: f });
+    check('Chrome 地址查详情时，请求打的是镜像站',
+      f.calls.length === 1 && f.calls[0].url.startsWith(CHROME_MIRROR_INFO), f.calls.map((c) => c.url).join(' | '));
+    check('一次都没碰 Edge 商店', !f.calls.some((c) => /microsoftedge/.test(c.url)));
+    check('查回来带着 mirror 标记', out.detail && out.detail.mirror === true);
+    check('查回来带着可以下载的直链', !!out.downloadUrl);
+  }
+
+  {
+    const f = recorder(() => res(404, ''));
+    const out = await fetchDetail(CHROME_URL, { fetchImpl: f });
+    check('镜像站没有收录时给出 notFound（区别于网络不通）',
+      out.notFound === true && out.error, out.error);
+  }
+
+  {
+    // 裸 ID 问不出出处：Edge 那边没有，就再问问镜像
+    const f = recorder((url) => (url.includes('/info/') ? res(200, MIRROR_HTML) : res(404, '')));
+    const out = await fetchDetail(TM_CHROME_ID, { fetchImpl: f });
+    check('裸 ID 在 Edge 查不到时，自动回落问镜像',
+      out.detail && out.detail.mirror === true && f.calls.some((c) => c.url.includes('/info/')),
+      f.calls.map((c) => (c.url.includes('/info/') ? 'mirror' : 'edge')).join(' → '));
+  }
+
+  {
+    // 用户明明是从 Edge 商店复制的地址，就别再拿它去镜像站碰运气
+    const f = recorder(() => res(404, ''));
+    const out = await fetchDetail(EDGE_URL, { fetchImpl: f });
+    check('Edge 地址查不到时不回落镜像（来源已经明确）',
+      !f.calls.some((c) => c.url.includes('/info/')) && out.error, out.error);
+  }
+
+  {
+    const pkg = multiZip([
+      [TM_CHROME_ID + '_5.5.1_chrome.zzzmh.cn.crx', innerCrx],
+      ['安装说明.txt', 'x']
+    ]);
+    const f = recorder((url) => (url.includes('/info/') ? res(200, MIRROR_HTML) : res(200, pkg)));
+    const dest = path.join(mkTmp(), 'chrome-install.crx');
+    const out = await downloadCrx(CHROME_URL, dest, { fetchImpl: f });
+
+    check('Chrome 来源的取包成功', out.ok === true, out.error || (out.bytes + ' 字节'));
+    check('取的是页面上给的 zip 直链，不是 Edge 的取包接口',
+      f.calls.some((c) => /\.zip$/.test(c.url)) && !f.calls.some((c) => /extensionwebstorebase/.test(c.url)));
+    const onDisk = fs.readFileSync(dest);
+    check('落盘的是拆掉套娃后的 CRX（装载流水线直接能吃）',
+      onDisk.subarray(0, 4).toString('latin1') === 'Cr24', onDisk.subarray(0, 4).toString('latin1'));
+    check('落盘内容就是内层那个 crx', Buffer.compare(onDisk, innerCrx) === 0);
+
+    const again = await downloadCrx(CHROME_URL, dest, { fetchImpl: f });
+    check('下过的不重复下载', again.cached === true);
+  }
 
   for (const d of tmpDirs) { try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* 临时目录，删不掉也不影响 */ } }
 

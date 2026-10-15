@@ -905,6 +905,14 @@ svg {
 .sh-icon img { width: 100%; height: 100%; object-fit: contain; }
 .sh-main { flex: 1; min-width: 0; }
 .sh-name { font-size: 12.5px; font-weight: 600; }
+/* 「镜像」这枚小标签：让用户一眼看出这个名字是从镜像站取的，不是 Google 官方页。
+   取回来的内容与官方一致，但来源该说清楚。 */
+.sh-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 5px;
+  font-size: 9.5px; font-weight: 500; vertical-align: 1px;
+  color: var(--text-3); background: var(--surface-3);
+  border: 1px solid var(--border); border-radius: var(--r-xs);
+}
 .sh-meta { font-size: 10.5px; color: var(--text-4); margin-top: 2px; line-height: 1.5; }
 .sh-desc { font-size: 11px; color: var(--text-3); margin-top: 3px; line-height: 1.5; }
 

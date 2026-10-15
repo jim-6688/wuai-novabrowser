@@ -403,6 +403,7 @@ module.exports = {
   ExtensionManager,
   extractZip,
   listZipEntries,
+  readZipEntry,
   stripCrxHeader,
   normalizeFirefoxExtension,
   resolveMessage,
