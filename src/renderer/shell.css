@@ -746,8 +746,92 @@ svg {
 .ai-actions .btn { flex: 1; }
 .ai-note { font-size: 10px; color: var(--text-4); text-align: center; }
 
+/* ------------------------------------------------------------------ *
+ * 自动更新面板
+ * 刻意复用 .ai-panel 的滑入方式（同一套定位与过渡），只是宽度窄一些 ——
+ * 更新面板里没有要嵌入的网页，最宽也只需要放一句更新日志。
+ * ------------------------------------------------------------------ */
+.up-panel {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 360px;
+  max-width: 94vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-3);
+  transform: translateX(102%);
+  transition: transform 220ms var(--ease);
+  display: flex;
+  flex-direction: column;
+  z-index: 62; /* 比 AI 面板略高一层：两者都可能开着，更新要能被看见 */
+}
+.up-panel.is-open { transform: none; }
+
+.up-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 复用 AI 面板那个关闭按钮的样式，不另画一个 */
+.up-head .ai-x { width: 28px; height: 28px; }
+
+.up-body { flex: 1; overflow-y: auto; padding: 16px; }
+
+.up-ver { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+.up-none { font-size: 13px; color: var(--text-2); margin: 8px 0 14px; }
+.up-err { font-size: 13px; color: var(--danger); margin: 8px 0 14px; }
+
+.up-notes {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.up-notes li { margin-bottom: 5px; }
+
+.up-actions { display: flex; gap: 10px; }
+.up-actions .btn { flex: 1; }
+
+/* 下载进度条。与下载浮窗那条同源，但更矮 —— 这里它不是主角 */
+.up-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+  margin: 10px 0 4px;
+}
+.up-bar i {
+  display: block;
+  height: 100%;
+  /* 用 --brand 而不是 --grad-brand：后者只在 newtab.html 的令牌表里，
+     shell.css 里并没有定义（check-shell 的 [4] 会拿未定义变量挡下）。 */
+  background: var(--brand);
+  transition: width 200ms var(--ease);
+}
+
+/* 角标里放百分比时：两位数以上要挤进很小的圆里，缩一点字号免得溢出 */
+.badge.is-pct { font-size: 9px; letter-spacing: -0.3px; }
+
+/* 下载中的按钮轻轻转一下，表示「在动但没卡住」 */
+.icon-btn.is-busy svg { animation: upd-spin 1.4s linear infinite; }
+@keyframes upd-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn.is-busy svg { animation: none; }
+}
+
 /* 移动端同样从右侧滑入、但占满宽度（手机没有侧边空间） */
 [data-layout="mobile"] .ai-panel { width: 100%; max-width: none; border-left: 0; }
+
+/* 自动更新是 PC 端的能力（手机端走 APK 的整包更新，逻辑在 UpdateManager）。
+   窄屏档位下这一格连同面板一起隐去 —— 留着会让人点出一个装不了的更新。 */
+[data-layout="mobile"] #btn-update { display: none; }
+[data-layout="mobile"] .up-panel { display: none; }
 
 .panel-section { padding: 0 var(--sp-4) var(--sp-4); }
 .panel-label {

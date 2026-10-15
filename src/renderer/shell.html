@@ -157,6 +157,19 @@
       <button class="icon-btn" id="btn-ai" title="AI 助手">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5l1.7 3.9 4.1.4-3.1 2.8.9 4.1L10 16l-3.6 2.1.9-4.1-3.1-2.8 4.1-.4z" /></svg>
       </button>
+
+      <!-- 自动更新。默认 hidden —— 有新版时才出现，位置在扩展与 AI 之间。
+           刻意不给它常驻一格：没更新时它什么也做不了，白占宽度；
+           而工具栏每一格都要争宽度（地址栏才是那个真正需要宽度的）。
+           图标是箭头绕圈（下载/更新的通用符号），不用「设置」齿轮 ——
+           齿轮在这个界面里已经被「菜单」占了。 -->
+      <button class="icon-btn has-badge" id="btn-update" title="检查更新" hidden>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M10 3a7 7 0 1 1-6.2 3.7M10 3V1m0 2H8" />
+        </svg>
+        <i class="badge" id="update-count" hidden>1</i>
+      </button>
+
       <button class="icon-btn" id="btn-menu" title="菜单">
         <svg viewBox="0 0 20 20"><path d="M3.5 6h13M3.5 10h13M3.5 14h13" /></svg>
       </button>
@@ -280,6 +293,21 @@
       </div>
       <div class="ai-note">内嵌网页对话 · 免登录优先 · 不收集密钥</div>
     </div>
+  </aside>
+
+  <!-- ============ 自动更新面板 ============ -->
+  <!-- 与 AI 面板同一套视觉语言（右侧滑入），复用 .drawer 的定位方式。
+       内容由 renderUpdatePanel() 按状态重画，不在这里写死 —— 状态有
+       idle / checking / available / downloading / ready / error 六档，
+       写死在 HTML 里的话改一档要动两处。 -->
+  <aside class="up-panel" id="update-panel" aria-hidden="true" hidden>
+    <div class="up-head">
+      <span>更新</span>
+      <button class="ai-x" id="update-close" title="关闭">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" /></svg>
+      </button>
+    </div>
+    <div class="up-body" id="update-body"></div>
   </aside>
 
   <!-- ============ 移动端标签页总览 ============ -->

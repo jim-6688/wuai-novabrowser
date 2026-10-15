@@ -38,7 +38,12 @@ const EVENT_CHANNELS = [
   'favicon:updated',
   /* 内置新标签页发来的动作（加 / 删快捷方式）。页面本身是本地文件、
      上不了这座桥，它是跳一个 nova:// 地址被主进程拦下来转发的。 */
-  'ntp:command'
+  'ntp:command',
+  /* PC 自动更新的状态推送与下载进度。两个都要：前者推「发现新版 / 已下好，
+     后者报百分比 —— 两者是不同节奏的事件，合成一个会在「下载中」这段时间
+     反复重发整个状态，白白把更新日志刷满。 */
+  'update:state',
+  'update:progress'
 ];
 
 const listeners = new Map();
@@ -110,6 +115,18 @@ contextBridge.exposeInMainWorld('nova', {
   /* --- 磁贴图标（收藏夹栏 / 书签列表用；新标签页由主进程直接注入，不走这里） --- */
   favicons: {
     json: (hosts) => ipcRenderer.invoke('favicon:json', hosts)
+  },
+
+  /* --- 自动更新（PC） ---
+     四个动作都是「问主进程」，主进程把状态经update:state 推回来。
+     刻意不给渲染层任何「自己发起下载」的能力：下载要走差分，
+     而差分逻辑在 electron-updater 那边，放到渲染层等于让它能随意指定
+     下载地址 —— 那是更新链路上最不该松的一环。 */
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    status: () => ipcRenderer.invoke('update:status'),
+    download: () => ipcRenderer.invoke('update:download'),
+    install: () => ipcRenderer.invoke('update:install')
   },
 
   /* --- 下载（Nova 多线程引擎） --- */

@@ -468,6 +468,20 @@ if (typeof window !== 'undefined' && !window.nova) {
     if (set) set.forEach((fn) => fn(payload));
   };
 
+  /** 预览模式下的「有新版」假数据。字段与真实 updater.check() 的返回一致，
+ *  这样预览里看到的排版就是真实情况下的排版。 */
+const MOCK_UPDATE = {
+    version: '1.0.1',
+    url: 'https://example.test/nova-pc-1.0.1-win-x64-setup.zip',
+    sha256: 'preview',
+    size: 4 * 1024 * 1024,
+    notes: [
+      '修了一处：下载浮窗在窗口较窄时被右侧边缘裁掉',
+      '修了一处：AI 侧边窗口尚未载入完成时不再误报「初始化失败」',
+      '新标签页的六个固定入口不再随访问记录增减'
+    ]
+  };
+
   const mockStats = () => {
     const list = state.downloads;
     return {
@@ -658,6 +672,22 @@ if (typeof window !== 'undefined' && !window.nova) {
        给人看的东西之一。 */
     favicons: {
       json: async () => ({})
+    },
+
+    /* 自动更新：预览模式下不联网，但把状态机走全，方便评审交互。
+       第一次 check 直接给「有新版」—— 预览环境连不到真实的更新源，
+       什么都不给的话评审永远看不到那半边界面长什么样。
+       用一个标记记住「已经查过一次」，否则每次渲染层刷新都弹一次。 */
+    update: {
+      _checked: false,
+      check: async function () {
+        if (this._checked) return { status: 'available', info: MOCK_UPDATE, error: '' };
+        this._checked = true;
+        return { status: 'available', info: MOCK_UPDATE, error: '' };
+      },
+      status: async () => ({ status: 'idle', info: null, error: '' }),
+      download: async () => ({ ok: true }),
+      install: async () => ({ ok: true })
     },
 
     /* 下载：预览模式下不真的联网，但把状态机走全，方便评审交互 */

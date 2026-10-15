@@ -32,6 +32,7 @@ const { wireSniffer: wireSnifferSession } = require('./sniffer-wire');
 const { NoMedia, PLACEHOLDER_CSS, PLACEHOLDER_JS } = require('./nomedia');
 const { wireRequestGate: installRequestGate } = require('./request-gate');
 const { FaviconCache, hostsFromNtpData } = require('./favicon-cache');
+const updater = require('./updater');
 const desktopShortcut = require('./desktop-shortcut');
 
 const IS_DEV = process.argv.includes('--dev');
@@ -824,6 +825,65 @@ function registerIpc() {
     send('settings:changed', settings.all());
     return next;
   });
+
+  /* ----------------------- 自动更新（PC） -----------------------
+   * 做的是**包级差分更新**：只传与旧版本不同的块，不是整个 78MB 安装包。
+   * 界面上的行为刻意做得不打扰：启动后静默检查一次，有新版只在工具栏挂一个
+   * 角标，下载与安装都要用户点。不自动下，也不自动退。
+   *
+   * 状态机在 updater.js 里（check → available → downloading → ready），
+   * 这里只负责把它的状态转给渲染层，并把用户的两个动作（开始下载、
+   * 重启安装）转回去。**下载不在这里做**：electron-updater 会自己算差分。
+   */
+
+  // 当前更新状态。渲染层重启后会来问一次，所以不能只靠推送。
+  let updaterState = { status: 'idle', info: null, error: '' };
+
+  const pushUpdater = () => {
+    send('update:state', { ...updaterState, currentVersion: app.getVersion() });
+  };
+
+  handle('update:check', async () => {
+    updaterState = await updater.start(app.getVersion(), {
+      onState: (s) => {
+        updaterState = s;
+        pushUpdater();
+      }
+    });
+    pushUpdater();
+    return updaterState;
+  });
+
+  handle('update:status', () => ({
+    ...updaterState,
+    currentVersion: app.getVersion()
+  }));
+
+  handle('update:download', async () => {
+    if (!updaterState.info) return { error: '没有待安装的新版本' };
+    updaterState = { ...updaterState, status: 'downloading' };
+    pushUpdater();
+    try {
+      await updater.downloadAndInstall(updaterState, {
+        onProgress: (p) => send('update:progress', p),
+        onDownloaded: (info) => {
+          updaterState = { status: 'ready', info: { ...updaterState.info, ...info }, error: '' };
+          pushUpdater();
+        },
+        onError: (msg) => {
+          updaterState = { ...updaterState, status: 'error', error: String(msg) };
+          pushUpdater();
+        }
+      });
+      return { ok: true };
+    } catch (e) {
+      updaterState = { ...updaterState, status: 'error', error: String(e && e.message || e) };
+      pushUpdater();
+      return { error: updaterState.error };
+    }
+  });
+
+  handle('update:install', () => ({ ok: updater.quitAndInstall() }));
 
   /**
    * 收藏夹栏 / 书签列表按主机名要图标。新标签页那条路不走 IPC（主进程直接注入）。

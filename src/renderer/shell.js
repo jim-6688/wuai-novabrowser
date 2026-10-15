@@ -3708,6 +3708,131 @@ function closeAiPanel() {
   setTimeout(() => { if (!panel.classList.contains('is-open')) panel.hidden = true; }, 240);
 }
 
+/* ------------------------------------------------------------------ *
+ * 自动更新（PC）
+ * ------------------------------------------------------------------ */
+
+/**
+ * 按当前状态画更新按钮。
+ *
+ * <p>按钮默认隐藏（见 shell.html），只有「有新版」或「正在下载/已下好」
+ * 这几个状态才露出来 —— 没更新的时候它什么也做不了，白占工具栏宽度。
+ */
+function renderUpdateBtn() {
+  const btn = $('#btn-update');
+  if (!btn) return;
+  const s = state.update || {};
+  const visible = s.status === 'available' || s.status === 'downloading' || s.status === 'ready';
+  btn.hidden = !visible;
+  const badge = $('#update-count');
+  if (badge) {
+    // 下载中用百分比当角标（比「1」有信息量），其余状态不挂数字角标 ——
+    // 「有新版」这件事本身已经由按钮的可见性表达了，再挂个 1 是重复。
+    if (s.status === 'downloading') {
+      badge.hidden = false;
+      badge.textContent = String(Math.round(s.percent || 0));
+      badge.classList.add('is-pct');
+    } else {
+      badge.hidden = true;
+    }
+  }
+  const tips = {
+    available: () => `发现新版本 ${(s.info && s.info.version) || ''}，点击查看`,
+    downloading: () => `正在下载更新…${Math.round(s.percent || 0)}%`,
+    ready: () => '更新已下载完毕，点击重启安装'
+  };
+  btn.title = (tips[s.status] || (() => '检查更新'))();
+  btn.classList.toggle('is-busy', s.status === 'downloading');
+}
+
+/** 把更新状态摊在一个小面板里：版本、日志、下载/安装按钮。 */
+function renderUpdatePanel() {
+  const body = $('#update-body');
+  if (!body) return;
+  const s = state.update || {};
+  const info = s.info || {};
+
+  if (s.status === 'idle') {
+    body.innerHTML = `<p class="up-none">当前已是最新版本。</p>
+      <button class="btn" data-up="check">再检查一次</button>`;
+    return;
+  }
+  if (s.status === 'checking') {
+    // 不写「正在检查…」的空文案以外的东西：这一档一闪而过，
+    // 塞太多内容会让人以为卡住了
+    body.innerHTML = '<p class="up-none">正在检查更新…</p>';
+    return;
+  }
+  if (s.status === 'error') {
+    body.innerHTML = `<p class="up-err">检查失败：${esc(s.error || '未知原因')}</p>
+      <button class="btn" data-up="check">重试</button>`;
+    return;
+  }
+  if (s.status === 'downloading') {
+    const pct = Math.round(s.percent || 0);
+    body.innerHTML = `
+      <div class="up-ver">正在下载 ${esc(info.version || '')}</div>
+      <div class="up-bar"><i style="width:${pct}%"></i></div>
+      <p class="up-none">${pct}%。下载的是**变化的那部分**，不是整个安装包。</p>`;
+    return;
+  }
+  if (s.status === 'ready') {
+    body.innerHTML = `
+      <div class="up-ver">${esc(info.version || '')} 已下载完毕</div>
+      <p class="up-none">重启后生效。当前页面里未保存的内容会丢失。</p>
+      <button class="btn btn-primary" data-up="install">重启并安装</button>`;
+    return;
+  }
+  // available
+  const notes = Array.isArray(info.notes) && info.notes.length
+    ? `<ul class="up-notes">${info.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`
+    : '';
+  const size = info.size ? `${(info.size / 1024 / 1024).toFixed(1)} MB` : '';
+  body.innerHTML = `
+    <div class="up-ver">新版本 ${esc(info.version || '')}</div>
+    ${notes}
+    <p class="up-none">${size ? esc(size) + ' · ' : ''}下载的是变化的那部分，通常远小于完整安装包。</p>
+    <div class="up-actions">
+      <button class="btn btn-primary" data-up="download">下载更新</button>
+      <button class="btn" data-up="later">稍后再说</button>
+    </div>`;
+}
+
+function openUpdatePanel() {
+  const panel = $('#update-panel');
+  if (!panel) return;
+  renderUpdatePanel();
+  panel.hidden = false;
+  panel.classList.add('is-open');
+  panel.setAttribute('aria-hidden', 'false');
+}
+
+function closeUpdatePanel() {
+  const panel = $('#update-panel');
+  if (!panel) return;
+  panel.classList.remove('is-open');
+  panel.setAttribute('aria-hidden', 'true');
+  setTimeout(() => { if (!panel.classList.contains('is-open')) panel.hidden = true; }, 240);
+}
+
+/** 主进程推来的状态。 */
+function applyUpdateState(s) {
+  if (!s || typeof s !== 'object') return;
+  state.update = Object.assign({}, state.update, s, {
+    percent: s.status === 'downloading' ? (state.update.percent || 0) : 0
+  });
+  renderUpdateBtn();
+  if (!$('#update-panel').hidden) renderUpdatePanel();
+
+  // 首次发现有新版时才主动提示一次，且只在面板关着的时候 ——
+  // 用户正在看别的界面时不该被弹窗打断
+  if (s.status === 'available' && state.update.notified !== (s.info && s.info.version)) {
+    state.update.notified = s.info && s.info.version;
+    const panel = $('#update-panel');
+    if (panel && panel.hidden) toast(`新版本 ${s.info.version} 可用 · 点击工具栏的更新按钮`, 4200);
+  }
+}
+
 /**
  * AI 面板里的 <webview> 是否已经可用（挂进 DOM 且 dom-ready 触发过）。
  *
@@ -3941,6 +4066,59 @@ function wireUi() {
   // 拖拽安装扩展：把 .crx/.zip/.xpi 拖进浏览器窗口即装。见 wireDropInstall。
   wireDropInstall();
 
+  // 自动更新：按钮开面板，面板里那几个动作按 data-up 分发。
+  //
+  // 先问一次当前状态再触发检查：主进程里那个 updaterState 跨渲染层重启
+  // 是留着的（主进程不重启就一直有效），而外壳每次打开都是新的 ——
+  // 只靠检查事件的话，上次已经查到的「有新版」这一档会被漏掉，
+  // 按钮就不亮了。
+  {
+    const btn = $('#btn-update');
+    if (btn) btn.addEventListener('click', openUpdatePanel);
+    const panel = $('#update-panel');
+    if (panel) $('#update-close').addEventListener('click', closeUpdatePanel);
+
+    const body = $('#update-body');
+    if (body) {
+      body.addEventListener('click', async (ev) => {
+        const t = ev.target.closest('[data-up]');
+        if (!t) return;
+        const act = t.dataset.up;
+        if (act === 'check') {
+          t.disabled = true;
+          try { await bridge.update.check(); } catch { /* 主进程已兜 */ }
+          t.disabled = false;
+          renderUpdatePanel();
+        } else if (act === 'download') {
+          t.disabled = true;
+          toast('开始下载更新…');
+          try { await bridge.update.download(); } catch { /* 状态里有错误 */ }
+          renderUpdatePanel();
+        } else if (act === 'install') {
+          await bridge.update.install();
+        } else if (act === 'later') {
+          closeUpdatePanel();
+        }
+      });
+    }
+
+    // 状态同步：主进程推来的每一帧都画一遍。
+    bridge.on('update:state', (s) => applyUpdateState(s));
+    bridge.on('update:progress', (p) => {
+      state.update.percent = p && p.percent ? p.percent : 0;
+      renderUpdateBtn();
+      if (!$('#update-panel').hidden) renderUpdatePanel();
+    });
+
+    renderUpdateBtn();
+    // 拿到已有状态（可能上次已查到有新版），再触发一次后台检查
+    bridge.update.status().then((s) => {
+      if (s) applyUpdateState(s);
+    }).catch(() => {});
+    // 静默检查：不弹窗、不下载，等主进程推状态回来
+    setTimeout(() => { bridge.update.check().catch(() => {}); }, 2500);
+  }
+
   // 地址栏旁的下载小窗
   $('#btn-downloads').addEventListener('click', () => {
     const pop = $('#dl-popover');
@@ -4004,7 +4182,7 @@ function wireUi() {
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeUpdatePanel(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -4177,6 +4355,9 @@ async function init() {
   state.defaults = boot.defaults || null;
   state.downloads = boot.downloads || [];
   state.dlAutoOpen = true; // 出现新下载时允许自动弹出地址栏旁的小窗
+  // 自动更新状态。status: idle | checking | available | downloading | ready | error
+  // info 里有 version / url / sha256 / size / notes（更新日志）
+  state.update = { status: 'idle', info: null, error: '', percent: 0 };
   state.downloadStats = boot.downloadStats || null;
   state.downloadsDir = boot.downloadsDir || '';
   state.sniffFormats = boot.sniffFormats || null;
