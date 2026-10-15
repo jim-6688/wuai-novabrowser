@@ -988,6 +988,56 @@ img { max-width: 100%; display: block; }
     color: var(--brand);
 }
 
+/* ---------- 电脑版界面（真实截图） ---------- */
+
+/* 单列而不是三列：截图是 1060×664 的宽幅画面，塞进三列的窄格里只有 380px 宽，
+   面板上的小字会糊成一片 —— 那就等于没截。宽幅图配单列，一眼能看清每个控件。 */
+.pcshots {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 30px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.pcshot { margin: 0; }
+
+.pcshot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    background: var(--surface);
+}
+
+/* 新标签页那张是竖幅（520×760）。限宽居中，否则在单列里会被拉到 1000px 宽、
+   高度跟着涨到 1460px，一屏放不下。给它一个自己的尺度。 */
+.pcshot.is-narrow {
+    max-width: 420px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.pcshot figcaption {
+    margin-top: 12px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 13.5px;
+}
+
+.pcshot figcaption b {
+    display: block;
+    color: var(--text);
+    font-size: 15px;
+    margin-bottom: 3px;
+}
+
+@media (max-width: 720px) {
+    .pcshot.is-narrow { max-width: 100%; }
+}
+
 /* ---------- 下载区 ---------- */
 
 .dl-box {

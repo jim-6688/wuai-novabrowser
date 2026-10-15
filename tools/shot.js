@@ -11,6 +11,28 @@
  *   npm run shots
  *   （即 electron --no-sandbox tools/shot.js；--no-sandbox 在本机沙箱下必需）
  * 产出：screenshots/*.png
+ *
+ * ── Windows + 沙箱环境下怎么才能真跑起来（踩过的坑，别再改回去）──
+ *   直接 `electron tools/shot.js` 会失败，两个原因叠在一起：
+ *
+ *   1) **`ELECTRON_RUN_AS_NODE=1` 会污染子进程**。Electron 自身基于 Electron 跑
+ *      （WorkBuddy 就是），这个变量会漏给所有子进程；一旦它在，electron.exe
+ *      退化成纯 Node，`app.whenReady` 不存在，脚本第一行的检查直接退出，
+ *      打印「需要在 Electron 里跑」。**跑之前先清掉它。**
+ *   2) **缺 GL 上下文**。报错是 `Failed to create GLES3 context` →
+ *      `kFatalFailure`，跟着就是 `ERR_FAILED (-2) loading .../shell.html` ——
+ *      看着像页面或本地服务有问题，其实是 GPU 进程崩了（exit_code=-1073741819
+ *      即 0xC0000005 访问违例），渲染器拿不到页面。**加纯软件渲染参数**：
+ *        --use-angle=swiftshader --use-gl=angle --disable-gpu-sandbox --no-sandbox
+ *      加了就能拍出全部截图（EXIT=0）。
+ *
+ *   另：Windows 上 `./node_modules/.bin/electron` 这个 shim 会把
+ *   `--no-sandbox` 之类的参数报成 `bad option`（参数被当成脚本参数传了）。
+ *   稳妥做法是直接调 `node_modules\electron\dist\electron.exe`。
+ *
+ *   排查顺序：先看有没有 `GPU process exited unexpectedly` / `Failed to create
+ *   GLES3 context`，有就是第 2 条；再看打印的是不是「需要在 Electron 里跑」，
+ *   是就是第 1 条。两者可同时存在。
  */
 
 const { app, BrowserWindow } = require('electron');
@@ -150,6 +172,105 @@ app.whenReady().then(async () => {
     + 'state.extStore.draft=i.value;return 1})()');
   await js('runStoreQuery()');
   await shot('20-set-extensions');
+
+  /* ============ PC 版产品形态（官网「电脑版界面」那一节用） ============
+   * 上面 01–20 是设置页与弹层，属于「功能都在哪」；这一段拍的是「用了长什么样」。
+   * 两者不是一回事：官网原有的界面宣传图全是纯 CSS 画的安卓手机 mockup，
+   * 读者看不到电脑端真正的样子，而 PC 版现在才是功能最全的一端。
+   *
+   * 都用真实渲染而非画出来的图 —— 画的图与实现各走各的，改了代码图不会跟着变，
+   * 官网就会开始说谎（与 newtab.html 不引外部图片是同一条理由）。
+   */
+  await js("closeSettings(); state.settings.layout='desktop'; applyLayout();");
+
+  // 21 AI 侧边窗口：这一轮的招牌。面板开着、下拉选了 AI、输入框里带了内容 ——
+  // 空着拍等于没拍到「右侧下拉选 AI」这个动作。
+  // 先摘掉 webview 的 src：它要真去连 deepseek.com，沙箱里必然加载失败，
+  // 失败时 Chromium 会显示自己的错误页，把整个面板内容盖掉。
+  await js("(function(){var w=document.querySelector('#ai-webview');"
+    + "if(w){w.removeAttribute('src');}"
+    + "openAiPanel();"
+    + "var sel=document.querySelector('#ai-select');"
+    + "if(sel){sel.value='deepseek';sel.dispatchEvent(new Event('change'));}"
+    + "var ta=document.querySelector('#ai-text');"
+    + "if(ta){ta.value='总结这篇讲了什么，并列出三个要点';}"
+    + "return 1})()");
+  await shot('21-pc-ai-panel');
+  await js('closeAiPanel();');
+
+  // 22 下载浮窗：地址栏旁那一格，角标 + 进度条 + 动作按钮都在这一屏里。
+  // 直接喂两条状态进 state.downloads 再重画 —— 预览桥不联网，真下载跑不起来，
+  // 而要拍的只是「这一屏长什么样」，不需要真的下东西。
+  //
+  // **progress 是 0~1 的小数，不是百分数**（dlTaskRow 里是 Math.round(t.progress*100)）。
+  // 第一版喂了 62 拍出来进度条空着 —— 就是这个错。
+  // 文件名字段是全小写 `filename`（写成 fileName 会静默回落到主机名，
+  // 拍出来标题是「gitee.com」而不是「nova-1.6.0.apk」，第一版又踩了一次）。
+  await js("(function(){state.downloads=["
+    + "{id:'d1',state:'downloading',progress:0.62,received:7549747,total:12163408,"
+    + "speed:1258291,eta:38,ranged:true,threads:8,"
+    + "filename:'nova-1.6.0.apk',savePath:'C:/Users/jim/Downloads',"
+    + "url:'https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.0/nova-1.6.0.apk'},"
+    + "{id:'d2',state:'done',progress:1,received:2097152,total:2097152,"
+    + "speed:0,eta:0,ranged:true,threads:4,"
+    + "filename:'quantum-notes.pdf',savePath:'C:/Users/jim/Downloads',"
+    + "url:'https://example.test/quantum-notes.pdf'}"
+    + "];renderDownloadPill();refreshDownloadPopover(true);"
+    + "document.querySelector('#dl-popover').hidden=false;state.dlAutoOpen=false;return 1})()");
+  await shot('22-pc-download-popover');
+  await js("(function(){document.querySelector('#dl-popover').hidden=true;"
+    + "state.downloads=[];renderDownloadPill();return 1})()");
+
+  // 23 内置新标签页：logo 主视觉 + 固定宫格 + 插件商店入口（PC 宿主挂的 store=1）。
+  //
+  // **不复用外壳那个窗口，另开一个直接拍 newtab.html。** 原因：
+  // 这一页是自包含的静态页（不引外部文件、CSP 锁死网络），本身就能独立渲染；
+  // 而外壳那个窗口跑在 UI 预览模式下（bridge-mock 的 isPreview:true，
+  // 截图里那句「UI 预览模式」就是它），根本不会创建真实 <webview> ——
+  // 在里面导航多少次，内容区都是那张占位图，拍到的永远不是新标签页。
+  //
+  // store=1 模拟 PC 宿主会挂的那个参数（插件商店入口靠它显隐），
+  // data 手工喂几条候选，好让宫格里有内容可拍。
+  {
+    const rows = [
+      ['主页', 'https://www.52ta.top/'],
+      ['导航', 'https://52ta.top/'],
+      ['播放器', 'https://music.52ta.top/'],
+      ['浏览器', 'https://nova.52ta.top/'],
+      ['百度', 'https://www.baidu.com/'],
+      ['DeepSeek', 'https://chat.deepseek.com/'],
+      ['一个名字特别长的站点', 'https://very-long-hostname.example.com/']
+    ].map((r, i) => `${r[0]}\t${r[1]}\t${9 - i}\t${i >= 6 ? '-' : 'f'}`).join('\n');
+    const page = `${PORT}/src/renderer/newtab.html`
+      + `?theme=light&store=1&data=${encodeURIComponent(rows)}`;
+
+    const tab = new BrowserWindow({
+      show: false, width: 520, height: 760, backgroundColor: '#F4F6FB',
+      webPreferences: { offscreen: false }
+    });
+    await tab.loadURL(`http://127.0.0.1:${page}`);
+    await new Promise((r) => setTimeout(r, 1200));
+    const img = await tab.webContents.capturePage();
+    fs.writeFileSync(path.join(OUT, '23-pc-newtab.png'), img.toPNG());
+    console.log('SHOT 23-pc-newtab');
+    tab.destroy();
+  }
+
+  // 24 深色主题下的 AI 面板。
+  // 原先拍的是「深色外壳」，但内容区是 UI 预览模式的占位图 —— 一大片空白，
+  // 跟浅色那张除了颜色什么都没多，读者看了等于没看。改成拍 AI 面板：
+  // 面板本身有内容（下拉、输入框、按钮），深浅两色才各有各要看的东西。
+  await js("(function(){"
+    + "state.settings.theme='dark';document.documentElement.dataset.theme='dark';"
+    + "openAiPanel();"
+    + "var sel=document.querySelector('#ai-select');"
+    + "if(sel){sel.value='kimi';sel.dispatchEvent(new Event('change'));}"
+    + "var ta=document.querySelector('#ai-text');"
+    + "if(ta){ta.value='这段代码在什么情况下会失效？';}"
+    + "return 1})()");
+  await shot('24-pc-dark-ai');
+  await js("closeAiPanel();state.settings.theme='light';"
+    + "document.documentElement.dataset.theme='light';");
 
   console.log('DONE');
   server.close();

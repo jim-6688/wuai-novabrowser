@@ -30,6 +30,7 @@
     "check:sniffer": "electron tools/test-sniffer-electron.js",
     "test:all": "npm test && npm run check:hidden && npm run check:downloads && npm run check:sniffer && npm run check:mobile",
     "shots": "electron tools/shot.js",
+    "shots:win": "set ELECTRON_RUN_AS_NODE= && node_modules\\electron\\dist\\electron.exe --use-angle=swiftshader --use-gl=angle --disable-gpu-sandbox --no-sandbox tools\\shot.js",
     "test:nomedia": "node tools/test-nomedia.js",
     "test:autopage": "node tools/test-autopage.js",
     "test:mobile-ui": "node tools/test-mobile-ui.js",

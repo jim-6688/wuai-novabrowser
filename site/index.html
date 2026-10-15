@@ -19,6 +19,7 @@
         <nav class="nav-links">
             <a href="#features">功能</a>
             <a href="#screens">界面</a>
+            <a href="#pc-shots">电脑版</a>
             <a href="#honest">先说清楚</a>
             <a href="#download">下载</a>
             <a href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">源码</a>
@@ -451,6 +452,64 @@
                     </div>
                     <div class="cap"><b>本地历史</b><span>只存本机 · 无痕不落盘</span></div>
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======================== 电脑版界面（真实截图） ======================== -->
+    <!-- 上面那一节是安卓手机，图形是用 CSS 画出来的；这一节是电脑版，用**真实截图**。
+
+         为什么不统一成一种做法：画出来的图与实现各走各的，改了代码图不会跟着变，
+         官网就会开始说谎；而这一节的几张（AI 侧窗、下载浮窗、新标签页）恰恰是
+         本轮刚做出来的新东西，正是最需要「就是长这样」而不是「大概长这样」的。
+
+         图由 tools/shot.js 用 Electron 真渲染抓出来（npm run shots:win），
+         所以图里的每一个像素都来自实际运行的界面。 -->
+    <section class="section tint" id="pc-shots">
+        <div class="wrap">
+            <div class="sec-head">
+                <span class="kicker">DESKTOP</span>
+                <h2>电脑版的实际界面</h2>
+                <p>以下均为程序真实运行的截图，未做任何修饰。电脑版是目前功能最全的一端 ——
+                   拖入即装扩展、地址栏旁的下载浮窗、AI 侧边窗口与三档内核切换都在这一端。</p>
+            </div>
+
+            <div class="pcshots">
+                <figure class="pcshot">
+                    <img src="assets/img/shots/21-pc-ai-panel.png" width="1060" height="664"
+                         alt="AI 助手侧边窗口：右侧滑出面板，下拉选中 DeepSeek，输入框里写好问题" loading="lazy" />
+                    <figcaption><b>AI 助手侧边窗口</b><span>面板内写内容、右侧下拉选 AI；免登录的几家排在最前</span></figcaption>
+                </figure>
+
+                <figure class="pcshot">
+                    <img src="assets/img/shots/22-pc-download-popover.png" width="1060" height="664"
+                         alt="地址栏旁的下载浮窗：进度条、速度、剩余时间与暂停取消按钮" loading="lazy" />
+                    <figcaption><b>下载浮窗</b><span>开始下载即在地址栏旁弹出，就地看进度、速度与剩余时间</span></figcaption>
+                </figure>
+
+                <figure class="pcshot">
+                    <img src="assets/img/shots/20-set-extensions.png" width="1060" height="664"
+                         alt="扩展面板：扩展商店列出 Edge、Chrome 应用店与脚本猫，粘地址可查到 Tampermonkey 并安装" loading="lazy" />
+                    <figcaption><b>扩展与插件商店</b><span>逛 Edge / Chrome 应用店 / 脚本猫，粘地址即可查详情并安装</span></figcaption>
+                </figure>
+
+                <figure class="pcshot">
+                    <img src="assets/img/shots/02-set-general.png" width="1060" height="664"
+                         alt="设置-常规分区：主页、新标签页三档、默认内核 Chromium / Gecko / IE 三选" loading="lazy" />
+                    <figcaption><b>三档内核随时切换</b><span>Chromium 真内核与 Gecko / IE 兼容层，地址栏右端直接换</span></figcaption>
+                </figure>
+
+                <figure class="pcshot is-narrow">
+                    <img src="assets/img/shots/23-pc-newtab.png" width="520" height="760"
+                         alt="内置新标签页：品牌 logo 在顶部，下方是常用入口宫格与插件商店入口" loading="lazy" />
+                    <figcaption><b>内置新标签页</b><span>常用入口固定不乱跳，底部直达插件商店</span></figcaption>
+                </figure>
+
+                <figure class="pcshot">
+                    <img src="assets/img/shots/24-pc-dark-ai.png" width="1060" height="664"
+                         alt="深色主题下的 AI 侧边窗口，下拉选中 Kimi" loading="lazy" />
+                    <figcaption><b>深色主题</b><span>整套界面含 AI 面板在内，深浅两色都完整可用</span></figcaption>
+                </figure>
             </div>
         </div>
     </section>

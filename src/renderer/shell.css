@@ -1209,14 +1209,18 @@ svg {
 /* ---------------------------------------------------------------- 地址栏旁的下载小窗 */
 .dl-cluster { position: relative; display: flex; align-items: center; }
 
-/* 小窗：贴着地址栏右边往下掉。absolute 相对 .dl-cluster（position: relative），
-   .toolbar 本身不裁切，所以会自然落到工具栏下方，不会被切掉。 */
+/* 小窗：从按钮的**右边缘**往左展开（right:0），不是从左边缘往右（left:0）。
+   .dl-cluster 紧贴着地址栏右边，窗口一窄，320px 宽的窗从左边起算必然溢出
+   视口右侧 —— 实测窗口 1060px 宽时只露出左边一条，文件名被截成「gitee.com」，
+   进度条与「打开文件夹」也点不到。右对齐则贴住右边缘，向左展开，
+   窄窗口下也不会越界（与 Chrome / Edge 的下载气泡同一套做法）。 */
 .dl-popover {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
+  right: 0;
   z-index: 60;
   width: 320px;
+  max-width: calc(100vw - 24px);
   max-height: 60vh;
   display: flex;
   flex-direction: column;
