@@ -98,7 +98,9 @@ const state = {
   noImageJs: '',
   /** 当前页自动拼页状态（由页面内脚本回读，见 readAutoPageStatus） */
   autoPageStatus: null,
-  isPreview: !!bridge.isPreview
+  isPreview: !!bridge.isPreview,
+  /** AI 面板：发送时若 webview 还没在目标对话页，先把内容暂存，载入完成后注入 */
+  aiPending: ''
 };
 
 const MOBILE_BREAKPOINT = 640;
@@ -207,7 +209,7 @@ function newTabCandidates() {
  */
 function newTabUrl() {
   const s = state.settings || {};
-  return NovaNtpHost.target(s.newTabPage, {
+  const u = NovaNtpHost.target(s.newTabPage, {
     homepage: s.homepage,
     base: state.newTabFileUrl,
     // 用界面上实际的深浅色而不是设置项：主题只认 light/dark 两档，
@@ -215,6 +217,13 @@ function newTabUrl() {
     theme: document.documentElement.dataset.theme || s.theme || 'light',
     data: newTabCandidates()
   });
+  // 只有内置（本地 newtab.html）这一档才挂 store=1：让页面在 PC 端显示
+  // 「插件商店」入口。移动端不挂这个参数（需求只针对 PC），共享页面靠这个
+  // 开关决定显隐 —— 既满足「PC 新标签页加插件商店链接」，又不牵动手机端。
+  if (state.newTabFileUrl && u.indexOf(state.newTabFileUrl) === 0) {
+    return u + (u.indexOf('?') >= 0 ? '&' : '?') + 'store=1';
+  }
+  return u;
 }
 
 /** 「新标签页」当前档位的中文说法，给设置页那一行用。 */
@@ -1822,6 +1831,56 @@ function dlTaskRow(t) {
       ${err}${where}
       <div class="dl-actions">${dlActions(t)}</div>
     </div>`;
+}
+
+/**
+ * 地址栏旁的下载小窗。
+ *
+ * 与「下载」设置分区（buildDownloads）共用同一份数据 state.downloads 与同一套
+ * 行渲染 dlTaskRow —— 这里只是把它缩成「贴在地址栏右边、有下载才弹出来」的
+ * 轻量形态，免得下载时非得钻进设置页看进度。行动按钮也是同一套 data-dl，
+ * renderDownloadPopover 里直接复用 wireActions 把暂停 / 取消 / 打开都接上。
+ */
+function activeDownloads() {
+  return (state.downloads || []).filter((t) =>
+    ['probing', 'downloading', 'progress', 'queued', 'paused'].includes(t.state));
+}
+
+/** 更新地址栏下载图标的角标（进行中任务数）。 */
+function renderDownloadPill() {
+  const badge = $('#dl-count');
+  if (!badge) return;
+  const n = activeDownloads().length;
+  badge.textContent = String(n);
+  badge.hidden = n === 0;
+}
+
+let dlPopTimer = null;
+/** 节流刷新小窗列表（与下载设置页同理，避免 120ms 一次的进度事件把列表拆了重建）。 */
+function refreshDownloadPopover(force) {
+  const pop = $('#dl-popover');
+  if (!pop) return;
+  if (!force) {
+    if (dlPopTimer) return;
+    dlPopTimer = setTimeout(() => { dlPopTimer = null; refreshDownloadPopover(true); }, 300);
+    return;
+  }
+  renderDownloadPopover();
+}
+
+function renderDownloadPopover() {
+  const pop = $('#dl-popover');
+  const list = pop && $('#dl-pop-list');
+  if (!list) return;
+  const items = activeDownloads();
+  // 没有进行中的任务时，把最近一条已完成的也留着，免得「下完去哪看」没着落
+  const show = items.length
+    ? items
+    : (state.downloads || []).filter((t) => ['done', 'completed'].includes(t.state)).slice(0, 1);
+  list.innerHTML = show.length
+    ? show.map(dlTaskRow).join('')
+    : '<div class="dl-pop-empty">没有进行中的下载</div>';
+  wireActions(list);
 }
 
 async function buildDownloads() {
@@ -3541,6 +3600,162 @@ function applyLayout() {
  * 事件接线
  * ------------------------------------------------------------------ */
 
+/**
+ * 拖拽安装扩展。
+ *
+ * 整页级 `dragover` 必须 preventDefault —— 否则 Electron 会把拖进来的文件当成
+ * 导航目标、直接跳去打开那个文件，用户看到的是「浏览器打开了一个 .crx」，
+ * 而不是安装。drop 也要先拦下来自己处理。
+ *
+ * 只认扩展包（.crx / .zip / .xpi）：其它文件拖进来静默忽略，不弹错误打扰——
+ * 用户很可能只是随手甩一个文件进窗口。一次甩进来多个时逐个装，最后汇总结果。
+ *
+ * 装完若扩展面板正开着就原地刷新（ext:changed 已经会推一次，但这里补一句
+ * 让结果即时可见），并提示成功 / 失败。失败的那条把原因原样告诉用户——
+ * 商店包魔数不对、manifest 缺字段这类，用户自己能判断。
+ */
+function wireDropInstall() {
+  const isExt = (f) => /\.(crx|crx3|zip|xpi)$/i.test(f);
+
+  document.addEventListener('dragover', (ev) => { ev.preventDefault(); });
+
+  document.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    const dt = ev.dataTransfer;
+    if (!dt || !dt.files || !dt.files.length) return;
+    const paths = [];
+    for (let i = 0; i < dt.files.length; i++) {
+      const f = dt.files[i];
+      // Electron 下拖进来的本地文件，path 是绝对路径；浏览器标准只有 name。
+      // 没有 path（理论上不会发生在打包版）就跳过这一个，不报错。
+      if (f.path && isExt(f.path)) paths.push(f.path);
+    }
+    if (!paths.length) return;
+
+    let done = 0;
+    const ok = [];
+    const bad = [];
+    const finish = () => {
+      done += 1;
+      if (done < paths.length) return;
+      if (ok.length) toast(`已安装 ${ok.length} 个扩展${bad.length ? `，${bad.length} 个失败` : ''}`);
+      else if (bad.length) toast(bad[0]);
+      // 扩展面板正开着就原地刷新，让刚装的卡片即时出现
+      if (state.settingsSection === 'extensions') refreshCurrent();
+    };
+
+    for (const p of paths) {
+      bridge.extensions.installPath(p).then((r) => {
+        if (r && r.installed) ok.push(r.installed.name);
+        else if (r && r.error) bad.push(r.error);
+        finish();
+      }).catch((err) => { bad.push(err && err.message ? err.message : String(err)); finish(); });
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * AI 助手面板（内嵌网页对话）
+ * ------------------------------------------------------------------ */
+// 下拉里的顺序即展示顺序；免登录的排最前（用户明确要「免登录优先」）。
+// sel 是各家的对话输入框选择器（best-effort，页面改版可能失效——失效就
+// 回落成「只打开对话页、让用户自己贴」）。custom 没有预设地址，靠用户填。
+const AI_PROVIDERS = {
+  deepseek: { name: 'DeepSeek', url: 'https://chat.deepseek.com/', sel: 'textarea, [contenteditable="true"]', guest: true },
+  kimi: { name: 'Kimi', url: 'https://kimi.moonshot.cn/', sel: 'textarea', guest: true },
+  qwen: { name: '通义千问', url: 'https://tongyi.aliyun.com/qianwen/', sel: 'textarea, [contenteditable="true"]', guest: true },
+  doubao: { name: '豆包', url: 'https://www.doubao.com/chat/', sel: 'textarea, [contenteditable="true"]', guest: true },
+  custom: { name: '自定义', url: '', sel: '', guest: false }
+};
+
+function currentAi() {
+  const sel = $('#ai-select');
+  const id = (sel && sel.value) || 'deepseek';
+  return AI_PROVIDERS[id] || AI_PROVIDERS.deepseek;
+}
+
+function openAiPanel() {
+  const panel = $('#ai-panel');
+  if (!panel) return;
+  panel.hidden = false;
+  panel.classList.add('is-open');
+  panel.setAttribute('aria-hidden', 'false');
+  // 面板第一次打开时把当前选中的 AI 对话页载进 webview
+  const ai = currentAi();
+  const wv = $('#ai-webview');
+  if (wv && ai.url && !wv.getAttribute('src')) wv.src = ai.url;
+}
+
+function closeAiPanel() {
+  const panel = $('#ai-panel');
+  if (!panel) return;
+  panel.classList.remove('is-open');
+  panel.setAttribute('aria-hidden', 'true');
+  // 滑动动画结束后隐藏，避免 webview 一直占着资源
+  setTimeout(() => { if (!panel.classList.contains('is-open')) panel.hidden = true; }, 240);
+}
+
+/** 把文本带入 AI 网页对话的输入框（best-effort，跨域注入由宿主执行、不受页面 CSP 限制）。 */
+async function aiInject(text) {
+  const wv = $('#ai-webview');
+  const ai = currentAi();
+  if (!wv || !wv.getAttribute('src') || !ai.sel) return 'no-target';
+  const code = '(function(){'
+    + 'try{'
+    + 'var el=document.querySelector(' + JSON.stringify(ai.sel) + ');'
+    + 'if(!el)return "no-input";'
+    + 'el.focus();'
+    + 'if(el.value!==undefined){'
+    + 'var s=Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,"value").set;'
+    + 's.call(el,' + JSON.stringify(text) + ');'
+    + '}else{el.textContent=' + JSON.stringify(text) + ';}'
+    + 'el.dispatchEvent(new Event("input",{bubbles:true}));'
+    + 'el.dispatchEvent(new Event("change",{bubbles:true}));'
+    + 'return "ok";'
+    + '}catch(e){return "err:"+e.message;}'
+    + '})()';
+  try { return await wv.executeJavaScript(code); } catch (e) { return 'exec-fail'; }
+}
+
+async function aiSend() {
+  const ai = currentAi();
+  const text = ($('#ai-text') && $('#ai-text').value || '').trim();
+  if (!text) { toast('先写点内容'); return; }
+  let url = ai.url;
+  if (!url) {
+    // 自定义：从输入框取地址
+    url = ($('#ai-custom-url') && $('#ai-custom-url').value || '').trim();
+    if (!/^https?:/i.test(url)) { toast('请填写自定义 AI 对话地址（https://…）'); return; }
+  }
+  const wv = $('#ai-webview');
+  if (!wv) return;
+  if (!wv.getAttribute('src') || wv.src !== url) {
+    // 还没在目标对话页：先载入，载入完成后再把内容带进去
+    state.aiPending = text;
+    wv.src = url;
+    toast('正在打开 ' + ai.name + ' 对话…');
+  } else {
+    const r = await aiInject(text);
+    if (r !== 'ok') toast('已打开对话页，把内容贴进去即可');
+  }
+}
+
+/** 把当前标签页选中的文字（没有选中则退而取标题+地址）带进输入框。 */
+async function aiGrab() {
+  const t = activeTab();
+  let text = '';
+  if (t && t.webview && typeof t.webview.executeJavaScript === 'function') {
+    try { text = await t.webview.executeJavaScript('(window.getSelection?window.getSelection().toString():"")'); } catch { /* 跨域或没权限就算了 */ }
+  }
+  if (!text || !text.trim()) {
+    text = (t && t.title ? t.title + '\n' : '') + (t && t.url ? t.url : '');
+  }
+  if (!text.trim()) { toast('没有可带入的内容'); return; }
+  const ta = $('#ai-text');
+  if (ta) { ta.value = (ta.value ? ta.value + '\n\n' : '') + text.trim(); ta.focus(); }
+  openAiPanel();
+}
+
 function wireUi() {
   // 窗口控制
   $$('[data-win]').forEach((b) => {
@@ -3627,8 +3842,58 @@ function wireUi() {
   $('#btn-shield').addEventListener('click', () => openPanel('adblock'));
   $('#btn-sniff').addEventListener('click', () => openPanel('sniffer'));
   $('#btn-ext').addEventListener('click', () => openPanel('extensions'));
+  $('#btn-ai').addEventListener('click', openAiPanel);
   $('#btn-menu').addEventListener('click', renderMenuPanel);
   $('#drawer-close').addEventListener('click', closeDrawer);
+
+  // AI 助手面板：下拉切换 / 带入当前页 / 发送 / 清空 / 关闭
+  $('#ai-close').addEventListener('click', closeAiPanel);
+  $('#ai-grab').addEventListener('click', aiGrab);
+  $('#ai-send').addEventListener('click', aiSend);
+  $('#ai-clear').addEventListener('click', () => { const ta = $('#ai-text'); if (ta) ta.value = ''; });
+  $('#ai-select').addEventListener('change', () => {
+    const ai = currentAi();
+    const custom = !ai.url; // 自定义项没有预设地址
+    $('#ai-custom').hidden = !custom;
+    const wv = $('#ai-webview');
+    if (wv && !custom && wv.getAttribute('src') !== ai.url) wv.src = ai.url;
+  });
+  // webview 载入完成后，若发送时还没在目标对话页、暂存了内容，则补注入
+  const aiWv = $('#ai-webview');
+  if (aiWv) {
+    aiWv.addEventListener('did-finish-load', () => {
+      if (state.aiPending) { aiInject(state.aiPending); state.aiPending = ''; }
+    });
+  }
+
+  // 拖拽安装扩展：把 .crx/.zip/.xpi 拖进浏览器窗口即装。见 wireDropInstall。
+  wireDropInstall();
+
+  // 地址栏旁的下载小窗
+  $('#btn-downloads').addEventListener('click', () => {
+    const pop = $('#dl-popover');
+    if (!pop) return;
+    pop.hidden = !pop.hidden;
+    // 用户主动点开 → 允许下次新下载再自动弹出
+    if (!pop.hidden) { state.dlAutoOpen = true; renderDownloadPopover(); }
+  });
+  $('#dl-pop-close').addEventListener('click', () => {
+    const pop = $('#dl-popover');
+    if (pop) { pop.hidden = true; state.dlAutoOpen = false; }
+  });
+  $('#dl-pop-open-dir').addEventListener('click', async () => {
+    try { await bridge.downloads.open(state.downloadsDir || ''); } catch { /* 目录可能为空 */ }
+  });
+  $('#dl-pop-clear').addEventListener('click', async () => {
+    state.downloads = await bridge.downloads.clearFinished();
+    renderDownloadPill();
+    refreshDownloadPopover(true);
+  });
+  $('#dl-pop-all').addEventListener('click', () => {
+    const pop = $('#dl-popover');
+    if (pop) pop.hidden = true;
+    openPanel('downloads');
+  });
   $('#scrim').addEventListener('click', closeDrawer);
   $('#sv-back').addEventListener('click', goSettingsBack);
   $('#sv-close').addEventListener('click', closeSettings);
@@ -3667,7 +3932,7 @@ function wireUi() {
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -3705,6 +3970,11 @@ function wireBridgeEvents() {
     else state.downloads.unshift(d);
     // 进度事件很密，走节流刷新；输入框的草稿与焦点会被保留
     refreshDownloads();
+    // 地址栏旁的下载小窗：角标 + 列表同步；有新的进行中任务且用户没收起时自动弹出
+    renderDownloadPill();
+    refreshDownloadPopover();
+    const pop = $('#dl-popover');
+    if (pop && pop.hidden && state.dlAutoOpen && activeDownloads().length) pop.hidden = false;
   });
   bridge.on('download:taken-over', (p) => {
     toast(`已接管到多线程引擎：${p.filename || hostOf(p.url) || '下载任务'}`);
@@ -3786,8 +4056,12 @@ function wireBridgeEvents() {
     if (cmd.op === NovaNtpHost.OP_ADD) {
       await bridge.ntp.addShortcut(cmd.get('label'), cmd.get('url'));
       toast('已添加');
-    } else {
+    } else if (cmd.op === NovaNtpHost.OP_REMOVE) {
       await bridge.ntp.removeShortcut(cmd.get('url'));
+    } else if (cmd.op === NovaNtpHost.OP_STORE) {
+      // 内置新标签页的「插件商店」入口：直接打开扩展面板（含商店），不重导这一屏。
+      openPanel('extensions');
+      return;
     }
     reloadNewTab(p.id);
   });
@@ -3830,6 +4104,7 @@ async function init() {
   state.allowlist = boot.allowlist || [];
   state.defaults = boot.defaults || null;
   state.downloads = boot.downloads || [];
+  state.dlAutoOpen = true; // 出现新下载时允许自动弹出地址栏旁的小窗
   state.downloadStats = boot.downloadStats || null;
   state.downloadsDir = boot.downloadsDir || '';
   state.sniffFormats = boot.sniffFormats || null;

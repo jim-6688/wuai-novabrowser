@@ -121,6 +121,27 @@
       </div>
     </div>
 
+    <!-- 下载：地址栏右侧的常驻入口。有下载时弹出一个贴在地址栏旁的小窗，
+         展示进行中的任务、进度与暂停/取消/打开等操作；点图标收起或展开。 -->
+    <div class="dl-cluster">
+      <button class="icon-btn has-badge" id="btn-downloads" title="下载">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0l-3.6-3.6M10 12l3.6-3.6M4 15.6h12" /></svg>
+        <i class="badge" id="dl-count" hidden>0</i>
+      </button>
+      <div class="dl-popover" id="dl-popover" role="dialog" aria-label="下载" hidden>
+        <div class="dl-pop-head">
+          <span>下载</span>
+          <button class="dl-pop-x" id="dl-pop-close" title="收起">×</button>
+        </div>
+        <div class="dl-pop-list" id="dl-pop-list"></div>
+        <div class="dl-pop-foot">
+          <button class="btn btn-sm" id="dl-pop-open-dir">打开文件夹</button>
+          <button class="btn btn-sm" id="dl-pop-clear">清除已完成</button>
+          <button class="btn btn-sm" id="dl-pop-all">全部下载</button>
+        </div>
+      </div>
+    </div>
+
     <div class="tool-group">
       <button class="icon-btn has-badge" id="btn-shield" title="广告拦截">
         <svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z" /></svg>
@@ -132,6 +153,9 @@
       </button>
       <button class="icon-btn" id="btn-ext" title="扩展">
         <svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z" /></svg>
+      </button>
+      <button class="icon-btn" id="btn-ai" title="AI 助手">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5l1.7 3.9 4.1.4-3.1 2.8.9 4.1L10 16l-3.6 2.1.9-4.1-3.1-2.8 4.1-.4z" /></svg>
       </button>
       <button class="icon-btn" id="btn-menu" title="菜单">
         <svg viewBox="0 0 20 20"><path d="M3.5 6h13M3.5 10h13M3.5 14h13" /></svg>
@@ -222,6 +246,41 @@
     <div class="drawer-body" id="drawer-body"></div>
   </aside>
   <div class="scrim" id="scrim" hidden></div>
+
+  <!-- ============ AI 助手（右侧滑出） ============
+       内嵌网页对话：右侧下拉选 AI，输入框内容发送后带入该 AI 的网页对话，
+       结果就显示在这块 webview 里。免登录的排最前；另有「自定义」入口。
+       不接任何密钥、不走后端，纯 web。 -->
+  <aside class="ai-panel" id="ai-panel" aria-hidden="true">
+    <header class="ai-head">
+      <h2>AI 助手</h2>
+      <button class="ai-x" id="ai-close" title="关闭">×</button>
+    </header>
+    <div class="ai-body">
+      <webview id="ai-webview" class="ai-webview" allowpopups partition="persist:nova-chromium"></webview>
+    </div>
+    <div class="ai-foot">
+      <div class="ai-row">
+        <select id="ai-select" class="ai-select" title="选择 AI">
+          <option value="deepseek">DeepSeek（免登录）</option>
+          <option value="kimi">Kimi（免登录）</option>
+          <option value="qwen">通义千问（免登录）</option>
+          <option value="doubao">豆包（免登录）</option>
+          <option value="custom">自定义…</option>
+        </select>
+        <button class="btn btn-sm" id="ai-grab" title="把当前页选中的文字带进来">带入当前页</button>
+      </div>
+      <div class="ai-custom" id="ai-custom" hidden>
+        <input id="ai-custom-url" class="ai-input" placeholder="自定义 AI 对话地址（https://…）" spellcheck="false" />
+      </div>
+      <textarea id="ai-text" class="ai-text" placeholder="输入内容，选好 AI 后点「发送」"></textarea>
+      <div class="ai-actions">
+        <button class="btn btn-primary" id="ai-send">发送</button>
+        <button class="btn" id="ai-clear">清空</button>
+      </div>
+      <div class="ai-note">内嵌网页对话 · 免登录优先 · 不收集密钥</div>
+    </div>
+  </aside>
 
   <!-- ============ 移动端标签页总览 ============ -->
   <section class="tab-grid" id="tab-grid" hidden>

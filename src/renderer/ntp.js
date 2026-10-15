@@ -27,6 +27,9 @@ const CMD_PREFIX = 'nova://shortcut/';
 /** 日志与命令里用的操作名。 */
 const OP_ADD = 'add';
 const OP_REMOVE = 'remove';
+/** 内置新标签页的「插件商店」入口：点一下打开扩展面板（含商店）。仅 PC 端会触发，
+ *  因为共享页面靠 PC 主机多挂的那个 store=1 参数才显示这个入口。 */
+const OP_STORE = 'extstore';
 
 /**
  * 一次最多送多少条候选过去。页面只显示 7 格，送 30 条是为了让「按访问次数
@@ -393,7 +396,7 @@ function parseCmd(url) {
     query = rest.slice(q + 1);
   }
   op = op.trim();
-  if (op !== OP_ADD && op !== OP_REMOVE) return null;
+  if (op !== OP_ADD && op !== OP_REMOVE && op !== OP_STORE) return null;
 
   const params = Object.create(null);
   if (query) {
@@ -415,6 +418,7 @@ const NovaNtpHost = {
   CMD_PREFIX,
   OP_ADD,
   OP_REMOVE,
+  OP_STORE,
   MAX_CANDIDATES,
   MAX_TILES,
   BUILTIN_SITES,

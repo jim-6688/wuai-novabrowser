@@ -42,8 +42,11 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebViewClient;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.Spinner;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -61,6 +64,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
+import org.json.JSONObject;
 
 /**
  * 吾爱Nova浏览器 · 移动版主界面。
@@ -123,6 +128,18 @@ public final class MainActivity extends Activity {
 
     /** 已装用户脚本。装/删/启停后要重设一遍，否则改动不生效。 */
     private List<UserScript.Installed> scripts = new ArrayList<>();
+
+    /**
+     * AI 助手窗口里那块内嵌网页对话用的 WebView。
+     *
+     * <p>它不写在布局里、由代码 new 出来塞进 sheet_ai 的占位容器：弹层是用
+     * {@code setContentView} 整体换掉的，写在 XML 里的话每次开关都会 inflate 出
+     * 一个永不 destroy 的 WebView，攒多了拖崩进程（和主 WebView 同一个道理）。
+     * 关弹层时由 {@link #destroyAiWebView()} 显式销毁。
+     */
+    private WebView aiWebView;
+    /** 发送时若 WebView 还没在目标对话页，先把内容暂存，载入完成后注入。 */
+    private String aiPending;
     /** 当前打开的是哪个 sheet。弹层之间互相调用时要用它决定要不要先装主界面。 */
     private View openSheetView;
     /**
@@ -850,6 +867,8 @@ public final class MainActivity extends Activity {
         openSheetView = null;
         openSheetLayout = 0;
         downloadSheetOpen = false;
+        // 关 AI 窗口：销毁那块对话用的 WebView，避免 native 内存泄漏。
+        destroyAiWebView();
 
         // 「复制 / 分享」那个浮层挂在旧布局的地址栏上。setContentView 之后
         // 整棵视图树被换掉，而浮层是挂在 **WindowManager** 上的，不在那棵树里 ——
@@ -3047,6 +3066,9 @@ public final class MainActivity extends Activity {
     private View openSheet(String title, int layoutRes) {
         mainViewMounted = false;
         downloadSheetOpen = false;
+        // 换弹层前先把可能还活着的 AI WebView 销毁：从 AI 窗口点开别的面板时，
+        // 旧的 AI WebView 会被 setContentView 摘离窗口但没人 destroy，会漏 native 内存。
+        destroyAiWebView();
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(color(R.color.bg));
@@ -3071,6 +3093,18 @@ public final class MainActivity extends Activity {
         openSheetView = sheet;
         openSheetLayout = layoutRes;
         return sheet;
+    }
+
+    /** 销毁 AI 窗口里的对话 WebView。幂等：没开过就是空操作。 */
+    private void destroyAiWebView() {
+        if (aiWebView != null) {
+            ViewGroup p = aiWebView.getParent() instanceof ViewGroup
+                ? (ViewGroup) aiWebView.getParent() : null;
+            if (p != null) p.removeView(aiWebView);
+            aiWebView.destroy();
+            aiWebView = null;
+        }
+        aiPending = null;
     }
 
     // ------------------------------------------------------- 内核信息（只读）
@@ -4915,38 +4949,154 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * AI 助手面板：列出常用 AI 服务商，点开在<b>新标签页</b>打开它们的网页版对话。
+     * AI 助手窗口：内嵌网页对话。
      *
-     * <p>刻意走新标签页而不是当前页 —— 用户多半是读着某个页面想顺手问一句 AI，
-     * 当前页不该被顶掉；而这一轮正好补齐了标签切换与单独关闭，切回去很方便。
+     * <p>与桌面端同一套语义 —— 底部滑出一块面板，里面是一块 WebView 载着所选 AI 的
+     * 网页版对话；下拉选 AI、输入框写好内容点「发送」，best-effort 把文本注入到
+     * 对话输入框里。免登录的排最前。
      *
-     * <p>这些都是各家的在线网页服务：本应用不接任何 API、不经手输入，
-     * 所以没有密钥要配，也不会因为某家接口收费或改版而失效。
-     * 想更深的集成（把当前页正文一起送过去）是另一件事，那需要逐家接开放接口，
-     * 超出「集成常用服务商的调用」这一步。
+     * <p>不接任何 API、不经手密钥：纯 web，跨域注入由宿主 {@code evaluateJavascript}
+     * 执行，不受目标页 CSP 限制。某家网页改版导致注入失效时，回落成「只打开对话页、
+     * 让用户自己贴」。
+     *
+     * <p>服务商清单与桌面端 {@code shell.js} 的 {@code AI_PROVIDERS} 同词同源；
+     * 顺序即展示顺序，免登录的在前。
      */
     private void showAiSheet() {
-        View sheet = openSheet(getString(R.string.sheet_ai), R.layout.sheet_picker);
-        LinearLayout list = sheet.findViewById(R.id.pickerList);
-        ((TextView) sheet.findViewById(R.id.pickerNote)).setText(
-            "点开任意一个，会在新标签页里打开它的网页版对话，当前页不会丢。"
-            + "这些都是各家的在线服务，本应用不接 API、不经手你的输入。");
+        View sheet = openSheet(getString(R.string.sheet_ai), R.layout.sheet_ai);
 
-        final String[][] providers = {
-            {"DeepSeek", "https://chat.deepseek.com/"},
-            {"腾讯元宝", "https://yuanbao.tencent.com/"},
-            {"豆包", "https://www.doubao.com/"},
-            {"通义千问", "https://www.tongyi.com/"},
-            {"Kimi", "https://kimi.moonshot.cn/"},
-            {"智谱清言", "https://chatglm.cn/"},
+        // 服务商清单。名字数组交 ArrayAdapter；地址数组里 custom 那一格是 null，
+        // 由用户在 aiCustomUrl 里填。与桌面端 AI_PROVIDERS 一一对应。
+        final String[] aiNames = {
+            "DeepSeek（免登录）", "Kimi（免登录）", "通义千问（免登录）", "豆包（免登录）", "自定义…"
         };
-        for (final String[] p : providers) {
-            list.addView(pickerRow(list, p[0], Tab.hostOf(p[1]), false, () -> {
-                mountMain();
-                newTab(p[1]);
-                toast("正在打开 " + p[0]);
-            }));
+        final String[] aiUrls = {
+            "https://chat.deepseek.com/",
+            "https://kimi.moonshot.cn/",
+            "https://tongyi.aliyun.com/qianwen/",
+            "https://www.doubao.com/chat/",
+            null
+        };
+
+        final FrameLayout host = sheet.findViewById(R.id.aiWebHost);
+        final EditText aiText = sheet.findViewById(R.id.aiText);
+        final EditText aiCustom = sheet.findViewById(R.id.aiCustomUrl);
+        final Spinner spinner = sheet.findViewById(R.id.aiSelect);
+        final View grab = sheet.findViewById(R.id.aiGrab);
+        final View send = sheet.findViewById(R.id.aiSend);
+        final View clear = sheet.findViewById(R.id.aiClear);
+
+        ArrayAdapter<String> adp = new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item, aiNames);
+        adp.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adp);
+
+        // 内嵌对话 WebView：代码 new，塞进占位容器（不写在 XML，避免泄漏，见字段注释）。
+        aiWebView = new WebView(this);
+        aiWebView.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
+        aiWebView.setBackgroundColor(color(R.color.bg));
+        WebSettings ws = aiWebView.getSettings();
+        ws.setJavaScriptEnabled(true);
+        ws.setDomStorageEnabled(true);
+        ws.setDatabaseEnabled(true);
+        ws.setCacheMode(WebSettings.LOAD_DEFAULT);
+        aiWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                // 发送时还没在目标对话页：先载入，载入完成后再把暂存内容注入。
+                if (aiPending != null && !aiPending.isEmpty()) {
+                    aiInject(aiPending);
+                    aiPending = null;
+                }
+            }
+        });
+        host.addView(aiWebView);
+        aiWebView.loadUrl(aiUrls[0]);
+
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View v, int pos, long id) {
+                boolean custom = pos >= 0 && pos < aiUrls.length && aiUrls[pos] == null;
+                aiCustom.setVisibility(custom ? View.VISIBLE : View.GONE);
+                if (!custom) {
+                    String url = aiUrls[pos];
+                    String cur = aiWebView.getUrl();
+                    if (cur == null || !cur.equals(url)) aiWebView.loadUrl(url);
+                }
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) { /* 不会真发生 */ }
+        });
+
+        grab.setOnClickListener(v -> aiGrab(aiText));
+        send.setOnClickListener(v -> aiSend(aiText, aiCustom, aiUrls, spinner));
+        clear.setOnClickListener(v -> aiText.setText(""));
+    }
+
+    /** 把文本 best-effort 注入到对话输入框（textarea / contenteditable / 单行文本）。 */
+    private void aiInject(String text) {
+        if (aiWebView == null || text == null || text.isEmpty()) return;
+        String lit = JSONObject.quote(text); // 带双引号的合法 JS 字符串字面量，自动转义
+        String js = "(function(){"
+            + "try{"
+            + "var sels=['textarea','textarea[role=textbox]','[contenteditable=true]',"
+            + "'[contenteditable=\"true\"]','input[type=text]'];"
+            + "var el=null;for(var i=0;i<sels.length&&!el;i++){el=document.querySelector(sels[i]);}"
+            + "if(!el)return 'no-input';"
+            + "el.focus();"
+            + "if(typeof el.value==='string'){"
+            + "var proto=el.tagName==='TEXTAREA'?window.HTMLTextAreaElement.prototype"
+            + ":window.HTMLInputElement.prototype;"
+            + "Object.getOwnPropertyDescriptor(proto,'value').set.call(el," + lit + ");"
+            + "}else{el.textContent=" + lit + ";}"
+            + "el.dispatchEvent(new Event('input',{bubbles:true}));"
+            + "el.dispatchEvent(new Event('change',{bubbles:true}));"
+            + "return 'ok';"
+            + "}catch(e){return 'err:'+e.message;}"
+            + "})()";
+        aiWebView.evaluateJavascript(js, value -> {
+            if (value == null || !"\"ok\"".equals(value)) toast(getString(R.string.ai_note_fallback));
+        });
+    }
+
+    /** 发送：当前已在目标对话页则直接注入，否则先载入该页再注入。 */
+    private void aiSend(EditText aiText, EditText aiCustom, String[] aiUrls, Spinner spinner) {
+        if (aiWebView == null) return;
+        String text = aiText.getText().toString().trim();
+        if (text.isEmpty()) { toast(getString(R.string.ai_empty)); return; }
+        int pos = spinner.getSelectedItemPosition();
+        String url = (pos >= 0 && pos < aiUrls.length) ? aiUrls[pos] : null;
+        if (url == null) {
+            // 自定义：从输入框取地址
+            url = aiCustom.getText().toString().trim();
+            if (!url.startsWith("http")) { toast(getString(R.string.ai_custom_hint)); return; }
         }
+        String cur = aiWebView.getUrl();
+        if (cur == null || !cur.equals(url)) {
+            aiPending = text;
+            aiWebView.loadUrl(url);
+            toast(getString(R.string.ai_opening));
+        } else {
+            aiInject(text);
+        }
+    }
+
+    /** 把当前标签页选中的文字（没有选中则退而取标题 + 地址）带进输入框。 */
+    private void aiGrab(EditText aiText) {
+        if (web == null) { toast(getString(R.string.ai_nothing)); return; }
+        web.evaluateJavascript("(window.getSelection?window.getSelection().toString():'')",
+            sel -> {
+                String t = (sel == null) ? "" : sel.replaceAll("^\"|\"$", ""); // 摘掉 JSON 引号
+                if (t.trim().isEmpty()) {
+                    String title = web.getTitle();
+                    String u = web.getUrl();
+                    t = (title != null ? title : "") + "\n" + (u != null ? u : "");
+                }
+                if (t.trim().isEmpty()) { toast(getString(R.string.ai_nothing)); return; }
+                String existing = aiText.getText().toString();
+                aiText.setText((existing.isEmpty() ? "" : existing + "\n\n") + t.trim());
+                aiText.setSelection(aiText.getText().length());
+            });
     }
 
     /** 一行可选项：名字 + 说明 + 选中标记。搜索引擎与订阅源共用。 */

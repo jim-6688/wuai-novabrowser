@@ -399,6 +399,27 @@ class ExtensionManager {
   }
 }
 
+/**
+ * 判断一个文件是不是可被自动安装的扩展包。
+ *
+ * 拖拽安装（见 main.js 的 drop-file 接线）和「安装扩展」对话框共用这一份判据，
+ * 抽出来是为了两处口径永不失同步，也方便 Node 单测直接覆盖（拖拽路径本身
+ * 只能真机点）。认得的四类：
+ *   .crx     Chromium 商店包（走 stripCrxHeader 拆签名段）
+ *   .crx3    同上的 CRX3 变体（魔数同样是 "Cr24"，headerLen 不同）
+ *   .zip     已打成压缩包的扩展目录（直接解包 loadExtension）
+ *   .xpi     火狐扩展（本质是个 zip，还要过 Gecko 归一化桥）
+ */
+const EXTENSION_EXTS = ['.crx', '.crx3', '.zip', '.xpi'];
+
+function isExtensionFile(p) {
+  if (!p || typeof p !== 'string') return false;
+  // trim 两端：拖拽进来偶尔会夹到不可见字符，而路径本身中间的空格（如
+  // "Downloads\Nova 浏览器\ext.crx"）不受影响 —— 只 trim 首尾正好避开它。
+  const ext = path.extname(p.trim()).toLowerCase();
+  return EXTENSION_EXTS.indexOf(ext) >= 0;
+}
+
 module.exports = {
   ExtensionManager,
   extractZip,
@@ -407,5 +428,6 @@ module.exports = {
   stripCrxHeader,
   normalizeFirefoxExtension,
   resolveMessage,
+  isExtensionFile,
   BROWSER_POLYFILL
 };

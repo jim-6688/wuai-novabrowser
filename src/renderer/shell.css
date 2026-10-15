@@ -679,6 +679,76 @@ svg {
 }
 .scrim.is-open { opacity: 1; }
 
+/* ------------------------------------------------------------------ *
+ * AI 助手（右侧滑出面板）
+ * ------------------------------------------------------------------ */
+.ai-panel {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 420px;
+  max-width: 94vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-3);
+  transform: translateX(102%);
+  transition: transform 220ms var(--ease);
+  display: flex;
+  flex-direction: column;
+  z-index: 45;
+}
+.ai-panel.is-open { transform: none; }
+.ai-head {
+  height: 48px; min-height: 48px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--sp-3) 0 var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+.ai-head h2 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.ai-x {
+  border: 0; background: transparent; color: var(--text-3);
+  font-size: 18px; line-height: 1; cursor: pointer;
+  padding: 2px 6px; border-radius: var(--r-sm);
+}
+.ai-x:hover { background: var(--surface-2); color: var(--text); }
+.ai-body { flex: 1; min-height: 0; position: relative; background: var(--bg); }
+.ai-webview { width: 100%; height: 100%; border: 0; background: var(--bg); }
+.ai-foot { border-top: 1px solid var(--border); padding: var(--sp-2) var(--sp-3) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
+.ai-row { display: flex; gap: var(--sp-2); align-items: center; }
+.ai-select {
+  flex: 1; min-width: 0;
+  height: 30px; padding: 0 var(--sp-2);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface); color: var(--text);
+  font: inherit; font-size: 12px;
+  outline: none;
+}
+.ai-select:focus { border-color: var(--brand); }
+.ai-custom { display: flex; }
+.ai-input {
+  flex: 1; min-width: 0;
+  height: 30px; padding: 0 var(--sp-2);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--text);
+  font: inherit; font-size: 12px;
+  outline: none;
+}
+.ai-input:focus { border-color: var(--brand); background: var(--surface); }
+.ai-text {
+  width: 100%; min-height: 64px; max-height: 160px; resize: vertical;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--text);
+  font: inherit; font-size: 13px; line-height: 1.5;
+  outline: none;
+}
+.ai-text:focus { border-color: var(--brand); background: var(--surface); }
+.ai-actions { display: flex; gap: var(--sp-2); }
+.ai-actions .btn { flex: 1; }
+.ai-note { font-size: 10px; color: var(--text-4); text-align: center; }
+
+/* 移动端同样从右侧滑入、但占满宽度（手机没有侧边空间） */
+[data-layout="mobile"] .ai-panel { width: 100%; max-width: none; border-left: 0; }
+
 .panel-section { padding: 0 var(--sp-4) var(--sp-4); }
 .panel-label {
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px;
@@ -1135,6 +1205,62 @@ svg {
 
 /* 分组小标题右侧带一个动作按钮（如「清除记录」） */
 .dl-label-row { display: flex; align-items: center; justify-content: space-between; }
+
+/* ---------------------------------------------------------------- 地址栏旁的下载小窗 */
+.dl-cluster { position: relative; display: flex; align-items: center; }
+
+/* 小窗：贴着地址栏右边往下掉。absolute 相对 .dl-cluster（position: relative），
+   .toolbar 本身不裁切，所以会自然落到工具栏下方，不会被切掉。 */
+.dl-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  width: 320px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+}
+.dl-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.dl-pop-x {
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+}
+.dl-pop-x:hover { background: var(--surface-2); color: var(--text); }
+.dl-pop-list { flex: 1; overflow-y: auto; }
+.dl-pop-empty { padding: var(--sp-5) var(--sp-4); text-align: center; color: var(--text-4); font-size: 12px; }
+/* 小窗里的任务行复用 .dl-task，但去掉它默认的分隔线（外层卡片自己有边） */
+.dl-pop-list .dl-task { border-bottom: 1px solid var(--border); }
+.dl-pop-foot {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.dl-pop-foot .btn { flex: 1; }
+
+/* 移动端（预览里的窄布局）把这一格藏掉：手机端下载有另一套入口（见 #69） */
+[data-layout="mobile"] .dl-cluster { display: none; }
 
 /* ------------------------------------------------------------------ *
  * 媒体嗅探

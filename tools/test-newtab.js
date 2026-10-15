@@ -359,6 +359,11 @@ function manyHosts(n) {
     return cmd && cmd.op === 'remove' && cmd.get('url') === 'https://a.com/';
   })());
 
+  check('页面发的 extstore 命令被宿主侧认出（PC 新标签页的插件商店入口）', (() => {
+    const cmd = Ntp.parseCmd(Page.cmdUrl('extstore', {}));
+    return cmd && cmd.op === 'extstore';
+  })());
+
   check('宿主拼的 data 参数能被页面读回成同一批候选', (() => {
     const src = {
       added: [{ label: '我的 博客', url: 'https://blog.example.com/' }],

@@ -24,7 +24,7 @@ const settings = require('./settings');
 const ntp = require('../renderer/ntp');
 const { EngineRegistry } = require('./engines');
 const { adblock } = require('./adblock');
-const { ExtensionManager } = require('./extensions');
+const { ExtensionManager, isExtensionFile } = require('./extensions');
 const extStore = require('./ext-store');
 const { DownloadManager } = require('./downloader');
 const { Sniffer, FORMAT_STATS } = require('./sniffer');
@@ -902,6 +902,27 @@ function registerIpc() {
       }
     }
     return { installed };
+  });
+
+  /* --- 拖拽安装：从一个具体路径直接装，不再弹文件框 ---
+     外壳把拖进来的文件拦下来，按扩展判过类型后把绝对路径交到这里。
+     和 ext:install 同一套记账（写进 settings.extensions 以便重启恢复），
+     只是少了「让用户挑文件」那一步。 */
+  handle('ext:install-path', async (p) => {
+    if (!p || typeof p !== 'string') return { error: '缺少文件路径' };
+    if (!isExtensionFile(p)) {
+      const ext = path.extname(p).toLowerCase();
+      return { error: `不是扩展包：${ext || '未知类型'}（支持 .crx / .zip / .xpi）` };
+    }
+    try {
+      const info = await extManager.install(p, () => session.fromPartition('persist:nova-chromium'));
+      const recs = settings.get('extensions', []).filter((r) => r.path !== p);
+      recs.push({ id: info.id, name: info.name, path: p, source: info.source });
+      settings.patch({ extensions: recs });
+      return { installed: info };
+    } catch (err) {
+      return { error: err.message };
+    }
   });
   handle('ext:remove', (id) => extManager.remove(id, () => session.fromPartition('persist:nova-chromium')));
 

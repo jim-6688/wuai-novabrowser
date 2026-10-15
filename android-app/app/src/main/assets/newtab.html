@@ -237,6 +237,28 @@ body.editing .qk:active .thumb i { transform: none; }
     min-height: 17px;
 }
 
+/* ----------------------------------------------------- 插件商店入口 */
+/* 仅 PC 端新标签页出现（共享页面靠主机多挂的 store=1 开关显隐）。它不进 7 宫格，
+   以免挤掉「＋添加」那一格；用一条独立的点状按钮带出去，保持宫格纯净。
+   移动端不挂 store=1，这个入口永远不显示 —— 满足「PC 新标签页加插件商店链接」。 */
+.store-link {
+    display: none;
+    margin: 16px auto 0;
+    padding: 9px 18px;
+    width: fit-content;
+    border: 1px dashed var(--border);
+    border-radius: 999px;
+    color: var(--text-3);
+    font-size: 12.5px;
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .12s ease, color .12s ease, border-color .12s ease;
+}
+.store-link.on { display: inline-block; }
+.store-link:active { transform: scale(.97); color: var(--brand); border-color: var(--brand); }
+
 /* -------------------------------------------------------------- 添加表单 */
 .scrim {
     position: fixed;
@@ -344,6 +366,7 @@ body.editing .qk:active .thumb i { transform: none; }
 
     <nav class="quicks" id="quicks" aria-label="快捷方式"></nav>
     <p class="hint" id="hint">长按图标可删除</p>
+    <a class="store-link" id="store-link" role="button" aria-label="插件商店" hidden>⚙ 插件商店</a>
 </main>
 
 <div class="scrim" id="scrim"></div>
@@ -767,6 +790,19 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
     document.addEventListener('keydown', function (ev) {
         if (ev.key === 'Escape') { if (sheet.classList.contains('on')) close(); else unedit(); }
     });
+
+    // 插件商店入口：仅当 PC 主机多挂的 store=1 参数在时才出现。点一下跳
+    // nova://shortcut/extstore，由原生拦截后打开扩展面板（含商店）。
+    (function () {
+        var sl = document.getElementById('store-link');
+        if (!sl || param('store') !== '1') return;
+        sl.hidden = false;
+        sl.classList.add('on');
+        sl.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            location.href = NovaNtp.cmdUrl('extstore', {});
+        });
+    })();
 
     paint();
 
