@@ -31,6 +31,23 @@ const DEFAULTS = {
   /** auto | desktop | mobile —— auto 由窗口宽度决定 */
   layout: 'auto',
   theme: 'light',
+  /**
+   * 自动更新（仅 PC，且只在打包版有意义）。
+   *
+   *   autoDownload —— 发现新版就自己下（走差分，只传变化的那部分）
+   *   autoInstall  —— 下载完就**拉起安装器并重启**去装
+   *
+   * 两个默认都开：这是「装上就不用管」的那条路。关掉任一之后退回
+   * 原来的「工具栏挂个角标、下载与安装都要自己点」。
+   *
+   * autoInstall 的代价要说清：它会重启浏览器，当前页面里没保存的内容会丢。
+   * 所以界面上给了一个倒计时窗口让用户能喊停（见 renderer 的 autoInstallSoon），
+   * 而不是下载完就立刻退 —— 那样用户连看清楚发生了什么的机会都没有。
+   */
+  update: {
+    autoDownload: true,
+    autoInstall: true
+  },
   adblock: {
     enabled: true,
     cosmetic: true,

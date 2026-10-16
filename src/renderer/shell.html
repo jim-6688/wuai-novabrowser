@@ -15,7 +15,14 @@
 
   <!-- ============ 标题栏（桌面端） ============ -->
   <header class="titlebar">
-    <div class="tb-brand">
+    <!-- 左上角品牌区同时是**设置入口**（点一下开设置）。
+         标题栏整条是窗口拖拽区，所以这一格要单独标 no-drag（见 CSS）。
+         用 div + role="button" 而不是 <button>：这一格内部是 flex 徽标排版，
+         换成 button 要先把浏览器给按钮的一整套默认样式压回去，
+         而它本来就不在表单里、不需要 submit 语义。键盘可达性靠 tabindex
+         + Enter/Space 的 keydown 补上。 -->
+    <div class="tb-brand" id="btn-brand" role="button" tabindex="0"
+         title="设置（也可以点右侧的菜单按钮）">
       <!-- 标头用的不是完整图标，而是扒掉了底色的「星芒 + 轨道环」标识本身 ——
            这一格已经有品牌渐变底，再叠一层图标自己的圆角方底就是两层底叠着。
            另外环的描边从 1.6 加粗到 4、星芒外径从 17 放到 19：13px 下按原参数
@@ -351,6 +358,19 @@
       <div class="dh-title">松手即可安装扩展</div>
       <div class="dh-sub">支持 .crx / .crx3 / .zip / .xpi</div>
     </div>
+  </div>
+
+  <!-- 自动安装前的倒计时条。
+       为什么需要它：自动更新最后一步是**重启浏览器去装**，而重启会丢掉
+       当前页面里没保存的内容。下载完就立刻退，用户连看清楚发生了什么的机会
+       都没有 —— 所以给一个可见的倒计时窗口，想留的可以喊停。
+       不能用 toast 代替：那是单例元素，别的提示一来就被顶掉了，
+       而这一条是「再有 8 秒就要重启」的事，被顶掉等于没提示。 -->
+  <div class="upnow" id="update-now" hidden>
+    <span class="un-dot"></span>
+    <span class="un-text">更新已就绪，<b id="update-now-sec">8</b> 秒后重启安装</span>
+    <button class="un-btn" id="update-now-later">稍后</button>
+    <button class="un-btn un-btn-go" id="update-now-go">立即重启</button>
   </div>
 
   <div class="toast" id="toast" hidden></div>

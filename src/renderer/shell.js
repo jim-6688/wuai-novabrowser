@@ -2689,45 +2689,84 @@ function buildEngines() {
   `;
 }
 
-function buildAbout() {
-  const v = state.__versions || {};
-  const u = state.update || {};
+/**
+ * 更新状态 → 那一块 HTML。
+ *
+ * <p>**只有这一份**。「关于」面板与工具栏的更新小窗显示的是同一件事，
+ * 各写一份必然漂移 —— 事实上就漂移过：把「差分更新」改成「下完整安装包」时，
+ * 只改了「关于」那份，小窗里还留着「只下变化的那部分」这种与事实相反的说法，
+ * 而用户很可能先看到的就是小窗。
+ *
+ * <p>（原来这里还写着「照抄顶栏浮层那套状态机」—— 知道有风险还是抄了，
+ * 然后就被这个风险咬了一口。所以这次不是再抄一遍，而是抽出来共用。）
+ *
+ * @param {object} u state.update
+ * @returns {string} 状态相关的 HTML 片段
+ */
+function updateStatusHtml(u) {
   const notes = Array.isArray(u.info && u.info.notes) && u.info.notes.length
     ? `<ul class="up-notes">${u.info.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`
     : '';
-  // 「检查更新」这一块照抄顶栏浮层那套状态机（renderUpdatePanel）：
-  // 两处各写一份的话，有一天状态多一档就会只改一处。
-  let updBlock;
+
   if (u.status === 'checking') {
-    updBlock = '<p class="up-none">正在检查更新…</p>';
-  } else if (u.status === 'error') {
-    updBlock = `<p class="up-err">检查失败：${esc(u.error || '未知原因')}</p>
+    // 这一档一闪而过，除了这句话不放别的：塞太多会让人以为卡住了
+    return '<p class="up-none">正在检查更新…</p>';
+  }
+
+  if (u.status === 'error') {
+    return `<p class="up-err">检查失败：${esc(u.error || '未知原因')}</p>
       <button class="btn" data-up="check">重试</button>`;
-  } else if (u.status === 'downloading') {
+  }
+
+  if (u.status === 'downloading') {
     const pct = Math.round(u.percent || 0);
-    updBlock = `<div class="up-ver">正在下载 ${esc((u.info && u.info.version) || '')}</div>
+    return `<div class="up-ver">正在下载 ${esc((u.info && u.info.version) || '')}</div>
       <div class="up-bar"><i style="width:${pct}%"></i></div>
-      <p class="up-none">${pct}%。下载的是变化的那部分，不是整个安装包。</p>`;
-  } else if (u.status === 'ready') {
-    updBlock = `<div class="up-ver">${esc((u.info && u.info.version) || '')} 已下载完毕</div>
-      <p class="up-none">重启后生效。当前页面里未保存的内容会丢失。</p>
+      <p class="up-none">${pct}%${u.speed ? ` · ${fmtBytes(u.speed)}/s` : ''}。下载完会校验 sha256，校验不过会丢弃重来。</p>`;
+  }
+
+  if (u.status === 'ready') {
+    // 自动安装开着时界面上已经挂了倒计时条（#update-now），
+    // 这里就不再说「重启后生效」那种含糊话 —— 说清「马上就要重启」。
+    const auto = updatePref().autoInstall && !u.autoInstallCancelled;
+    return `<div class="up-ver">${esc((u.info && u.info.version) || '')} 已下载完毕</div>
+      <p class="up-none">${auto ? '即将重启并拉起安装器。' : '重启后生效。'}当前页面里未保存的内容会丢失。</p>
       <button class="btn btn-primary" data-up="install">重启并安装</button>`;
-  } else if (u.status === 'available') {
-    updBlock = `<div class="up-ver">新版本 ${esc((u.info && u.info.version) || '')}</div>
+  }
+
+  if (u.status === 'available') {
+    /* **失败原因必须显示出来。**
+     * 下载失败后主进程会把状态退回 available（而不是留在 downloading），
+     * 于是这一档会被重画 —— 原先不读 u.error，用户点一次「下载更新」失败、
+     * 界面纹丝不动，看起来就像那个按钮坏了。 */
+    const size = (u.info && u.info.size)
+      ? `${(u.info.size / 1024 / 1024).toFixed(1)} MB`
+      : '';
+    return `<div class="up-ver">新版本 ${esc((u.info && u.info.version) || '')}</div>
+      ${u.error ? `<p class="up-err">下载失败：${esc(u.error)}</p>` : ''}
+      ${size ? `<p class="up-none">安装包 ${esc(size)}</p>` : ''}
       ${notes}
       <div class="up-actions">
-        <button class="btn btn-primary" data-up="download">下载更新</button>
+        <button class="btn btn-primary" data-up="download">${u.error ? '重试下载' : '下载更新'}</button>
         <button class="btn" data-up="later">稍后再说</button>
       </div>`;
-  } else {
-    // idle：没有待处理的更新。
-    // **不写「当前已是最新版本」** —— 检查失败时状态也是 idle 之外的一档，
-    // 而这一档的语义是「还没查过」，把两者说成同一句就是不准确的。
-    updBlock = `<p class="up-none">${u.lastCheckAt
-      ? `上次检查：${esc(fmtWhen(u.lastCheckAt))}。`
-      : '尚未检查过。'}下载只包含变化的那部分，通常远小于完整安装包。</p>
-      <button class="btn" data-up="check">检查更新</button>`;
   }
+
+  /* idle：没有待处理的更新。
+   * **不写「当前已是最新版本」** —— 检查失败时状态落在 error 档，
+   * 而这一档的语义是「还没查过」，把两者说成同一句就是不准确的。 */
+  return `<p class="up-none">${u.lastCheckAt
+    ? `上次检查：${esc(fmtWhen(u.lastCheckAt))}。`
+    : '尚未检查过。'}</p>
+    <button class="btn" data-up="check">检查更新</button>`;
+}
+
+function buildAbout() {
+  const v = state.__versions || {};
+  const u = state.update || {};
+  const pre = updatePref();
+  const updBlock = updateStatusHtml(u);
+
   return `
     <h2 class="sv-h2">关于吾爱Nova</h2>
     <div class="panel-section" style="text-align:center;padding-top:var(--sp-2)">
@@ -2738,6 +2777,28 @@ function buildAbout() {
 
     <div class="panel-label">检查更新</div>
     <div class="sv-card">${updBlock}</div>
+
+    <!-- 自动更新的两个开关。
+         放在「检查更新」这块下面而不是另起一个设置分区：它们调的就是上面
+         那套流程的行为，摆在一起才读得出「关掉它，上面那个就要自己点」。 -->
+    <div class="sv-card" style="margin-top:12px">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">自动检查并下载更新</span>
+          <span class="lr-sub">发现新版本就自己下载，走差分只传变化的部分</span>
+        </span>
+        <button class="switch ${pre.autoDownload ? 'is-on' : ''}" data-upcfg="autoDownload"
+                title="${pre.autoDownload ? '已开启' : '已关闭'}"></button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">下载完成后自动重启安装</span>
+          <span class="lr-sub">会重启浏览器，当前页面里未保存的内容会丢失（有 8 秒可喊停）</span>
+        </span>
+        <button class="switch ${pre.autoInstall ? 'is-on' : ''}" data-upcfg="autoInstall"
+                title="${pre.autoInstall ? '已开启' : '已关闭'}"></button>
+      </div>
+    </div>
 
     <div class="panel-label">运行时</div>
     <div class="sv-card">
@@ -4102,57 +4163,11 @@ function renderUpdateBtn() {
   btn.classList.toggle('is-busy', s.status === 'downloading');
 }
 
-/** 把更新状态摊在一个小面板里：版本、日志、下载/安装按钮。 */
+/** 工具栏那个更新小窗。内容与「关于」面板**共用同一份**（见 updateStatusHtml）。 */
 function renderUpdatePanel() {
   const body = $('#update-body');
   if (!body) return;
-  const s = state.update || {};
-  const info = s.info || {};
-
-  if (s.status === 'idle') {
-    body.innerHTML = `<p class="up-none">当前已是最新版本。</p>
-      <button class="btn" data-up="check">再检查一次</button>`;
-    return;
-  }
-  if (s.status === 'checking') {
-    // 不写「正在检查…」的空文案以外的东西：这一档一闪而过，
-    // 塞太多内容会让人以为卡住了
-    body.innerHTML = '<p class="up-none">正在检查更新…</p>';
-    return;
-  }
-  if (s.status === 'error') {
-    body.innerHTML = `<p class="up-err">检查失败：${esc(s.error || '未知原因')}</p>
-      <button class="btn" data-up="check">重试</button>`;
-    return;
-  }
-  if (s.status === 'downloading') {
-    const pct = Math.round(s.percent || 0);
-    body.innerHTML = `
-      <div class="up-ver">正在下载 ${esc(info.version || '')}</div>
-      <div class="up-bar"><i style="width:${pct}%"></i></div>
-      <p class="up-none">${pct}%。下载的是**变化的那部分**，不是整个安装包。</p>`;
-    return;
-  }
-  if (s.status === 'ready') {
-    body.innerHTML = `
-      <div class="up-ver">${esc(info.version || '')} 已下载完毕</div>
-      <p class="up-none">重启后生效。当前页面里未保存的内容会丢失。</p>
-      <button class="btn btn-primary" data-up="install">重启并安装</button>`;
-    return;
-  }
-  // available
-  const notes = Array.isArray(info.notes) && info.notes.length
-    ? `<ul class="up-notes">${info.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`
-    : '';
-  const size = info.size ? `${(info.size / 1024 / 1024).toFixed(1)} MB` : '';
-  body.innerHTML = `
-    <div class="up-ver">新版本 ${esc(info.version || '')}</div>
-    ${notes}
-    <p class="up-none">${size ? esc(size) + ' · ' : ''}下载的是变化的那部分，通常远小于完整安装包。</p>
-    <div class="up-actions">
-      <button class="btn btn-primary" data-up="download">下载更新</button>
-      <button class="btn" data-up="later">稍后再说</button>
-    </div>`;
+  body.innerHTML = updateStatusHtml(state.update || {});
 }
 
 function openUpdatePanel() {
@@ -4173,6 +4188,80 @@ function closeUpdatePanel() {
 }
 
 /** 主进程推来的状态。 */
+/**
+ * 自动更新的两个偏好。
+ *
+ * <p>取不到时按「开」—— 与 settings.js 里的默认值保持一致。
+ * 用户显式关掉才关（`false` 是一个有意义的值，不能用 `||` 兜）。
+ */
+function updatePref() {
+  const d = (state.defaults && state.defaults.update) || {};
+  const v = (state.settings && state.settings.update) || {};
+  return {
+    autoDownload: v.autoDownload === undefined ? d.autoDownload !== false : !!v.autoDownload,
+    autoInstall: v.autoInstall === undefined ? d.autoInstall !== false : !!v.autoInstall
+  };
+}
+
+/* 自动安装的倒计时。变量放模块级而不是 state 里：它是一段正在进行的过程，
+   不是「设置」或「当前状态」，重绘时不该被一起清掉。 */
+let autoInstallTimer = null;
+let autoInstallLeft = 0;
+
+function stopAutoInstallCountdown() {
+  if (autoInstallTimer) clearInterval(autoInstallTimer);
+  autoInstallTimer = null;
+  const bar = $('#update-now');
+  if (bar) bar.hidden = true;
+}
+
+/**
+ * 开始自动安装前的倒计时。
+ *
+ * <p><b>为什么要有倒计时</b>：自动更新的最后一步是**重启浏览器去装**，
+ * 而重启会丢掉当前页面里没保存的内容。下载完就立刻退，用户连看清楚
+ * 发生了什么的机会都没有。这里给 8 秒，想留的可以点「稍后」。
+ *
+ * <p>不用 toast 代替：那是单例元素，别的提示一来就被顶掉 ——
+ * 而「再有 8 秒就要重启」这件事被顶掉等于没提示。
+ */
+function startAutoInstallCountdown(seconds = 8) {
+  const bar = $('#update-now');
+  const sec = $('#update-now-sec');
+  if (!bar || !sec) return;
+  stopAutoInstallCountdown();
+  autoInstallLeft = seconds;
+  sec.textContent = String(autoInstallLeft);
+  bar.hidden = false;
+  autoInstallTimer = setInterval(() => {
+    autoInstallLeft -= 1;
+    // 每次都重新取元素：面板重绘不该让这条倒计时失去落点
+    const s2 = $('#update-now-sec');
+    if (s2) s2.textContent = String(Math.max(0, autoInstallLeft));
+    if (autoInstallLeft <= 0) {
+      stopAutoInstallCountdown();
+      doInstallUpdate();
+    }
+  }, 1000);
+}
+
+/** 拉起安装器并重启。两个入口（倒计时到点 / 用户点「立即重启」）共用。 */
+async function doInstallUpdate() {
+  stopAutoInstallCountdown();
+  try {
+    const r = await bridge.update.install();
+    // quitAndInstall 会返回 false（未打包、或 electron-updater 取不到）。
+    // **不检查它的话，用户点了「立即重启」而什么都没发生，界面也不说一句** ——
+    // 看起来就像那个按钮坏了。
+    if (!r || r.ok !== true) {
+      toast('无法启动安装：当前环境不支持自动安装（未打包，或缺少更新组件）', 5600);
+    }
+  } catch (e) {
+    // 装不起来要说一声：否则界面看起来像「点了没反应」
+    toast('启动安装失败：' + String(e && e.message || e), 5200);
+  }
+}
+
 function applyUpdateState(s) {
   if (!s || typeof s !== 'object') return;
   state.update = Object.assign({}, state.update, s, {
@@ -4181,13 +4270,45 @@ function applyUpdateState(s) {
   renderUpdateBtn();
   if (!$('#update-panel').hidden) renderUpdatePanel();
 
-  // 首次发现有新版时才主动提示一次，且只在面板关着的时候 ——
-  // 用户正在看别的界面时不该被弹窗打断
-  if (s.status === 'available' && state.update.notified !== (s.info && s.info.version)) {
-    state.update.notified = s.info && s.info.version;
+  const pre = updatePref();
+  const ver = (s.info && s.info.version) || '';
+
+  /* 自动下载。
+   * 用版本号做去重键（而不是一个布尔开关）：同一版只自动下一次。
+   * 主进程会在每次状态变化时推一帧，用布尔开关的话第二次推来的 'available'
+   * 就又触发一次下载。 */
+  if (s.status === 'available' && pre.autoDownload && ver
+      && state.update.autoDlFor !== ver) {
+    state.update.autoDlFor = ver;
+    // 面板开着时不再弹提示（用户正看着那上面的「下载更新」按钮）
     const panel = $('#update-panel');
-    if (panel && panel.hidden) toast(`新版本 ${s.info.version} 可用 · 点击工具栏的更新按钮`, 4200);
+    if (!panel || panel.hidden) toast(`发现新版本 ${ver}，正在自动下载…`, 3600);
+    bridge.update.download().catch(() => { /* 状态里有错误，界面会显示 */ });
   }
+
+  // 首次发现有新版时才主动提示一次，且只在面板关着的时候 ——
+  // 用户正在看别的界面时不该被弹窗打断。
+  // **自动下载开着时不提示**：那条提示写的是「点击工具栏的更新按钮」，
+  // 而我们已经在替他下了，再让人去点一下是自相矛盾。
+  if (!pre.autoDownload
+      && s.status === 'available' && state.update.notified !== ver) {
+    state.update.notified = ver;
+    const panel = $('#update-panel');
+    if (panel && panel.hidden) toast(`新版本 ${ver} 可用 · 点击工具栏的更新按钮`, 4200);
+  }
+
+  /* 自动安装。同样按版本去重；用户点过「稍后」之后本次运行内不再自动装
+   * （cancelled 标记不落盘：下次启动是新的下载周期，该问还得问）。 */
+  if (s.status === 'ready' && pre.autoInstall && ver
+      && state.update.autoInstFor !== ver
+      && !state.update.autoInstallCancelled) {
+    state.update.autoInstFor = ver;
+    startAutoInstallCountdown(8);
+  }
+
+  // 状态离开 ready（比如下载失败被重置）就把倒计时收掉，
+  // 否则会留一条「8 秒后重启」而实际没什么可装
+  if (s.status !== 'ready' && autoInstallTimer) stopAutoInstallCountdown();
 }
 
 /**
@@ -4399,6 +4520,24 @@ function wireUi() {
   $('#btn-ext').addEventListener('click', () => openPanel('extensions'));
   $('#btn-ai').addEventListener('click', openAiPanel);
   $('#btn-menu').addEventListener('click', renderMenuPanel);
+
+  /* 左上角品牌区 → 设置。
+   *
+   * 键盘可达性要自己补：用的是 div + role="button"，浏览器不会替它把
+   * Enter/Space 变成 click（只有真 <button> 才有那套默认行为）。
+   * 漏了这一步，鼠标能点、键盘按不动 —— 而这种「一半可用」最容易被忽略。 */
+  {
+    const brand = $('#btn-brand');
+    if (brand) {
+      brand.addEventListener('click', () => openPanel('settings'));
+      brand.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+          ev.preventDefault();     // Space 不 preventDefault 会顺带滚动页面
+          openPanel('settings');
+        }
+      });
+    }
+  }
   $('#drawer-close').addEventListener('click', closeDrawer);
 
   // AI 助手面板：下拉切换 / 带入当前页 / 发送 / 清空 / 关闭
@@ -4458,6 +4597,34 @@ function wireUi() {
      * <p>挂 document 的代价是事件多走一层 closest()，换来的是新增一个入口
      * 不必记得回来补一行绑定 —— 而这次错的正是这一处。 */
     document.addEventListener('click', async (ev) => {
+      /* 自动更新的两个开关。
+       * 与上面 data-up 同一个理由用 document 委托：这些开关渲染在
+       * 「关于」面板里（设置视图内），而设置分区会被整体重绘 ——
+       * 逐行绑定的话每次重画都要重绑一遍，漏一次就是「开关点不动」。 */
+      const cfg = ev.target.closest('[data-upcfg]');
+      if (cfg) {
+        const key = cfg.dataset.upcfg;
+        const next = !cfg.classList.contains('is-on');
+        cfg.classList.toggle('is-on', next);
+        cfg.title = next ? '已开启' : '已关闭';
+        await bridge.settings.patch({ update: { [key]: next } });
+        // 就地更新本地那份：preload 只给了 settings.patch，没有 get
+        // （写 bridge.settings.get() 会是一个 undefined 的函数调用）。
+        // 而且这里本来也不需要回读 —— 我们刚写进去的就是结果。
+        state.settings = Object.assign({}, state.settings, {
+          update: Object.assign({}, (state.settings && state.settings.update) || {},
+            { [key]: next })
+        });
+        // 关掉「自动安装」时把已经挂着的倒计时一并收掉 ——
+        // 不然那条「N 秒后重启」还挂在那儿，而用户刚明确说了不要自动装
+        if (key === 'autoInstall' && !next) {
+          stopAutoInstallCountdown();
+          state.update.autoInstallCancelled = true;
+        }
+        toast(next ? '已开启' : '已关闭');
+        return;
+      }
+
       const t = ev.target.closest('[data-up]');
       if (!t) return;
       const act = t.dataset.up;
@@ -4498,8 +4665,26 @@ function wireUi() {
     bridge.update.status().then((s) => {
       if (s) applyUpdateState(s);
     }).catch(() => {});
-    // 静默检查：不弹窗、不下载，等主进程推状态回来
+    // 静默检查：不弹窗，等主进程推状态回来。
+    // 查到有新版之后会不会自动下、自动装，由 updatePref() 决定（见 applyUpdateState）
     setTimeout(() => { bridge.update.check().catch(() => {}); }, 2500);
+
+    /* 倒计时条上的两个按钮。
+     * 「稍后」不只是把这条收起来 —— 还要**标记本次运行内别再自动装**，
+     * 否则主进程任何一次状态推送（比如用户去设置里改了个开关触发的推送）
+     * 都会让倒计时重新开始，用户按几次都关不掉。 */
+    const later = $('#update-now-later');
+    if (later) {
+      later.addEventListener('click', () => {
+        stopAutoInstallCountdown();
+        state.update.autoInstallCancelled = true;
+        toast('已推迟，本次运行不再自动安装（可在 关于 里手动重启安装）', 4200);
+      });
+    }
+    const go = $('#update-now-go');
+    if (go) go.addEventListener('click', doInstallUpdate);
+
+    window.addEventListener('beforeunload', stopAutoInstallCountdown);
   }
 
   // 地址栏旁的下载小窗

@@ -122,7 +122,7 @@ function serveManifest(body) {
     check('清单没有 pc 段 → 不提示更新', r.updateAvailable === false);
   }
 
-  // 优先给 zip：exe 未签名且浏览器会拦，zip 才是该主推的通道
+  // 给安装包本身（不是 zip）—— 方向改过，理由见下面那条断言里的注释
   {
     const srv = await serveManifest({
       version: '1.6.2',
@@ -134,7 +134,27 @@ function serveManifest(body) {
     });
     const r = await U.check('1.0.0', srv.url, srv.httpGet);
     srv.stop();
-    check('默认给 zip 而不是 exe', /\.zip$/.test(r.url || ''), r.url);
+    /* 给 exe，不是 zip —— 这一条**改过方向**，理由要写下来免得下次又被改回去：
+     * 原先优先 zip，理由是「浏览器对直接下 exe 会拦」。但那条理由只对
+     * **官网上的下载按钮**成立（浏览器发起的下载）。应用内的更新是我们自己用
+     * https 取的，中间没有浏览器；而 zip 拿到手还得再解一次才有个安装器
+     * （zip 里就装着那一个 setup.exe）。 */
+    check('给安装包本身（exe），不是 zip', /\.exe$/.test(r.url || ''), r.url);
+  }
+
+  // 老清单没有 exe 段时退回主 url —— 会拿到 zip，那时装不起来要报错而不是静默
+  {
+    const srv = await serveManifest({
+      version: '1.6.2',
+      pc: {
+        version: '1.0.1',
+        url: 'https://example.test/nova-pc-1.0.1-win-x64-setup.zip'
+      }
+    });
+    const r = await U.check('1.0.0', srv.url, srv.httpGet);
+    srv.stop();
+    check('清单没有 exe 段时退回主 url（老清单的兼容路径）',
+      /\.zip$/.test(r.url || ''), r.url);
   }
 
   // 清单取不到 → 安静地当作没更新，绝不抛错打断启动

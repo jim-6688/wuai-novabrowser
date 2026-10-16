@@ -153,6 +153,7 @@ const bmIo = fs.readFileSync(P('src/main/bookmarks-io.js'), 'utf8');
 const bdMod = fs.readFileSync(P('src/main/browsers-detect.js'), 'utf8');
 const extMod = fs.readFileSync(P('src/main/extensions.js'), 'utf8');
 const preloadMod = fs.readFileSync(P('src/preload/preload.js'), 'utf8');
+const stMod = fs.readFileSync(P('src/main/settings.js'), 'utf8');
 const newtab = fs.readFileSync(P('src/renderer/newtab.html'), 'utf8');
 const toJava = (rel) => P('android-app/app/src/main/' + rel);
 [
@@ -316,11 +317,21 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['「关于」那一行的副标题用 upVer()，不再是写死的版本号',
     /data-panel="about"[\s\S]{0,320}?\$\{esc\(upVer\(\)\)\}/.test(menuBody)],
   ['更新按钮的委托挂在 document 上（原来绑 #update-body，「关于」里的按钮点不动）',
-    /document\.addEventListener\('click',[\s\S]{0,200}?closest\('\[data-up\]'\)/.test(js)],
-  ['「关于」面板里有检查更新，且照抄顶栏那套状态机而不是另写一份',
-    /function buildAbout[\s\S]{0,3000}?data-up="check"/.test(js)
-      && /function buildAbout[\s\S]{0,3000}?data-up="download"/.test(js)
-      && /function buildAbout[\s\S]{0,3000}?data-up="install"/.test(js)],
+    // 窗口要留宽：这个处理器里现在有两段（更新按钮 data-up、自动更新开关
+    // data-upcfg），按 200 字符刚好把 closest('[data-up]') 挤出去。
+    // 判据仍要有意义 —— 必须「document 上的 click」且「同一段里出现 data-up」。
+    /document\.addEventListener\('click',[\s\S]{0,1500}?closest\('\[data-up\]'\)/.test(js)],
+  ['自动更新的两个开关也用 document 委托（设置分区会被整体重绘，逐行绑定会漏绑）',
+    /document\.addEventListener\('click',[\s\S]{0,600}?closest\('\[data-upcfg\]'\)/.test(js)],
+  ['更新的状态界面**只有一份**（「关于」与工具栏小窗共用 updateStatusHtml）——各写一份必然漂移',
+    // 这条原来要求 buildAbout 里直接出现 data-up="check" —— 那是「各写一份」
+    // 时代的判据。现在改成要求：三段按钮都定义在共用的那个函数里，
+    // 且两个入口都调它。这比原来严格：漏改一处会直接红。
+    /function updateStatusHtml[\s\S]{0,3000}?data-up="check"/.test(js)
+      && /function updateStatusHtml[\s\S]{0,3000}?data-up="download"/.test(js)
+      && /function updateStatusHtml[\s\S]{0,3000}?data-up="install"/.test(js)
+      && /function renderUpdatePanel[\s\S]{0,300}?updateStatusHtml\(/.test(js)
+      && /function buildAbout[\s\S]{0,600}?updateStatusHtml\(u\)/.test(js)],
   // 取委托处理器那**一段**来看（从 closest('[data-up]') 到下一个不同缩进的顶层块），
   // 不要用「从 data-up="check" 起 N 字符」那种宽松匹配 —— 中间隔着注释，
   // 窗口宽度得试好几遍，而其中一段注释里还正好出现了 openPanel('about')
@@ -371,14 +382,45 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['预览桥给了 browsers / fromBrowser',
     /browsers: async/.test(mockJs) && /fromBrowser: async/.test(mockJs)],
 
-  /* --- 自动更新（这条链路从上线起就是断的，务必钉住） --- */
-  ['downloadUpdate 之前先 checkForUpdates',
-    // downloadUpdate(cancellationToken) 的第一参数是取消令牌而非文件名；
-    // 且它开头就要求 updateInfoAndProvider 非空，而那个字段**只在
-    // checkForUpdates() 里赋值**。不补这一句，点「下载更新」必然失败。
-    /checkForUpdates\(\)[\s\S]{0,120}?\.downloadUpdate\(\)/.test(updaterMod)],
-  ['downloadUpdate 不再被当成「接收文件名」的函数调用',
-    !/downloadUpdate\(file\)/.test(updaterMod) && !/downloadUpdate\(fileName\)/.test(updaterMod)],
+  /* --- 自动更新：**自己下载**（不再用 electron-updater） ---
+   * 这几条守的是「换个实现时最容易悄悄丢掉的东西」。原来那三条守
+   * electron-updater 调用方式的断言已随实现一起删掉（见 git 历史）。 */
+  ['更新不再依赖 electron-updater（它要进 dependencies 才打得到包里，且只认 latest.yml）',
+    !/require\('electron-updater'\)/.test(updaterMod)
+      && !/electron-updater/.test(JSON.stringify(require(P('package.json')).devDependencies || {}))
+      && !/electron-updater/.test(JSON.stringify(require(P('package.json')).dependencies || {}))],
+  ['下载地址优先取清单里的 exe 段（zip 拿到手还得再解一次才有安装器）',
+    /const dl = m\.pc\.exe \|\| m\.pc/.test(updaterMod)],
+  ['下载跟随重定向（Gitee 会跳到 CDN，不跟就只能拿到一个 302 的响应体）',
+    /function downloadTo[\s\S]{0,1600}?res\.headers\.location/.test(updaterMod)
+      && /start\(new URL\(res\.headers\.location, u\)\.href\)/.test(updaterMod)],
+  ['重定向有次数上限（成环时必须自己停下来）',
+    /重定向次数过多/.test(updaterMod)],
+  ['下完校验 sha256（下回来的是要覆盖用户机器上那份程序的东西，下坏了不能照装）',
+    /校验不通过（sha256 不符）/.test(updaterMod)
+      && /sha256File\(part\)/.test(updaterMod)],
+  ['校验通过才改名（否则半个文件会以「下好了」的名字留在那儿）',
+    /fs\.renameSync\(part, dest\)/.test(updaterMod)
+      && /校验通过才改名/.test(updaterMod)],
+  ['下过且哈希对得上时不重复下载（下载失败重试 / 下完没装就重启这两条路不该各吃一次 78MB）',
+    /if \(!info\.sha256 \|\| \(await sha256File\(dest\)\) === String\(info\.sha256\)\.toLowerCase\(\)\)/.test(updaterMod)],
+  ['安装器用 detached 拉起再退出自己（NSIS 要覆盖的正是我们正在跑的 exe）',
+    /function installAndRestart[\s\S]{0,1600}?detached: true/.test(updaterMod)
+      && /function installAndRestart[\s\S]{0,1600}?app\.quit\(\)/.test(updaterMod)],
+  ['installAndRestart 返回 {ok,error} 而不抛（渲染层要把它显示出来）',
+    /function installAndRestart[\s\S]{0,400}?return \{ ok: false, error/.test(updaterMod)],
+  ['下载失败会退回 available（留在 downloading 的话那个「重试」会变成卡住的「下载中」）',
+    /status: 'available',\s*\n\s*error: String\(e && e\.message/.test(mainMod)],
+  ['available 分支会显示失败原因（不读 u.error 的话，点一次失败界面纹丝不动）',
+    /u\.status === 'available'[\s\S]{0,400}?u\.error \?/.test(js)],
+  ['界面里不再出现「差分 / 只下变化的那部分」这类说法（现在是下整包，留着就是骗人）',
+    !/下载的是变化的那部分/.test(js) && !/只包含变化的那部分/.test(js)],
+  ['旧安装包会被清掉（一版一个 78 MB，不清的话十版之后用户机器上躺着 780 MB 他看不到的东西）',
+    /function pruneOldInstallers/.test(updaterMod)
+      && (updaterMod.match(/pruneOldInstallers\(dest\)/g) || []).length === 2],
+  ['清理只碰安装包与半成品、且保留当前这一份',
+    /if \(full === keepPath\) continue;/.test(updaterMod)
+      && /if \(!\/\\\.\(exe\|part\)\$\/i\.test\(k\.name\)\) continue;/.test(updaterMod)],
   ['主进程构造 updaterState 的两处都带 lastCheckAt（整体替换会抹掉它）',
     (mainMod.match(/lastCheckAt/g) || []).length >= 3],
 
@@ -469,6 +511,40 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /\^\\\/\[A-Za-z\]:/.test(mainMod)],
   ['装了之后有结果回报（ext:dropped 通道 + 外壳的 toast）',
     /'ext:dropped'/.test(preloadMod) && /bridge\.on\('ext:dropped'/.test(js)],
+
+  /* --- 左上角品牌标 = 设置入口 --- */
+  ['左上角品牌区是设置入口（div + role=button，键盘也要能触发）',
+    /id="btn-brand"[\s\S]{0,120}?role="button"/.test(html)
+      && /btn-brand'\)[\s\S]{0,400}?openPanel\('settings'\)/.test(js)
+      && /btn-brand'\)[\s\S]{0,600}?ev\.key === 'Enter'/.test(js)],
+  ['品牌区标了 no-drag（标题栏整条是窗口拖拽区，否则点击被系统吃掉）',
+    /\.tb-brand \{[\s\S]{0,400}?-webkit-app-region: no-drag/.test(css)],
+  ['品牌区有悬停反馈与指针形状（否则没人会去点一个像纯装饰的徽标）',
+    /\.tb-brand:hover/.test(css) && /\.tb-brand \{[\s\S]{0,400}?cursor: pointer/.test(css)],
+
+  /* --- 自动更新：自动下载 / 自动安装 --- */
+  ['设置里有 update.autoDownload / autoInstall 两项，且默认都开',
+    /update: \{\s*autoDownload: true,\s*autoInstall: true\s*\}/.test(stMod)],
+  ['偏好读取不是简单的 ||（false 是有意义的值，用 || 兜会把「关」当「没设过」）',
+    /v\.autoDownload === undefined \? d\.autoDownload !== false/.test(js)],
+  ['自动下载按**版本号**去重（用布尔开关的话，主进程每次推状态都会再下一次）',
+    /state\.update\.autoDlFor !== ver/.test(js)],
+  ['自动下载开着时不再弹「点击工具栏的更新按钮」（自相矛盾）',
+    // 窗口按到 400：从判据到那句 toast 中间隔着两行赋值（notified 与 panel），
+    // 按 120 会把它们挤出去。
+    /if \(!pre\.autoDownload[\s\S]{0,400}?新版本 \$\{ver\} 可用/.test(js)],
+  ['自动安装前有倒计时（重启会丢未保存内容，要留喊停的窗口）',
+    /function startAutoInstallCountdown/.test(js) && /id="update-now"/.test(html)
+      && /\.upnow \{/.test(css)],
+  ['倒计时不用 toast 承载（那是单例元素，别的提示一来就被顶掉）',
+    /id="update-now"/.test(html) && /不能用 toast 代替/.test(html)],
+  ['「稍后」会标记本次运行内不再自动装（否则任何一次状态推送都会重新倒计时）',
+    /autoInstallCancelled = true/.test(js)
+      && /state\.update\.autoInstFor !== ver[\s\S]{0,120}?autoInstallCancelled/.test(js)],
+  ['quitAndInstall 返回 false 时会提示（否则点了「立即重启」像按钮坏了）',
+    /r\.ok !== true[\s\S]{0,200}?无法启动安装/.test(js)],
+  ['自动安装的开关关掉时把已挂着的倒计时一并收掉',
+    /key === 'autoInstall' && !next[\s\S]{0,160}?stopAutoInstallCountdown\(\)/.test(js)],
 
   /* --- 扩展根定位（单层包裹的包曾对全体用户报「缺少 manifest.json」） --- */
   ['resolveExtensionRoot 会往下找一层（zip/xpi 的真实形状是单层包裹）',

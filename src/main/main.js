@@ -869,13 +869,13 @@ function registerIpc() {
   });
 
   /* ----------------------- 自动更新（PC） -----------------------
-   * 做的是**包级差分更新**：只传与旧版本不同的块，不是整个 78MB 安装包。
-   * 界面上的行为刻意做得不打扰：启动后静默检查一次，有新版只在工具栏挂一个
-   * 角标，下载与安装都要用户点。不自动下，也不自动退。
+   * **自己下载安装包**（不用 electron-updater，原因见 updater.js 文件头）。
+   * 清单用 site/version.json，里面有 url / size / sha256 —— 下完要**校验**。
    *
-   * 状态机在 updater.js 里（check → available → downloading → ready），
-   * 这里只负责把它的状态转给渲染层，并把用户的两个动作（开始下载、
-   * 重启安装）转回去。**下载不在这里做**：electron-updater 会自己算差分。
+   * 状态机在上游：check → available → downloading → ready。
+   * 这里负责把状态转给渲染层，并把用户的动作（下载、安装）转回去。
+   * 「自动下载」与「自动安装」的策略在**渲染层**决定（它才知道用户设了什么），
+   * 主进程只提供能力，不做策略 —— 这样设置一改就立刻生效，不用重启。
    */
 
   // 当前更新状态。渲染层重启后会来问一次，所以不能只靠推送。
@@ -908,31 +908,38 @@ function registerIpc() {
     updaterState = { ...updaterState, status: 'downloading' };
     pushUpdater();
     try {
-      await updater.downloadAndInstall(updaterState, {
-        onProgress: (p) => send('update:progress', p),
-        onDownloaded: (info) => {
-          updaterState = {
-            status: 'ready',
-            info: { ...updaterState.info, ...info },
-            error: '',
-            lastCheckAt: updaterState.lastCheckAt || ''
-          };
-          pushUpdater();
-        },
-        onError: (msg) => {
-          updaterState = { ...updaterState, status: 'error', error: String(msg) };
-          pushUpdater();
-        }
+      // 自己下（不用 electron-updater），下完把路径记进状态 ——
+      // 「安装」那一步要的就是它，而不是再去问下载器还剩什么
+      const r = await updater.download(updaterState, {
+        onProgress: (p) => send('update:progress', p)
       });
-      return { ok: true };
+      updaterState = {
+        status: 'ready',
+        info: updaterState.info,
+        error: '',
+        installerPath: r.path,
+        reused: !!r.reused,
+        lastCheckAt: updaterState.lastCheckAt || ''
+      };
+      pushUpdater();
+      return { ok: true, path: r.path, reused: !!r.reused };
     } catch (e) {
-      updaterState = { ...updaterState, status: 'error', error: String(e && e.message || e) };
+      // 失败要回到 available（而不是留在 downloading）——否则界面上那个
+      // 「重试」会变成「下载中」卡住，用户只能重启应用
+      updaterState = {
+        ...updaterState,
+        status: 'available',
+        error: String(e && e.message || e)
+      };
       pushUpdater();
       return { error: updaterState.error };
     }
   });
 
-  handle('update:install', () => ({ ok: updater.quitAndInstall() }));
+  /* 拉起安装器并退出自己。返回 {ok} 而不是抛 —— 渲染层要把它显示出来
+     （原来那个 ok:false 的返回值渲染层根本没看，用户点了「立即重启」
+     而什么都没发生、界面也不说一句）。 */
+  handle('update:install', () => updater.installAndRestart(updaterState));
 
   /**
    * 收藏夹栏 / 书签列表按主机名要图标。新标签页那条路不走 IPC（主进程直接注入）。
