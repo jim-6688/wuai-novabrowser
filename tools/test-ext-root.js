@@ -83,6 +83,46 @@ if (typeof R !== 'function') {
   const tricky = path.join(tmp, 'tricky');
   mk('tricky/manifest.json5', '{}');
   check('只有 manifest.json5 时不算扩展（后缀不同）', R(tricky) === null);
+
+  // 8. 用一个**真实的**商店扩展跑一遍（用户实测的那个包）
+  //    DeepSider 3.0.6：434 个文件、103 个顶层条目、manifest_v3、中文名走
+  //    __MSG_ext_title__ 占位符。商店包的目录形态各不相同（这个是扁平的，
+  //    而网上多数 zip 是单层包裹），所以两种都要能用。
+  const realCrx = path.join(
+    process.env.USERPROFILE || process.env.HOME || '',
+    'Downloads', 'dfbnddndcmilnhdfmmaolepiaefacnpo',
+    'dfbnddndcmilnhdfmmaolepiaefacnpo_3.0.6_chrome.zzzmh.cn.crx'
+  );
+  if (fs.existsSync(realCrx) && typeof mod.stripCrxHeader === 'function') {
+    const { zip } = mod.stripCrxHeader(fs.readFileSync(realCrx));
+    const work = path.join(tmp, 'realflat');
+    fs.mkdirSync(work, { recursive: true });
+    mod.extractZip(Buffer.from(zip), work);
+
+    const rf = R(work);
+    check('真实商店扩展（扁平形态）能定位到根', rf && rf.depth === 0, rf && path.basename(rf.dir));
+    if (rf) {
+      const m = JSON.parse(fs.readFileSync(rf.manifest, 'utf8'));
+      const name = mod.resolveMessage(rf.dir, m, m.name);
+      check('真实扩展的中文名解析出来（zh_CN 优先于 default_locale=en）',
+        name && name.indexOf('__MSG') < 0 && /[\u4e00-\u9fa5]/.test(name), name);
+      check('真实扩展的 id 派生得出来且不含 __MSG 残留',
+        /^[a-z0-9-]+$/.test(String(name || '').replace(/[^\w-]+/g, '-').toLowerCase()));
+    }
+
+    // 同一个扩展，**包一层**之后再试 —— 那是 manifest 报错的那一类
+    const inner = path.join(tmp, 'realinner');
+    fs.renameSync(work, inner);
+    fs.mkdirSync(work, { recursive: true });
+    fs.renameSync(inner, path.join(work, 'DeepSider'));
+    check('workDir 根下确实没有 manifest.json（复现了那个报错的前提）',
+      !fs.existsSync(path.join(work, 'manifest.json')));
+    const rw = R(work);
+    check('真实扩展（单层包裹形态）同样能定位到里层',
+      rw && rw.depth === 1 && path.basename(rw.dir) === 'DeepSider');
+  } else {
+    console.log('  SKIP  真实扩展包不在本机 Downloads 下，跳过这 5 项');
+  }
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });
