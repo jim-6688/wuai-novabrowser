@@ -1229,16 +1229,27 @@ function registerIpc() {
 
   handle('ext:store-install', async (input) => {
     const parsed = extStore.parseStoreInput(input);
-    if (!parsed) return { error: '认不出扩展。请粘贴商店里那个扩展的页面地址，或者 32 位的扩展 ID。' };
+    if (!parsed) return { error: '认不出扩展。请粘贴商店里那个扩展的页面地址、32 位的扩展 ID，或者一个 .crx / .zip 的下载地址。' };
 
-    // 「已经装过」的判据用 settings 里记的 storeId，**不是** Chromium 给的
-    // electronId —— 真环境实测：loadExtension 对解包目录按路径重新派生 ID，
-    // 同一个扩展每次解到新目录就得到一个新 ID，拿它判重永远判不中，
-    // 用户多点一次「安装」就会真的多出一份。
-    const existed = settings.get('extensions', []).find((r) => r.storeId === parsed.crxId);
-    if (existed) return { already: true, name: existed.name };
+    /* 「已经装过」的判据用 settings 里记的 storeId，**不是** Chromium 给的
+     * electronId —— 真环境实测：loadExtension 对解包目录按路径重新派生 ID，
+     * 同一个扩展每次解到新目录就得到一个新 ID，拿它判重永远判不中，
+     * 用户多点一次「安装」就会真的多出一份。
+     *
+     * **直链那条没有 storeId**，所以这里必须先判一下 crxId 在不在：
+     * 拿 undefined 去比会把「任何没有 storeId 的记录」（比如拖入安装的那些）
+     * 全判成「已经装过」，于是用户点安装得到一个莫名其妙的「已安装」。 */
+    if (parsed.crxId) {
+      const existed = settings.get('extensions', []).find((r) => r.storeId === parsed.crxId);
+      if (existed) return { already: true, name: existed.name };
+    }
 
-    const dest = path.join(extStoreDir, parsed.crxId + '.crx');
+    /* 落盘的文件名**必须带正确的扩展名**：extManager.install 是照后缀选解包方式的
+     * （.crx → 拆签名段；.zip/.xpi → 直接解包）。直链那条沿用地址里的名字，
+     * 商店那条用 crxId。名字里的路径分隔符等要挡掉，免得写出目录外。 */
+    const dest = parsed.source === 'direct'
+      ? path.join(extStoreDir, String(parsed.fileName || 'extension.crx').replace(/[\\/:*?"<>|]+/g, '_'))
+      : path.join(extStoreDir, parsed.crxId + '.crx');
     const dl = await extStore.downloadCrx(input, dest, { chromeVersion: process.versions.chrome });
     if (dl.error) return { error: dl.error };
 
@@ -1249,7 +1260,7 @@ function registerIpc() {
       const recs = settings.get('extensions', []).filter((r) => r.path !== dest);
       recs.push({
         id: info.id, name: info.name, path: dest, source: info.source,
-        storeId: parsed.crxId, dir: info.dir, enabled: info.enabled !== false
+        storeId: parsed.crxId || '', dir: info.dir, enabled: info.enabled !== false
       });
       settings.patch({ extensions: recs });
       return { installed: info };

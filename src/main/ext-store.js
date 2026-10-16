@@ -137,6 +137,25 @@ function parseStoreInput(raw) {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
 
   const host = url.hostname.toLowerCase();
+
+  /* **直接的扩展包地址**（官网 / GitHub Release 上那种）。
+   *
+   * <p>为什么值得支持：很多扩展在自己的官网或 GitHub Release 上直接提供
+   * `.crx` / `.zip` 下载，那些域名在国内往往是通的 —— 实测
+   * `data.tampermonkey.net/tampermonkey_stable.crx` 就是 200 + 真 CRX。
+   * 而商店那条路对国内用户基本不可用（Google 的取包落在
+   * `clients2.googleusercontent.com`，实测超时；Edge 的接口一律 400）。
+   *
+   * <p>**必须排在 ID 识别之前**：这种地址的末段是文件名而不是 32 位 ID，
+   * 先走 ID 那条会解析失败（返回 null），用户拿到的是「认不出扩展」。
+   */
+  if (/\.(crx|crx3|zip|xpi)$/i.test(url.pathname)) {
+    const raw = url.pathname.split('/').filter(Boolean).pop() || '';
+    let fileName = raw;
+    try { fileName = decodeURIComponent(raw); } catch { /* 编码坏了就用原文 */ }
+    return { source: 'direct', url: url.href, fileName };
+  }
+
   // source 只为了一句更准的提示：Chrome 应用店的扩展在 Edge 商店可能没有收录，
   // 那种「查不到」与「ID 打错了」是两回事，不该给同一句话。
   const source = host === 'microsoftedge.microsoft.com' ? 'edge'
@@ -229,6 +248,30 @@ async function fetchDetail(rawInput, opts = {}) {
   // Chrome 应用店只有镜像这一条路，不必去 Edge 商店空跑一趟 ——
   // 两个商店的 ID 不是同一套编号，拿 Chrome 的 ID 问 Edge 是问不到的。
   if (parsed.source === 'chrome') return fetchChromeDetail(parsed.crxId, opts);
+
+  /* 直链：**不去查详情**。
+   *
+   * <p>查不到 —— 那只是一个 .crx 文件地址，没有任何接口能告诉我们它是谁。
+   * 硬编一张卡片出来反而会让用户以为我们认得它。
+   * 所以直接给一个只带文件名的「待安装」条目，让他自己确认是不是要的那个。
+   * 真正的名字要等下载解包之后才知道（那时 install() 会读到 manifest）。 */
+  if (parsed.source === 'direct') {
+    return {
+      source: 'direct',
+      downloadUrl: parsed.url,
+      detail: {
+        name: parsed.fileName,
+        version: '',
+        developer: '',
+        installs: 0,
+        installsText: '',
+        icon: '',
+        description: '直接下载地址。装好之后的名字以扩展自身的 manifest 为准。',
+        manifestVersion: 0,
+        direct: true
+      }
+    };
+  }
 
   const viaEdge = await fetchEdgeDetail(parsed, f);
   // 裸 ID（用户直接抄了一串）问不出出处，Edge 那边没有就再问问镜像。
@@ -496,7 +539,34 @@ async function downloadCrx(rawInput, destPath, opts = {}) {
 
   let buf = null;
 
-  if (parsed.source === 'chrome') {
+  if (parsed.source === 'direct') {
+    /* 直链：一次 GET 拿到就算拿到（defaultFetch 已带 redirect:'follow'）。
+     * 官网常会先跳一次再给文件，所以跟随是必须的。 */
+    let res;
+    try {
+      res = await f(parsed.url, {
+        timeoutMs: DOWNLOAD_TIMEOUT_MS,
+        headers: { 'User-Agent': UA, Accept: '*/*' }
+      });
+    } catch (err) {
+      return { error: '下载失败：' + errText(err) };
+    }
+    if (!res.ok) return { error: '下载失败（HTTP ' + res.status + '）' };
+    try { buf = Buffer.from(await res.arrayBuffer()); } catch { buf = null; }
+    if (!buf || !buf.length) return { error: '对方返回了空文件' };
+
+    /* 认「地址后缀」与「实际内容」是否对得上。
+     * 对不上就**不要**往下走：把一个 HTML 错误页存成 .crx 交给装载流水线，
+     * 报出来的会是一句更难懂的错（这一层拦住，用户看到的才是有用的话）。
+     * 允许「zip 地址给的是 crx」这种（有站点会先给 crx）；
+     * 反过来（crx 地址给 zip）也放行 —— 只要内容是两者之一就行。 */
+    const magic = buf.subarray(0, 4).toString('latin1');
+    const isCrx = magic === 'Cr24';
+    const isZip = magic === 'PK\u0003\u0004' || magic === 'PK\u0005\u0006' || magic === 'PK\u0007\u0008';
+    if (!isCrx && !isZip) {
+      return { error: '这个地址给回来的不是扩展包（八成是个网页）。请确认复制的是文件下载地址。' };
+    }
+  } else if (parsed.source === 'chrome') {
     const got = await fetchChromePackage(parsed.crxId, f, opts);
     if (got.error) return { error: got.error };
     buf = got.buf;
@@ -541,7 +611,11 @@ async function downloadCrx(rawInput, destPath, opts = {}) {
   // 认魔数，不认后缀。这个接口正常给的就是 CRX3（开头 Cr24），
   // 但也可能被网络中间设备换成一张 HTML 错误页 —— 那种东西存下来，
   // 只会在解包那一步报出一句更难懂的错。
-  if (buf.subarray(0, 4).toString('latin1') !== 'Cr24') {
+  const magicNow = buf.subarray(0, 4).toString('latin1');
+  const okMagic = magicNow === 'Cr24'
+    // 直链那条路上面已经认过 zip，这里别再拦一次
+    || (parsed.source === 'direct' && magicNow.startsWith('PK'));
+  if (!okMagic) {
     return {
       error: parsed.source === 'chrome'
         ? '取回来的不是扩展包（镜像站给的结构变了）'

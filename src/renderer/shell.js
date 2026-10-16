@@ -1692,9 +1692,18 @@ function storeBox(st) {
         Chrome 应用店本身（chromewebstore.google.com）在国内连不上，这里给的是
         它的国内镜像站：收录的是同一批扩展、用的是同一套 ID，从上面复制的地址
         粘进来照样能装。
-        <br />但它是**第三方搬运，收录不全** —— 热门的大多有（篡改猴、uBlock Origin
+        <br />但它是<b>第三方搬运、收录不全</b> —— 热门的大多有（篡改猴、uBlock Origin
         实测都能装），冷门的可能没有。遇到没收录的，可以回到上面的
         「从已安装的浏览器导入」。
+
+        <div style="margin-top:10px">
+          <b>第三种办法：直接粘下载地址。</b>
+          不少扩展在自己的官网或 GitHub 上直接给 <code>.crx</code> / <code>.zip</code>
+          下载链接，而<b>那些域名国内往往是通的</b>。
+          比如篡改猴官网 <code>tampermonkey.net</code> 就能直接下
+          （实测 <code>data.tampermonkey.net/tampermonkey_stable.crx</code> 可用）。
+          把这种链接粘进来一样能装。
+        </div>
       </div>
       <div class="store-open-row">
         ${STORE_LINKS.map((s) => `
@@ -1706,7 +1715,7 @@ function storeBox(st) {
       </div>
       <div class="store-paste">
         <input id="store-input" type="text" spellcheck="false"
-               placeholder="粘贴扩展页面地址，或 32 位扩展 ID"
+               placeholder="粘贴扩展页面地址、32 位扩展 ID，或 .crx 下载地址"
                value="${esc(st.draft)}" />
         <button class="btn" data-act="store-query" ${st.busy ? 'disabled' : ''}>${st.busy ? '请稍候…' : '查询'}</button>
       </div>

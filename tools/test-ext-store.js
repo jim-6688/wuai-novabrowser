@@ -703,6 +703,73 @@ const TM_ID = 'iikmkjmpaadaobahmlepeloendndfphd';
       r.downloadUrl);
   }
 
+  console.log('\n[K] 直接的扩展包地址（官网 / GitHub 上那种）');
+
+  {
+    // 用户发现并实测过的那个：篡改猴官网直接给 crx
+    const r = parseStoreInput('https://data.tampermonkey.net/tampermonkey_stable.crx');
+    check('.crx 直链被认出来（不是当成商店地址）',
+      !!r && r.source === 'direct' && /tampermonkey_stable\.crx$/.test(r.fileName || ''), JSON.stringify(r));
+
+    check('.zip 直链同样认', (parseStoreInput('https://x.test/a/b/ext.zip') || {}).source === 'direct');
+    check('.xpi 直链同样认', (parseStoreInput('https://x.test/ext.xpi') || {}).source === 'direct');
+
+    // **必须排在 ID 识别之前**：直链末段是文件名，不是 ID
+    check('带 32 位 ID 的路径但后缀是 .crx 时，按直链处理（不是按 ID）',
+      (parseStoreInput('https://x.test/' + 'a'.repeat(32) + '.crx') || {}).source === 'direct');
+
+    check('商店地址照旧按商店处理（没被直链那条抢走）',
+      (parseStoreInput('https://chromewebstore.google.com/detail/x/' + 'a'.repeat(32)) || {}).source === 'chrome');
+
+    check('带查询串的直链也算（下载地址常带 ?v=1 之类）',
+      (parseStoreInput('https://x.test/e.crx?ver=2') || {}).source === 'direct');
+    check('地址里的百分号转义会解出来',
+      (parseStoreInput('https://x.test/%E5%90%BE%E7%88%B1.crx') || {}).fileName === '吾爱.crx');
+    check('认出的是 http 也接受（有些小站没上 https）',
+      (parseStoreInput('http://x.test/e.crx') || {}).source === 'direct');
+  }
+
+  {
+    // 直链查详情：不去联网，也不编造元数据
+    const r = await fetchDetail('https://data.tampermonkey.net/tampermonkey_stable.crx',
+      { fetchImpl: async () => { throw new Error('不该去联网查详情'); } });
+    check('直链查详情不联网（查也查不到，那只是个文件地址）', !!r.detail);
+    check('名字先用文件名顶着，并说明真名以 manifest 为准',
+      r.detail.name === 'tampermonkey_stable.crx'
+      && /manifest/.test(r.detail.description || ''), r.detail.name);
+    check('带上 downloadUrl 供安装用', /\.crx$/.test(r.downloadUrl || ''));
+  }
+
+  {
+    // 取包：内容必须是 crx 或 zip，否则拦住
+    const id = 'a'.repeat(32);
+    const dest = path.join(os.tmpdir(), 'nova-direct-' + Date.now() + '.crx');
+
+    const fakeCrxBytes = fakeCrx();
+    const ok = await downloadCrx('https://x.test/e.crx', dest,
+      { fetchImpl: async () => res(200, fakeCrxBytes) });
+    check('直链能取并及时落盘', ok.ok === true && fs.existsSync(dest), JSON.stringify(ok));
+    fs.rmSync(dest, { force: true });
+
+    const html = Buffer.from('<!DOCTYPE html><html>这是个网页</html>');
+    const bad = await downloadCrx('https://x.test/e.crx', dest,
+      { fetchImpl: async () => res(200, html) });
+    check('**地址给回来一个网页时拦住**（别把 HTML 存成 .crx，那样报错更难懂）',
+      !!bad.error && /不是扩展包/.test(bad.error), bad.error);
+    check('拦住时不留下文件', !fs.existsSync(dest));
+
+    const nf = await downloadCrx('https://x.test/e.crx', dest,
+      { fetchImpl: async () => res(404, Buffer.from('')) });
+    check('404 时说清是下载失败', !!nf.error && /下载失败/.test(nf.error), nf.error);
+
+    // zip 内容也放行（有些站点直接给 zip 包）
+    const zip = Buffer.concat([Buffer.from('PK\u0003\u0004'), Buffer.from('rest')]);
+    const okz = await downloadCrx('https://x.test/e.zip',
+      path.join(os.tmpdir(), 'nova-direct-' + Date.now() + '.zip'),
+      { fetchImpl: async () => res(200, zip) });
+    check('zip 内容同样放行', okz.ok === true, JSON.stringify(okz));
+  }
+
   console.log(`\n${fail === 0 ? '全部通过' : '有失败项'}：${pass} 通过 / ${fail} 失败`);
   process.exit(fail === 0 ? 0 : 1);
 })().catch((e) => {
