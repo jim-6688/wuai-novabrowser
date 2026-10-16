@@ -30,6 +30,9 @@ const OP_REMOVE = 'remove';
 /** 内置新标签页的「插件商店」入口：点一下打开扩展面板（含商店）。仅 PC 端会触发，
  *  因为共享页面靠 PC 主机多挂的那个 store=1 参数才显示这个入口。 */
 const OP_STORE = 'extstore';
+/** 新标签页中间那个搜索框：把关键词回传给宿主，由宿主按当前搜索引擎打开。
+ *  页面本身不能跳转（它是本地文件，没有桥），所以走同一个 scheme。 */
+const OP_SEARCH = 'search';
 
 /**
  * 一次最多送多少条候选过去。页面只显示 7 格，送 30 条是为了让「按访问次数
@@ -269,16 +272,25 @@ function buildData(sources) {
   //      少掉两格，用户看到的就是「六宫格又缺了一角」。
   //   3) 不受 MAX_TILES 约束 —— 补位这一段原本靠 rows.length >= MAX_TILES 提前退出，
   //      那正是它会随候选多少而增减的根因。现在只有「用户自己删过这一格」才让它缺席。
+  /* ── 2026-10：这六条**不再因为「用户点掉过」而缺席，也不再补位** ──
+   *
+   * 原来这里有一句 `if (blocked[k]) continue`，并且把「后面的往前补位」
+   * 当成特性（删掉「主页」之后 导航/播放器/… 依次上移一格）。
+   * 用户的反馈是「这六条我指定的，**顺序不能变**」—— 而补位恰恰就是变序。
+   *
+   * 而且那个 blocked 判据用的是 hostKey（**去掉了 www.**），
+   * 「主页」(www.52ta.top) 与「导航」(52ta.top) 因此是同一个键：
+   * 点掉前者会把后者一起带走，六宫格里一次少两格，剩下的再整体上移 ——
+   * 一屏网址变样两次。
+   *
+   * 现在这六条是**版面本身**，不参与增删：它们永远按 BUILTIN_SITES 的顺序
+   * 占住前六格（页面侧同样按这个顺序排，见 rank 的 builtin.concat(pinned)）。
+   * 用户自己加的那些仍可增删，排在六条之后。
+   *
+   * 判重照旧按**完整 URL**：这六条本来就是同一家的不同入口
+   * （「主页」是 www 那条、「导航」是裸域那条），按主机名去重会凭空少两格。 */
   for (const site of BUILTIN_SITES) {
-    const k = hostKey(site.url);
-    if (!k || seenUrls[site.url]) continue;
-    // 用户点掉的那一条：跳过它，但**继续往下走** —— 后面的内置网址会往前补位。
-    // 于是删掉「主页」之后是 导航/播放器/浏览器/百度/DeepSeek 依次上移一格，
-    // 而不是让第 1 格永久空着（那正是「固定入口」最该在的位置）。
-    //
-    // 注意这个「跳过」不等于「那一格没人管」：版面永远由还剩下的内置网址填满，
-    // 用户自己加的排在它们之后。DeepSeek 仍是这六条里的最后一条。
-    if (blocked[k]) continue;
+    if (seenUrls[site.url]) continue;
     seenUrls[site.url] = 1;
     rows.push({ label: site.label, url: site.url, visits: 0, pinned: false, builtin: true });
   }
@@ -421,7 +433,7 @@ function parseCmd(url) {
     query = rest.slice(q + 1);
   }
   op = op.trim();
-  if (op !== OP_ADD && op !== OP_REMOVE && op !== OP_STORE) return null;
+  if (op !== OP_ADD && op !== OP_REMOVE && op !== OP_STORE && op !== OP_SEARCH) return null;
 
   const params = Object.create(null);
   if (query) {
@@ -462,7 +474,8 @@ const NovaNtpHost = {
   modeOf,
   pageUrl,
   target,
-  parseCmd
+  parseCmd,
+  OP_SEARCH
 };
 
 if (typeof window !== 'undefined') window.NovaNtpHost = NovaNtpHost;

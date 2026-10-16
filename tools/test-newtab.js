@@ -628,84 +628,39 @@ function manyHosts(n) {
       && few.every((u, i) => u === many[i]);
   })());
 
-  check('用户点掉某个固定入口后不再补它，其余固定入口仍在（那个 × 是真的）', (() => {
-    const d = Ntp.buildData({ removed: ['music.52ta.top'] });
-    const urls = padRows(d).map((l) => l.split('\t')[1]);
-    return realRows(d).length === 0
-      && !urls.some((u) => Ntp.hostKey(u) === 'music.52ta.top')
-      && urls.length === Ntp.BUILTIN_SITES.length - 1;
-  })());
-
-  check('被用户点掉的主机名不会被补回来（否则那个 × 是假的）', (() => {
-    const d = Ntp.buildData({ removed: ['52ta.top'] });
-    const urls = padRows(d).map((l) => l.split('\t')[1]);
-    return realRows(d).length === 0 && !urls.some((u) => Ntp.hostKey(u) === '52ta.top')
-      && urls.length === Ntp.BUILTIN_SITES.length - 2;
-  })());
-
-  check('判重按完整 URL：同一家的两个入口都保留（少一个就是「宫格缺一角」）', (() => {
-    const urls = padRows(Ntp.buildData({})).map((l) => l.split('\t')[1]);
-    return urls.length === Ntp.BUILTIN_SITES.length
-      && urls.indexOf('https://www.52ta.top/') >= 0
-      && urls.indexOf('https://52ta.top/') >= 0;
-  })());
-
-  check('用户自己加的那条排在补位项前面', (() => {
-    const lines = Ntp.buildData({ added: [{ label: '我的', url: 'https://mine.test/' }] })
-      .split('\n').filter(Boolean);
-    return lines[0].slice(-1) === 'p' && lines[lines.length - 1].slice(-1) === 'f';
-  })());
-
-  check('页面兜底清单与宿主内置清单逐条一致', (() => {
-    const fb = Page.parseData(Page.FALLBACK);
-    return fb.length === Ntp.BUILTIN_SITES.length
-      && fb.every((r, i) => r.label === Ntp.BUILTIN_SITES[i].label && r.url === Ntp.BUILTIN_SITES[i].url);
-  })(), `${Page.parseData(Page.FALLBACK).length} vs ${Ntp.BUILTIN_SITES.length}`);
-
-  check('安卓端内置清单与桌面端逐条一致', (() => {
-    const jb = [...java.matchAll(/new Row\("([^"]*)",\s*"([^"]*)",\s*0,\s*false,\s*true\)/g)]
-      .map((m) => ({ label: m[1], url: m[2] }));
-    return jb.length === Ntp.BUILTIN_SITES.length
-      && jb.every((r, i) => r.label === Ntp.BUILTIN_SITES[i].label && r.url === Ntp.BUILTIN_SITES[i].url);
-  })(), `${[...java.matchAll(/new Row\("([^"]*)",\s*"([^"]*)",\s*0,\s*false,\s*true\)/g)].length} 条`);
-
-  // 上面前一条只守「两端一致」—— 改一处改两处，它照样是绿的。
-  // 而用户要的是「这六条本身不许动」，所以这里把内容也钉死：
-  // 要增删或改地址必须先改这一条，并且在 commit 里说清为什么。
-  // 钉住「删掉一条之后后面的往前补位」：这条曾经只存在于安卓侧，
-  // 桌面端漏了 —— 表现是删掉「主页」之后第 1 格永久空着，后面五条原地不动。
-  // 两端共用同一个页面（newtab.html 由 mobile:sync 逐字节复制），
-  // 而候选数据由各自的宿主拼，于是这类不一致只能靠单测守住。
-  //
-  // 三个前提（写这两条用例时各踩一次）：
-  //     要看内置那六条的 label，得走 Page.parseData —— realRows / padRows
-  //     返回的是**原始字符串**（'主页\thttps://…\t0\tf'），不是对象。
-  //
-  // 另外两个前提（各踩一次）：
-  //  1) removed 里给的是**归一化之后**的主机名（hostKey 去掉了 www. 前缀），
-  //     写 'www.52ta.top' 是匹配不上的；
-  //  2) 别拿「主页」当样本 —— 它与「导航」共享主机名 52ta.top（只有 www 前缀之差），
-  //     而判重也是按主机名，于是删一个会连带去掉两个，是两格不是一格。
-  //     用独占主机的「播放器」（music.52ta.top）才测得出「少一格、补一格」。
-  //  1) removed 里给的是**归一化之后**的主机名（hostKey 去掉了 www. 前缀），
-  //     写 'www.52ta.top' 是匹配不上的；
-  //  2) 别拿「主页」当样本 —— 它与「导航」共享主机名 52ta.top（只有 www 前缀之差），
-  //     而判重也是按主机名，于是删一个会连带去掉两个，是两格不是一格。
-  //     用独占主机的「播放器」（music.52ta.top）才测得出「少一格、补一格」。
-  check('删掉一条之后，后面的内置网址往前补位（不留空格）', (() => {
-    const rows = Page.parseData(Ntp.buildData({ removed: ['music.52ta.top'] }))
+  /* ── 2026-10：内置那六条是**版式**，不参与增删，顺序也不随任何东西变 ──
+   *
+   * 这里原来钉的是「点掉一条 → 其余的往前补位（不留空格）」。用户后来的
+   * 要求是「这六条我指定的，**顺序不能变**」—— 而补位就是变序。
+   * 所以那两条断言随实现一起改了；改动的理由写在 ntp.js 的 buildData 里。
+   *
+   * 顺带留一个历史坑（现在踩不到了，但值得记着）：
+   * removed 里存的是**归一化**后的主机名（hostKey 去掉了 www. 前缀），
+   * 而「主页」(www.52ta.top) 与「导航」(52ta.top) 归一化之后是**同一个键** ——
+   * 当年删一个会连带去掉两格，六宫格一次少两格、剩下的再整体上移，
+   * 一屏网址变样两次。现在内置项根本不看 removed，这个坑也就消失了。 */
+  check('removed 里点名了内置项，六条照样全在（内置不再参与增删）', (() => {
+    const rows = Page.parseData(Ntp.buildData({ removed: ['music.52ta.top', 'chat.deepseek.com'] }))
       .filter((r) => r.builtin);
-    const want = ['主页', '导航', '浏览器', '百度', 'DeepSeek'];
-    return rows.length === 5 && rows.every((r, i) => r.label === want[i]);
+    return rows.length === Ntp.BUILTIN_SITES.length;
+  })());
+
+  check('连「共享主机名」的那种点名也不影响（主页与导航都在）', (() => {
+    const labels = Page.parseData(Ntp.buildData({ removed: ['52ta.top'] }))
+      .filter((r) => r.builtin).map((r) => r.label);
+    return labels.length === Ntp.BUILTIN_SITES.length
+      && labels.indexOf('主页') >= 0 && labels.indexOf('导航') >= 0;
+  })());
+
+  check('内置六条的**顺序**永远照 BUILTIN_SITES，不随 removed 变（顺序不能变）', (() => {
+    const want = Ntp.BUILTIN_SITES.map((x) => x.label).join();
+    const of = (src) => Page.parseData(Ntp.buildData(src))
+      .filter((r) => r.builtin).map((r) => r.label).join();
+    return of({}) === want
+      && of({ removed: ['music.52ta.top'] }) === want
+      && of({ removed: ['chat.deepseek.com', 'www.baidu.com'] }) === want
+      && of({ added: [{ label: '我的', url: 'https://mine.test/' }] }) === want;
   })(), Page.parseData(Ntp.buildData({ removed: ['music.52ta.top'] }))
-    .filter((r) => r.builtin).map((r) => r.label).join(' '));
-
-  check('删掉最后一条时前面五条都不动（DeepSeek 不往前挪）', (() => {
-    const rows = Page.parseData(Ntp.buildData({ removed: ['chat.deepseek.com'] }))
-      .filter((r) => r.builtin);
-    const want = ['主页', '导航', '播放器', '浏览器', '百度'];
-    return rows.length === 5 && rows.every((r, i) => r.label === want[i]);
-  })(), Page.parseData(Ntp.buildData({ removed: ['chat.deepseek.com'] }))
     .filter((r) => r.builtin).map((r) => r.label).join(' '));
 
   check('这六条固定入口不许被改动（地址逐字钉死）', (() => {
@@ -804,6 +759,55 @@ function manyHosts(n) {
     }));
     return settings.init(dir).bookmarks.some((b) => b.url === 'https://misuc.52ta.top/');
   })());
+
+  /* ── 版式：上 logo、中搜索、下宫格（用户指定的，不许改顺序） ── */
+  {
+    const page = fs.readFileSync(P('src/renderer/newtab.html'), 'utf8');
+    const iBrand = page.indexOf('class="brand"');
+    const iSearch = page.indexOf('class="search"');
+    const iQuick = page.indexOf('class="quicks"');
+    check('三段的先后顺序是 logo → 搜索 → 宫格',
+      iBrand >= 0 && iSearch > iBrand && iQuick > iSearch,
+      `logo@${iBrand} search@${iSearch} quicks@${iQuick}`);
+
+    check('搜索框是一个真表单（手机上虚拟键盘的回车触发的是 submit，不是按钮 click）',
+      /<form class="search"/.test(page) && /type="submit"/.test(page));
+
+    check('搜索提交走 nova:// 命令（这一页是本地文件、没有桥，自己不能导航）',
+      /cmdUrl\('search'/.test(page));
+
+    // 内置那六条不给删除角标：它们是版式，不是用户加的收藏
+    check('内置磁贴不挂删除角标', /if \(!item\.builtin\)[\s\S]{0,200}?del\.className = 'del'/.test(page));
+    check('编辑态下点内置磁贴也不会删（只跳过）',
+      /if \(item\.builtin\) return;/.test(page));
+
+    // 页面用的 CSS 变量必须是这一页 :root 里真有的那几个 ——
+    // 写错变量名不会报错，只是样式静默失效（这次我已经踩过一次）
+    const declared = new Set(
+      [...page.matchAll(/^\s{4}(--[a-z0-9-]+):/gm)].map((m) => m[1]));
+    const used = [...new Set([...page.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]))];
+    const missing = used.filter((v) => !declared.has(v));
+    check('页面里用到的 CSS 变量都在 :root 里声明过（写错变量名不会报错，只会静默失效）',
+      missing.length === 0, missing.join(' '));
+  }
+
+  /* ── 搜索命令：两端都要认 ── */
+  {
+    const c = Ntp.parseCmd('nova://shortcut/search?q=' + encodeURIComponent('你好 world'));
+    check('PC 侧认得出搜索命令', !!c && c.op === Ntp.OP_SEARCH, c && c.op);
+    check('关键词原样还原（含空格与中文）', !!c && c.get('q') === '你好 world', c && c.get('q'));
+    check('空关键词也解析得出来（拦不拦是调用方的事）',
+      !!Ntp.parseCmd('nova://shortcut/search?q=') && Ntp.parseCmd('nova://shortcut/search?q=').get('q') === '');
+
+    const java = fs.readFileSync(
+      P('android-app/app/src/main/java/top/wuai/nova/NewTab.java'), 'utf8');
+    check('安卓侧也认这个操作（那个通道本来就在，搜索框一回来就能用）',
+      /OP_SEARCH = "search"/.test(java) && /OP_SEARCH\.equals\(op\)/.test(java));
+    const main = fs.readFileSync(
+      P('android-app/app/src/main/java/top/wuai/nova/MainActivity.java'), 'utf8');
+    check('安卓侧真的会处理它（不是只解析了却没人用）',
+      /NewTab\.OP_SEARCH\.equals\(cmd\.op\)/.test(main));
+  }
 
   console.log(`\n${fail === 0 ? '全部通过' : '有失败项'}：${pass} 通过 / ${fail} 失败`);
   process.exit(fail === 0 ? 0 : 1);

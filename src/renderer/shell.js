@@ -5030,6 +5030,19 @@ function wireBridgeEvents() {
       // 内置新标签页的「插件商店」入口：直接打开扩展面板（含商店），不重导这一屏。
       openPanel('extensions');
       return;
+    } else if (cmd.op === NovaNtpHost.OP_SEARCH) {
+      /* 新标签页中间那个搜索框。
+       *
+       * **不做 reloadNewTab**：搜索之后这一屏就不该再留着（否则用户搜完
+       * 回到新标签页还能看到它，等于没走）。直接让这张标签页导航到结果页 ——
+       * 新标签页本来就是在「还没有内容」时才显示的那一屏，有了内容它自然让位。
+       *
+       * 关键词再 trim 一次：页面侧已经 trim 过，但这里是**命令入口**，
+       * 不该假定送命令的一定是那一页。 */
+      const q = String(cmd.get('q') || '').trim();
+      const tab = tabByWcId(p.id);
+      if (q && tab) navigate(tab.id, searchUrl(q));
+      return;
     }
     reloadNewTab(p.id);
   });
