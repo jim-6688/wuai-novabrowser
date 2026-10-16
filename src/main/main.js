@@ -958,7 +958,10 @@ function registerIpc() {
     const res = await dialog.showOpenDialog(mainWindow, {
       title: '安装扩展',
       filters: [
-        { name: 'Chromium 扩展 / 火狐扩展', extensions: ['crx', 'xpi', 'zip'] },
+        // crx3 也要列进去 —— 它在 EXTENSION_EXTS 白名单里，装得上，
+        // 却不写在这里的话它在这个对话框里显示成「不是受支持的类型」，
+        // 用户会以为不支持而去找别的包。（白名单与过滤器必须同步。）
+        { name: 'Chromium 扩展 / 火狐扩展', extensions: ['crx', 'crx3', 'xpi', 'zip'] },
         { name: '全部文件', extensions: ['*'] }
       ],
       properties: ['openFile', 'openDirectory', 'multiSelections']

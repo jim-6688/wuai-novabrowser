@@ -152,6 +152,7 @@ const updaterMod = fs.readFileSync(P('src/main/updater.js'), 'utf8');
 const bmIo = fs.readFileSync(P('src/main/bookmarks-io.js'), 'utf8');
 const bdMod = fs.readFileSync(P('src/main/browsers-detect.js'), 'utf8');
 const extMod = fs.readFileSync(P('src/main/extensions.js'), 'utf8');
+const preloadMod = fs.readFileSync(P('src/preload/preload.js'), 'utf8');
 const newtab = fs.readFileSync(P('src/renderer/newtab.html'), 'utf8');
 const toJava = (rel) => P('android-app/app/src/main/' + rel);
 [
@@ -425,6 +426,25 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /indexOf\.call\(dt\.types \|\| \[\], 'Files'\)/.test(js)],
   ['取路径的逻辑只有一处（dragenter 与 drop 共用）',
     /function filePathsOf/.test(js) && (js.match(/filePathsOf\(/g) || []).length >= 3],
+
+  /* --- 拖入取不到路径 = 整条拖入安装链路失效（曾因此报「装不上」） --- */
+  ['preload 用 webUtils.getPathForFile 取路径（File.path 已废弃，在 30.x 上是 undefined）',
+    /webUtils\.getPathForFile\(file\)/.test(preloadMod)
+      && /pathForFile/.test(preloadMod)],
+  ['webUtils 从 electron 里取（它需要主进程上下文，渲染层调不到）',
+    // 同一行解构出来，所以不能写「先 require 再 webUtils」那种顺序断言 ——
+    // 实测它们的先后与写法有关，顺序断言会在改一次格式后莫名变红。
+    /const \{[^}]*webUtils[^}]*\} = require\('electron'\)/.test(preloadMod)],
+  ['渲染层不再直接读 File.path，改问 preload',
+    /function filePathsOf[\s\S]{0,900}?bridge\.system\.pathForFile/.test(js)
+      && !/function filePathsOf[\s\S]{0,400}?const p = dt\.files\[i\]\.path/.test(js)],
+  ['pathForFile 带老版本兜底，且取不到时返回空串而不是抛',
+    /file && file\.path\) \|\| ''/.test(preloadMod) && /catch \{[\s\S]{0,60}?return ''/.test(preloadMod)],
+  ['预览桥给了 pathForFile 且返回空串（别返回假路径，那会让预览看起来能用）',
+    /pathForFile: async \(\) => ''/.test(mockJs)],
+  ['文件对话框的过滤器与白名单同步（含 crx3 —— 少了它在对话框里显示成不认识）',
+    /extensions: \['crx', 'crx3', 'xpi', 'zip'\]/.test(mainMod)
+      && /EXTENSION_EXTS = \['\.crx', '\.crx3', '\.zip', '\.xpi'\]/.test(extMod)],
 
   /* --- 扩展根定位（单层包裹的包曾对全体用户报「缺少 manifest.json」） --- */
   ['resolveExtensionRoot 会往下找一层（zip/xpi 的真实形状是单层包裹）',

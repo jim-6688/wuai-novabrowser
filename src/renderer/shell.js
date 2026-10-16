@@ -3890,18 +3890,28 @@ function applyLayout() {
 /**
  * 从 DataTransfer 里取出拖进来的本地文件绝对路径。
  *
- * <p>Electron 下 `File.path` 是绝对路径；浏览器标准只有 `name`（没有 path）。
- * 这里**只收有 path 的** —— 拿不到路径就没法交给主进程读文件，
- * 与其把空路径传下去让那边报「缺少文件路径」，不如在这里就跳过。
+ * <p><b>不能直接读 `File.path`</b> —— 那条路已经不通了：Electron 把它标成
+ * deprecated 并在 32 里移除，本项目用的 30.x 上实测为 undefined。
+ * 于是旧的写法会让 `p` 恒为空、被下面那层 `if (p)` 全过滤掉 ——
+ * 表现为**拖进去完全没反应**（连提示遮罩都不显示，因为它是靠这里有没有路径
+ * 来判断「这是不是扩展包」的）。必须问 preload 要：`webUtils.getPathForFile`
+ * 需要主进程上下文，渲染层调不到。
+ *
+ * <p>preview 模式（bridge-mock）没有这个方法，此时退回 `file.path`
+ * —— 在浏览器里预览时能拿到 `name` 但没有路径，那条路本来也走不通。
  *
  * <p>dragenter 与 drop 两处都要用，抽出来一份：写两遍的话，
  * 改扩展名白名单时容易只改一处。
  */
 function filePathsOf(dt) {
   if (!dt || !dt.files || !dt.files.length) return [];
+  const ask = bridge && bridge.system && typeof bridge.system.pathForFile === 'function'
+    ? (f) => bridge.system.pathForFile(f)
+    : (f) => (f && f.path) || '';
   const out = [];
   for (let i = 0; i < dt.files.length; i++) {
-    const p = dt.files[i] && dt.files[i].path;
+    let p = '';
+    try { p = ask(dt.files[i]) || ''; } catch { /* 拿不到就跳过这一个 */ }
     if (p) out.push(p);
   }
   return out;

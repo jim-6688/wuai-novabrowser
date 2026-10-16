@@ -804,6 +804,10 @@ const MOCK_UPDATE = {
 
     system: {
       openExternal: async () => {},
+      /* 预览是普通网页，拿不到拖进来的文件的本地路径 —— 浏览器标准里
+         File 根本没有 path。返回空串让调用方跳过（与真实行为一致），
+         别返回一个假路径，那会让预览看起来「能用」而实际装不上。 */
+      pathForFile: async () => '',
       showItemInFolder: async () => {},
       userDataPath: async () => '（UI 预览模式，真实运行时为本机用户目录）',
       openUserData: async () => {},

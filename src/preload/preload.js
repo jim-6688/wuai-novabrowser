@@ -5,7 +5,28 @@
  * 渲染层拿不到 ipcRenderer、拿不到 Node，只能调这里列出的方法。
  */
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+/* ------------------------------------------------------------------ *
+ * 拖入文件的本地路径
+ * ------------------------------------------------------------------ *
+ * 渲染层拿不到拖进来的 File 对象的绝对路径 —— **`File.path` 这条路已经不通了**：
+ * Electron 把它标记成 deprecated，随后在 32 里彻底移除；而本项目用的是 30.x，
+ * 实测 `dt.files[i].path` 为 undefined，于是「拖入安装扩展」永远拿不到路径，
+ * 直接被那一层 `if (p)` 过滤掉 —— **表现为「拖进去没反应/装不上」**。
+ *
+ * 官方给的路子是 `webUtils.getPathForFile(file)`，它**只能在 preload 里调**
+ * （需要主进程的上下文），所以必须在这里透一层给渲染层。
+ */
+function pathForFile(file) {
+  try {
+    return webUtils && typeof webUtils.getPathForFile === 'function'
+      ? webUtils.getPathForFile(file)
+      : (file && file.path) || '';   // 老版本兜底
+  } catch {
+    return '';
+  }
+}
 
 const EVENT_CHANNELS = [
   'settings:changed',
@@ -175,6 +196,9 @@ contextBridge.exposeInMainWorld('nova', {
 
   /* --- 系统 --- */
   system: {
+    /** 拖进来的文件 → 本地绝对路径。见文件头 pathForFile 的说明。
+     *  渲染层拿不到 File.path，只能问这里要。 */
+    pathForFile,
     openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
     showItemInFolder: (p) => ipcRenderer.invoke('shell:show-item', p),
     userDataPath: () => ipcRenderer.invoke('app:userData'),
