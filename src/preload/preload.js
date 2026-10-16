@@ -114,6 +114,10 @@ contextBridge.exposeInMainWorld('nova', {
     remove: (id) => ipcRenderer.invoke('ext:remove', id),
     /** 启用 / 停用。停用是可逆的（记录还在），移除不可逆。 */
     setEnabled: (id, on) => ipcRenderer.invoke('ext:set-enabled', id, on),
+    /** 列出本机其它浏览器里已装的扩展（Edge 商店取包接口已关闭，这是替代路径） */
+    fromBrowser: () => ipcRenderer.invoke('ext:from-browser'),
+    /** 按 key 导入一个（主进程会重新扫一次自己解析目录，不接受渲染层传路径） */
+    importFromBrowser: (key) => ipcRenderer.invoke('ext:import-from-browser', key),
     // Edge 加载项商店：先查详情（让用户看清装的是什么），再取包装上。
     // 商店页上那个「获取」按钮在第三方外壳里点不动，所以绕到这两条上。
     storeInfo: (input) => ipcRenderer.invoke('ext:store-info', input),

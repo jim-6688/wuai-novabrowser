@@ -74,6 +74,7 @@ const usedIds = new Set([...js.matchAll(/\$\$?\('#([A-Za-z0-9_-]+)'\)/g)].map((m
  */
 const dynamicIds = new Set([
   'dl-url',            // buildDownloads()
+  'ext-browsers',      // buildExtensions() 里「从已安装的浏览器导入扩展」那一块，同上
   'bm-browsers'        // buildBookmarks() 的「从已安装的浏览器导入」那一块；
                        // 内容还是异步的（detectBrowsers() 回填），所以连它内部的
                        // 那几行也是 JS 生成的
@@ -175,6 +176,8 @@ const bmIo = fs.readFileSync(P('src/main/bookmarks-io.js'), 'utf8');
 const bdMod = fs.readFileSync(P('src/main/browsers-detect.js'), 'utf8');
 const extMod = fs.readFileSync(P('src/main/extensions.js'), 'utf8');
 const preloadMod = fs.readFileSync(P('src/preload/preload.js'), 'utf8');
+const storeMod = fs.readFileSync(P('src/main/ext-store.js'), 'utf8');
+const bxMod = fs.readFileSync(P('src/main/browser-extensions.js'), 'utf8');
 const stMod = fs.readFileSync(P('src/main/settings.js'), 'utf8');
 const newtab = fs.readFileSync(P('src/renderer/newtab.html'), 'utf8');
 const toJava = (rel) => P('android-app/app/src/main/' + rel);
@@ -611,6 +614,33 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['卡片上有启用开关与移除，且移除标明了不可逆',
     /data-ext-toggle=/.test(js) && /data-remove-ext=/.test(js)
       && /不可撤销，装的文件也会删掉/.test(js)],
+
+  /* --- Edge 商店取包接口已关闭 → 走「从已安装的浏览器导入」 --- */
+  ['Edge 取包 400 时给出可操作的说明（不是干巴巴地报 HTTP 400）',
+    /Edge 商店的取包接口已关闭/.test(storeMod)
+      && /从已安装的浏览器导入/.test(storeMod)],
+  ['扫已装扩展的模块用 crxId 白名单挡掉 Temp 之类（a-p 的 32 字母）',
+    /const CRX_ID_RE = \/\^\[a-p\]\{32\}\$\//.test(bxMod)
+      && /CRX_ID_RE\.test\(idDir\.name\)/.test(bxMod)
+      && /'Extensions'/.test(bxMod)],
+  ['只认 Default / Profile N 这两种 profile（Temp、System Profile 都不是用户装的）',
+    /PROFILE_RE = \/\^\(Default\|Profile \\d\+\)\$\/\~?/.test(bxMod)
+      || /PROFILE_RE = \/\^\(Default\|Profile \\d\+\)\$\/;/.test(bxMod)],
+  ['火狐那条路不被碰（它没有 Extensions/<id>/<版本> 这种布局）',
+    /b\.format !== 'chromium-json'\) continue/.test(bxMod)],
+  ['导入是**复制**而不是引用原目录（Edge 更新会删掉旧版本目录）',
+    /function importToOneDir/.test(bxMod) && /Edge 更新扩展时会删掉旧版本目录/.test(bxMod)],
+  ['复制时跳过 _metadata（Chromium 的校验信息，不是扩展的一部分）',
+    /k\.name === '_metadata'\) continue/.test(bxMod)],
+  ['导入按 key 重新扫一次解析目录，不接受渲染层传来的路径',
+    /const hit = browserExtensions\.scan\(\)\.find/.test(mainMod)
+      && !/import-from-browser', async \(dir\)/.test(mainMod)],
+  ['扩展面板里有「从已安装的浏览器导入」这一块，且进这一页时触发扫描',
+    // 这块是 buildExtensions() 运行时渲出来的，所以看 js 不是 html
+    /id="ext-browsers"/.test(js) && /function scanBrowserExts/.test(js)
+      && /=== 'extensions'\) scanBrowserExts\(\)/.test(js)],
+  ['导入结果如实说来自哪个浏览器',
+    /已导入「\$\{r\.name \|\| ''\}」（来自 \$\{r\.from/.test(js)],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

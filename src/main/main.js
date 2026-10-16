@@ -35,6 +35,7 @@ const { FaviconCache, hostsFromNtpData } = require('./favicon-cache');
 const updater = require('./updater');
 const bookmarksIo = require('./bookmarks-io');
 const browsersDetect = require('./browsers-detect');
+const browserExtensions = require('./browser-extensions');
 const desktopShortcut = require('./desktop-shortcut');
 
 const IS_DEV = process.argv.includes('--dev');
@@ -72,6 +73,7 @@ const downloadPassthrough = new Set();
 
 const registry = new EngineRegistry();
 let extManager = null;
+let extWorkDir = '';   // 解包缓存目录（bootstrap 里赋值）
 /** 从商店取的 .crx 落在这里。见 bootstrap 里的说明：这份要长期留着。 */
 let extStoreDir = null;
 let dlManager = null;
@@ -184,8 +186,10 @@ async function bootstrap() {
   wireSniffer(session.defaultSession);
 
   // 7) 扩展：统一装到 chromium 内核 session（Chromium 扩展实现的宿主）
+  // 解包缓存目录。单独提一个变量：从别的浏览器导入扩展时也要往这里复制
+  extWorkDir = path.join(app.getPath('userData'), 'extensions');
   extManager = new ExtensionManager({
-    workDir: path.join(app.getPath('userData'), 'extensions'),
+    workDir: extWorkDir,
     partitions: ['persist:nova-chromium']
   });
   const extSessionFactory = () => session.fromPartition('persist:nova-chromium');
@@ -1072,6 +1076,36 @@ function registerIpc() {
   }
 
   handle('ext:list', () => extManager.list());
+
+  /* 扫本机其它浏览器里已装的扩展。
+   *
+   * 为什么需要：Edge 商店的取包接口已经被微软关掉（一律 400），
+   * 详情接口又不给 Chrome 侧的 ID，所以「粘贴地址直接装」对 Edge 走不通。
+   * 但商店装好的扩展在磁盘上是**解包**的，可以复制过来直接用。
+   * 详见 browser-extensions.js 的文件头。 */
+  handle('ext:from-browser', () => {
+    try {
+      return { ok: true, found: browserExtensions.scan() };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message || e), found: [] };
+    }
+  });
+
+  handle('ext:import-from-browser', async (key) => {
+    if (!key || typeof key !== 'string') return { error: '缺少扩展标识' };
+    // 按 key **重新扫一次**自己解析目录，不用渲染层传来的路径 ——
+    // 否则等于开了一个「把任意目录当扩展装载」的口子
+    const hit = browserExtensions.scan().find((x) => x.key === key);
+    if (!hit) return { error: '没有找到这个扩展（可能刚被卸载）' };
+    try {
+      const dest = browserExtensions.importToOneDir(hit, extWorkDir);
+      const r = await installOneExtension(dest);
+      if (r.error) return r;
+      return { ...r, from: hit.browser, name: r.installed.name };
+    } catch (e) {
+      return { error: '导入失败：' + String(e && e.message || e) };
+    }
+  });
 
   /* 把「用户选中的路径」摊平成真正要装的**包路径**列表。
    *

@@ -479,7 +479,25 @@ async function downloadCrx(rawInput, destPath, opts = {}) {
     } catch (err) {
       return { error: '下载扩展包失败：' + errText(err) };
     }
-    if (!res.ok) return { error: '商店拒绝了这次下载（HTTP ' + res.status + '）' };
+    if (!res.ok) {
+      /* 400 单独说清楚。
+       *
+       * <p>实测（2026-10）：这个接口现在**一律回 400**，无论带不带
+       * installsource、加不加 Referer/Cookie/Origin、换不换 UA、换不换路径
+       * —— 试过十来种组合，全是 400。它不再是「少传了个参数」，
+       * 而是要求只有 Edge 自己能出示的东西。所以这不是我们能修的。
+       *
+       * <p>原先这里回的是「商店拒绝了这次下载（HTTP 400）」—— 用户看到这句
+       * 完全不知道该做什么。现在把**能走的那条路**直接指出来。 */
+      if (res.status === 400 && parsed.source !== 'chrome') {
+        return {
+          error: 'Edge 商店的取包接口已关闭（一律返回 400），无法直接下载。'
+            + '可行的替代：在那个扩展的浏览器里装上它，'
+            + '然后用下面「从已安装的浏览器导入」把它搬过来。'
+        };
+      }
+      return { error: '商店拒绝了这次下载（HTTP ' + res.status + '）' };
+    }
 
     try { buf = Buffer.from(await res.arrayBuffer()); } catch { buf = null; }
     if (!buf || !buf.length) return { error: '商店返回了空文件' };

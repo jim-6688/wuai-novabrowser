@@ -598,6 +598,11 @@ const MOCK_UPDATE = {
         setTimeout(() => emit('ext:changed', state.extensions), 0);
         return true;
       },
+      /* 预览是网页，扫不到本机浏览器里的扩展 —— 返回空数组。
+         界面上会显示「没有在其它浏览器里找到可导入的扩展」，
+         那在预览里是**正确**的呈现，不是假装失败。 */
+      fromBrowser: async () => ({ ok: true, found: [] }),
+      importFromBrowser: async () => ({ error: '预览模式不支持从本机浏览器导入' }),
       /* 启用 / 停用。预览里没有真的 session 可装卸，就地改一下那份假数据 ——
          这样开关的交互（含卡片压暗）能真的走一遍，评审时看得出效果。 */
       setEnabled: async (id, on) => {

@@ -1750,8 +1750,65 @@ function buildExtensions() {
     <div class="sv-sub-h">已安装${list.length ? ` · ${list.length}` : ''}</div>
     ${list.length ? list.map((x) => extCard(x)).join('')
       : '<div class="sv-empty">还没有安装扩展。</div>'}
+
+    <div class="sv-sub-h">从已安装的浏览器导入</div>
+    <div class="sv-lead" style="margin:0 var(--sp-4) var(--sp-2)">
+      列出 Chrome / Edge 等浏览器里<b>已经装过</b>的扩展，点一下搬过来。
+      这是为 Edge 商店准备的替代路径：微软已关掉它的取包接口，
+      粘贴地址下载会一律失败（详见下方商店说明）。
+      <br />列表里可能混着浏览器自带的功能组件（名字通常没有本地化的那种），
+      只挑你认得出来的装即可 —— 装错了可以在上面「已安装」里移除。
+    </div>
+    <div id="ext-browsers">${renderBrowserExtList()}</div>
+
     ${storeBox(state.extStore)}
   `;
+}
+
+/**
+ * 从其它浏览器扫到的扩展列表。
+ *
+ * <p>与书签那边同一套：{@code null} 表示**还在扫**，空数组表示**扫完没有** ——
+ * 两者在界面上必须读得出区别，空白会被读成后者。
+ */
+let stateBrowserExts = null;
+
+async function scanBrowserExts() {
+  const box = () => $('#ext-browsers');
+  try {
+    const r = await bridge.extensions.fromBrowser();
+    stateBrowserExts = (r && r.found) || [];
+  } catch (e) {
+    stateBrowserExts = [];
+    const el = box();
+    if (el) {
+      el.innerHTML = '<p class="muted" style="padding:10px 14px">'
+        + '扫描不可用（' + esc(String(e && e.message || e)) + '）。</p>';
+    }
+    return;
+  }
+  const el = box();
+  if (el) el.innerHTML = renderBrowserExtList();
+}
+
+function renderBrowserExtList(given) {
+  const list = given === undefined ? stateBrowserExts : given;
+  if (list === null) {
+    return '<p class="muted" style="padding:10px 14px">正在扫描其它浏览器里的扩展…</p>';
+  }
+  if (!list.length) {
+    return '<p class="sv-empty" style="margin:0 var(--sp-4) var(--sp-2)">'
+      + '没有在其它浏览器里找到可导入的扩展。</p>';
+  }
+  return list.map((x) => `
+    <div class="list-row is-click" data-imp-ext="${esc(x.key)}">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M10 3v9M6.5 8.5L10 12l3.5-3.5M4 15.5h12"/></svg></span>
+      <span class="lr-main">
+        <span class="lr-title">${esc(x.name)}</span>
+        <span class="lr-sub">${esc(x.browser)}${x.profile && x.profile !== 'Default' ? ' · ' + esc(x.profile) : ''} · v${esc(x.version)} · Manifest V${esc(x.manifestVersion)}</span>
+      </span>
+      <span class="lr-tail">导入</span>
+    </div>`).join('');
 }
 
 /** 一张扩展卡片。启用状态体现在开关与卡片整体的淡出上。 */
@@ -3124,6 +3181,8 @@ function openPanel(p) {
   // 进书签页时才去检测浏览器：检测要问主进程要文件是否存在，
   // 没必要在启动时就做 —— 而且用户可能只是路过设置。
   if ((PANEL_ALIAS[p] || p) === 'bookmarks') detectBrowsers();
+  // 扩展页也要扫一次：那台机器上装了哪些扩展属于「进这一页才知道」的信息
+  if ((PANEL_ALIAS[p] || p) === 'extensions') scanBrowserExts();
 }
 
 /**
@@ -4646,6 +4705,27 @@ function wireUi() {
           state.update.autoInstallCancelled = true;
         }
         toast(next ? '已开启' : '已关闭');
+        return;
+      }
+
+      const imp = ev.target.closest('[data-imp-ext]');
+      if (imp) {
+        const key = imp.dataset.impExt;
+        const tail = imp.querySelector('.lr-tail');
+        if (tail) tail.textContent = '导入中…';
+        imp.style.pointerEvents = 'none';
+        const r = await bridge.extensions.importFromBrowser(key);
+        if (r && r.error) {
+          toast(r.error, 6000);
+          if (tail) tail.textContent = '导入';
+          imp.style.pointerEvents = '';
+        } else if (r) {
+          state.extensions = await bridge.extensions.list();
+          // 导入过的从候选列表里去掉（它已经在「已安装」那一块里了）
+          stateBrowserExts = (stateBrowserExts || []).filter((x) => x.key !== key);
+          toast(`已导入「${r.name || ''}」（来自 ${r.from || '其它浏览器'}）`, 4200);
+          refreshCurrent();
+        }
         return;
       }
 
