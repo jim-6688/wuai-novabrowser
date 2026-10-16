@@ -478,6 +478,36 @@ function isExtensionFile(p) {
   return EXTENSION_EXTS.indexOf(ext) >= 0;
 }
 
+/**
+ * 在这个目录里直接找扩展**包**（.crx / .crx3 / .zip / .xpi）。
+ *
+ * <p><b>为什么需要它</b>：用户下载扩展之后，落盘往往是
+ * 「一个与扩展同名的文件夹，里面躺着那个 .crx」。他选「浏览安装」时
+ * 顺理成章会选中**那个文件夹** —— 而既不是包、也不是已解包的扩展目录，
+ * 于是报一句「扩展目录内缺少 manifest.json」，还附一句「请确认选中的是
+ * 含 manifest.json 的那一层」，可他那个文件夹里**根本没有**那一层。
+ *
+ * <p>与其把这句话推给用户，不如替他把这层找出来：选了文件夹，
+ * 就把里面的扩展包当成本次要装的东西。
+ *
+ * <p>**只看本层、不递归**：与 {@link resolveExtensionRoot} 同一个理由 ——
+ * 用户的下载文件夹里往往有一堆历史文件，深挖会把不相干的包也翻出来。
+ *
+ * @returns {string[]} 包文件的绝对路径，按文件名排序（顺序稳定，便于复现）
+ */
+function findPackagesIn(dir) {
+  let kids = [];
+  try {
+    kids = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return kids
+    .filter((k) => k.isFile() && EXTENSION_EXTS.indexOf(path.extname(k.name).toLowerCase()) >= 0)
+    .map((k) => path.join(dir, k.name))
+    .sort();
+}
+
 module.exports = {
   ExtensionManager,
   extractZip,
@@ -488,6 +518,8 @@ module.exports = {
   // 与上面那几个一样是「为可测而导出」：这个函数决定装哪个目录当扩展根，
   // 而「单层包裹」这个形状一改就又是全体用户装不上，靠单测守住最实在
   resolveExtensionRoot,
+  // 同上：用户选中「装着 .crx 的文件夹」时靠它把包找出来
+  findPackagesIn,
   resolveMessage,
   isExtensionFile,
   BROWSER_POLYFILL

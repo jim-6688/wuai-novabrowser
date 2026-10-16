@@ -446,6 +446,30 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /extensions: \['crx', 'crx3', 'xpi', 'zip'\]/.test(mainMod)
       && /EXTENSION_EXTS = \['\.crx', '\.crx3', '\.zip', '\.xpi'\]/.test(extMod)],
 
+  /* --- 选中「装着 crx 的文件夹」时不该报「缺少 manifest.json」 --- */
+  ['findPackagesIn 在目录里找扩展包（用户下载后的常见落盘形态）',
+    /function findPackagesIn/.test(extMod)
+      && /EXTENSION_EXTS\.indexOf\(path\.extname\(k\.name\)\.toLowerCase\(\)\) >= 0/.test(extMod)],
+  ['目录展开只发生在「目录本身不像扩展」时（否则已解包目录里的 .zip 会被误当成两个扩展）',
+    /if \(extensions\.resolveExtensionRoot\(p\)\) \{ out\.push\(p\); continue; \}/.test(mainMod)],
+  ['ext:install 与 ext:install-path 共用同一个展开函数（两条路各写一份迟早只有一边能装）',
+    (mainMod.match(/expandInstallTargets\(res\.filePaths\)/g) || []).length === 1
+      && (mainMod.match(/expandInstallTargets\(\[p\]\)/g) || []).length === 1],
+  ['装扩展的记账只有一处（installOneExtension）——「删除」曾因漏记账导致重启又装回来',
+    /async function installOneExtension/.test(mainMod)
+      && (mainMod.match(/settings\.patch\(\{ extensions: recs \}\)/g) || []).length >= 1
+      && /function installOneExtension[\s\S]{0,700}?settings\.patch\(\{ extensions: recs \}\)/.test(mainMod)],
+  ['目录里既没包也没 manifest 时，报错把两种情况都说清（别再只说「缺少 manifest.json」）',
+    /既没有扩展包[\s\S]{0,200}?也不是已解包的扩展/.test(mainMod)],
+  ['拖到**网页区域**也能装：主进程拦 file:// 且是扩展包的导航',
+    /will-navigate'[\s\S]{0,900}?file:[\s\S]{0,200}?isExtensionFile\(url\)/.test(mainMod)],
+  ['那条兜底只认扩展包（其余 file:// 导航必须放行，否则用户点开本地 html 就被吃了）',
+    /isExtensionFile\(url\)[\s\S]{0,200}?preventDefault\(\)/.test(mainMod)],
+  ['file:// → 本地路径的转换处理了 Windows 的前导斜杠（file:///C:/x）',
+    /\^\\\/\[A-Za-z\]:/.test(mainMod)],
+  ['装了之后有结果回报（ext:dropped 通道 + 外壳的 toast）',
+    /'ext:dropped'/.test(preloadMod) && /bridge\.on\('ext:dropped'/.test(js)],
+
   /* --- 扩展根定位（单层包裹的包曾对全体用户报「缺少 manifest.json」） --- */
   ['resolveExtensionRoot 会往下找一层（zip/xpi 的真实形状是单层包裹）',
     /function resolveExtensionRoot[\s\S]{0,1500}?manifestAt\(sub\)/.test(extMod)],

@@ -638,7 +638,41 @@ function wireContents(contents) {
   // 拦下来之后把**原始地址**转发给渲染层去解析、再由它回主进程落盘：
   // 解析规则只有 src/renderer/ntp.js 一份，不在这里再写一遍。
   contents.on('will-navigate', (event, url) => {
-    if (typeof url !== 'string' || url.indexOf(ntp.CMD_PREFIX) !== 0) return;
+    if (typeof url !== 'string') return;
+
+    /* 拖入扩展**落在网页区域**时走的是这一条，不是外壳的 document.drop。
+     *
+     * <p>原因：网页是 <webview>，它跑在**独立的渲染进程**里。往它上面拖一个
+     * 文件，事件被那个进程接走（页面上往往还会弹出自己的「拖入以上传」提示，
+     * 比如 DeepSeek 就有），外壳那一层 document 根本收不到 ——
+     * 于是用户看到「拖进去没反应」。
+     *
+     * <p>而 Chromium 对拖进来的本地文件，默认动作是**导航到那个 file:// 地址**
+     * （也就是「浏览器打开这个文件」）。所以这里能兜住：拦下「file:// 且扩展名
+     * 是扩展包」的导航，改成安装。
+     *
+     * <p>只认扩展包后缀，其余 file:// 导航（比如用户自己点开本地 html）
+     * 一律放行 —— 这个判断很窄，不会误伤正常浏览。 */
+    if (/^file:\/\//i.test(url) && isExtensionFile(url)) {
+      event.preventDefault();
+      let p = '';
+      try { p = decodeURIComponent(url.replace(/^file:\/\//i, '')); } catch { p = ''; }
+      // Windows 的 file:///C:/x 去掉 file:// 后是 /C:/x，要去掉那个前导斜杠
+      if (/^\/[A-Za-z]:/.test(p)) p = p.slice(1);
+      if (!p) return;
+      installOneExtension(p).then((r) => {
+        send('settings:changed', settings.all());
+        // 结果回报给界面：装成了就提示名字，没成就把原因原样给出
+        if (r && r.installed) {
+          send('ext:dropped', { ok: true, name: r.installed.name });
+        } else {
+          send('ext:dropped', { ok: false, error: (r && r.error) || '安装失败' });
+        }
+      }).catch(() => {});
+      return;
+    }
+
+    if (url.indexOf(ntp.CMD_PREFIX) !== 0) return;
     event.preventDefault();
     send('ntp:command', { id: contents.id, url });
   });
@@ -953,7 +987,57 @@ function registerIpc() {
     return { imported, stats: adblock.statsSnapshot() };
   });
 
+  /**
+   * 装一个扩展并把记账写回 settings。
+   *
+   * <p>抽出来是因为「浏览安装」与「拖入安装」两条路都要做同样三件事：
+   * 装、写 settings.extensions（重启恢复靠它）、返回结果。
+   * 原来两处各抄一遍，而**「删除」那条路就是因为漏了记账，导致重启又装回来** ——
+   * 与其继续抄，不如收到一处。
+   *
+   * @returns {Promise<{installed?:object, error?:string}>} 永不 reject
+   */
+  async function installOneExtension(p) {
+    try {
+      const info = await extManager.install(p, () => session.fromPartition('persist:nova-chromium'));
+      const recs = settings.get('extensions', []).filter((r) => r.path !== p);
+      recs.push({ id: info.id, name: info.name, path: p, source: info.source });
+      settings.patch({ extensions: recs });
+      return { installed: info };
+    } catch (err) {
+      return { error: String(err && err.message || err), path: p };
+    }
+  }
+
   handle('ext:list', () => extManager.list());
+
+  /* 把「用户选中的路径」摊平成真正要装的**包路径**列表。
+   *
+   * <p>用户下载扩展之后，落盘常常是「一个与扩展同名的文件夹，里面躺着
+   * 那个 .crx」—— 他选「浏览安装」时顺理成章选中那个**文件夹**。
+   * 而它既不是包、也不是已解包的扩展目录，于是报
+   * 「扩展目录内缺少 manifest.json」。可那个文件夹里根本没有 manifest.json，
+   * 这句话对他毫无帮助。
+   *
+   * <p>所以这里替他把这一层找出来：目录里若直接躺着扩展包，就把它们当成本次
+   * 要装的东西。**只在「这个目录本身不像扩展」时才展开** —— 否则一个正常的
+   * 已解包扩展目录里若恰好有个 .zip，会被误当成两个扩展。
+   */
+  function expandInstallTargets(paths) {
+    const out = [];
+    for (const p of paths) {
+      let isDir = false;
+      try { isDir = fs.statSync(p).isDirectory(); } catch { isDir = false; }
+      if (!isDir) { out.push(p); continue; }
+      // 目录本身就是一个（已解包的）扩展 → 原样交给 install
+      if (extensions.resolveExtensionRoot(p)) { out.push(p); continue; }
+      const pkgs = extensions.findPackagesIn(p);
+      if (pkgs.length) out.push(...pkgs);
+      else out.push(p);   // 里面也没有包：原样交下去，让 install 报那句实情
+    }
+    return out;
+  }
+
   handle('ext:install', async () => {
     const res = await dialog.showOpenDialog(mainWindow, {
       title: '安装扩展',
@@ -968,16 +1052,9 @@ function registerIpc() {
     });
     if (res.canceled) return { installed: [] };
     const installed = [];
-    for (const p of res.filePaths) {
-      try {
-        const info = await extManager.install(p, () => session.fromPartition('persist:nova-chromium'));
-        installed.push(info);
-        const recs = settings.get('extensions', []).filter((r) => r.path !== p);
-        recs.push({ id: info.id, name: info.name, path: p, source: info.source });
-        settings.patch({ extensions: recs });
-      } catch (err) {
-        installed.push({ error: err.message, path: p });
-      }
+    for (const p of expandInstallTargets(res.filePaths)) {
+      const r = await installOneExtension(p);
+      installed.push(r.installed || { error: r.error, path: p });
     }
     return { installed };
   });
@@ -988,20 +1065,33 @@ function registerIpc() {
      只是少了「让用户挑文件」那一步。 */
   handle('ext:install-path', async (p) => {
     if (!p || typeof p !== 'string') return { error: '缺少文件路径' };
-    if (!isExtensionFile(p)) {
-      const ext = path.extname(p).toLowerCase();
-      return { error: `不是扩展包：${ext || '未知类型'}（支持 .crx / .zip / .xpi）` };
+    // 目录也收：拖进来的可能是文件夹，也可能是「装着包的文件夹」。
+    // 展开规则与「浏览安装」完全共用（同一个 expandInstallTargets）——
+    // 两条路各写一份的话，迟早只有一边能装。
+    const targets = expandInstallTargets([p]);
+    if (targets.length !== 1) {
+      // 展开出多个包时逐个装（拖入那条路的界面只显示一个结果，所以取第一个并说明）
+      let last = null;
+      for (const t of targets) {
+        last = await installOneExtension(t);
+        if (last && last.installed) break;
+      }
+      return last || { error: '这个文件夹里没有可安装的扩展包' };
     }
-    try {
-      const info = await extManager.install(p, () => session.fromPartition('persist:nova-chromium'));
-      const recs = settings.get('extensions', []).filter((r) => r.path !== p);
-      recs.push({ id: info.id, name: info.name, path: p, source: info.source });
-      settings.patch({ extensions: recs });
-      return { installed: info };
-    } catch (err) {
-      return { error: err.message };
+    if (!isExtensionFile(targets[0])) {
+      const ext = path.extname(targets[0]).toLowerCase();
+      const isDir = (() => { try { return fs.statSync(targets[0]).isDirectory(); } catch { return false; } })();
+      if (isDir) {
+        return {
+          error: '这个文件夹里既没有扩展包（.crx / .crx3 / .zip / .xpi），'
+            + '也不是已解包的扩展（没有 manifest.json）。请选中含 manifest.json 的那一层。'
+        };
+      }
+      return { error: `不是扩展包：${ext || '未知类型'}（支持 .crx / .crx3 / .zip / .xpi）` };
     }
+    return installOneExtension(targets[0]);
   });
+
   /* 删除也**必须记账** —— 三条安装路径都往 settings.extensions 写了记录
      （见上面 ext:install / ext:install-path / ext:store-install），
      而 bootstrap() 的恢复循环会照着这些记录重新 install。

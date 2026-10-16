@@ -32,6 +32,9 @@ const EVENT_CHANNELS = [
   'settings:changed',
   'engine:changed',
   'ext:changed',
+  /* 拖到**网页区域**装扩展的结果（那条路在外壳的 document.drop 之外，
+     由主进程拦 file:// 导航处理，见 main.js 的 will-navigate） */
+  'ext:dropped',
   'adblock:hit',
   'adblock:stats',
   'tab:title',

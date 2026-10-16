@@ -125,6 +125,62 @@ if (typeof R !== 'function') {
   }
 }
 
+console.log('\n[B] 在目录里找扩展包（用户选中「装着 crx 的文件夹」时）');
+
+if (typeof mod.findPackagesIn !== 'function') {
+  console.log('  SKIP  findPackagesIn 未导出');
+} else {
+  const F = mod.findPackagesIn;
+  // 用户真实的那种落盘形态：一个文件夹里躺着那个 .crx
+  const dl = path.join(tmp, 'downloads');
+  mk('downloads/DeepSider_3.0.6.crx', 'x');
+  check('目录里躺着 .crx 时能找到它', F(dl).length === 1 && /\.crx$/.test(F(dl)[0]));
+  check('找到的是绝对路径', path.isAbsolute(F(dl)[0]));
+
+  // 混着别的文件：只挑包的
+  mk('downloads/readme.txt', 'x');
+  mk('downloads/photo.png', 'x');
+  mk('downloads/note.md', 'x');
+  check('忽略非包文件（txt / png / md）', F(dl).length === 1, F(dl).map((x) => path.basename(x)).join(' '));
+
+  // 多个包：按文件名排序，顺序稳定
+  mk('downloads/b_pack.zip', 'x');
+  mk('downloads/a_pack.xpi', 'x');
+  const many = F(dl);
+  // 顺序是**按文件名的码位**排的，所以大写在前（D < a）—— 这点要写清：
+  // 一开始我按「人眼的字母序」预期 a_pack 在最前，于是断言红了而代码是对的。
+  // 这里要钉的是「确定性」，不是某个特定的字母序。
+  check('多个包时按文件名排序（顺序稳定、可复现）',
+    many.length === 3
+      && /DeepSider_3\.0\.6\.crx$/.test(many[0])
+      && /a_pack\.xpi$/.test(many[1])
+      && /b_pack\.zip$/.test(many[2]),
+    many.map((x) => path.basename(x)).join(' '));
+  check('同样的目录连查两次，顺序一致（不是文件系统的枚举顺序）',
+    JSON.stringify(F(dl)) === JSON.stringify(F(dl)));
+
+  // 不递归：子目录里的包不算
+  mk('downloads/nested/deep.crx', 'x');
+  check('只看本层、不递归（子目录里的包不算）',
+    F(dl).length === 3 && !F(dl).some((p) => /deep\.crx$/.test(p)));
+
+  check('空目录返回空数组', F(path.join(tmp, 'empty-dir-nonexistent')).length === 0);
+  check('传文件路径（而不是目录）时返回空数组', F(path.join(dl, 'readme.txt')).length === 0);
+}
+
+console.log('\n[C] 「不像扩展的目录」与「像扩展的目录」要分得开');
+
+if (typeof mod.findPackagesIn === 'function' && typeof R === 'function') {
+  // 已解包的扩展目录：里面若恰好有个 .zip，不该被当成「装着包的文件夹」
+  const unpacked = path.join(tmp, 'unpacked-with-zip');
+  mk('unpacked-with-zip/manifest.json', '{"name":"u"}');
+  mk('unpacked-with-zip/some-bundle.zip', 'x');
+  check('已解包目录能被 resolveExtensionRoot 认出来（该走「目录本身就是扩展」那条路）',
+    !!R(unpacked) && R(unpacked).depth === 0);
+  check('……而它里面确实也有个 .zip（所以判据必须是「本身不像扩展」而不是「有没有 zip」）',
+    mod.findPackagesIn(unpacked).length === 1);
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 
 console.log(`\n${fail === 0 ? '全部通过' : '有失败项'}：${pass} 通过 / ${fail} 失败`);

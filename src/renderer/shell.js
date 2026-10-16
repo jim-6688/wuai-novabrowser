@@ -4595,6 +4595,21 @@ function wireBridgeEvents() {
 
   bridge.on('adblock:stats', (s) => { state.adblock = s; $('#shield-count').textContent = String(s.blocked); });
   bridge.on('ext:changed', (list) => { state.extensions = list; });
+
+  /* 拖到**网页区域**装扩展的结果。
+   *
+   * <p>那条路在外壳的 document.drop 之外（网页是独立渲染进程，事件被它接走了），
+   * 由主进程拦 file:// 导航处理 —— 所以结果也只能这样推回来。
+   * 不接这一条的话，用户在网页上拖入扩展会**装成功却毫无提示**。
+   */
+  bridge.on('ext:dropped', (r) => {
+    if (r && r.ok) {
+      toast(`已安装扩展：${r.name || ''}`, 4200);
+      if (state.settingsSection === 'extensions') refreshCurrent();
+    } else if (r && r.error) {
+      toast(r.error, 5200);
+    }
+  });
   bridge.on('download:update', (d) => {
     // 优先按 id 认（同一个文件重复下载时要能区分开），退而求其次才按 文件名+URL
     const i = state.downloads.findIndex((x) => (d.id && x.id === d.id)

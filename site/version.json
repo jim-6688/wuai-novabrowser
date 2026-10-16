@@ -6,16 +6,15 @@
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复拖入安装扩展完全装不上：Electron 已废弃 File.path，在本项目的 30.x 上取到 undefined，改为用 webUtils.getPathForFile",
-    "修复文件对话框没列 .crx3（白名单里有、对话框里没有，它显示成不受支持的类型）",
-    "修复「浏览安装」提示「扩展目录内缺少 manifest.json」：zip / xpi 最外层通常还包着一层同名文件夹",
-    "修复 .xpi 安装时改错目录（规范化跑在定位扩展根之前）",
+    "修复「浏览安装」选中的是「装着 .crx 的文件夹」时报「扩展目录内缺少 manifest.json」—— 现在会自动找出文件夹里的扩展包装上",
+    "修复把扩展拖到**网页区域**时完全没反应：那条路的事件被网页进程接走了，改由主进程拦截 file:// 导航来装",
+    "修复拖入安装扩展取不到文件路径（Electron 已废弃 File.path，改用 webUtils.getPathForFile）",
+    "修复文件对话框没列 .crx3（白名单里有、对话框里没有）",
+    "修复扩展包最外层还包着一层同名文件夹时报「缺少 manifest.json」；修复 .xpi 改错目录",
     "拖入扩展时新增整窗提示：松手即安装，认不出的文件会说明会被忽略",
     "修复每次启动都报「启动初始化失败：The WebView must be attached to the DOM…」",
-    "书签页新增「从已安装的浏览器导入」：Chrome / Edge / Brave / Vivaldi / Opera 点一下就导入",
-    "修复自动更新点「下载更新」必然失败的问题 —— 从发布起就一直是坏的",
-    "修复移除扩展后重启又装回来；修复导出书签后再导入会丢条目",
-    "「关于」面板新增检查更新；菜单里的「设置」与「关于」提到最前面"
+    "书签页新增「从已安装的浏览器导入」；「关于」面板新增检查更新",
+    "修复自动更新点「下载更新」必然失败；修复移除扩展后重启又装回来"
   ],
   "downloads": [
     {
@@ -32,14 +31,14 @@
     }
   ],
   "pc": {
-    "version": "1.0.7",
+    "version": "1.0.8",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.7/nova-pc-1.0.7-win-x64-setup.zip",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.8/nova-pc-1.0.8-win-x64-setup.zip",
     "size": 78087947,
     "sha256": "c755702163f1f422b9b27b183e3880e8b9bc2197a871924242cf066cf8471a56",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.7/nova-pc-1.0.7-win-x64-setup.exe",
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.8/nova-pc-1.0.8-win-x64-setup.exe",
       "size": 78090216,
       "sha256": "828ab7560430c9f85603c42ac3de8ac4ecf5686e72758034276e997bbb0f178f"
     }
