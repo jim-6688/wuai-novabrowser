@@ -757,10 +757,44 @@ function syncOmnibox() {
 function syncNavButtons() {
   const tab = activeTab();
   const wv = tab && tab.webview;
-  const canNav = !!wv && typeof wv.canGoBack === 'function';
-  $('#nav-back').disabled = !canNav || !wv.canGoBack();
-  $('#nav-forward').disabled = !canNav || !wv.canGoForward();
+  // 未就绪一律按「不能导航」处理。canGoBack / canGoForward 与
+  // executeJavaScript 一样，都要求 webview 已 attach 且 dom-ready 已触发，
+  // 在那之前调用会抛
+  // 「The WebView must be attached to the DOM and the dom-ready event emitted…」。
+  //
+  // **为什么必须是 try/catch 而不是提前 return**：这个函数有四个调用点，
+  // 其中 did-start-loading / did-stop-loading 那两个恰恰发生在「attach 之后、
+  // dom-ready 之前」那段窗口里 —— 启动必经，所以不接住就是**每次启动报一次**
+  // 「初始化失败」，而真实原因只是按钮状态还没法算。
+  // 判据用 getWebContentsId()：它同样要求 dom-ready，但未就绪时返回 0 而不抛，
+  // 正好用来「问一句而不打扰用户」（与 aiWebViewReady 同一个道理）。
+  let canBack = false;
+  let canFwd = false;
+  try {
+    if (wv && typeof wv.canGoBack === 'function' && wv.getWebContentsId() > 0) {
+      canBack = !!wv.canGoBack();
+      canFwd = !!wv.canGoForward();
+    }
+  } catch { /* 没就绪：按钮保持禁用，等 dom-ready 那次再刷 */ }
+  $('#nav-back').disabled = !canBack;
+  $('#nav-forward').disabled = !canFwd;
   $('#nav-reload').title = tab && tab.loading ? '停止' : '刷新';
+}
+
+/**
+ * 前进 / 后退。webview 未 dom-ready 时**安静地什么都不做**。
+ *
+ * <p>与 {@link syncNavButtons} 同一个坑：这个错会冒泡成一句误导人的
+ * 「初始化失败」，而真实原因只是「页面还没加载好，用户手快」。
+ */
+function navGo(dir) {
+  const wv = activeTab() && activeTab().webview;
+  if (!wv) return;
+  try {
+    if (!(typeof wv.getWebContentsId === 'function' && wv.getWebContentsId() > 0)) return;
+    if (dir === 'back' && typeof wv.canGoBack === 'function' && wv.canGoBack()) wv.goBack();
+    else if (dir === 'forward' && typeof wv.canGoForward === 'function' && wv.canGoForward()) wv.goForward();
+  } catch { /* 没就绪：这一次点击就当没发生 */ }
 }
 
 /* ------------------------------------------------------------------ *
@@ -4197,14 +4231,27 @@ function wireUi() {
   $('#tg-close').addEventListener('click', closeTabGrid);
   $('#tg-new').addEventListener('click', () => { createTab(newTabUrl(), state.settings.defaultEngine); closeTabGrid(); });
 
-  // 导航
-  $('#nav-back').addEventListener('click', () => { const t = activeTab(); if (t && t.webview && t.webview.canGoBack) t.webview.goBack(); });
-  $('#nav-forward').addEventListener('click', () => { const t = activeTab(); if (t && t.webview && t.webview.canGoForward) t.webview.goForward(); });
+  // 导航。goBack / goForward 与 canGoBack 一样要求 webview 已 dom-ready，
+  // 同样用 getWebContentsId() 探一下并接住异常 —— 按钮虽然已按就绪状态禁用了，
+  // 但「禁用状态」与「真实就绪状态」之间仍可能有一瞬不一致（比如刚 attach
+  // 就被点），那一瞬抛出来的错会变成一个无人接的 promise 异常。
+  $('#nav-back').addEventListener('click', () => navGo('back'));
+  $('#nav-forward').addEventListener('click', () => navGo('forward'));
   $('#nav-reload').addEventListener('click', () => {
     const t = activeTab();
     if (!t || !t.webview) return;
-    if (typeof t.webview.reload === 'function') t.webview.reload();
-    else t.webview.setAttribute('src', t.url);
+    // reload 同样要求 dom-ready（见 navGo 的注释）。没就绪时退回「重设 src」，
+    // 那条路不需要就绪 —— 于是用户点刷新永远有反应，而不是抛一个
+    // 「The WebView must be attached to the DOM…」上来。
+    try {
+      if (typeof t.webview.reload === 'function'
+          && typeof t.webview.getWebContentsId === 'function'
+          && t.webview.getWebContentsId() > 0) {
+        t.webview.reload();
+        return;
+      }
+    } catch { /* 落到下面那条 */ }
+    t.webview.setAttribute('src', t.url);
   });
   $('#nav-home').addEventListener('click', () => { const t = activeTab(); if (t) navigate(t.id, state.settings.homepage); });
 
@@ -4669,10 +4716,29 @@ async function init() {
   if (deep) openPanel(deep);
 }
 
+/**
+ * 这个错是不是「webview 还没 dom-ready 就被调用」那一类。
+ *
+ * <p>Electron 的 webview 在 attach 到 DOM 之后、要等 dom-ready 事件触发，
+ * {@code canGoBack} / {@code goBack} / {@code reload} / {@code executeJavaScript}
+ * 这些方法才可用 —— 在那之前调会抛这句。**它不代表启动失败**：
+ * 真实情况只是「某个操作比页面加载快了一点」。
+ *
+ * <p>而弹「初始化失败」是最糟的处理：用户看到的是「浏览器启动失败」，
+ * 实际浏览器好得很（页面照常打开、照常能用）。所以对已知的这一类**静默**
+ * —— 界面会在 dom-ready 那一次把按钮状态刷对。
+ */
+function isWebViewNotReady(err) {
+  const m = err && (err.message || String(err)) || '';
+  return /must be attached to the DOM|dom-ready event emitted/i.test(m);
+}
+
 init().catch((err) => {
   console.error(err);
-  // 带上栈。只打 message 的话，像「The WebView must be attached to the DOM…」
-  // 这类错完全看不出是谁调的 —— 而它恰恰是从 init() 里某一处抛出来的，
-  // 栈是唯一的线索。原来这行只弹 message，害得排查只能靠猜。
+  // 带上栈。只打 message 的话，这类错完全看不出是谁调的 —— 栈是唯一的线索。
+  if (isWebViewNotReady(err)) {
+    console.warn('[Nova] 启动期有一步跑在页面就绪之前，已忽略：', err && err.message);
+    return;
+  }
   toast('初始化失败：' + (err && err.message ? err.message : String(err)), 6000);
 });

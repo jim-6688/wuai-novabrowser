@@ -388,7 +388,23 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['DL_STATE 认得 progressing（Chromium 内建下载器的进行中状态）',
     /progressing:\s*\{\s*label: '下载中'/.test(js)],
   ['activeDownloads 的白名单含 progressing（否则不进浮窗与角标）',
-    /'probing', 'downloading', 'progress', 'progressing', 'queued', 'paused'/.test(js)]
+    /'probing', 'downloading', 'progress', 'progressing', 'queued', 'paused'/.test(js)],
+
+  /* --- webview 就绪判断：这一类错会被冒泡成一句误导人的「初始化失败」 --- */
+  ['syncNavButtons 先探 getWebContentsId 再调 canGoBack（启动必经，不接住就是每次启动报一次）',
+    /function syncNavButtons[\s\S]{0,900}?getWebContentsId\(\)\s*>\s*0/.test(js)
+      && /function syncNavButtons[\s\S]{0,900}?\}\s*catch\s*\{/.test(js)],
+  ['前进/后退走 navGo，里面同样判就绪并接住异常',
+    /function navGo\(dir\)[\s\S]{0,900}?getWebContentsId/.test(js)
+      && /function navGo\(dir\)[\s\S]{0,900}?catch/.test(js)],
+  ['刷新按钮未就绪时退回「重设 src」那条不需要就绪的路',
+    /nav-reload[\s\S]{0,700}?getWebContentsId\(\)\s*>\s*0[\s\S]{0,400}?setAttribute\('src'/.test(js)],
+  ['「webview 未就绪」这一类错不再显示成「初始化失败」（浏览器其实好得很）',
+    /function isWebViewNotReady/.test(js)
+      && /must be attached to the DOM/.test(js)
+      && /if \(isWebViewNotReady\(err\)\)[\s\S]{0,300}?return;/.test(js)],
+  ['真失败时仍然弹提示并留下堆栈（不能为了静默而把真错误也吞掉）',
+    /console\.error\(err\)/.test(js) && /toast\('初始化失败：'/.test(js)]
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');
