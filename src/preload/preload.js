@@ -112,6 +112,8 @@ contextBridge.exposeInMainWorld('nova', {
     // 拖拽安装：外壳把拖进来的扩展包路径直接交来，不再弹文件框
     installPath: (p) => ipcRenderer.invoke('ext:install-path', p),
     remove: (id) => ipcRenderer.invoke('ext:remove', id),
+    /** 启用 / 停用。停用是可逆的（记录还在），移除不可逆。 */
+    setEnabled: (id, on) => ipcRenderer.invoke('ext:set-enabled', id, on),
     // Edge 加载项商店：先查详情（让用户看清装的是什么），再取包装上。
     // 商店页上那个「获取」按钮在第三方外壳里点不动，所以绕到这两条上。
     storeInfo: (input) => ipcRenderer.invoke('ext:store-info', input),

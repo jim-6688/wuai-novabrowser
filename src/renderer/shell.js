@@ -1681,6 +1681,10 @@ function storeBox(st) {
     <div class="store-box">
       <div class="store-title">扩展商店</div>
       <div class="store-sub">
+        支持 Chromium 扩展（.crx / 已解包目录）与火狐扩展（.xpi）。火狐扩展会经过
+        清单归一化与 <code>browser.* → chrome.*</code> 桥接后装载，依赖 Gecko 专有 API
+        的功能不可用 —— 每张卡片会列出实际做了哪些改动。
+        <br /><br />
         商店页上那个「获取」按钮在本应用里点不动 —— 它调的是浏览器自家的安装接口，
         第三方外壳没有这套东西，点了不会有任何反应。所以拆成两步：
         商店照常打开逛，看好了把那个扩展的页面地址粘下来装。
@@ -1724,38 +1728,58 @@ function storeBox(st) {
 
 function buildExtensions() {
   const list = state.extensions;
+  const on = list.filter((x) => x.enabled !== false);
+  const off = list.filter((x) => x.enabled === false);
+
+  /* 顺序刻意是「已装的在前、商店在后」。
+   *
+   * 原来商店搜索框在最上面，于是用户点顶栏那个拼图图标进来，第一眼看到的
+   * 是「搜索商店」——他的原话是「点开插件还是跳转到插件安装页面」。
+   * 而他点这个图标多半是想管已经装了的那些（开启/关闭/移除），
+   * 不是想再装一个。 */
   return `
     <h2 class="sv-h2">扩展</h2>
     <div class="sv-lead">
-      支持 Chromium 扩展（.crx / 已解包目录）与火狐扩展（.xpi）。
-      火狐扩展会经过清单归一化与 <code>browser.* → chrome.*</code> 桥接后装载，
-      依赖 Gecko 专有 API 的功能不可用 —— 每张卡片会列出实际做了哪些改动。
+      ${list.length
+        ? `已装 ${list.length} 个${off.length ? `，其中 ${off.length} 个已关闭` : ''}。开关即时生效，不用重启浏览器。`
+        : '还没有装扩展。可以从商店装，也可以把 .crx / .zip / .xpi 直接拖进窗口。'}
     </div>
     <div class="btn-row" style="padding-top:0">
-      <button class="btn btn-primary" data-act="install-ext" ${state.isPreview ? 'disabled title="UI 预览模式"' : ''}>从本地文件安装</button>
+      <button class="btn" data-act="install-ext" ${state.isPreview ? 'disabled title="UI 预览模式"' : ''}>从本地文件安装</button>
     </div>
-    ${storeBox(state.extStore)}
     <div class="sv-sub-h">已安装${list.length ? ` · ${list.length}` : ''}</div>
-    ${list.length ? list.map((x) => `
-      <div class="ext-card">
-        <div class="ext-icon">${x.icon ? `<img src="${esc(x.icon)}" alt="" />` : esc((x.name || 'E').slice(0, 1))}</div>
-        <div class="ext-main">
-          <div class="ext-name">
-            ${esc(x.name)}
-            <span class="source-tag source-${esc(x.source)}">${{
-              'chromium-store': 'Chromium 商店',
-              'firefox': '火狐扩展',
-              'archive': '压缩包',
-              'unpacked': '已解包'
-            }[x.source] || esc(x.source)}</span>
-          </div>
-          <div class="ext-desc">${esc(x.description || '（无描述）')}</div>
-          <div class="ext-meta">v${esc(x.version)} · Manifest V${esc(x.manifestVersion)}${x.packageVersion ? ' · ' + esc(x.packageVersion) : ''}</div>
-          ${(x.changes || []).length ? `<div class="ext-changes"><b>兼容处理：</b>${x.changes.map(esc).join('；')}</div>` : ''}
-        </div>
-        <button class="btn" data-remove-ext="${esc(x.id)}">移除</button>
-      </div>`).join('') : '<div class="sv-empty">还没有安装扩展。</div>'}
+    ${list.length ? list.map((x) => extCard(x)).join('')
+      : '<div class="sv-empty">还没有安装扩展。</div>'}
+    ${storeBox(state.extStore)}
   `;
+}
+
+/** 一张扩展卡片。启用状态体现在开关与卡片整体的淡出上。 */
+function extCard(x) {
+  const enabled = x.enabled !== false;
+  return `
+    <div class="ext-card ${enabled ? '' : 'is-off'}">
+      <div class="ext-icon">${x.icon ? `<img src="${esc(x.icon)}" alt="" />` : esc((x.name || 'E').slice(0, 1))}</div>
+      <div class="ext-main">
+        <div class="ext-name">
+          ${esc(x.name)}
+          <span class="source-tag source-${esc(x.source)}">${{
+            'chromium-store': 'Chromium 商店',
+            'firefox': '火狐扩展',
+            'archive': '压缩包',
+            'unpacked': '已解包'
+          }[x.source] || esc(x.source)}</span>
+        </div>
+        <div class="ext-desc">${esc(x.description || '（无描述）')}</div>
+        <div class="ext-meta">v${esc(x.version)} · Manifest V${esc(x.manifestVersion)}${x.packageVersion ? ' · ' + esc(x.packageVersion) : ''}</div>
+        ${(x.changes || []).length ? `<div class="ext-changes"><b>兼容处理：</b>${x.changes.map(esc).join('；')}</div>` : ''}
+      </div>
+      <div class="ext-acts">
+        <button class="switch ${enabled ? 'is-on' : ''}" data-ext-toggle="${esc(x.id)}"
+                title="${enabled ? '已启用，点击关闭' : '已关闭，点击启用'}"></button>
+        <button class="btn" data-remove-ext="${esc(x.id)}" title="移除（不可撤销，装的文件也会删掉）">移除</button>
+      </div>
+    </div>`;
 }
 
 async function buildHistory() {
@@ -4622,6 +4646,25 @@ function wireUi() {
           state.update.autoInstallCancelled = true;
         }
         toast(next ? '已开启' : '已关闭');
+        return;
+      }
+
+      // 变量名不能复用下面的 t（同一个作用域里重复 const 声明是语法错）
+      const sw = ev.target.closest('[data-ext-toggle]');
+      if (sw) {
+        const id = sw.dataset.extToggle;
+        const next = !sw.classList.contains('is-on');
+        // 先禁掉，避免连点两次发出两次相反的操作（第二次会基于旧列表算错方向）
+        sw.disabled = true;
+        const r = await bridge.extensions.setEnabled(id, next);
+        sw.disabled = false;
+        if (r && r.error) {
+          toast(r.error, 5200);
+        } else {
+          state.extensions = await bridge.extensions.list();
+          toast(next ? '已启用，刷新页面后生效' : '已关闭');
+        }
+        refreshCurrent();
         return;
       }
 

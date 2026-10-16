@@ -181,6 +181,33 @@ if (typeof mod.findPackagesIn === 'function' && typeof R === 'function') {
     mod.findPackagesIn(unpacked).length === 1);
 }
 
+console.log('\n[D] 解包目录的名字（决定重启能不能直接复用，不再每次解一遍）');
+
+if (typeof mod.unpackDirFor !== 'function') {
+  console.log('  SKIP  unpackDirFor 未导出');
+} else {
+  const UD = mod.unpackDirFor;
+  // 用一个真实的目录当 workDir：假路径（比如 '/w'）在 Windows 上会被
+  // resolve 成 'C://w'，拿它比对会得到一条假失败
+  const WD = path.join(tmp, 'workdir');
+  const a1 = UD(WD, 'C:/dl/DeepSider.crx');
+  const a2 = UD(WD, 'C:/dl/DeepSider.crx');
+  check('同一来源路径 → 同一个目录名（这是「重启复用」的前提）', a1 === a2, a1);
+
+  // 旧写法是 `${base}-${Date.now()}`，同一个包每次启动都新建一个目录，
+  // 于是 userData 里静静涨着几十份解包产物
+  check('目录名里不含时间戳之类每次都变的东西', !/\d{10,}/.test(a1), a1);
+
+  const b = UD(WD, 'D:/下载/DeepSider.crx');
+  check('不同来源路径但同名 → 目录不同（否则两个扩展互相覆盖）', a1 !== b, b);
+
+  const weird = UD(WD, 'C:/dl/a:b*c?.crx');
+  check('路径里不允许的字符被换掉（Windows 上否则建不出目录）',
+    !/[\\/:*?"<>|]/.test(path.basename(weird)), path.basename(weird));
+
+  check('都落在给定的 workDir 下', path.dirname(a1) === WD, path.dirname(a1));
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 
 console.log(`\n${fail === 0 ? '全部通过' : '有失败项'}：${pass} 通过 / ${fail} 失败`);

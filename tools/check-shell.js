@@ -41,6 +41,28 @@ const html = fs.readFileSync(P('src/renderer/shell.html'), 'utf8');
 const js = fs.readFileSync(P('src/renderer/shell.js'), 'utf8');
 const css = fs.readFileSync(P('src/renderer/shell.css'), 'utf8');
 
+/* 取「挂在 document 上、处理设置项按钮的那个 click 委托」这一段。
+ *
+ * 原先几条断言用的是 `document.addEventListener('click',[\s\S]{0,N}?closest(…)`
+ * 这种固定窗口 —— 而那个 N 每加一个分支就要重调一次（已经调过三次：
+ * 加 data-upcfg、加 data-ext-toggle，每次都把那两条老断言弄红）。
+ *
+ * 现在**以 `closest('[data-up]')` 为锚**向两边扩：往左找最近的
+ * `document.addEventListener('click'`，往右找下一个 document 监听器。
+ * 这样同一段里以后再加多少分支都自动被覆盖，不用再动任何数字。
+ *
+ * （注意不能简单取「第一个 document 上的 click」——文件里第一个是
+ * `closeEngineMenu`，很短，取到它这一段就全空了。这个坑踩过。）
+ */
+const docClickSeg = (() => {
+  const marker = js.indexOf("closest('[data-up]')");
+  if (marker < 0) return '';
+  const i = js.lastIndexOf("document.addEventListener('click'", marker);
+  if (i < 0) return '';
+  const j = js.indexOf('document.addEventListener(', marker);
+  return js.slice(i, j > i ? j : js.length);
+})();
+
 const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
 const usedIds = new Set([...js.matchAll(/\$\$?\('#([A-Za-z0-9_-]+)'\)/g)].map((m) => m[1]));
 /**
@@ -317,12 +339,11 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['「关于」那一行的副标题用 upVer()，不再是写死的版本号',
     /data-panel="about"[\s\S]{0,320}?\$\{esc\(upVer\(\)\)\}/.test(menuBody)],
   ['更新按钮的委托挂在 document 上（原来绑 #update-body，「关于」里的按钮点不动）',
-    // 窗口要留宽：这个处理器里现在有两段（更新按钮 data-up、自动更新开关
-    // data-upcfg），按 200 字符刚好把 closest('[data-up]') 挤出去。
-    // 判据仍要有意义 —— 必须「document 上的 click」且「同一段里出现 data-up」。
-    /document\.addEventListener\('click',[\s\S]{0,1500}?closest\('\[data-up\]'\)/.test(js)],
+    /closest\('\[data-up\]'\)/.test(docClickSeg)],
   ['自动更新的两个开关也用 document 委托（设置分区会被整体重绘，逐行绑定会漏绑）',
-    /document\.addEventListener\('click',[\s\S]{0,600}?closest\('\[data-upcfg\]'\)/.test(js)],
+    /closest\('\[data-upcfg\]'\)/.test(docClickSeg)],
+  ['扩展的启用开关同样用 document 委托（卡片会随列表重绘）',
+    /closest\('\[data-ext-toggle\]'\)/.test(docClickSeg)],
   ['更新的状态界面**只有一份**（「关于」与工具栏小窗共用 updateStatusHtml）——各写一份必然漂移',
     // 这条原来要求 buildAbout 里直接出现 data-up="check" —— 那是「各写一份」
     // 时代的判据。现在改成要求：三段按钮都定义在共用的那个函数里，
@@ -551,6 +572,45 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /function resolveExtensionRoot[\s\S]{0,1500}?manifestAt\(sub\)/.test(extMod)],
   ['定位根排在 normalizeFirefoxExtension 之前（.xpi 正是那种形状）',
     extMod.indexOf('resolveExtensionRoot(extDir)') < extMod.indexOf('normalizeFirefoxExtension(extDir)')],
+
+  /* --- 扩展：启动恢复不该每次重新解包 --- */
+  ['解包目录名是确定的（不是 Date.now()）——否则每次启动都新建一个目录，'
+    + '既重解一遍（装完插件后启动慢的根因）又无限攒垃圾',
+    // 判据要**只看 unpackDirFor 的函数体**：文件别处的注释里提到了旧的
+    // Date.now() 写法（解释为什么改），全局判据会被那段注释误伤。
+    /function unpackDirFor[\s\S]{0,700}?createHash\('sha1'\)/.test(extMod)
+      && !/function unpackDirFor[\s\S]{0,700}?Date\.now/.test(extMod)],
+  ['解包前先清掉同名目录（否则换了文件集会留上一版残渣）',
+    /fs\.rmSync\(extDir, \{ recursive: true, force: true \}\)/.test(extMod)],
+  ['启动恢复优先用上次解包好的 dir，不在了才退回原始包路径',
+    /const src = \(rec\.dir && fs\.existsSync\(rec\.dir\)\) \? rec\.dir : rec\.path/.test(mainMod)],
+  ['安装时把 dir 记进 settings（不记的话下次启动只能重新解包）',
+    /recs\.push\(\{\s*id: info\.id[\s\S]{0,200}?dir: info\.dir/.test(mainMod)],
+  ['启动恢复会把 dir 写回 settings（老记录没有 dir，不补的话它们永远每次重解一遍）',
+    /extRecordsNext\.push\(\{[\s\S]{0,300}?dir: info\.dir/.test(mainMod)
+      && /settings\.patch\(\{ extensions: extRecordsNext \}\)/.test(mainMod)],
+  ['有清孤儿解包目录的动作（旧版本用时间戳目录名留下的那些）',
+    /pruneOrphanDirs\(settings\.get\('extensions', \[\]\)\)/.test(mainMod)
+      && /pruneOrphanDirs\(records\) \{/.test(extMod)],
+
+  /* --- 扩展：启用 / 停用 --- */
+  ['有启用/停用能力，且停用的仍留在列表里（否则用户停了就再也找不到它）',
+    /async setEnabled\(id, on, sessionFactory\)/.test(extMod)
+      && /this\.disabled\.set\(id, \{ \.\.\.hit\.info, enabled: false \}\)/.test(extMod)
+      && /list\(\) \{[\s\S]{0,300}?this\.disabled\.values\(\)/.test(extMod)],
+  ['停用是真的从 session 卸下、启用是真的装回去（Electron 没有单独的开关）',
+    /ses\.removeExtension\(eid\)/.test(extMod) && /await ses\.loadExtension\(rec\.dir/.test(extMod)],
+  ['启用/停用会写回 settings.enabled（不写的话重启后停用的又自己开了）',
+    /r\.id === id \? \{ \.\.\.r, enabled: !!on \}/.test(mainMod)],
+  ['停用的下次启动保持停用',
+    /if \(rec\.enabled === false\)[\s\S]{0,200}?setEnabled\(info\.id, false/.test(mainMod)],
+  ['停在启用时如果解包目录没了，报「请重新安装」而不是静默失败',
+    /扩展文件不在了，请重新安装/.test(extMod)],
+  ['扩展面板里已装的排在商店**前面**（点拼图图标进来是想管已装的，不是想再装一个）',
+    js.indexOf('已安装${list.length') < js.indexOf('${storeBox(state.extStore)}')],
+  ['卡片上有启用开关与移除，且移除标明了不可逆',
+    /data-ext-toggle=/.test(js) && /data-remove-ext=/.test(js)
+      && /不可撤销，装的文件也会删掉/.test(js)],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

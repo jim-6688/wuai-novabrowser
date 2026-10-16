@@ -15,6 +15,7 @@
  */
 
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const zlib = require('zlib');
 const os = require('os');
@@ -329,6 +330,13 @@ class ExtensionManager {
     this.workDir = workDir; // 解包缓存目录
     this.partitions = partitions; // 需要装载扩展的 partition 列表
     this.loaded = new Map(); // id → { info, electronExtension }
+    /* 已停用的扩展（信息还在，只是没往 session 里装）。
+     *
+     * **为什么必须留着这一份**：停用之后如果把它从列表里彻底抹掉，用户就
+     * 再也找不到它、也没法重新启用 —— 而「停用」是可逆的，「移除」才是
+     * 不可逆的。把两者混成一个动作，是这类界面上最常见的一个错。
+     * key 用我们自己的 id（不是 electron id：停用之后就没有 electron id 了）。 */
+    this.disabled = new Map();
     this.onChange = () => {};
   }
 
@@ -347,8 +355,21 @@ class ExtensionManager {
 
     if (stat.isFile()) {
       const ext = path.extname(inputPath).toLowerCase();
-      const base = path.basename(inputPath, ext);
-      extDir = path.join(this.workDir, `${base}-${Date.now()}`);
+      extDir = unpackDirFor(this.workDir, inputPath);
+      /* **先清掉再解包**，而且目录名是**确定的**（不是 Date.now()）。
+       *
+       * <p>原来用的是 `${base}-${Date.now()}` —— 那个写法有两个后果：
+       * 1. 每次打开浏览器，恢复循环都会照着 settings 里记的**包路径**重新调
+       *    install，于是**每次都重新解一遍**（DeepSider 是 434 个文件 /
+       *    8.7 MB）。启动时间直接加上这一段的 I/O，装两三个扩展就是几秒
+       *    白屏 —— 用户的原话是「装完插件后开启浏览器特别慢」。
+       * 2. 时间戳每次不同，所以旧目录永远留着。装过十次就有十份解包产物，
+       *    userData 里静静涨着，谁也不会去清。
+       *
+       * <p>现在名字只由**来源路径**决定（同一来源永远同一个目录），
+       * 于是「重装同一个包」会复用同一个目录，而重新解包之前先删干净 ——
+       * 新版本换了文件集也不会留下上一版的残渣。 */
+      fs.rmSync(extDir, { recursive: true, force: true });
       fs.mkdirSync(extDir, { recursive: true });
       const buf = fs.readFileSync(inputPath);
 
@@ -437,8 +458,18 @@ class ExtensionManager {
     return [...this.loaded.values()].map((v) => v.electronExtension);
   }
 
+  /** 启动时把 settings 里标了停用的记录登记进来（让它们照样显示在列表里）。 */
+  registerDisabled(info) {
+    if (!info || !info.id) return;
+    this.disabled.set(info.id, { ...info, enabled: false });
+    this.onChange(this.list());
+  }
+
+  /** 已装入 session 的 + 已停用的。都带 enabled 字段。 */
   list() {
-    return [...this.loaded.values()].map((v) => v.info);
+    const on = [...this.loaded.values()].map((v) => ({ ...v.info, enabled: true }));
+    const off = [...this.disabled.values()].map((x) => ({ ...x, enabled: false }));
+    return [...on, ...off];
   }
 
   electronIdOf(id) {
@@ -446,14 +477,82 @@ class ExtensionManager {
     return hit ? hit.info.electronId : null;
   }
 
+  /**
+   * 启用 / 停用。
+   *
+   * <p>实现上就是往 session 里 `loadExtension` / `removeExtension` ——
+   * Electron 没有单独的「开关」，装上就等于启用，卸下就等于停用。
+   * 所以这个开关是真的生效，不是界面上的装饰。
+   *
+   * @param {string} id
+   * @param {boolean} on
+   * @param {Function} sessionFactory
+   * @returns {Promise<object|null>} 更新后的那一条信息
+   */
+  async setEnabled(id, on, sessionFactory) {
+    const ses = sessionFactory();
+
+    if (!on) {
+      const eid = this.electronIdOf(id);
+      const hit = [...this.loaded.values()].find((v) => v.info.id === id);
+      if (!hit) return this.disabled.get(id) || null;
+      try { ses.removeExtension(eid); } catch (err) { console.warn('[extensions] 停用失败:', err.message); }
+      for (const [k, v] of this.loaded) if (v.info.id === id) this.loaded.delete(k);
+      this.disabled.set(id, { ...hit.info, enabled: false });
+      this.onChange(this.list());
+      return this.disabled.get(id);
+    }
+
+    // 启用：用**上次解包的目录**重新装，不重新解包
+    const rec = this.disabled.get(id);
+    if (!rec) return null;
+    if (!rec.dir || !fs.existsSync(rec.dir)) {
+      throw new Error('扩展文件不在了，请重新安装');
+    }
+    const electronExtension = await ses.loadExtension(rec.dir, { allowFileAccess: true });
+    const info = { ...rec, electronId: electronExtension.id, enabled: true };
+    this.loaded.set(electronExtension.id, { info, electronExtension });
+    this.disabled.delete(id);
+    this.onChange(this.list());
+    return info;
+  }
+
   remove(id, sessionFactory) {
     const ses = sessionFactory();
     const eid = this.electronIdOf(id);
-    if (!eid) return false;
-    try { ses.removeExtension(eid); } catch (err) { console.warn('[extensions] 移除失败:', err.message); }
+    if (eid) {
+      try { ses.removeExtension(eid); } catch (err) { console.warn('[extensions] 移除失败:', err.message); }
+    }
     for (const [k, v] of this.loaded) if (v.info.id === id) this.loaded.delete(k);
+    this.disabled.delete(id);
     this.onChange(this.list());
     return true;
+  }
+
+  /**
+   * 清掉 workDir 里**没有任何记录引用**的解包目录。
+   *
+   * <p>历史包袱：旧版本用 `${base}-${Date.now()}` 当目录名，每次启动恢复
+   * 都新建一个，于是同一份扩展在 userData 下留了很多份副本（谁也看不到、
+   * 也不会自己消失）。这条清理只删「不在任何记录里的」，正在用的一个不动。
+   *
+   * @param {Array<{dir?:string}>} records settings 里记的那些
+   * @returns {number} 删掉几个
+   */
+  pruneOrphanDirs(records) {
+    const keep = new Set();
+    for (const r of records || []) if (r && r.dir) keep.add(path.resolve(r.dir));
+    let kids = [];
+    try { kids = fs.readdirSync(this.workDir, { withFileTypes: true }); } catch { return 0; }
+    let n = 0;
+    for (const k of kids) {
+      if (!k.isDirectory()) continue;
+      if (k.name === 'store') continue;          // 商店包的存放目录，不是解包产物
+      const full = path.resolve(path.join(this.workDir, k.name));
+      if (keep.has(full)) continue;
+      try { fs.rmSync(full, { recursive: true, force: true }); n += 1; } catch { /* 占用中就留着 */ }
+    }
+    return n;
   }
 }
 
@@ -508,6 +607,28 @@ function findPackagesIn(dir) {
     .sort();
 }
 
+/**
+ * 一个扩展包的解包目录。
+ *
+ * <p>名字只由**来源路径**决定 —— 同一来源永远同一个目录，所以
+ * 「重启恢复」可以直接用这个目录而不用重新解包（前提是它还在，
+ * 见 main.js 的启动恢复循环）。
+ *
+ * <p>为什么带一段哈希：`Download/扩展.zip` 与 `文档/扩展.zip` 的 basename
+ * 一样，只用 basename 两者会互相覆盖 —— 而它们是两个不同的扩展。
+ *
+ * <p>为什么哈希来源路径而不是文件内容：内容哈希要先把整个包读进来算一遍，
+ * 而这一步本来就是为了省掉读包。
+ */
+function unpackDirFor(workDir, inputPath) {
+  const base = path.basename(inputPath, path.extname(inputPath))
+    // 目录名挡掉路径分隔符与 Windows 不允许的字符；中文与空格都可以留
+    .replace(/[\\/:*?"<>|]+/g, '_')
+    .slice(0, 40) || 'ext';
+  const h = crypto.createHash('sha1').update(path.resolve(inputPath)).digest('hex').slice(0, 8);
+  return path.join(workDir, `${base}-${h}`);
+}
+
 module.exports = {
   ExtensionManager,
   extractZip,
@@ -520,6 +641,8 @@ module.exports = {
   resolveExtensionRoot,
   // 同上：用户选中「装着 .crx 的文件夹」时靠它把包找出来
   findPackagesIn,
+  // 解包目录的名字规则 —— 它决定「重启时能不能直接复用上次的解包结果」
+  unpackDirFor,
   resolveMessage,
   isExtensionFile,
   BROWSER_POLYFILL

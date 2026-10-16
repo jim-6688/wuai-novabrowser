@@ -198,13 +198,63 @@ async function bootstrap() {
   // 的没有一个别的地方存在，删了就等于「装过一次，重启后扩展不见了」。
   extStoreDir = path.join(app.getPath('userData'), 'extensions', 'store');
 
-  for (const rec of settings.get('extensions', [])) {
+  /* 恢复扩展。
+   *
+   * **优先用「上次解包好的目录」而不是原始包路径。**
+   * 记的是包路径的话，每次启动都要把整个包重新解一遍（DeepSider 是
+   * 434 个文件 / 8.7 MB），而这一步在 createWindow() **之前**、还是
+   * 顺序 await —— 窗口要等所有扩展解包完才出现。用户的原话是
+   * 「装完插件后开启浏览器特别慢」，根因就在这里。
+   *
+   * 目录不在了才退回原始包路径（比如用户手动清了 userData）。
+   * 停用的那些**不装进 session**，但要登记进列表 ——
+   * 否则用户停用之后就再也找不到它、也没法重新启用。
+   */
+  const extRecords = settings.get('extensions', []);
+  const extRecordsNext = [];
+  for (const rec of extRecords) {
     try {
-      await extManager.install(rec.path, extSessionFactory);
+      const src = (rec.dir && fs.existsSync(rec.dir)) ? rec.dir : rec.path;
+      if (!src || !fs.existsSync(src)) {
+        // 两者都不在：不静默删记录（用户的包可能只是暂时不在，比如插在
+        // 移动硬盘上），只记一条日志，界面里那条仍然可见、可手动移除
+        console.warn('[extensions] 恢复失败（文件不在了）', rec.path);
+        extRecordsNext.push(rec);
+        continue;
+      }
+      const info = await extManager.install(src, extSessionFactory);
+      if (rec.enabled === false) {
+        // 上次是停用状态：装完立刻卸下来，并保留在列表里
+        await extManager.setEnabled(info.id, false, extSessionFactory);
+      }
+      /* **把 dir 写回去。**
+       * 这条是为**老记录**补的：本版之前装上来的那些，settings 里只有
+       * 原始包路径、没有 dir —— 于是每次启动都走「解包」那条路。
+       * 不补这一步，它们会永远每次启动重解一遍（正是用户报的那个慢），
+       * 这一版只修好了「新装的那部分」。
+       * 也顺带补上 enabled，让老记录和新记录形状一致。 */
+      extRecordsNext.push({
+        ...rec,
+        id: info.id,
+        name: info.name,
+        source: info.source,
+        dir: info.dir,
+        enabled: rec.enabled !== false
+      });
     } catch (err) {
       console.warn('[extensions] 恢复失败', rec.path, err.message);
+      extRecordsNext.push(rec);
     }
   }
+  // 只在真的变过时才落盘，避免每次启动都写一遍 settings
+  if (JSON.stringify(extRecordsNext) !== JSON.stringify(extRecords)) {
+    settings.patch({ extensions: extRecordsNext });
+  }
+  // 顺手清掉旧版本留下的孤儿解包目录（那时用的是时间戳目录名，每次启动新建一个）
+  try {
+    const n = extManager.pruneOrphanDirs(settings.get('extensions', []));
+    if (n) console.info(`[extensions] 清掉 ${n} 个无引用的解包目录`);
+  } catch { /* 清理失败不影响启动 */ }
 
   // 8) 页面级事件（webview 内容也走这里）
   app.on('web-contents-created', (_e, contents) => wireContents(contents));
@@ -1008,7 +1058,12 @@ function registerIpc() {
     try {
       const info = await extManager.install(p, () => session.fromPartition('persist:nova-chromium'));
       const recs = settings.get('extensions', []).filter((r) => r.path !== p);
-      recs.push({ id: info.id, name: info.name, path: p, source: info.source });
+      /* dir 一定要记：重启恢复靠它直接装载，省掉重新解包那一步（见 bootstrap）。
+         enabled 也记：用户停用过的下次启动要保持停用。 */
+      recs.push({
+        id: info.id, name: info.name, path: p, source: info.source,
+        dir: info.dir, enabled: info.enabled !== false
+      });
       settings.patch({ extensions: recs });
       return { installed: info };
     } catch (err) {
@@ -1099,6 +1154,26 @@ function registerIpc() {
     return installOneExtension(targets[0]);
   });
 
+  /* 启用 / 停用。
+   *
+   * 这两件事在 Electron 里就是 loadExtension / removeExtension —— 没有单独的
+   * 开关，装上就等于启用。所以这个开关**是真的生效**，不是界面装饰。
+   * 停用是可逆的（记录留在列表里），移除不可逆（记录一并删掉），
+   * 所以这里必须把 enabled 写回 settings，否则重启后停用的又自己开了。 */
+  handle('ext:set-enabled', async (id, on) => {
+    try {
+      const info = await extManager.setEnabled(id, !!on, extSessionFactory);
+      if (!info) return { error: '找不到这个扩展' };
+      const recs = settings.get('extensions', []).map((r) =>
+        (r.id === id ? { ...r, enabled: !!on } : r));
+      settings.patch({ extensions: recs });
+      send('ext:changed', extManager.list());
+      return { ok: true, info };
+    } catch (e) {
+      return { error: String(e && e.message || e) };
+    }
+  });
+
   /* 删除也**必须记账** —— 三条安装路径都往 settings.extensions 写了记录
      （见上面 ext:install / ext:install-path / ext:store-install），
      而 bootstrap() 的恢复循环会照着这些记录重新 install。
@@ -1138,7 +1213,10 @@ function registerIpc() {
       // 与「安装扩展」那条路同一套记账，否则重启后恢复装载找不到它。
       // storeId 单独记一份：恢复装载按 path 装，但「装没装过」得按商店 ID 认。
       const recs = settings.get('extensions', []).filter((r) => r.path !== dest);
-      recs.push({ id: info.id, name: info.name, path: dest, source: info.source, storeId: parsed.crxId });
+      recs.push({
+        id: info.id, name: info.name, path: dest, source: info.source,
+        storeId: parsed.crxId, dir: info.dir, enabled: info.enabled !== false
+      });
       settings.patch({ extensions: recs });
       return { installed: info };
     } catch (err) {

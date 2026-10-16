@@ -1000,6 +1000,19 @@ svg {
   border-radius: var(--r-md);
   background: var(--surface-2);
 }
+/* 关掉的扩展整张卡片压暗 —— 光看那个开关（尤其是一屏好几张卡时）
+   不容易一眼扫出哪几个是关着的。 */
+.ext-card.is-off { opacity: .55; }
+.ext-card.is-off .ext-icon { filter: grayscale(1); }
+
+/* 卡片右侧那一列动作（启用开关 + 移除）。
+   竖排：两者语义差别大（可逆 / 不可逆），横着挨在一起容易点错。 */
+.ext-acts {
+  display: flex; flex-direction: column;
+  align-items: flex-end; justify-content: center;
+  gap: 6px; flex: 0 0 auto;
+}
+
 .ext-icon {
   width: 34px; height: 34px; flex: 0 0 34px;
   border-radius: var(--r-sm);

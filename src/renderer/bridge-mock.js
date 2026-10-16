@@ -598,6 +598,14 @@ const MOCK_UPDATE = {
         setTimeout(() => emit('ext:changed', state.extensions), 0);
         return true;
       },
+      /* 启用 / 停用。预览里没有真的 session 可装卸，就地改一下那份假数据 ——
+         这样开关的交互（含卡片压暗）能真的走一遍，评审时看得出效果。 */
+      setEnabled: async (id, on) => {
+        state.extensions = state.extensions.map((e) => (
+          e.id === id ? { ...e, enabled: !!on } : e));
+        setTimeout(() => emit('ext:changed', state.extensions), 0);
+        return { ok: true };
+      },
       // 预览里照抄一份真商店会返回的形状（字段与 ext-store.js 的
       // summarizeDetail 对齐），这样详情卡片和真机上长得一样。
       storeInfo: async (input) => {
