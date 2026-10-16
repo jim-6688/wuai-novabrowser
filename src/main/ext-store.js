@@ -333,6 +333,18 @@ function summarizeMirror(html, crxId) {
   const name = h1 ? decodeEntities(h1[1].replace(/<[^>]*>/g, '')).trim() : '';
   if (!name) return null;
 
+  /* 但**取到名字不等于取到了详情页**。
+   *
+   * <p>镜像站对没收录的扩展返回的是一个错误页，而那个页面的 `<h1>` 是
+   * {@code 404} —— 于是我们会把它当成扩展名，界面上显示一张名为「404」的
+   * 卡片（实测：Chrome 商店的「沉浸式翻译」就是这个症状）。
+   * 用户看到的是一张像样的卡片、点安装却拿不到包，比直接说「没收录」更糟。
+   *
+   * <p>判据用「纯数字」+ 几个已知的错误页文案：正常的扩展名不会是
+   * 一个裸的数字。 */
+  if (/^\d{3}$/.test(name)) return null;
+  if (/^(页面不存在|找不到页面|not found|error)$/i.test(name)) return null;
+
   let icon = metaContent(html, 'og:image');
   if (icon && !/^https?:/i.test(icon)) {
     icon = CHROME_MIRROR + (icon.startsWith('/') ? '' : '/') + icon;
@@ -402,13 +414,32 @@ async function fetchChromeDetail(crxId, opts = {}) {
   let html = '';
   try { html = await res.text(); } catch { /* 落到下面那句 */ }
   const detail = summarizeMirror(html, crxId);
-  if (!detail) return { crxId, source: 'chrome', notFound: true, error: '镜像页面上找不到这个扩展' };
+  if (!detail) return { crxId, source: 'chrome', notFound: true, error: MIRROR_MISSING };
 
-  return {
-    crxId, source: 'chrome', detail,
-    downloadUrl: parseMirrorDownloadUrl(html, crxId)
-  };
+  const downloadUrl = parseMirrorDownloadUrl(html, crxId);
+  /* 有详情页但**没有下载地址**，等于装不了。
+   *
+   * <p>这时必须在**看详情这一步**就说清楚，而不是把一张像样的卡片显示出来、
+   * 等用户点「安装」才失败 —— 后者会被读成「这个按钮坏了」。
+   * 实测「沉浸式翻译」就是这种：页面能打开，但没有取包链接。 */
+  if (!downloadUrl) {
+    return { crxId, source: 'chrome', notFound: true, detail, error: MIRROR_MISSING };
+  }
+
+  return { crxId, source: 'chrome', detail, downloadUrl };
 }
+
+/**
+ * 镜像站没收录（或没给出下载地址）时给用户的那句话。
+ *
+ * <p>要同时说清两件事：**这不是你抄错了 ID**（用户第一反应会是这个），
+ * 以及**还能走哪条路**。镜像站是第三方搬运，收录不全很正常 ——
+ * 实测「篡改猴」「uBlock Origin」有，「沉浸式翻译」没有。
+ */
+const MIRROR_MISSING =
+  '这个扩展在国内镜像站里没有收录（镜像站是第三方搬运，收录不全，不是 ID 抄错）。'
+  + '可行的替代：在 Edge 浏览器里装上它（Edge 自己的商店能装），'
+  + '然后回到这里的「从已安装的浏览器导入」把它搬过来。';
 
 /**
  * 拆开镜像给的套娃。

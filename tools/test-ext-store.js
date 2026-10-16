@@ -30,6 +30,7 @@ const {
   parseStoreInput, detailApi, crxApi, formatInstalls, summarizeDetail,
   fetchDetail, downloadCrx,
   CHROME_MIRROR, CHROME_MIRROR_INFO, summarizeMirror, parseMirrorDownloadUrl,
+  fetchChromeDetail,
   extractCrxFromMirrorZip
 } = require(P('src/main/ext-store.js'));
 
@@ -658,6 +659,49 @@ const TM_ID = 'iikmkjmpaadaobahmlepeloendndfphd';
   }
 
   for (const d of tmpDirs) { try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* 临时目录，删不掉也不影响 */ } }
+
+  console.log('\n[J] 镜像没收录时要说清楚（而不是给一张名为「404」的卡片）');
+
+  {
+    /* 镜像站对没收录的扩展返回的是一个错误页，而那个页面的 <h1> 是 404。
+     * 实测「Chrome 商店 · 沉浸式翻译」就是这个症状：我们把它当成了扩展名。 */
+    const notFoundPage = '<html><head><title>404</title></head><body><h1>404</h1></body></html>';
+    check('错误页不会被当成一个叫 404 的扩展', summarizeMirror(notFoundPage, 'a'.repeat(32)) === null);
+
+    const notFoundPage2 = '<html><body><h1>页面不存在</h1></body></html>';
+    check('「页面不存在」这类文案同样拒掉', summarizeMirror(notFoundPage2, 'a'.repeat(32)) === null);
+
+    const okPage = '<html><head><meta property="og:image" content="/i.png">'
+      + '<meta name="description" content="一个正常的扩展"></head>'
+      + '<body><h1>正常的扩展</h1></body></html>';
+    const d = summarizeMirror(okPage, 'a'.repeat(32));
+    check('正常的详情页照常解析', !!d && d.name === '正常的扩展');
+    check('正常的名字里带数字不受影响（只有**纯**数字才算错误页）',
+      (() => { const x = summarizeMirror('<h1>7-Zip 助手</h1>', 'a'.repeat(32)); return !!x && x.name === '7-Zip 助手'; })());
+  }
+
+  {
+    // 有详情页但没下载地址 → 必须在看详情这一步就说清，不能等点安装才失败
+    const id = 'a'.repeat(32);
+    const page = '<html><body><h1>某个扩展</h1></body></html>';   // 没有 /v3/crx/... 链接
+    const r = await fetchChromeDetail(id, { fetchImpl: async () => res(200, page) });
+    check('详情页可开但没有下载地址 → 判为没收录', r.notFound === true, JSON.stringify(r.error || '').slice(0, 40));
+    check('并且给出可操作的说明（指出替代路径，而不是只说失败）',
+      /从已安装的浏览器导入/.test(r.error || ''), (r.error || '').slice(0, 30) + '…');
+    check('说明里点明「不是 ID 抄错」（用户第一反应会是这个）',
+      /不是 ID 抄错/.test(r.error || ''));
+  }
+
+  {
+    // 有详情页**且**有下载地址 → 正常
+    const id = 'a'.repeat(32);
+    const page = '<html><body><h1>某个扩展</h1>'
+      + '<a href="/v3/crx/' + 'b'.repeat(32) + '/' + id + '.zip">备用下载</a></body></html>';
+    const r = await fetchChromeDetail(id, { fetchImpl: async () => res(200, page) });
+    check('有下载地址时正常返回详情与地址',
+      !!r.detail && r.detail.name === '某个扩展' && /\.zip$/.test(r.downloadUrl || ''),
+      r.downloadUrl);
+  }
 
   console.log(`\n${fail === 0 ? '全部通过' : '有失败项'}：${pass} 通过 / ${fail} 失败`);
   process.exit(fail === 0 ? 0 : 1);

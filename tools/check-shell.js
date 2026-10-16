@@ -616,6 +616,12 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
       && /不可撤销，装的文件也会删掉/.test(js)],
 
   /* --- Edge 商店取包接口已关闭 → 走「从已安装的浏览器导入」 --- */
+  ['镜像的 404 错误页不会被当成扩展（曾把 <h1>404</h1> 读成扩展名，界面显示一张名为「404」的卡片）',
+    /\/\^\\d\{3\}\$\/\.test\(name\)/.test(storeMod)],
+  ['镜像有详情页但没有下载地址时，在**看详情**这一步就判为没收录（不能等点安装才失败）',
+    /if \(!downloadUrl\) \{[\s\S]{0,200}?notFound: true/.test(storeMod)],
+  ['没收录的说明要指出替代路径、并点明「不是 ID 抄错」',
+    /不是 ID 抄错/.test(storeMod) && /从已安装的浏览器导入/.test(storeMod)],
   ['Edge 取包 400 时给出可操作的说明（不是干巴巴地报 HTTP 400）',
     /Edge 商店的取包接口已关闭/.test(storeMod)
       && /从已安装的浏览器导入/.test(storeMod)],

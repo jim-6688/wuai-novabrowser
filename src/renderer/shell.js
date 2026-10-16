@@ -1692,6 +1692,9 @@ function storeBox(st) {
         Chrome 应用店本身（chromewebstore.google.com）在国内连不上，这里给的是
         它的国内镜像站：收录的是同一批扩展、用的是同一套 ID，从上面复制的地址
         粘进来照样能装。
+        <br />但它是**第三方搬运，收录不全** —— 热门的大多有（篡改猴、uBlock Origin
+        实测都能装），冷门的可能没有。遇到没收录的，可以回到上面的
+        「从已安装的浏览器导入」。
       </div>
       <div class="store-open-row">
         ${STORE_LINKS.map((s) => `
