@@ -15,7 +15,10 @@
     "修复装完扩展后开启浏览器特别慢（每次启动都在重新解包全部扩展）",
     "Edge 应用商店的取包接口已被微软关闭，新增「从已安装的浏览器导入扩展」作为替代；也可以直接粘 .crx / .zip 下载地址安装",
     "修复扩展安装的多处问题：拖入无反应、选中装着安装包的文件夹报错、扩展包外层多包了一层时报错",
-    "修复「从已安装的浏览器导入书签」与导出后再导入会丢条目；修复网页里下载不显示进度"
+    "修复「从已安装的浏览器导入书签」与导出后再导入会丢条目；修复网页里下载不显示进度",
+    "修复自动更新与网页下载的进度条不跟着百分比走（在「关于」页里一直卡在 0%）",
+    "拼图图标改为独立的「扩展」小窗：一行一个扩展，开关即可就地启用/停用，底部可直接「从文件安装」",
+    "拼图小窗里的扩展开关不再因布局被挤成圆形"
   ],
   "downloads": [
     {
@@ -32,16 +35,16 @@
     }
   ],
   "pc": {
-    "version": "1.0.9",
+    "version": "1.0.10",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.9/nova-pc-1.0.9-win-x64-setup.zip",
-    "size": 78105166,
-    "sha256": "92702491ad8a5d4a441893835ad9de7f08d418bc14625461f383be4f602ab6ca",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.10/nova-pc-1.0.10-win-x64-setup.zip",
+    "size": 78108407,
+    "sha256": "bd9352abb60c127962ac99d2b2eb68a881a719c6967ee830f1ee332e9b7b5081",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.9/nova-pc-1.0.9-win-x64-setup.exe",
-      "size": 78107372,
-      "sha256": "42e67b098d4623ca4b9620f3862b0bedfc6bdb263cc58f11084a87d0c21195f5"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.10/nova-pc-1.0.10-win-x64-setup.exe",
+      "size": 78110538,
+      "sha256": "d0cd91640b6feb912834a88ce70cc7d88a4d82a24dcf98e7c945abb83400a258"
     }
   }
 }
