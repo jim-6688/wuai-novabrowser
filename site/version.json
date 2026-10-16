@@ -1,46 +1,47 @@
 {
-  "version": "1.6.4",
-  "versionCode": 17,
+  "version": "1.6.5",
+  "versionCode": 18,
   "channel": "release",
-  "updatedAt": "2026-10-15",
+  "updatedAt": "2026-10-16",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复「浏览安装」选中的是「装着 .crx 的文件夹」时报「扩展目录内缺少 manifest.json」—— 现在会自动找出文件夹里的扩展包装上",
-    "修复把扩展拖到**网页区域**时完全没反应：那条路的事件被网页进程接走了，改由主进程拦截 file:// 导航来装",
-    "修复拖入安装扩展取不到文件路径（Electron 已废弃 File.path，改用 webUtils.getPathForFile）",
-    "修复文件对话框没列 .crx3（白名单里有、对话框里没有）",
-    "修复扩展包最外层还包着一层同名文件夹时报「缺少 manifest.json」；修复 .xpi 改错目录",
-    "拖入扩展时新增整窗提示：松手即安装，认不出的文件会说明会被忽略",
-    "修复每次启动都报「启动初始化失败：The WebView must be attached to the DOM…」",
-    "书签页新增「从已安装的浏览器导入」；「关于」面板新增检查更新",
-    "修复自动更新点「下载更新」必然失败；修复移除扩展后重启又装回来"
+    "新标签页版式改回「上方 logo、中间搜索框、下方六个宫格」—— 电脑与手机一致",
+    "新标签页那六个宫格不再能被删掉，顺序也不随任何操作变化（以前点掉一个，剩下的会往前挪位）",
+    "新标签页中间新增搜索框：回车或点「搜索」即按你设置的搜索引擎打开",
+    "左上角 logo 现在点一下就能进设置",
+    "自动更新重做了：修好「检查更新必然失败」；发现新版会自动下载，下载完自动拉起安装器（有 8 秒倒计时可喊停，也可在「关于」里关掉）",
+    "扩展现在可以单独启用/停用；扩展面板改成先看已装的，「移除」明确标注不可撤销",
+    "修复装完扩展后开启浏览器特别慢（每次启动都在重新解包全部扩展）",
+    "Edge 应用商店的取包接口已被微软关闭，新增「从已安装的浏览器导入扩展」作为替代；也可以直接粘 .crx / .zip 下载地址安装",
+    "修复扩展安装的多处问题：拖入无反应、选中装着安装包的文件夹报错、扩展包外层多包了一层时报错",
+    "修复「从已安装的浏览器导入书签」与导出后再导入会丢条目；修复网页里下载不显示进度"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.4.apk",
-      "size": 487002,
-      "sha256": "f34b42bbed310a8035e32d8f7d94f23bf47343f6c691ce3318b51cfca03a9fa5"
+      "url": "download/nova-1.6.5.apk",
+      "size": 488694,
+      "sha256": "47eb9e4055fc01c2b56764881c1b7655a277db14f1cdce33288f99e143509b6f"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.4/nova-1.6.4.apk",
-      "size": 487002,
-      "sha256": "f34b42bbed310a8035e32d8f7d94f23bf47343f6c691ce3318b51cfca03a9fa5"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.5/nova-1.6.5.apk",
+      "size": 488694,
+      "sha256": "47eb9e4055fc01c2b56764881c1b7655a277db14f1cdce33288f99e143509b6f"
     }
   ],
   "pc": {
-    "version": "1.0.8",
+    "version": "1.0.9",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.8/nova-pc-1.0.8-win-x64-setup.zip",
-    "size": 78090845,
-    "sha256": "d41f7819b71e8c66db6af4629c5fea7bc96cd427a77e2227f8c87e32a115e848",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.9/nova-pc-1.0.9-win-x64-setup.zip",
+    "size": 78105166,
+    "sha256": "92702491ad8a5d4a441893835ad9de7f08d418bc14625461f383be4f602ab6ca",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.8/nova-pc-1.0.8-win-x64-setup.exe",
-      "size": 78093066,
-      "sha256": "dfb8bc261479df2061a61e1e0a4c75b71a97d942d92ee3b2297a1e5d7960efd1"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.9/nova-pc-1.0.9-win-x64-setup.exe",
+      "size": 78107372,
+      "sha256": "42e67b098d4623ca4b9620f3862b0bedfc6bdb263cc58f11084a87d0c21195f5"
     }
   }
 }

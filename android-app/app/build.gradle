@@ -61,11 +61,9 @@ android {
         applicationId 'top.wuai.nova'
         minSdk 24
         targetSdk 35
-        // 本轮：新标签页删掉一条内置网址之后，后面的往前补位（桌面端此前是漏的）；
-        // 收藏夹面板内「书签」改称「收藏夹」；
-        // 工具栏右上角换齿轮，点它进设置；
-        // 新标签页不再显示浏览历史，只保留内置六条与自己添加的
-        versionCode 17
+        // 本轮：新标签页版式改回「上 logo、中搜索、下六宫格」，
+        // 且那六格不再可删、顺序不随任何操作变化（两端共用同一份页面）
+        versionCode 18
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用
