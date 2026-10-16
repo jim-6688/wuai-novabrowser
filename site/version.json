@@ -6,14 +6,15 @@
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复每次启动都报「启动初始化失败：The WebView must be attached to the DOM…」—— 前进/后退与刷新按钮在页面就绪之前就被调用了",
-    "书签页新增「从已安装的浏览器导入」：检测到 Chrome / Edge / Brave / Vivaldi / Opera 时点一下就把它的书签读进来",
-    "修复自动更新点「下载更新」必然失败的问题 —— 从发布起就一直是坏的，现在下载与安装两档都通了",
-    "修复「导出书签后再导入」会丢条目：内部页（file:// 的新标签页等）此前只导得出、导不回来",
-    "修复移除扩展后重启浏览器它又装回来（删除这条路径此前漏了记账）",
-    "修复网页里点下载链接时下载条不显示进度、也不计入下载浮窗（漏认 Chromium 的 progressing 状态）",
-    "修复导入书签后站点图标一直出不来（传给图标缓存的是完整网址而不是主机名）",
-    "「关于」面板新增检查更新；菜单里的「设置」与「关于」提到最前面；版本号改为读真实值"
+    "修复「浏览安装」提示「扩展目录内缺少 manifest.json」：zip / xpi 包最外层通常还包着一层同名文件夹，之前对正常包也会报这个",
+    "修复 .xpi 安装时改错目录（规范化在定位扩展根之前跑，改的不是真正那一层）",
+    "拖入扩展时新增整窗提示：松手即安装，认不出的文件会说明会被忽略",
+    "修复每次启动都报「启动初始化失败：The WebView must be attached to the DOM…」",
+    "书签页新增「从已安装的浏览器导入」：检测到 Chrome / Edge / Brave / Vivaldi / Opera 时点一下就导入",
+    "修复自动更新点「下载更新」必然失败的问题 —— 从发布起就一直是坏的",
+    "修复「导出书签后再导入」会丢条目；修复移除扩展后重启又装回来",
+    "修复网页里点下载链接时下载条不显示进度、也不计入下载浮窗",
+    "「关于」面板新增检查更新；菜单里的「设置」与「关于」提到最前面"
   ],
   "downloads": [
     {
@@ -30,14 +31,14 @@
     }
   ],
   "pc": {
-    "version": "1.0.5",
+    "version": "1.0.6",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.5/nova-pc-1.0.5-win-x64-setup.zip",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.6/nova-pc-1.0.6-win-x64-setup.zip",
     "size": 78085272,
     "sha256": "1d0df84a7816155b00e3e668a4c6846fea66c5fda4dd707866d74f68a96fbd9f",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.5/nova-pc-1.0.5-win-x64-setup.exe",
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.6/nova-pc-1.0.6-win-x64-setup.exe",
       "size": 78087538,
       "sha256": "7d05f5e5e2ebf790b9321a17431aac6b9fd8740b4b107074e88fcea5db9025da"
     }

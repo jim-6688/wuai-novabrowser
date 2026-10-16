@@ -340,6 +340,19 @@
     </div>
   </div>
 
+  <!-- 拖入扩展时的提示遮罩。
+       整块铺在视口上、压在最上面（z-index 高），带一圈虚线边与文件类型提示。
+       默认 hidden，由 wireDropInstall() 在 dragenter/dragover 时打开、
+       dragleave/drop 时收起。刻意用 [hidden] 而不是内联 display ——
+       后者会和下面的 CSS 规则打架（这个页面里其它几个浮层都踩过这个）。 -->
+  <div class="drophint" id="drop-hint" hidden>
+    <div class="dh-inner">
+      <div class="dh-ico">↓</div>
+      <div class="dh-title">松手即可安装扩展</div>
+      <div class="dh-sub">支持 .crx / .crx3 / .zip / .xpi</div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" hidden></div>
 </div>
 

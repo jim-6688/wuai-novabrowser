@@ -3887,37 +3887,111 @@ function applyLayout() {
  * 让结果即时可见），并提示成功 / 失败。失败的那条把原因原样告诉用户——
  * 商店包魔数不对、manifest 缺字段这类，用户自己能判断。
  */
+/**
+ * 从 DataTransfer 里取出拖进来的本地文件绝对路径。
+ *
+ * <p>Electron 下 `File.path` 是绝对路径；浏览器标准只有 `name`（没有 path）。
+ * 这里**只收有 path 的** —— 拿不到路径就没法交给主进程读文件，
+ * 与其把空路径传下去让那边报「缺少文件路径」，不如在这里就跳过。
+ *
+ * <p>dragenter 与 drop 两处都要用，抽出来一份：写两遍的话，
+ * 改扩展名白名单时容易只改一处。
+ */
+function filePathsOf(dt) {
+  if (!dt || !dt.files || !dt.files.length) return [];
+  const out = [];
+  for (let i = 0; i < dt.files.length; i++) {
+    const p = dt.files[i] && dt.files[i].path;
+    if (p) out.push(p);
+  }
+  return out;
+}
+
 function wireDropInstall() {
   const isExt = (f) => /\.(crx|crx3|zip|xpi)$/i.test(f);
+  const hint = () => $('#drop-hint');
+
+  /* 拖入提示。
+   *
+   * <p><b>为什么必须做</b>：原先整页只有 preventDefault，用户把包拖进窗口时
+   * 屏幕上**什么都不变** —— 不知道拖进来了没有，也不知道松手会发生什么。
+   *
+   * <p><b>两个容易踩的坑</b>：
+   * 1) dragleave 会在指针划过子元素时反复触发，直接收起就会「闪」。
+   *    用一个计数：dragenter +1、dragleave -1，归零才收。
+   * 2) <b>非扩展文件不要显示「可安装」</b> —— 用户很可能只是随手甩一个文件进来，
+   *    下方那句「不是扩展包，已忽略」比一个假装能装的提示诚实得多。
+   */
+  let depth = 0;
+  const showHint = (ok) => {
+    const el = hint();
+    if (!el) return;
+    const sub = el.querySelector('.dh-sub');
+    const title = el.querySelector('.dh-title');
+    if (sub) sub.textContent = ok
+      ? '支持 .crx / .crx3 / .zip / .xpi'
+      : '这不是扩展包（.crx / .crx3 / .zip / .xpi），松手后会忽略';
+    if (title) title.textContent = ok ? '松手即可安装扩展' : '认不出这个文件';
+    el.hidden = false;
+  };
+  const hideHint = () => {
+    depth = 0;
+    const el = hint();
+    if (el) el.hidden = true;
+  };
+
+  document.addEventListener('dragenter', (ev) => {
+    ev.preventDefault();
+    const dt = ev.dataTransfer;
+    // types 里有 Files 才可能是拖文件进来；拖文字/链接不显示这个提示
+    if (!dt || Array.prototype.indexOf.call(dt.types || [], 'Files') < 0) return;
+    depth += 1;
+    const paths = filePathsOf(dt);
+    showHint(paths.some(isExt));
+  });
 
   document.addEventListener('dragover', (ev) => { ev.preventDefault(); });
 
+  document.addEventListener('dragleave', (ev) => {
+    ev.preventDefault();
+    depth -= 1;
+    if (depth <= 0) hideHint();
+  });
+
+  // 兜底：指针**拖出窗口**时 dragleave 常常不触发（事件目标已经离开了文档），
+  // 于是遮罩会一直挂在屏幕上 —— 而用户看到的浏览器像是卡住了。
+  // 盯着 relatedTarget：它变成 null 就是「已经离开这个文档」。
+  document.addEventListener('dragleave', (ev) => {
+    if (ev.relatedTarget === null) hideHint();
+  });
+
   document.addEventListener('drop', (ev) => {
     ev.preventDefault();
-    const dt = ev.dataTransfer;
-    if (!dt || !dt.files || !dt.files.length) return;
-    const paths = [];
-    for (let i = 0; i < dt.files.length; i++) {
-      const f = dt.files[i];
-      // Electron 下拖进来的本地文件，path 是绝对路径；浏览器标准只有 name。
-      // 没有 path（理论上不会发生在打包版）就跳过这一个，不报错。
-      if (f.path && isExt(f.path)) paths.push(f.path);
-    }
+    hideHint();
+    const paths = filePathsOf(ev.dataTransfer);
     if (!paths.length) return;
+
+    const extPaths = paths.filter(isExt);
+    // 不认得的文件如实说一声「已忽略」，而不是静默丢开 ——
+    // 静默的话用户会以为是自己拖的方式不对。
+    if (extPaths.length < paths.length) {
+      toast(`忽略 ${paths.length - extPaths.length} 个非扩展包文件`, 3600);
+    }
+    if (!extPaths.length) return;
 
     let done = 0;
     const ok = [];
     const bad = [];
     const finish = () => {
       done += 1;
-      if (done < paths.length) return;
+      if (done < extPaths.length) return;
       if (ok.length) toast(`已安装 ${ok.length} 个扩展${bad.length ? `，${bad.length} 个失败` : ''}`);
-      else if (bad.length) toast(bad[0]);
+      else if (bad.length) toast(bad[0], 5200);
       // 扩展面板正开着就原地刷新，让刚装的卡片即时出现
       if (state.settingsSection === 'extensions') refreshCurrent();
     };
 
-    for (const p of paths) {
+    for (const p of extPaths) {
       bridge.extensions.installPath(p).then((r) => {
         if (r && r.installed) ok.push(r.installed.name);
         else if (r && r.error) bad.push(r.error);

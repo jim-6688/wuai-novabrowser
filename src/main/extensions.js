@@ -88,6 +88,49 @@ function extractZip(buf, destDir) {
   return { files, entries: entries.length };
 }
 
+/**
+ * 这个目录**本身**是不是一个扩展（含 manifest.json）？
+ * @returns {string|null} manifest 的路径，不是扩展则 null
+ */
+function manifestAt(dir) {
+  const p = path.join(dir, 'manifest.json');
+  return fs.existsSync(p) ? p : null;
+}
+
+/**
+ * 在解包出来的目录里找扩展的根。
+ *
+ * <p><b>为什么要往下一层找</b>：zip / xpi 绝大多数是「单层包裹」结构 ——
+ * 包里最外层是一个与扩展同名的文件夹，manifest.json 在它里面
+ * （`扩展名/manifest.json`）。而 {@link extractZip} 是**原样保留**包内
+ * 目录结构的，所以解到 extDir 之后真正的根是 `extDir/扩展名/`。
+ * 直接找 `extDir/manifest.json` 就会报「扩展目录内缺少 manifest.json」——
+ * 而包是好的，只是多了一层。
+ *
+ * <p>同样处理「用户直接选了已解包目录」那条路：用户从资源管理器里选中
+ * 扩展文件夹时，也可能选中的是它的父目录。
+ *
+ * <p><b>只往下找一层</b>，不递归：再深的嵌套在真实世界里不存在，
+ * 而递归会在一个装了几百个文件的目录里乱窜，还可能命中某个子项目里
+ * 恰好叫 manifest.json 的文件。
+ *
+ * @returns {{dir:string, manifest:string, depth:number}|null}
+ */
+function resolveExtensionRoot(extDir) {
+  const own = manifestAt(extDir);
+  if (own) return { dir: extDir, manifest: own, depth: 0 };
+
+  let kids = [];
+  try { kids = fs.readdirSync(extDir, { withFileTypes: true }); } catch { return null; }
+  for (const k of kids) {
+    if (!k.isDirectory()) continue;
+    const sub = path.join(extDir, k.name);
+    const m = manifestAt(sub);
+    if (m) return { dir: sub, manifest: m, depth: 1 };
+  }
+  return null;
+}
+
 /* ========================================================================== *
  * CRX 解包
  * ========================================================================== */
@@ -322,15 +365,30 @@ class ExtensionManager {
       }
     }
 
+    // 找真正的扩展根：包/目录外面可能还包着一层（详见 resolveExtensionRoot）。
+    // **必须排在 normalizeFirefoxExtension 之前** —— .xpi 正是那种「单层包裹」
+    // 结构，先规范化会在解包根目录里找 manifest.json 而找不到，
+    // 于是改不到真正该改的那一层，改了等于没改。
+    const root = resolveExtensionRoot(extDir);
+    if (!root) {
+      throw new Error(
+        '扩展目录内缺少 manifest.json'
+        + (source === 'unpacked'
+          // 已解包目录这条路要说清「也可能是选错了父目录」，否则用户会去检查包本身
+          ? '（如果这是已解包的扩展文件夹，请确认选中的是**含 manifest.json 的那一层**，'
+            + '而不是它的上级目录）'
+          : '（若包解压后最外层是一个同名文件夹，请改用「浏览安装」选中里面的那一层）')
+      );
+    }
+    extDir = root.dir;
+    const manifestPath = root.manifest;
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
     let changes = [];
     if (source === 'firefox') {
       const result = normalizeFirefoxExtension(extDir);
       changes = result.changes;
     }
-
-    const manifestPath = path.join(extDir, 'manifest.json');
-    if (!fs.existsSync(manifestPath)) throw new Error('扩展目录内缺少 manifest.json');
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
     // 名字与描述先过一遍本地化占位符。内部 id 也从这里派生：
     // `__MSG_extName__` 派生出来的是 "-msg-extname-"，而解析出的
@@ -427,6 +485,9 @@ module.exports = {
   readZipEntry,
   stripCrxHeader,
   normalizeFirefoxExtension,
+  // 与上面那几个一样是「为可测而导出」：这个函数决定装哪个目录当扩展根，
+  // 而「单层包裹」这个形状一改就又是全体用户装不上，靠单测守住最实在
+  resolveExtensionRoot,
   resolveMessage,
   isExtensionFile,
   BROWSER_POLYFILL

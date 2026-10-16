@@ -1936,6 +1936,67 @@ svg {
 }
 
 /* ---------- 11. Toast ---------- */
+/* ===================================================== 拖入扩展提示
+   整块铺在视口上。半透明底 + 一圈虚线，是「松手落到这里」的通用语汇。
+   刻意不用 outline 画在某个控件上：拖进来时用户往往没在看着某个控件，
+   提示要覆盖**整窗**才不会被漏掉。 */
+.drophint {
+  position: fixed;
+  inset: 0;
+  z-index: 90;                    /* 压在设置窗与 AI 面板之上 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(2px);
+  pointer-events: none;           /* 不许吃掉后面控件的点击 */
+}
+
+.drophint[hidden] { display: none; }
+
+.drophint::before {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  border: 2px dashed var(--brand);
+  border-radius: 16px;
+  opacity: .85;
+}
+
+.dh-inner {
+  position: relative;
+  text-align: center;
+  user-select: none;
+}
+
+.dh-ico {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--brand);
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(20, 40, 80, .12);
+}
+
+.dh-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dh-sub {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
 .toast {
   position: fixed;
   left: 50%; bottom: 32px;

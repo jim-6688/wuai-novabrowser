@@ -151,6 +151,7 @@ const mainMod = fs.readFileSync(P('src/main/main.js'), 'utf8');
 const updaterMod = fs.readFileSync(P('src/main/updater.js'), 'utf8');
 const bmIo = fs.readFileSync(P('src/main/bookmarks-io.js'), 'utf8');
 const bdMod = fs.readFileSync(P('src/main/browsers-detect.js'), 'utf8');
+const extMod = fs.readFileSync(P('src/main/extensions.js'), 'utf8');
 const newtab = fs.readFileSync(P('src/renderer/newtab.html'), 'utf8');
 const toJava = (rel) => P('android-app/app/src/main/' + rel);
 [
@@ -404,7 +405,32 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
       && /must be attached to the DOM/.test(js)
       && /if \(isWebViewNotReady\(err\)\)[\s\S]{0,300}?return;/.test(js)],
   ['真失败时仍然弹提示并留下堆栈（不能为了静默而把真错误也吞掉）',
-    /console\.error\(err\)/.test(js) && /toast\('初始化失败：'/.test(js)]
+    /console\.error\(err\)/.test(js) && /toast\('初始化失败：'/.test(js)],
+
+  /* --- 拖入扩展的提示（原先整页只有 preventDefault，屏幕上什么都不变） --- */
+  ['拖入时有整窗提示遮罩，且 HTML 与 CSS 都在',
+    /id="drop-hint"/.test(html) && /\.drophint\s*\{/.test(css)],
+  ['遮罩用 hidden 属性控制（内联 display 会和 [hidden] 规则打架）',
+    /\.drophint\[hidden\]\s*\{\s*display:\s*none/.test(css)],
+  ['dragenter / dragover / dragleave / drop 四件套都接了',
+    /addEventListener\('dragenter'/.test(js) && /addEventListener\('dragover'/.test(js)
+      && /addEventListener\('dragleave'/.test(js) && /addEventListener\('drop'/.test(js)],
+  ['dragleave 用计数器（划过子元素会反复触发，直接收起会闪）',
+    /depth\s*\+=\s*1/.test(js) && /depth\s*-=\s*1/.test(js)],
+  ['拖出窗口时也收起（relatedTarget === null，否则遮罩会一直挂着像卡住）',
+    /relatedTarget === null\) hideHint\(\)/.test(js)],
+  ['非扩展文件不显示「可安装」，并如实说会被忽略',
+    /松手后会忽略/.test(js) && /忽略 \$\{paths\.length - extPaths\.length\}/.test(js)],
+  ['拖文字/链接进来不弹这个提示（先看 dt.types 里有没有 Files）',
+    /indexOf\.call\(dt\.types \|\| \[\], 'Files'\)/.test(js)],
+  ['取路径的逻辑只有一处（dragenter 与 drop 共用）',
+    /function filePathsOf/.test(js) && (js.match(/filePathsOf\(/g) || []).length >= 3],
+
+  /* --- 扩展根定位（单层包裹的包曾对全体用户报「缺少 manifest.json」） --- */
+  ['resolveExtensionRoot 会往下找一层（zip/xpi 的真实形状是单层包裹）',
+    /function resolveExtensionRoot[\s\S]{0,1500}?manifestAt\(sub\)/.test(extMod)],
+  ['定位根排在 normalizeFirefoxExtension 之前（.xpi 正是那种形状）',
+    extMod.indexOf('resolveExtensionRoot(extDir)') < extMod.indexOf('normalizeFirefoxExtension(extDir)')],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');
