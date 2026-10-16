@@ -650,18 +650,40 @@ function wireDownloads(ses, engineId) {
       url,
       total: item.getTotalBytes(),
       received: 0,
+      progress: 0,
       source: 'chromium',
       state: 'progress'
     };
+
+    /* 进度条读的是 progress（0..1 的比值），**不是** received / total。
+     *
+     * <p>Chromium 只给字节数，它不会替你算这个比值 —— 而这条路上原来
+     * 从头到尾没写过 progress，于是这一条任务的进度条永远是 0% 宽，
+     * 只有右边的「已下载 12.3 MB / 88.1 MB」在动。用户看到的正是
+     * 「进度条不跟着百分比走」。（Nova 多线程那条路是在 snapshot() 里算的，
+     * 所以只有回退到内建下载器的任务会这样。） */
+    const syncNativeProgress = () => {
+      payload.progress = payload.total > 0
+        ? Math.min(1, payload.received / payload.total)
+        : 0;
+    };
+
     send('download:update', payload);
     item.on('updated', (_ev, state) => {
       payload.received = item.getReceivedBytes();
       payload.total = item.getTotalBytes();
       payload.state = state;
+      syncNativeProgress();
       send('download:update', payload);
     });
     item.once('done', (_ev, state) => {
       payload.state = state === 'completed' ? 'done' : state;
+      payload.received = item.getReceivedBytes();
+      payload.total = item.getTotalBytes();
+      // 完成就是 100%：按比值算的话，服务端少算几百字节会让它停在 99.9%，
+      // 显示上像是没下完
+      if (payload.state === 'done') payload.progress = 1;
+      else syncNativeProgress();
       payload.path = item.getSavePath();
       payload.savePath = item.getSavePath();
       send('download:update', payload);

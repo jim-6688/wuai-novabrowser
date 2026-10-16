@@ -1012,6 +1012,11 @@ svg {
   align-items: flex-end; justify-content: center;
   gap: 6px; flex: 0 0 auto;
 }
+/* 竖排容器里 flex-basis 是**高度**方向 —— .switch 自带 `flex: 0 0 40px`，
+   在这个方向下它把 height:24px 顶掉，于是开关被撑成 40×40 的圆
+   （截图里一眼就看出来了：本该是个胶囊，画成了一个蓝圆圈）。
+   这里把 basis 收掉，高度仍由自己的 height 决定。 */
+.ext-acts .switch { flex: none; }
 
 .ext-icon {
   width: 34px; height: 34px; flex: 0 0 34px;
@@ -1041,6 +1046,44 @@ svg {
   line-height: 1.6;
 }
 .ext-changes b { color: var(--warn); }
+
+/* ------------------------------------------------------------------ *
+ * 工具栏的扩展小窗（点拼图图标弹出来的那个）
+ *
+ * 它是**独立于设置的**一层：就地开/关扩展，不用跳到一整页设置上。
+ * 定位与外壳复用下载小窗的 .dl-popover —— 「贴在按钮下面往左展开」
+ * 这套交互在这个工具栏上只该有一种，两处长得不一样才是问题。
+ * ------------------------------------------------------------------ */
+.ext-cluster { position: relative; display: flex; align-items: center; }
+
+/* 扩展一行：图标 / 名字+版本 / 开关。比设置里那张卡片矮得多 ——
+   这里的目标是「一眼扫完、顺手切一个」，不是读描述。 */
+.ext-pop-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+.ext-pop-row:last-child { border-bottom: 0; }
+/* 关掉的那一行压暗并灰掉图标：这个窗口里没有位置写「已关闭」三个字，
+   而开关本身在一列里并不显眼 */
+.ext-pop-row.is-off { opacity: .5; }
+.ext-pop-row.is-off .ext-icon { filter: grayscale(1); }
+.ext-pop-main { flex: 1; min-width: 0; }
+.ext-pop-name {
+  font-size: 12.5px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ext-pop-ver {
+  font-size: 10.5px; color: var(--text-4);
+  margin-top: 1px; font-family: var(--font-mono);
+}
+.ext-pop-row .switch { flex: 0 0 40px; }
+.ext-popover { width: 300px; max-height: 52vh; }
+/* 手机布局下不用在这里再关一次：上面那组 [data-layout="mobile"] 规则里已经
+   把 #btn-ext 藏了，而按钮藏了这个小窗就永远打不开 —— 一个功能两处判据，
+   改一处漏一处正是这个项目反复踩的坑。 */
 
 /* 扩展商店：两个「去哪找」入口 + 粘贴地址安装 */
 .sv-sub-h {

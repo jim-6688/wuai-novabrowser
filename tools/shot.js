@@ -103,12 +103,26 @@ app.whenReady().then(async () => {
   // 桌面端：外壳总览
   await shot('01-shell-desktop');
 
+  // 拼图图标弹出的小窗。它是「独立的扩展启用窗口」—— 就地开关，
+  // 不跳设置页。拍它是为了看它在真实排版下有没有溢出/被工具栏裁掉。
+  await js("document.querySelector('#btn-ext').click()");
+  await shot('01b-ext-popover');
+  await js('closeExtPopover()');
+
   for (const [sec, name] of [['general', '02-set-general'], ['engines', '03-set-engines'],
     ['adblock', '04-set-adblock'], ['privacy', '05-set-privacy'], ['bookmarks', '06-set-bookmarks'],
     ['downloads', '07-set-downloads'], ['sniffer', '08-set-sniffer'], ['mobile', '09-set-mobile']]) {
     await js(`openSettings('${sec}')`);
     await shot(name);
   }
+
+  // 「关于」里的更新状态：造一个「正在下载 37%」的状态。
+  // 这一张是给「进度条不跟着百分比走」那个问题留的对照 —— 两处显示
+  // （顶栏小窗 + 这一块）必须画成同一个百分比。
+  await js("openSettings('about')");
+  await js("state.update = { status: 'downloading', percent: 37, info: { version: '1.0.10' }, error: '' }; syncUpdateBlocks();");
+  await shot('09b-about-downloading');
+  await js("state.update = { status: 'idle', info: null, error: '', percent: 0 }; syncUpdateBlocks();");
 
   await js('closeSettings()');
   await shot('10-shell-back');

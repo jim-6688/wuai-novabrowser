@@ -354,8 +354,16 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /function updateStatusHtml[\s\S]{0,3000}?data-up="check"/.test(js)
       && /function updateStatusHtml[\s\S]{0,3000}?data-up="download"/.test(js)
       && /function updateStatusHtml[\s\S]{0,3000}?data-up="install"/.test(js)
-      && /function renderUpdatePanel[\s\S]{0,300}?updateStatusHtml\(/.test(js)
-      && /function buildAbout[\s\S]{0,600}?updateStatusHtml\(u\)/.test(js)],
+      && /function syncUpdateBlocks[\s\S]{0,400}?updateStatusHtml\(state\.update/.test(js)
+      && /function buildAbout[\s\S]{0,600}?updateStatusHtml\(u\)/.test(js)
+      // 两个显示位置都标了 [data-up-block]：漏标的那一处会在下载时僵住
+      // （「关于」那一页正是这么僵住的 —— 状态是新的，界面是旧的）
+      && /data-up-block/.test(html)
+      && /<div data-up-block>/.test(js)
+      && /querySelectorAll\('\[data-up-block\]'\)/.test(js)],
+  ['进度推送不按「小窗开着才重画」来（那样「关于」那一页的进度条会一直停在 0%）',
+    /bridge\.on\('update:progress'[\s\S]{0,400}?syncUpdateBlocks\(\)/.test(js)
+      && !/if \(!\$\('#update-panel'\)\.hidden\) syncUpdateBlocks/.test(js)],
   // 取委托处理器那**一段**来看（从 closest('[data-up]') 到下一个不同缩进的顶层块），
   // 不要用「从 data-up="check" 起 N 字符」那种宽松匹配 —— 中间隔着注释，
   // 窗口宽度得试好几遍，而其中一段注释里还正好出现了 openPanel('about')
@@ -437,8 +445,11 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /status: 'available',\s*\n\s*error: String\(e && e\.message/.test(mainMod)],
   ['available 分支会显示失败原因（不读 u.error 的话，点一次失败界面纹丝不动）',
     /u\.status === 'available'[\s\S]{0,400}?u\.error \?/.test(js)],
-  ['界面里不再出现「差分 / 只下变化的那部分」这类说法（现在是下整包，留着就是骗人）',
-    !/下载的是变化的那部分/.test(js) && !/只包含变化的那部分/.test(js)],
+  ['界面里不再出现「差分 / 只传变化的那部分」这类说法（现在是下整包，留着就是骗人）',
+    // 这句一共在两个地方出现过（进度条旁边、开关的副标题）—— 上一次只改了前者，
+    // 后者留在「关于」页里继续宣称差分，直到截图才看出来。
+    !/下载的是变化的那部分/.test(js) && !/只包含变化的那部分/.test(js)
+      && !/走差分/.test(js) && !/只传变化的那部分/.test(js)],
   ['旧安装包会被清掉（一版一个 78 MB，不清的话十版之后用户机器上躺着 780 MB 他看不到的东西）',
     /function pruneOldInstallers/.test(updaterMod)
       && (updaterMod.match(/pruneOldInstallers\(dest\)/g) || []).length === 2],
@@ -638,6 +649,38 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /if \(parsed\.crxId\) \{\s*\n\s*const existed/.test(mainMod)],
   ['界面里说明了「可以直接粘下载地址」这条办法',
     /直接粘下载地址/.test(js) && /tampermonkey/.test(js)],
+  /* --- 下载进度条 --- */
+  ['Chromium 内建下载器那条路会自己算 progress（它只给字节数，渲染层拿不到比值）',
+    // 这一路原来从头到尾没写过 progress → 那条任务的进度条永远 0% 宽，
+    // 只有右边的字节数在动，看起来就是「进度条不跟着百分比走」
+    /const syncNativeProgress = \(\) => \{[\s\S]{0,200}?payload\.progress/.test(mainMod)
+      && /syncNativeProgress\(\);/.test(mainMod)],
+  ['渲染层的进度条不单独依赖 progress 字段（谁漏写都不该让它僵住）',
+    /function dlProgressOf[\s\S]{0,400}?t\.received \/ t\.total/.test(js)
+      && /dlProgressOf\(t\)/.test(js)
+      && !/Math\.round\(\(t\.progress \|\| 0\) \* 100\)/.test(js)],
+  ['下完的那一条直接记成 100%（按比值算会停在 99.9%，看着像没下完）',
+    /payload\.state === 'done'\) payload\.progress = 1/.test(mainMod)],
+
+  /* --- 工具栏的扩展小窗 --- */
+  ['拼图图标打开的是**独立的扩展小窗**（就地开关），不再直接跳进设置页',
+    /function toggleExtPopover/.test(js)
+      && /\$\('#btn-ext'\)\.addEventListener\('click', toggleExtPopover\)/.test(js)
+      && !/\$\('#btn-ext'\)\.addEventListener\('click', \(\) => openPanel\('extensions'\)\)/.test(js)],
+  ['小窗**不能**把自己的 click 拦下来（里面那些开关走的是 document 委托，拦在冒泡路上它们就永远点不动）',
+    // 这个是实测踩出来的：一开始照内核菜单的写法给小窗加了 stopPropagation，
+    // 结果开关点得下去、界面有反应，就是扩展状态不变。
+    !/\$\('#ext-popover'\)\s*\.addEventListener\('click'/.test(js)],
+  ['小窗里每一行都有启用开关（这就是「独立的插件启用窗口」本身）',
+    /function extPopRow[\s\S]{0,700}?data-ext-toggle=/.test(js)],
+  ['小窗与设置页显示同一个开关状态 —— 切一处要两处都重画',
+    /renderExtPopover\(\);\s*\n\s*refreshCurrent\(\);/.test(js)],
+  ['点小窗外面会收起它（按落点判断，而不是给小窗加 stopPropagation）',
+    /document\.addEventListener\('click', \(ev\) => \{[\s\S]{0,400}?closest\('#ext-popover'\)[\s\S]{0,200}?closeExtPopover\(\)/.test(js)],
+  ['「从本地文件安装」的实现在外壳里**只有一处**（两个入口共用，抄第二份必然漏改）',
+    (js.match(/bridge\.extensions\.install\(\)/g) || []).length === 1
+      && /function installExtensionsFromDisk/.test(js)],
+
   ['Edge 取包 400 时给出可操作的说明（不是干巴巴地报 HTTP 400）',
     /Edge 商店的取包接口已关闭/.test(storeMod)
       && /从已安装的浏览器导入/.test(storeMod)],

@@ -263,6 +263,44 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('草稿同时留在 state.dlDraft 里',
     window.eval('state.dlDraft') === 'https://example.com/half-typed');
 
+  /* Chromium 内建下载器那条路的**真实数据形状**：它只给字节数，
+     没有 progress 这个比值（主进程那边原来也确实没写过它）。
+     用户报的「进度条没有随百分比进度走」就是这一条：字节数在动、条子不动。
+     所以这里刻意**不发 progress**，看渲染层能不能自己把比值兜出来。 */
+  console.log('\n[H2] 只有字节数（没有 progress）时进度条也要走');
+
+  const clickEl = (el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+  window.nova.__emit('download:update', {
+    id: 'native_probe', filename: 'big.iso', url: 'https://example.test/big.iso',
+    total: 1000, received: 250, source: 'chromium', state: 'progressing'
+  });
+  // 小窗没开的话打开它（列表只在打开时才画）
+  if ($('#dl-popover').hidden) clickEl($('#btn-downloads'));
+  await sleep(450);
+
+  const probeRow = $$('#dl-pop-list .dl-task')
+    .find((r) => r.dataset.task === 'native_probe');
+  check('小窗里出现了这条内建下载器的任务', !!probeRow);
+  const probeBar = probeRow && probeRow.querySelector('.dl-seg b');
+  check('进度条按 received / total 画出来了（不是 0% 宽）',
+    probeBar && parseFloat(probeBar.style.width) > 24 && parseFloat(probeBar.style.width) < 26,
+    probeBar ? probeBar.style.width : '没有进度条');
+  check('旁边的百分比与条形一致', probeRow && /（25%）/.test(probeRow.textContent),
+    probeRow ? probeRow.textContent.replace(/\s+/g, ' ').slice(0, 80) : '');
+
+  // 再推一帧，确认它是跟着走的（不是渲染时算了一次就定住）
+  window.nova.__emit('download:update', {
+    id: 'native_probe', filename: 'big.iso', url: 'https://example.test/big.iso',
+    total: 1000, received: 800, source: 'chromium', state: 'progressing'
+  });
+  await sleep(450);
+  const probeBar2 = $$('#dl-pop-list .dl-task')
+    .find((r) => r.dataset.task === 'native_probe').querySelector('.dl-seg b');
+  check('下一帧推到 80%，条形也跟着变',
+    parseFloat(probeBar2.style.width) > 79 && parseFloat(probeBar2.style.width) < 81,
+    probeBar2.style.width);
+
   console.log('\n[I] 运行时错误');
 
   check('走完下载页全流程仍无异常', errors.length === 0, errors.join(' | ') || '无');

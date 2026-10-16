@@ -1823,6 +1823,26 @@ function renderBrowserExtList(given) {
     </div>`).join('');
 }
 
+/**
+ * 从本地文件装扩展（.crx / .zip / .xpi / 装着包的目录）。
+ *
+ * <p>抽成具名函数是因为它有**两个入口**：设置里的「从本地文件安装」与
+ * 工具栏扩展小窗底部的同一个动作。复制一份出来的话，某个入口迟早被漏改
+ * （改一处、另一处还按旧行为跑，而且两处看起来都正常）。
+ */
+async function installExtensionsFromDisk() {
+  const r = await bridge.extensions.install();
+  state.extensions = await bridge.extensions.list();
+  // 两处都重画：这一句调用时可能两个界面都在（小窗开着 + 设置页在背后）
+  renderExtPopover();
+  refreshCurrent();
+  const ok = (r.installed || []).filter((x) => !x.error);
+  const bad = (r.installed || []).filter((x) => x.error);
+  toast(ok.length
+    ? `已安装 ${ok.length} 个扩展${bad.length ? `，${bad.length} 个失败` : ''}`
+    : (bad[0] ? bad[0].error : '未选择文件'));
+}
+
 /** 一张扩展卡片。启用状态体现在开关与卡片整体的淡出上。 */
 function extCard(x) {
   const enabled = x.enabled !== false;
@@ -1849,6 +1869,66 @@ function extCard(x) {
         <button class="btn" data-remove-ext="${esc(x.id)}" title="移除（不可撤销，装的文件也会删掉）">移除</button>
       </div>
     </div>`;
+}
+
+/* ------------------------------------------------------------------ *
+ * 工具栏的扩展小窗（点拼图图标弹出来）
+ *
+ * 用户的原话是「插件按钮没有独立的插件启用窗口」—— 点拼图直接跳进设置
+ * 虽然能开/关，但那是「管理」的地方：一页里有说明、商店、导入、每张卡片
+ * 的详情。开/关是**高频**动作，每次都要落到那一页上太远。
+ * 所以这一个窗口只做一件事：列出已装的、就地切开关。其余仍在设置里
+ * （底部一个入口过去）。
+ *
+ * 与下载小窗同一套壳（.dl-popover）：贴在按钮下面、往左展开。
+ * ------------------------------------------------------------------ */
+
+/** 小窗里的一行：图标 / 名字+版本 / 开关 —— 比设置里那张卡片矮得多。 */
+function extPopRow(x) {
+  const enabled = x.enabled !== false;
+  return `
+    <div class="ext-pop-row ${enabled ? '' : 'is-off'}">
+      <div class="ext-icon">${x.icon ? `<img src="${esc(x.icon)}" alt="" />` : esc((x.name || 'E').slice(0, 1))}</div>
+      <div class="ext-pop-main">
+        <div class="ext-pop-name" title="${esc(x.name)}${x.description ? ' · ' + esc(x.description) : ''}">${esc(x.name)}</div>
+        <div class="ext-pop-ver">v${esc(x.version)} · ${enabled ? '已启用' : '已关闭'}</div>
+      </div>
+      <button class="switch ${enabled ? 'is-on' : ''}" data-ext-toggle="${esc(x.id)}"
+              title="${enabled ? '已启用，点击关闭' : '已关闭，点击启用'}"></button>
+    </div>`;
+}
+
+/** 重画小窗。开关、安装、卸装都走这里（见那几个调用点）。 */
+function renderExtPopover() {
+  const list = $('#ext-pop-list');
+  if (!list) return;
+  const items = state.extensions || [];
+  list.innerHTML = items.length
+    ? items.map(extPopRow).join('')
+    : '<div class="dl-pop-empty">还没有安装扩展<br />点下面的「从文件安装」</div>';
+}
+
+/** 打开前先拉一份最新的：扩展可能在别处（设置页 / 拖入安装）变过。 */
+async function openExtPopover() {
+  const pop = $('#ext-popover');
+  if (!pop) return;
+  try { state.extensions = await bridge.extensions.list(); } catch { /* 预览模式下没有真列表，用缓存 */ }
+  renderExtPopover();
+  pop.hidden = false;
+  $('#btn-ext').setAttribute('aria-expanded', 'true');
+}
+
+function closeExtPopover() {
+  const pop = $('#ext-popover');
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  const btn = $('#btn-ext');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function toggleExtPopover() {
+  if ($('#ext-popover').hidden) openExtPopover();
+  else closeExtPopover();
 }
 
 async function buildHistory() {
@@ -2019,6 +2099,21 @@ function fmtEta(sec) {
 }
 
 /**
+ * 一条任务的完成比例（0..1）。
+ *
+ * <p>优先用 progress，**但一定要能自己从 received / total 兜出来** ——
+ * 这条兜底不是多余的：Chromium 内建下载器那条路只给字节数，
+ * 它的 progress 曾经一整个没写过，于是那条任务的进度条永远停在 0%，
+ * 而旁边的字节数在动（用户报的就是「进度条不跟百分比走」）。
+ * 主进程那边已经补上了，这里再兜一道：以后任何一处忘了写 progress，
+ * 进度条也不会僵在那儿。
+ */
+function dlProgressOf(t) {
+  if (t.progress > 0) return Math.min(1, t.progress);
+  return t.total > 0 ? Math.min(1, Math.max(0, t.received / t.total)) : 0;
+}
+
+/**
  * 分片进度条 —— 这个界面里最重要的一个控件。
  * Chromium 自带下载器只有一个整条进度，看不出用了多少连接；
  * 这里一条分片画一格，谁快谁慢、有没有退化成单连接，一眼就能看出来。
@@ -2027,7 +2122,7 @@ function dlSegments(t) {
   const chunks = t.chunks || [];
   if (!chunks.length) {
     // 还没探测出分片（排队 / 探测中），或者这条是 Chromium 内建下载器的任务
-    const pct = Math.min(100, Math.round((t.progress || 0) * 100));
+    const pct = Math.min(100, Math.round(dlProgressOf(t) * 100));
     return `<i class="dl-seg is-pending" title="尚未分片"><b style="width:${pct}%"></b></i>`;
   }
   const maxSize = Math.max(...chunks.map((c) => c.size || 1), 1);
@@ -2071,7 +2166,7 @@ function dlActions(t) {
 function dlTaskRow(t) {
   const st = DL_STATE[t.state] || { label: t.state, cls: '' };
   const total = t.total > 0 ? t.total : 0;
-  const pct = Math.round((t.progress || 0) * 100);
+  const pct = Math.round(dlProgressOf(t) * 100);
   const native = t.source === 'chromium' || t.source === 'fallback';
 
   const meta = [];
@@ -2858,7 +2953,7 @@ function buildAbout() {
   const v = state.__versions || {};
   const u = state.update || {};
   const pre = updatePref();
-  const updBlock = updateStatusHtml(u);
+  const updBlock = `<div data-up-block>${updateStatusHtml(u)}</div>`;
 
   return `
     <h2 class="sv-h2">关于吾爱Nova</h2>
@@ -2878,7 +2973,7 @@ function buildAbout() {
       <div class="list-row">
         <span class="lr-main">
           <span class="lr-title">自动检查并下载更新</span>
-          <span class="lr-sub">发现新版本就自己下载，走差分只传变化的部分</span>
+          <span class="lr-sub">发现新版本就自己下载（下完会自动校验完整性）</span>
         </span>
         <button class="switch ${pre.autoDownload ? 'is-on' : ''}" data-upcfg="autoDownload"
                 title="${pre.autoDownload ? '已开启' : '已关闭'}"></button>
@@ -3892,12 +3987,7 @@ function wireActions(root) {
       } else if (act === 'store-install') {
         await runStoreInstall();
       } else if (act === 'install-ext') {
-        const r = await bridge.extensions.install();
-        state.extensions = await bridge.extensions.list();
-        refreshCurrent();
-        const ok = (r.installed || []).filter((x) => !x.error);
-        const bad = (r.installed || []).filter((x) => x.error);
-        toast(ok.length ? `已安装 ${ok.length} 个扩展${bad.length ? `，${bad.length} 个失败` : ''}` : (bad[0] ? bad[0].error : '未选择文件'));
+        await installExtensionsFromDisk();
       } else if (act === 'clear-history') {
         await bridge.history.clear();
         refreshCurrent();
@@ -4258,17 +4348,34 @@ function renderUpdateBtn() {
   btn.classList.toggle('is-busy', s.status === 'downloading');
 }
 
-/** 工具栏那个更新小窗。内容与「关于」面板**共用同一份**（见 updateStatusHtml）。 */
-function renderUpdatePanel() {
-  const body = $('#update-body');
-  if (!body) return;
-  body.innerHTML = updateStatusHtml(state.update || {});
+/**
+ * 把更新状态重画到**所有**显示它的地方。
+ *
+ * <p>为什么不是「只画工具栏小窗」：同一份状态现在同时出现在两处 ——
+ * 顶栏的更新小窗（#update-body）与设置里的「关于」分区（buildAbout 里那一块）。
+ * 两者用一个 `[data-up-block]` 标记，这里一并重画。
+ *
+ * <p>原来的写法是 `if (!$('#update-panel').hidden) renderUpdatePanel()` ——
+ * 只有小窗开着才重画，于是**下载时「关于」那一页的进度条是死的**：
+ * 顶栏角标上的百分比一直在跳，那一页的进度条停在开始下载时的 0%
+ * 一动不动（用户报的就是这个）。同一个状态显示在两处，就只有「两处都重画」
+ * 才是对的 —— 少画一处，那处就是假的。
+ *
+ * <p>这里是整段 innerHTML 重写而不是改宽度：状态之间结构不同
+ * （idle 一个按钮、downloading 一条进度条、ready 两个按钮），
+ * 逐字段打补丁迟早会漏。整块重画的代价可以忽略（几十个节点），
+ * 而进度事件本来就在主进程那边按 200ms 节流过了。
+ * 这些按钮走的是 document 上的委托，重画不会掉监听。
+ */
+function syncUpdateBlocks() {
+  const html = updateStatusHtml(state.update || {});
+  for (const el of document.querySelectorAll('[data-up-block]')) el.innerHTML = html;
 }
 
 function openUpdatePanel() {
   const panel = $('#update-panel');
   if (!panel) return;
-  renderUpdatePanel();
+  syncUpdateBlocks();
   panel.hidden = false;
   panel.classList.add('is-open');
   panel.setAttribute('aria-hidden', 'false');
@@ -4363,7 +4470,8 @@ function applyUpdateState(s) {
     percent: s.status === 'downloading' ? (state.update.percent || 0) : 0
   });
   renderUpdateBtn();
-  if (!$('#update-panel').hidden) renderUpdatePanel();
+  // 无条件重画：小窗与「关于」分区都要跟着走（见 syncUpdateBlocks）
+  syncUpdateBlocks();
 
   const pre = updatePref();
   const ver = (s.info && s.info.version) || '';
@@ -4612,7 +4720,34 @@ function wireUi() {
 
   $('#btn-shield').addEventListener('click', () => openPanel('adblock'));
   $('#btn-sniff').addEventListener('click', () => openPanel('sniffer'));
-  $('#btn-ext').addEventListener('click', () => openPanel('extensions'));
+
+  /* 拼图图标 = 打开**独立的扩展小窗**（就地开关），不再直接跳进设置。
+   *
+   * 收起用「看落点」而不是给小窗加 stopPropagation —— 这一点是踩出来的：
+   * 小窗里那些开关走的是 document 上的委托（卡片/行会随列表重绘，
+   * 逐行绑定会漏绑），一旦小窗把 click 拦在冒泡路上，里面的开关就**永远点不动**
+   * （界面完好、点击有反馈、就是不生效）。所以这里只判落点是不是落在
+   * 小窗或按钮里面，是就放过。 */
+  $('#btn-ext').addEventListener('click', toggleExtPopover);
+  document.addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (t && typeof t.closest === 'function'
+        && (t.closest('#ext-popover') || t.closest('#btn-ext'))) return;
+    closeExtPopover();
+  });
+  $('#ext-pop-close').addEventListener('click', closeExtPopover);
+  // 窗口尺寸变了（尤其窗口变窄）小窗可能贴出可视区，收起最稳
+  window.addEventListener('resize', closeExtPopover);
+  $('#ext-pop-manage').addEventListener('click', () => {
+    closeExtPopover();
+    openPanel('extensions');
+  });
+  $('#ext-pop-install').addEventListener('click', async () => {
+    // 走设置页那个按钮用的**同一个函数**，不在这儿再抄一遍装扩展的逻辑
+    // （抄一份出来，两处迟早只改一处）。
+    await installExtensionsFromDisk();
+  });
+
   $('#btn-ai').addEventListener('click', openAiPanel);
   $('#btn-menu').addEventListener('click', renderMenuPanel);
 
@@ -4756,6 +4891,9 @@ function wireUi() {
           state.extensions = await bridge.extensions.list();
           toast(next ? '已启用，刷新页面后生效' : '已关闭');
         }
+        // 同一个状态显示在两处（设置页那一片 + 工具栏小窗），只重画一处，
+        // 另一处会停在上一次的位置上，看起来像那个开关没生效
+        renderExtPopover();
         refreshCurrent();
         return;
       }
@@ -4767,17 +4905,18 @@ function wireUi() {
         t.disabled = true;
         try { await bridge.update.check(); } catch { /* 主进程已兜 */ }
         t.disabled = false;
-        renderUpdatePanel();
-        // 「关于」面板里那几个按钮不会自动重画（它不是 renderUpdatePanel 管的），
-        // 所以状态一变就 refreshCurrent() 重画当前分区。
-        // 用它而不是 openPanel('about')：后者会 openSettings 把设置视图整个打开，
-        // 而用户此刻正站在设置里的「关于」分区上——那会把人从当前位置弹走。
+        syncUpdateBlocks();
+        // 「关于」分区也在 [data-up-block] 之列，上面那一句已经把它画过了。
+        // 这里再 refreshCurrent() 是因为**同一个面板里还有别的东西随状态变**
+        // （比如那一行的按钮禁用态）；用它而不是 openPanel('about')：
+        // 后者会 openSettings 把设置视图整个打开，而用户此刻正站在设置里的
+        // 「关于」分区上 —— 那会把人从当前位置弹走。
         refreshCurrent();
       } else if (act === 'download') {
         t.disabled = true;
         toast('开始下载更新…');
         try { await bridge.update.download(); } catch { /* 状态里有错误 */ }
-        renderUpdatePanel();
+        syncUpdateBlocks();
         refreshCurrent();
       } else if (act === 'install') {
         await bridge.update.install();
@@ -4792,7 +4931,8 @@ function wireUi() {
     bridge.on('update:progress', (p) => {
       state.update.percent = p && p.percent ? p.percent : 0;
       renderUpdateBtn();
-      if (!$('#update-panel').hidden) renderUpdatePanel();
+      // 条件里**不要**写「小窗开着才重画」：那样「关于」那一页的进度条会僵住
+      syncUpdateBlocks();
     });
 
     renderUpdateBtn();
@@ -4885,7 +5025,7 @@ function wireUi() {
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeUpdatePanel(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -4914,7 +5054,11 @@ function wireBridgeEvents() {
   });
 
   bridge.on('adblock:stats', (s) => { state.adblock = s; $('#shield-count').textContent = String(s.blocked); });
-  bridge.on('ext:changed', (list) => { state.extensions = list; });
+  bridge.on('ext:changed', (list) => {
+    state.extensions = list;
+    // 小窗一直挂在那儿（点别处才收起），主进程推来的变化要立刻反映上去
+    renderExtPopover();
+  });
 
   /* 拖到**网页区域**装扩展的结果。
    *
