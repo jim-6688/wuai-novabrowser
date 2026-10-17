@@ -208,6 +208,27 @@ if (typeof mod.unpackDirFor !== 'function') {
   check('都落在给定的 workDir 下', path.dirname(a1) === WD, path.dirname(a1));
 }
 
+console.log('\n[E] 界面入口路径解析（决定「打开界面」按钮出不出得来）');
+if (typeof mod.readUiPaths !== 'function') {
+  console.log('  SKIP  readUiPaths 未导出');
+} else {
+  const U = mod.readUiPaths;
+  // side_panel 型扩展（豆包/Cici、DeepSider）：主界面必须是 side_panel.html
+  const sp = U({ side_panel: { default_path: 'side_panel.html' },
+    action: { default_popup: 'popup.html' }, options_ui: { page: 'options.html' } });
+  check('三者都有时 primary 取 side_panel（侧边栏型扩展的主界面）', sp.primary === 'side_panel.html');
+  check('sidePanel / popup / options 各自分开记', sp.sidePanel === 'side_panel.html' && sp.popup === 'popup.html' && sp.options === 'options.html');
+  // 只有 action 弹窗的扩展
+  const pop = U({ action: { default_popup: 'popup.html' } });
+  check('没有 side_panel 时 primary 落到 action 弹窗', pop.primary === 'popup.html' && pop.sidePanel === null);
+  // 只有选项页的扩展
+  const opt = U({ options_ui: { page: 'options.html' } });
+  check('只有选项页时 primary 落到 options', opt.primary === 'options.html');
+  // 三样都没有的扩展 —— 这时不该有「打开界面」按钮
+  const none = U({ name: 'x' });
+  check('三样都没有时 primary 为 null（渲染层据此不显示「打开界面」）', none.primary === null);
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 
 console.log(`\n${fail === 0 ? '全部通过' : '有失败项'}：${pass} 通过 / ${fail} 失败`);

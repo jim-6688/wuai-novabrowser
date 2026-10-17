@@ -170,12 +170,13 @@
         </button>
         <div class="dl-popover ext-popover" id="ext-popover" role="dialog" aria-label="扩展" hidden>
           <div class="dl-pop-head">
-            <span>扩展</span>
+            <span id="ext-pop-title">扩展</span>
             <button class="dl-pop-x" id="ext-pop-close" title="收起">×</button>
           </div>
           <div class="dl-pop-list" id="ext-pop-list"></div>
           <div class="dl-pop-foot">
             <button class="btn btn-sm" id="ext-pop-install">从文件安装</button>
+            <button class="btn btn-sm" id="ext-pop-import">从浏览器导入</button>
             <button class="btn btn-sm" id="ext-pop-manage">管理全部扩展</button>
           </div>
         </div>
@@ -318,6 +319,24 @@
         <button class="btn" id="ai-clear">清空</button>
       </div>
       <div class="ai-note">内嵌网页对话 · 免登录优先 · 不收集密钥</div>
+    </div>
+  </aside>
+
+  <!-- ============ 扩展界面承载面板（侧边栏 / 弹窗型扩展的 UI 出口） ============ -->
+  <!-- Electron 不渲染扩展侧边栏与浏览器动作弹窗，side_panel 型扩展（豆包/Cici、
+       DeepSider 等）装上了也「点不出来」。这个面板用同分区 webview 打开扩展自己的
+       side_panel.html / popup.html / options.html，让这类扩展在 Nova 里真正可用。
+       位置与滑入方式复用 AI 面板那一套（右侧停靠）。 -->
+  <aside class="ext-ui-panel" id="ext-ui-panel" aria-hidden="true" hidden>
+    <header class="ext-ui-head">
+      <div class="ext-ui-title">
+        <img class="ext-ui-icon" id="ext-ui-icon" alt="" hidden />
+        <h2 id="ext-ui-name">扩展</h2>
+      </div>
+      <button class="ext-ui-x" id="ext-ui-close" title="关闭">×</button>
+    </header>
+    <div class="ext-ui-body">
+      <webview id="ext-ui-webview" class="ext-ui-webview" allowpopups partition="persist:nova-chromium"></webview>
     </div>
   </aside>
 

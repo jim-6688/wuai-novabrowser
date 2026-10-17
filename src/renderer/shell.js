@@ -1864,6 +1864,9 @@ function extCard(x) {
         ${(x.changes || []).length ? `<div class="ext-changes"><b>兼容处理：</b>${x.changes.map(esc).join('；')}</div>` : ''}
       </div>
       <div class="ext-acts">
+        ${(x.uiPaths && x.uiPaths.primary && enabled)
+          ? `<button class="btn" data-ext-open="${esc(x.id)}" title="打开这个扩展的界面（侧边栏 / 弹窗 / 选项页）">打开界面</button>`
+          : ''}
         <button class="switch ${enabled ? 'is-on' : ''}" data-ext-toggle="${esc(x.id)}"
                 title="${enabled ? '已启用，点击关闭' : '已关闭，点击启用'}"></button>
         <button class="btn" data-remove-ext="${esc(x.id)}" title="移除（不可撤销，装的文件也会删掉）">移除</button>
@@ -1893,6 +1896,9 @@ function extPopRow(x) {
         <div class="ext-pop-name" title="${esc(x.name)}${x.description ? ' · ' + esc(x.description) : ''}">${esc(x.name)}</div>
         <div class="ext-pop-ver">v${esc(x.version)} · ${enabled ? '已启用' : '已关闭'}</div>
       </div>
+      ${(x.uiPaths && x.uiPaths.primary && enabled)
+        ? `<button class="btn btn-sm ext-pop-open" data-ext-open="${esc(x.id)}" title="打开这个扩展的界面（侧边栏 / 弹窗 / 选项页）">打开</button>`
+        : ''}
       <button class="switch ${enabled ? 'is-on' : ''}" data-ext-toggle="${esc(x.id)}"
               title="${enabled ? '已启用，点击关闭' : '已关闭，点击启用'}"></button>
     </div>`;
@@ -1901,11 +1907,63 @@ function extPopRow(x) {
 /** 重画小窗。开关、安装、卸装都走这里（见那几个调用点）。 */
 function renderExtPopover() {
   const list = $('#ext-pop-list');
+  const title = $('#ext-pop-title');
   if (!list) return;
+  // 两种视图：默认「已装扩展」（就地开关），导入视图「从浏览器导入」。
+  // 都在这一个小窗里完成，不用为了导入专门跳去设置页 —— 那正是用户
+  // 反馈「探测还是打开设置界面」要解决的：探测/导入就该在点开的这个窗里。
+  if (state.extPopView === 'import') {
+    if (title) title.textContent = '从浏览器导入';
+    list.innerHTML = renderExtImportRows();
+    return;
+  }
+  if (title) title.textContent = '扩展';
   const items = state.extensions || [];
   list.innerHTML = items.length
     ? items.map(extPopRow).join('')
     : '<div class="dl-pop-empty">还没有安装扩展<br />点下面的「从文件安装」</div>';
+}
+
+/**
+ * 导入视图的行：顶上一条「返回」，下面是扫到的候选。
+ *
+ * <p>state.extImport 用 null 表示「还在扫」、空数组表示「扫完没有」——
+ * 与 {@link stateBrowserExts} 同一套约定：空白会被读成后者，而那是个错误结论。
+ */
+function renderExtImportRows() {
+  const back = '<div class="ext-pop-back" data-ext-pop-back>'
+    + '<span class="ext-pop-back-arrow">←</span>返回已装扩展</div>';
+  const s = state.extImport;
+  if (s === null || s === undefined) {
+    return back + '<div class="dl-pop-empty">正在扫描本机已安装浏览器里的扩展…</div>';
+  }
+  if (!s.length) {
+    return back + '<div class="dl-pop-empty">没有在本机其它浏览器里找到可导入的扩展。</div>';
+  }
+  return back + s.map((x) => `
+    <div class="ext-pop-row">
+      <div class="ext-pop-import-main">
+        <div class="ext-pop-name" title="${esc(x.name)}">${esc(x.name)}</div>
+        <div class="ext-pop-ver">${esc(x.browser)}${x.profile && x.profile !== 'Default' ? ' · ' + esc(x.profile) : ''} · v${esc(x.version)}</div>
+      </div>
+      <button class="btn btn-sm" data-ext-import="${esc(x.key)}">导入</button>
+    </div>`).join('');
+}
+
+/** 切到导入视图并扫一遍本机浏览器扩展。 */
+async function scanExtImport() {
+  state.extPopView = 'import';
+  state.extImport = null;
+  renderExtPopover();
+  try {
+    const r = await bridge.extensions.fromBrowser();
+    state.extImport = (r && r.found) || [];
+  } catch (e) {
+    state.extImport = [];
+    toast('扫描失败：' + String(e && e.message || e), 5000);
+  }
+  // 只在还停在导入视图时才重画 —— 扫的这会儿用户可能已经点了返回
+  if (state.extPopView === 'import') renderExtPopover();
 }
 
 /** 打开前先拉一份最新的：扩展可能在别处（设置页 / 拖入安装）变过。 */
@@ -1913,6 +1971,8 @@ async function openExtPopover() {
   const pop = $('#ext-popover');
   if (!pop) return;
   try { state.extensions = await bridge.extensions.list(); } catch { /* 预览模式下没有真列表，用缓存 */ }
+  // 每次打开都回到「已装扩展」视图，不停在上次的导入页上
+  state.extPopView = 'installed';
   renderExtPopover();
   pop.hidden = false;
   $('#btn-ext').setAttribute('aria-expanded', 'true');
@@ -4332,6 +4392,56 @@ function closeAiPanel() {
   setTimeout(() => { if (!panel.classList.contains('is-open')) panel.hidden = true; }, 240);
 }
 
+/**
+ * 打开某个扩展的界面（侧边栏 / 弹窗 / 选项页）。
+ *
+ * <p>Electron 不渲染扩展侧边栏与浏览器动作弹窗，所以 side_panel 型扩展
+ * （豆包/Cici、DeepSider 等）装上了也没有工具栏图标可点。这里用 Nova 自己的
+ * 停靠面板 + 同分区 webview 把扩展自己的 side_panel.html / popup.html 打开 ——
+ * 相当于替 Electron 补上它没做的那块 UI。e2e 实测：同分区 webview 载入
+ * `chrome-extension://<id>/side_panel.html` 能正常渲染（title="Side Panel"）。
+ *
+ * @param {string} id 我们自己的扩展 id（state.extensions 里的那条）
+ */
+function openExtUiPanel(id) {
+  const panel = $('#ext-ui-panel');
+  const x = (state.extensions || []).find((e) => e.id === id);
+  if (!panel || !x) return;
+  if (x.enabled === false) { toast('这个扩展已关闭，先打开开关再用'); return; }
+  const rel = x.uiPaths && x.uiPaths.primary;
+  if (!rel || !x.electronId) { toast('这个扩展没有可打开的界面'); return; }
+
+  const url = 'chrome-extension://' + x.electronId + '/' + String(rel).replace(/^\/+/, '');
+  const nameEl = $('#ext-ui-name');
+  if (nameEl) nameEl.textContent = x.name || '扩展';
+  const iconEl = $('#ext-ui-icon');
+  if (iconEl) {
+    if (x.icon) { iconEl.src = x.icon; iconEl.hidden = false; }
+    else { iconEl.hidden = true; iconEl.removeAttribute('src'); }
+  }
+  const wv = $('#ext-ui-webview');
+  if (wv) wv.src = url;
+  panel.hidden = false;
+  panel.classList.add('is-open');
+  panel.setAttribute('aria-hidden', 'false');
+}
+
+function closeExtUiPanel() {
+  const panel = $('#ext-ui-panel');
+  if (!panel) return;
+  panel.classList.remove('is-open');
+  panel.setAttribute('aria-hidden', 'true');
+  // 与 AI 面板一致：滑出后再隐藏并清掉 src，避免 webview 常驻占资源，
+  // 也避免下次打开时先闪一下上一个扩展的旧内容
+  setTimeout(() => {
+    if (!panel.classList.contains('is-open')) {
+      panel.hidden = true;
+      const wv = $('#ext-ui-webview');
+      if (wv) wv.removeAttribute('src');
+    }
+  }, 240);
+}
+
 /* ------------------------------------------------------------------ *
  * 自动更新（PC）
  * ------------------------------------------------------------------ */
@@ -4768,6 +4878,8 @@ function wireUi() {
     // （抄一份出来，两处迟早只改一处）。
     await installExtensionsFromDisk();
   });
+  // 从浏览器导入：就地扫、就地导入，不再为了这一步专门跳去设置页
+  $('#ext-pop-import').addEventListener('click', scanExtImport);
 
   $('#btn-ai').addEventListener('click', openAiPanel);
   $('#btn-menu').addEventListener('click', renderMenuPanel);
@@ -4793,6 +4905,7 @@ function wireUi() {
 
   // AI 助手面板：下拉切换 / 带入当前页 / 发送 / 清空 / 关闭
   $('#ai-close').addEventListener('click', closeAiPanel);
+  $('#ext-ui-close').addEventListener('click', closeExtUiPanel);
   $('#ai-grab').addEventListener('click', aiGrab);
   $('#ai-send').addEventListener('click', aiSend);
   $('#ai-clear').addEventListener('click', () => { const ta = $('#ai-text'); if (ta) ta.value = ''; });
@@ -4919,6 +5032,41 @@ function wireUi() {
         // 另一处会停在上一次的位置上，看起来像那个开关没生效
         renderExtPopover();
         refreshCurrent();
+        return;
+      }
+
+      // 「打开界面」：把 side_panel / popup / 选项页载进右侧停靠面板（见 openExtUiPanel）
+      const eo = ev.target.closest('[data-ext-open]');
+      if (eo) {
+        // 从工具栏小窗点进来时先把小窗收起，两个停靠层别叠在一起
+        if (eo.closest('#ext-popover')) closeExtPopover();
+        openExtUiPanel(eo.dataset.extOpen);
+        return;
+      }
+
+      // 导入视图的「返回已装扩展」
+      const eback = ev.target.closest('[data-ext-pop-back]');
+      if (eback) { state.extPopView = 'installed'; renderExtPopover(); return; }
+
+      // 小窗里的「导入」：从本机浏览器搬一个扩展过来（与设置页同一个 IPC）
+      const ei = ev.target.closest('[data-ext-import]');
+      if (ei) {
+        const key = ei.dataset.extImport;
+        ei.textContent = '导入中…';
+        ei.disabled = true;
+        const r = await bridge.extensions.importFromBrowser(key);
+        if (r && r.error) {
+          toast(r.error, 6000);
+          ei.textContent = '导入';
+          ei.disabled = false;
+        } else if (r) {
+          state.extensions = await bridge.extensions.list();
+          // 导入过的从候选里去掉（它已经进「已安装」了）
+          state.extImport = (state.extImport || []).filter((x) => x.key !== key);
+          toast(`已导入「${r.name || ''}」（来自 ${r.from || '其它浏览器'}）`, 4200);
+          renderExtPopover();
+          refreshCurrent();
+        }
         return;
       }
 
@@ -5049,7 +5197,7 @@ function wireUi() {
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;

@@ -745,6 +745,39 @@ svg {
   z-index: 45;
 }
 .ai-panel.is-open { transform: none; }
+.ext-ui-panel {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 420px;
+  max-width: 94vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-3);
+  transform: translateX(102%);
+  transition: transform 220ms var(--ease);
+  display: flex;
+  flex-direction: column;
+  z-index: 46;
+}
+.ext-ui-panel.is-open { transform: none; }
+.ext-ui-head {
+  height: 48px; min-height: 48px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3) 0 var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+.ext-ui-title { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.ext-ui-icon { width: 20px; height: 20px; border-radius: 4px; object-fit: contain; flex-shrink: 0; }
+.ext-ui-title h2 { margin: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ext-ui-x {
+  border: 0; background: transparent; color: var(--text-3);
+  font-size: 18px; line-height: 1; cursor: pointer;
+  padding: 2px 6px; border-radius: var(--r-sm);
+}
+.ext-ui-x:hover { background: var(--surface-2); color: var(--text); }
+.ext-ui-body { flex: 1; min-height: 0; position: relative; background: var(--bg); display: flex; }
+.ext-ui-webview { flex: 1; width: 100%; height: 100%; border: 0; background: var(--bg); }
 .ai-head {
   height: 48px; min-height: 48px;
   display: flex; align-items: center; justify-content: space-between;
@@ -1080,6 +1113,20 @@ svg {
   margin-top: 1px; font-family: var(--font-mono);
 }
 .ext-pop-row .switch { flex: 0 0 40px; }
+/* 「打开」按钮：小窗行高有限，收窄一点别挤到开关 */
+.ext-pop-open { flex-shrink: 0; padding: 0 var(--sp-2); }
+/* 导入视图顶上那条「返回已装扩展」 */
+.ext-pop-back {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: 11.5px; color: var(--text-3); cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 1;
+  background: var(--surface);
+}
+.ext-pop-back:hover { color: var(--text); background: var(--surface-2); }
+.ext-pop-back-arrow { font-size: 13px; }
+.ext-pop-import-main { flex: 1; min-width: 0; }
 .ext-popover { width: 300px; max-height: 52vh; }
 /* 手机布局下不用在这里再关一次：上面那组 [data-layout="mobile"] 规则里已经
    把 #btn-ext 藏了，而按钮藏了这个小窗就永远打不开 —— 一个功能两处判据，

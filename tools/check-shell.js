@@ -672,7 +672,10 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     // 结果开关点得下去、界面有反应，就是扩展状态不变。
     !/\$\('#ext-popover'\)\s*\.addEventListener\('click'/.test(js)],
   ['小窗里每一行都有启用开关（这就是「独立的插件启用窗口」本身）',
-    /function extPopRow[\s\S]{0,700}?data-ext-toggle=/.test(js)],
+    // 窗口从 700 放宽到 1000：extPopRow 里在开关之前多了一个可选的
+    // 「打开界面」按钮（data-ext-open），把 data-ext-toggle 推远了约 150 字符。
+    // 断言意图不变 —— 开关仍必须紧跟在这一行里，只是前面多了个按钮。
+    /function extPopRow[\s\S]{0,1000}?data-ext-toggle=/.test(js)],
   ['小窗与设置页显示同一个开关状态 —— 切一处要两处都重画',
     /renderExtPopover\(\);\s*\n\s*refreshCurrent\(\);/.test(js)],
   ['点小窗外面会收起它（按落点判断，而不是给小窗加 stopPropagation）',

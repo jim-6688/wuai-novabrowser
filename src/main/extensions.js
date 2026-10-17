@@ -325,6 +325,32 @@ function resolveMessage(dir, manifest, value) {
  * 扩展管理器
  * ========================================================================== */
 
+/**
+ * 从清单里解析扩展的**界面入口**路径。
+ *
+ * <p>Electron 不渲染扩展侧边栏与浏览器动作弹窗，side_panel 型扩展装上了也
+ * 「点不出来」。渲染层据此用 Nova 自己的停靠面板把这些 HTML 打开。
+ *
+ * <p>抽成独立函数是因为**两处都要用**：{@link ExtensionManager.install}（新装）
+ * 与 {@link ExtensionManager.setEnabled}（重新启用）。后者如果不去重算，老记录
+ * 里没有 uiPaths 时重启用完仍然是空的 —— 表现为「重新打开开关后界面又打不开了」。
+ *
+ * @param {object} manifest 已解析的 manifest.json
+ * @returns {{sidePanel:string|null, popup:string|null, options:string|null, primary:string|null}}
+ */
+function readUiPaths(manifest) {
+  const sidePanel = (manifest.side_panel && manifest.side_panel.default_path) || null;
+  const popup = (manifest.action && manifest.action.default_popup) || null;
+  const options = (manifest.options_ui && manifest.options_ui.page) || null;
+  return {
+    sidePanel,
+    popup,
+    options,
+    // 主界面优先级：side_panel > action 弹窗 > 选项页
+    primary: sidePanel || popup || options || null
+  };
+}
+
 class ExtensionManager {
   constructor({ workDir, partitions }) {
     this.workDir = workDir; // 解包缓存目录
@@ -417,6 +443,17 @@ class ExtensionManager {
     const displayName = resolveMessage(extDir, manifest, manifest.name);
     const id = String(displayName || manifest.name || 'extension')
       .replace(/[^\w-]+/g, '-').toLowerCase();
+
+    /* 扩展的**界面入口**路径。
+     *
+     * <p>Electron 不渲染扩展侧边栏 / 浏览器动作弹窗（没有工具栏、没有侧栏
+     * 区域），所以 side_panel 型扩展（豆包/Cici、DeepSider 这类）装上了也
+     * 「点不出来」—— 这正是用户反馈「扩展没有生效 / 需要打开侧边栏」的根因。
+     * 我们把清单里声明的入口路径记下来，渲染层就能用 Nova 自己的停靠面板
+     * 把 side_panel.html / popup.html 当成一个 webview 打开，让这类扩展真正可用。
+     * 优先级：扩展自己声明的主界面 > action 弹窗 > 选项页。 */
+    const uiPaths = readUiPaths(manifest);
+
     const electronExtension = await sessionFactory().loadExtension(extDir, { allowFileAccess: true });
 
     const info = {
@@ -432,7 +469,8 @@ class ExtensionManager {
       changes,
       warnings,
       enabled: true,
-      icon: this._findIcon(extDir, manifest)
+      icon: this._findIcon(extDir, manifest),
+      uiPaths
     };
 
     this.loaded.set(electronExtension.id, { info, electronExtension });
@@ -510,7 +548,14 @@ class ExtensionManager {
       throw new Error('扩展文件不在了，请重新安装');
     }
     const electronExtension = await ses.loadExtension(rec.dir, { allowFileAccess: true });
-    const info = { ...rec, electronId: electronExtension.id, enabled: true };
+    // 重算一次界面入口：老记录（本功能上线前停用的）里没有 uiPaths，
+    // 不补的话重新启用后「打开界面」按钮永远不出现（见 readUiPaths 注释）。
+    let uiPaths = rec.uiPaths;
+    try {
+      const mf = JSON.parse(fs.readFileSync(path.join(rec.dir, 'manifest.json'), 'utf8'));
+      uiPaths = readUiPaths(mf);
+    } catch { /* 清单读不到就沿用记录里的（可能仍是 undefined，由渲染层兜） */ }
+    const info = { ...rec, electronId: electronExtension.id, enabled: true, uiPaths };
     this.loaded.set(electronExtension.id, { info, electronExtension });
     this.disabled.delete(id);
     this.onChange(this.list());
@@ -645,5 +690,7 @@ module.exports = {
   unpackDirFor,
   resolveMessage,
   isExtensionFile,
-  BROWSER_POLYFILL
+  BROWSER_POLYFILL,
+  // 界面入口解析 —— 决定「打开界面」按钮出不出得来，靠单测守住优先级不被改乱
+  readUiPaths
 };
