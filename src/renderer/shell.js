@@ -2745,6 +2745,27 @@ async function applyNoImage(level) {
   refreshCurrent();
 }
 
+/**
+ * 扩展开启/停用后，重载所有 chromium 内核的打开标签页。
+ *
+ * <p><b>为什么必须重载</b>：Electron 的 `loadExtension` / `removeExtension`
+ * 只对**之后的导航**生效 —— 当前已打开的页不会变；而且 `removeExtension`
+ * 之后，那一支 content script 已经注入了，会**残留在打开的页里**不被卸载。
+ * 不重载的话，用户拨一下开关、盯着手上正在看的页啥都没变，会以为开关是
+ * 摆设（这正是被反馈「开启按钮有了，功能没实现」的根因）。
+ *
+ * <p>真实浏览器也是这个行为：切换扩展会重载受影响的标签页。这里只重载
+ * chromium 内核的（扩展只装载在 persist:nova-chromium 这一个 session 上，
+ * 其它内核的页本来就不受扩展影响，重了也是白重、还白丢一页状态）。 */
+function reloadChromiumTabs() {
+  for (const t of (state.tabs || [])) {
+    if (!t || t.engineId !== 'chromium') continue;
+    if (t.webview && typeof t.webview.reload === 'function') {
+      try { t.webview.reload(); } catch { /* 正在销毁的标签页，跳过 */ }
+    }
+  }
+}
+
 async function applyAutoPage(on) {
   state.settings.mobile = Object.assign({}, mobilePref(), { autoPage: !!on });
   await bridge.settings.patch({ mobile: { autoPage: !!on } });
@@ -4889,7 +4910,10 @@ function wireUi() {
           toast(r.error, 5200);
         } else {
           state.extensions = await bridge.extensions.list();
-          toast(next ? '已启用，刷新页面后生效' : '已关闭');
+          // 开关要立刻对正在看的页生效：Electron 的 load/removeExtension 只对
+          // 之后的导航生效，不重载当前页用户会以为开关是摆设（见 reloadChromiumTabs）
+          toast(next ? '已启用，正在刷新打开的页面让扩展生效' : '已关闭，正在刷新打开的页面');
+          reloadChromiumTabs();
         }
         // 同一个状态显示在两处（设置页那一片 + 工具栏小窗），只重画一处，
         // 另一处会停在上一次的位置上，看起来像那个开关没生效

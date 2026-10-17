@@ -155,6 +155,44 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(40);
 
   /* ================================================================ *
+   * [A2] 切换扩展要重载 chromium 标签页
+   * ----------------------------------------------------------------
+   * 根因：Electron 的 loadExtension / removeExtension 只对之后的导航
+   * 生效，当前打开的页不会变；removeExtension 后已注入的 content script
+   * 还残留在打开的页里。不重载，用户拨开关、盯着正在看的页啥都没变，
+   * 会以为开关是摆设（被反馈「开启按钮有了，功能没实现」）。真实浏览器
+   * 切换扩展也会重载受影响的标签页。这里只验 chromium（扩展只作用于它）。
+   * ================================================================ */
+  console.log('\n[A2] 切换扩展 → 重载 chromium 标签页');
+
+  // 布三个打开的标签页：两个 chromium、一个其它内核，各自带一个 reload 探针
+  window.eval(`(function(){
+    const make = function (id, engineId) {
+      return { id: id, engineId: engineId, webview: { reload: function () { this.__n = (this.__n || 0) + 1; } } };
+    };
+    state.tabs = [ make(901, 'chromium'), make(902, 'chromium'), make(903, 'gecko') ];
+  })()`);
+  check('已布好 3 个标签页（2 chromium + 1 其它内核）',
+    window.eval('state.tabs.length') === 3, String(window.eval('state.tabs.length')));
+
+  click($('#btn-ext'));
+  await waitFor('#ext-pop-list .ext-pop-row');
+  click($('#ext-pop-list .ext-pop-row .switch'));
+  await sleep(180);
+
+  const counts = window.eval(`({
+    c1: state.tabs[0].webview.__n || 0,
+    c2: state.tabs[1].webview.__n || 0,
+    g:  state.tabs[2].webview.__n || 0
+  })`);
+  check('两个 chromium 标签页都被重载（扩展对其生效，且立刻可见）',
+    counts.c1 >= 1 && counts.c2 >= 1, JSON.stringify(counts));
+  check('其它内核的标签页不被重载（扩展只装载在 chromium 那一个 session）',
+    counts.g === 0, JSON.stringify(counts));
+  click(doc.body);
+  await sleep(30);
+
+  /* ================================================================ *
    * [B] 更新状态在两处同步
    * ================================================================ */
   console.log('\n[B] 更新进度：两个显示位置都要跟着走');
