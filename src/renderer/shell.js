@@ -4419,17 +4419,47 @@ function openExtUiPanel(id) {
     if (x.icon) { iconEl.src = x.icon; iconEl.hidden = false; }
     else { iconEl.hidden = true; iconEl.removeAttribute('src'); }
   }
-  const wv = $('#ext-ui-webview');
-  if (wv) wv.src = url;
+  wireExtUiWebview();                 // 确保 window.open 拦截已挂上（幂等）
+  panel.classList.add('is-loading');  // 顶部显示加载条，dom-ready 后去掉（见 wireExtUiWebview）
   panel.hidden = false;
   panel.classList.add('is-open');
   panel.setAttribute('aria-hidden', 'false');
+  const wv = $('#ext-ui-webview');
+  if (wv) wv.src = url;               // 面板可见后再载入，避免隐藏态下加载的怪问题
+}
+
+/**
+ * 给承载 webview 挂一次 window.open 拦截（幂等）。
+ *
+ * <p>侧边栏扩展常常用 window.open 把自已（或登录页）开成一个**独立窗口** ——
+ * 真 Chrome 里那是浏览器级侧栏/弹窗，而 Electron 的 `<webview>` 带 allowpopups
+ * 时会把它变成一个单独的 BrowserWindow：于是「扩展界面单独弹出来、不嵌进面板」，
+ * 还因为同一份应用加载了两遍而更慢。这里拦下所有 new-window：
+ *   - chrome-extension://（扩展自己的页面）→ 载回同一个面板 webview，继续嵌在面板里
+ *   - 其它（外部登录页等）→ 开成一个普通标签页，不弹独立小窗
+ */
+function wireExtUiWebview() {
+  const wv = $('#ext-ui-webview');
+  if (!wv || wv.__novaWired) return;
+  wv.__novaWired = true;
+  wv.addEventListener('new-window', (e) => {
+    const url = e.url;
+    e.preventDefault();               // 一律不弹独立窗口
+    if (!url) return;
+    if (url.startsWith('chrome-extension://')) wv.loadURL(url);
+    else createTab(url);
+  });
+  wv.addEventListener('dom-ready', () => {
+    const panel = $('#ext-ui-panel');
+    if (panel) panel.classList.remove('is-loading');
+  });
 }
 
 function closeExtUiPanel() {
   const panel = $('#ext-ui-panel');
   if (!panel) return;
   panel.classList.remove('is-open');
+  panel.classList.remove('is-loading');
   panel.setAttribute('aria-hidden', 'true');
   // 与 AI 面板一致：滑出后再隐藏并清掉 src，避免 webview 常驻占资源，
   // 也避免下次打开时先闪一下上一个扩展的旧内容
@@ -4906,6 +4936,7 @@ function wireUi() {
   // AI 助手面板：下拉切换 / 带入当前页 / 发送 / 清空 / 关闭
   $('#ai-close').addEventListener('click', closeAiPanel);
   $('#ext-ui-close').addEventListener('click', closeExtUiPanel);
+  wireExtUiWebview();
   $('#ai-grab').addEventListener('click', aiGrab);
   $('#ai-send').addEventListener('click', aiSend);
   $('#ai-clear').addEventListener('click', () => { const ta = $('#ai-text'); if (ta) ta.value = ''; });
