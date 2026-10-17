@@ -704,6 +704,29 @@ svg {
 .es-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--text-2); }
 .es-sub { margin: 0; font-size: 12px; }
 
+/* 网页加载失败的提示页（此前加载失败会是一片空白） */
+.page-error:not([hidden]) {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--text-3);
+  background: var(--bg);
+}
+.pe-mark {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: color-mix(in srgb, var(--warn) 16%, var(--surface));
+  color: var(--warn); font-size: 28px; font-weight: 700;
+  display: grid; place-items: center;
+  margin-bottom: var(--sp-2);
+}
+.pe-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); }
+.pe-url { margin: 0; font-size: 12px; color: var(--text-4); max-width: 72%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-reason { margin: 0; font-size: 12px; color: var(--text-3); max-width: 72%; line-height: 1.6; }
+.pe-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); }
+
 /* 预览占位（非 Electron 环境下运行 UI 时使用） */
 .preview-pane {
   position: absolute; inset: 0;

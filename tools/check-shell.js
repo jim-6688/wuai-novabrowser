@@ -709,6 +709,16 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
       && /=== 'extensions'\) scanBrowserExts\(\)/.test(js)],
   ['导入结果如实说来自哪个浏览器',
     /已导入「\$\{r\.name \|\| ''\}」（来自 \$\{r\.from/.test(js)],
+
+  /* --- 网页加载失败的提示页（此前加载失败会一片空白）--- */
+  ['有「无法打开此网页」提示页（含重试/回首页）',
+    /id="page-error"/.test(html) && /id="pe-retry"/.test(html) && /id="pe-home"/.test(html)],
+  ['监听 did-fail-load 并渲染提示页（-3/子框架除外）',
+    /addEventListener\('did-fail-load'/.test(js)
+      && /ev\.errorCode === -3/.test(js)
+      && /renderPageError\(\)/.test(js)],
+  ['提示页会藏起承载 webview（否则错误页被 webview 盖住又成空白）',
+    /function renderPageError[\s\S]{0,1200}?webview\.hidden = true/.test(js)],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

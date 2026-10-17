@@ -27,7 +27,8 @@
     "顶栏（品牌名右侧）新增「关于」按钮，一键进关于/版本/更新；「主题」「收藏夹」按钮补上文字",
     "工具栏动作按钮（下载 / 广告拦截 / 媒体嗅探 / 扩展 / AI / 更新 / 菜单）加上文字标签，地址栏自动让出宽度",
     "AI 助手新增「API」模式：内嵌网页常被对方识别成「环境异常」拒绝渲染，现可选 API（默认 DeepSeek，兼容其它 OpenAI 风格接口），填 地址 / Key / 模型 即可对话；请求由本机直发，Key 只存本机设置",
-    "点地址栏里的网址弹出分享面板：复制链接、复制简介（标题+简介+链接）、生成二维码（本地生成，不把网址发给第三方）、分享到微博（网页分享）；微信 / 朋友圈 / 小红书 桌面无接口，用本地二维码扫码或复制标题+链接桥接"
+    "点地址栏里的网址弹出分享面板：复制链接、复制简介（标题+简介+链接）、生成二维码（本地生成，不把网址发给第三方）、分享到微博（网页分享）；微信 / 朋友圈 / 小红书 桌面无接口，用本地二维码扫码或复制标题+链接桥接",
+    "修好网页打不开时界面一片空白：加载失败现在显示「无法打开此网页」提示页（含具体原因 + 重试 / 回到首页），而不是什么都不显示"
   ],
   "downloads": [
     {
@@ -44,16 +45,16 @@
     }
   ],
   "pc": {
-    "version": "1.0.16",
+    "version": "1.0.17",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.16/nova-pc-1.0.16-win-x64-setup.zip",
-    "size": 78347261,
-    "sha256": "9ce3b087af5bfdbeeaf4cfc88408484bf4ccffb8d6e8f8b7aa47caea0f661bea",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.17/nova-pc-1.0.17-win-x64-setup.zip",
+    "size": 78348844,
+    "sha256": "3867f9649836915294c176f504117e3e050b3847145f92a3007503482a142da3",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.16/nova-pc-1.0.16-win-x64-setup.exe",
-      "size": 78349509,
-      "sha256": "86d7c7c351a902d67ce57c96bac8ba4b920c0a85a2a4edc9073d2751988f1689"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.17/nova-pc-1.0.17-win-x64-setup.exe",
+      "size": 78351271,
+      "sha256": "b63b72d83512d24ddaf01f4be01f628b16f34cc3f0909e65e0dd917155cf1221"
     }
   }
 }

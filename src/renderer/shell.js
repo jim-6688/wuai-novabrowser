@@ -481,7 +481,12 @@ function mountTab(tab) {
   wv.dataset.tabId = String(tab.id);
   wv.hidden = true;
 
-  wv.addEventListener('did-start-loading', () => { tab.loading = true; renderTabstrip(); syncNavButtons(); });
+  wv.addEventListener('did-start-loading', () => {
+    // 新一轮加载开始 → 清掉上次的失败状态（重试/换网址时错误页要收起来）
+    tab.loadError = null;
+    if (activeTab() && activeTab().id === tab.id) renderPageError();
+    tab.loading = true; renderTabstrip(); syncNavButtons();
+  });
   wv.addEventListener('did-stop-loading', () => { tab.loading = false; renderTabstrip(); syncNavButtons(); });
   wv.addEventListener('did-navigate', (ev) => {
     tab.url = ev.url;
@@ -508,6 +513,14 @@ function mountTab(tab) {
     createTab(ev.url, tab.engineId, { activate: !ev.disposition || ev.disposition === 'foreground-tab' });
   });
   wv.addEventListener('crashed', () => { tab.crashed = true; renderTabstrip(); });
+  // 网页加载失败 → 显示「无法打开此网页」提示页（此前是空白）。
+  // errorCode -3 是 ERR_ABORTED（被新导航/主动中断取消），不算真的失败。
+  wv.addEventListener('did-fail-load', (ev) => {
+    if (ev.errorCode === -3) return;
+    if (ev.isMainFrame === false) return;
+    tab.loadError = { code: ev.errorCode, desc: ev.errorDescription || '', url: ev.validatedURL || tab.url };
+    if (activeTab() && activeTab().id === tab.id) renderPageError();
+  });
   wv.addEventListener('dom-ready', () => {
     syncNavButtons();
     // 建立「标签页 ↔ webContents」的映射：主进程的嗅探结果按 webContents id 分组，
@@ -568,7 +581,48 @@ function activateTab(id) {
   syncSniffBadge();
   // 收藏夹栏在「仅新标签页」档位下的显隐同样跟当前页走
   syncBookmarkBar();
+  // 切到的这一页如果是加载失败状态，错误页要跟着显示/收起
+  renderPageError();
   persistSession();
+}
+
+/** 把 electron 的 errorCode 翻成人话；没有映射就退回原始描述。 */
+function pageErrorReason(err) {
+  const map = {
+    '-105': '找不到服务器（域名解析失败）',
+    '-137': '找不到服务器',
+    '-106': '网络未连接',
+    '-102': '连接被拒绝',
+    '-118': '连接超时',
+    '-7': '连接超时',
+    '-107': 'SSL 证书或协议错误',
+    '-109': '服务器无法访问',
+    '-2': '加载失败'
+  };
+  const m = map[String(err && err.code)];
+  const d = err && err.desc ? '（' + err.desc + '）' : '';
+  return m ? m + d : (err && err.desc) || '请检查网址或网络后重试';
+}
+
+/** 显示/收起「无法打开此网页」提示页（口径=当前标签页的 loadError）。 */
+function renderPageError() {
+  const el = $('#page-error');
+  if (!el) return;
+  const t = activeTab();
+  const err = t && t.loadError;
+  if (!err) {
+    el.hidden = true;
+    // 恢复当前标签页的 webview（它才是页面内容的载体）
+    if (t && t.webview) t.webview.hidden = false;
+    return;
+  }
+  const urlEl = $('#pe-url'), reasonEl = $('#pe-reason');
+  if (urlEl) urlEl.textContent = err.url || (t && t.url) || '';
+  if (reasonEl) reasonEl.textContent = pageErrorReason(err);
+  el.hidden = false;
+  // 关键：<webview> 会盖在同层 DOM 之上，不藏起来的话错误页会被压在下面（又是空白）。
+  // 失败页本来就是空/白的，把承载它的 webview 藏起来正好让提示页露出来。
+  if (t && t.webview) t.webview.hidden = true;
 }
 
 function navigate(id, url) {
@@ -4543,10 +4597,19 @@ function wireExtUiWebview() {
   wv.__novaWired = true;
   wv.addEventListener('new-window', (e) => {
     const url = e.url;
-    e.preventDefault();               // 一律不弹独立窗口
-    if (!url || /^about:/i.test(url)) return;                 // 空白/内部页：忽略
-    if (url.startsWith('chrome-extension://')) return;        // 扩展自己的页面：**不把面板导航走**（导航会变空白），保留当前 side_panel 就地渲染
-    createTab(url);                   // 外部（登录页等）：开成普通标签页，登录后侧边栏可就地刷新
+    // 空白/内部页：拦掉
+    if (!url || /^about:/i.test(url)) { e.preventDefault(); return; }
+    if (url.startsWith('chrome-extension://')) {
+      // 侧边栏型扩展（豆包/Cici/DeepSider 等）的 side_panel 多是个「发射器」：
+      // 真正界面靠 window.open 开成独立窗口，且只在**真正的顶层窗口**里才渲染得出来
+      // （载进 webview / loadURL 都会空白）。所以这里**放行**让它开成窗口——
+      // 能用的窗口远好过空白；同时收起这个只起了个头的承载面板，免得留一块空白。
+      closeExtUiPanel();
+      return;  // 不 preventDefault → 交给 Electron 开真正的窗口
+    }
+    // 外部（登录页等）：拦成普通标签页
+    e.preventDefault();
+    createTab(url);
   });
   wv.addEventListener('dom-ready', () => {
     const panel = $('#ext-ui-panel');
@@ -5417,6 +5480,21 @@ function wireUi() {
     svPressedBackdrop = false;
   });
   $('#engine-notice-close').addEventListener('click', () => { $('#engine-notice').hidden = true; });
+
+  // 加载失败提示页：重试 / 回到首页
+  $('#pe-retry') && $('#pe-retry').addEventListener('click', () => {
+    const t = activeTab();
+    if (!t) return;
+    t.loadError = null; renderPageError();
+    if (t.webview && typeof t.webview.reload === 'function') t.webview.reload();
+    else navigate(t.id, t.url);
+  });
+  $('#pe-home') && $('#pe-home').addEventListener('click', () => {
+    const t = activeTab();
+    if (!t) return;
+    t.loadError = null; renderPageError();
+    navigate(t.id, state.settings.homepage);
+  });
 
   // 移动端
   $('#mb-back').addEventListener('click', () => { const t = activeTab(); if (t && t.webview && t.webview.canGoBack) t.webview.goBack(); });

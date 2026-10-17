@@ -281,6 +281,17 @@
       <p class="es-title">没有打开的标签页</p>
       <p class="es-sub">按 + 新建标签页，或切到不同内核试试</p>
     </div>
+    <!-- 网页加载失败时的提示页（此前会是一片空白） -->
+    <div class="page-error" id="page-error" hidden>
+      <div class="pe-mark">!</div>
+      <p class="pe-title" id="pe-title">无法打开此网页</p>
+      <p class="pe-url" id="pe-url">—</p>
+      <p class="pe-reason" id="pe-reason"></p>
+      <div class="pe-actions">
+        <button class="btn btn-primary" id="pe-retry">重试</button>
+        <button class="btn" id="pe-home">回到首页</button>
+      </div>
+    </div>
   </main>
 
   <!-- ============ 移动端底栏 ============ -->
