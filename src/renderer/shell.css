@@ -225,9 +225,10 @@ svg {
   -webkit-app-region: no-drag;
 }
 .qk-btn {
-  width: 26px; height: 22px;
+  height: 22px;
+  padding: 0 7px;
   border-radius: var(--r-sm);
-  display: grid; place-items: center;
+  display: inline-flex; align-items: center; gap: 4px;
   color: var(--text-3);
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
@@ -235,7 +236,8 @@ svg {
 .qk-btn:active { transform: scale(0.94); }
 .qk-btn:focus-visible { outline: none; box-shadow: var(--ring); }
 .qk-btn.is-on { color: var(--brand); }
-.qk-btn svg { width: 14px; height: 14px; }
+.qk-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.qk-label { font-size: 11px; line-height: 1; white-space: nowrap; }
 
 /* 主题格一格里放两个图标，露哪个由当前主题决定：看到太阳就是浅色。
    不做成「图标写死、状态靠颜色」—— 那两种主题下看着一样，指示就没了。 */
@@ -371,6 +373,10 @@ svg {
 .icon-btn[disabled]:hover { background: none; }
 .icon-btn.is-on { background: var(--brand-soft); color: var(--brand); }
 .icon-btn svg { width: 17px; height: 17px; }
+/* 带文字的图标按钮：图标 + 小字标签，宽度自适应（顶栏动作按钮加文字用）。
+   地址栏仍是弹性项，会跟着让出宽度；不给固定宽，长窗口不会留一条死空白。 */
+.icon-btn.has-label { width: auto; min-width: 30px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; }
+.ib-label { font-size: 11px; line-height: 1; white-space: nowrap; }
 
 /* 计数徽标。盾牌与嗅探两个按钮是相邻的，没有那圈 surface 描边时
    两个徽标会糊在一起，所以描边不是装饰，是让它们读得开。 */

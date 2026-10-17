@@ -51,12 +51,21 @@
         <svg class="qk-moon" viewBox="0 0 20 20" aria-hidden="true">
           <path d="M16.2 12.4A6.6 6.6 0 0 1 7.6 3.8a6.8 6.8 0 1 0 8.6 8.6z" />
         </svg>
+        <span class="qk-label">主题</span>
       </button>
       <button class="qk-btn" id="qk-bmbar" title="收藏夹栏">
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M6.2 3.5h7.6v8.6l-3.8-2.9-3.8 2.9z" />
           <path d="M3.4 16.5h13.2" />
         </svg>
+        <span class="qk-label">收藏夹</span>
+      </button>
+      <button class="qk-btn" id="qk-about" title="关于吾爱Nova浏览器">
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <circle cx="10" cy="10" r="7.2" />
+          <path d="M10 8.9v4.4M10 6.3v.01" />
+        </svg>
+        <span class="qk-label">关于</span>
       </button>
     </div>
     <div class="tb-drag"></div>
@@ -131,8 +140,9 @@
     <!-- 下载：地址栏右侧的常驻入口。有下载时弹出一个贴在地址栏旁的小窗，
          展示进行中的任务、进度与暂停/取消/打开等操作；点图标收起或展开。 -->
     <div class="dl-cluster">
-      <button class="icon-btn has-badge" id="btn-downloads" title="下载">
+      <button class="icon-btn has-badge has-label" id="btn-downloads" title="下载">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0l-3.6-3.6M10 12l3.6-3.6M4 15.6h12" /></svg>
+        <span class="ib-label">下载</span>
         <i class="badge" id="dl-count" hidden>0</i>
       </button>
       <div class="dl-popover" id="dl-popover" role="dialog" aria-label="下载" hidden>
@@ -150,12 +160,14 @@
     </div>
 
     <div class="tool-group">
-      <button class="icon-btn has-badge" id="btn-shield" title="广告拦截">
+      <button class="icon-btn has-badge has-label" id="btn-shield" title="广告拦截">
         <svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z" /></svg>
+        <span class="ib-label">广告拦截</span>
         <i class="badge" id="shield-count">0</i>
       </button>
-      <button class="icon-btn has-badge" id="btn-sniff" title="媒体嗅探">
+      <button class="icon-btn has-badge has-label" id="btn-sniff" title="媒体嗅探">
         <svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4" /><path d="M5.5 8.5l2.4 1.5-2.4 1.5z" /><path d="M14 8a3.2 3.2 0 0 1 0 5" /><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4" /></svg>
+        <span class="ib-label">媒体嗅探</span>
         <i class="badge" id="sniff-count">0</i>
       </button>
       <!-- 扩展：点图标弹出一个**独立的启用窗口**，就地开关，不必跳进设置。
@@ -165,8 +177,9 @@
            位置与样式复用下载小窗（.dl-popover）：同一套「贴在按钮下面」的
            交互，两处长得一样才对。 -->
       <div class="ext-cluster">
-        <button class="icon-btn" id="btn-ext" title="扩展" aria-expanded="false" aria-haspopup="dialog">
+        <button class="icon-btn has-label" id="btn-ext" title="扩展" aria-expanded="false" aria-haspopup="dialog">
           <svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z" /></svg>
+          <span class="ib-label">扩展</span>
         </button>
         <div class="dl-popover ext-popover" id="ext-popover" role="dialog" aria-label="扩展" hidden>
           <div class="dl-pop-head">
@@ -181,8 +194,9 @@
           </div>
         </div>
       </div>
-      <button class="icon-btn" id="btn-ai" title="AI 助手">
+      <button class="icon-btn has-label" id="btn-ai" title="AI 助手">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5l1.7 3.9 4.1.4-3.1 2.8.9 4.1L10 16l-3.6 2.1.9-4.1-3.1-2.8 4.1-.4z" /></svg>
+        <span class="ib-label">AI</span>
       </button>
 
       <!-- 自动更新。默认 hidden —— 有新版时才出现，位置在扩展与 AI 之间。
@@ -190,15 +204,17 @@
            而工具栏每一格都要争宽度（地址栏才是那个真正需要宽度的）。
            图标是箭头绕圈（下载/更新的通用符号），不用「设置」齿轮 ——
            齿轮在这个界面里已经被「菜单」占了。 -->
-      <button class="icon-btn has-badge" id="btn-update" title="检查更新" hidden>
+      <button class="icon-btn has-badge has-label" id="btn-update" title="检查更新" hidden>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M10 3a7 7 0 1 1-6.2 3.7M10 3V1m0 2H8" />
         </svg>
+        <span class="ib-label">更新</span>
         <i class="badge" id="update-count" hidden>1</i>
       </button>
 
-      <button class="icon-btn" id="btn-menu" title="菜单">
+      <button class="icon-btn has-label" id="btn-menu" title="菜单">
         <svg viewBox="0 0 20 20"><path d="M3.5 6h13M3.5 10h13M3.5 14h13" /></svg>
+        <span class="ib-label">菜单</span>
       </button>
     </div>
   </div>

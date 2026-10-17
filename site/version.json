@@ -22,7 +22,10 @@
     "修好「装上/开启的扩展看着没生效」：切换扩展开关后会立刻重载受影响的标签页，让扩展对正在看的页面也马上起作用（扩展只作用于 Chromium 内核的页，其它内核的页不会白重载）",
     "侧边栏/弹窗型扩展（豆包/Cici、DeepSider 等）现在能打开界面了：Electron 不渲染扩展侧边栏与动作弹窗，Nova 自己加了停靠面板，用网页视图打开扩展自己的 side_panel.html / popup.html / options.html",
     "扩展小窗新增「从浏览器导入」：就地扫描本机已安装浏览器里的扩展并一键导入，不必再专门跳进设置页",
-    "修好侧边栏扩展「单独弹出窗口、不嵌入面板、加载特慢」：承载面板现在会拦截扩展的 window.open——扩展自己的页面载回面板内、外部链接开成普通标签页，不再弹出独立小窗（也顺带少了重复加载）；面板载入时顶部有加载提示"
+    "修好侧边栏扩展「单独弹出窗口、不嵌入面板、加载特慢」：承载面板现在会拦截扩展的 window.open——扩展自己的页面载回面板内、外部链接开成普通标签页，不再弹出独立小窗（也顺带少了重复加载）；面板载入时顶部有加载提示",
+    "修好侧边栏扩展点开后空白：承载面板不再把扩展 window.open 的地址导航进面板（那会变空白）——扩展自己的页面保留在面板里就地渲染，外部登录页开成标签页，登录后侧边栏可就地刷新",
+    "顶栏（品牌名右侧）新增「关于」按钮，一键进关于/版本/更新；「主题」「收藏夹」按钮补上文字",
+    "工具栏动作按钮（下载 / 广告拦截 / 媒体嗅探 / 扩展 / AI / 更新 / 菜单）加上文字标签，地址栏自动让出宽度"
   ],
   "downloads": [
     {
@@ -39,16 +42,16 @@
     }
   ],
   "pc": {
-    "version": "1.0.13",
+    "version": "1.0.14",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.13/nova-pc-1.0.13-win-x64-setup.zip",
-    "size": 78112914,
-    "sha256": "a404cd1e3f0c9b6e53f93ed1a115dfda7401c3851dd3406d052f374f0777c541",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.14/nova-pc-1.0.14-win-x64-setup.zip",
+    "size": 78113307,
+    "sha256": "4aa2f00498e490e243b8f8638bd38c6d0fb2e3b54bebd2340fcf7b9fd0fc21e5",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.13/nova-pc-1.0.13-win-x64-setup.exe",
-      "size": 78114948,
-      "sha256": "cb2cec0db74466cf4f4802f48486bb16e5befdda6895eeb082dd757961fae9c5"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.14/nova-pc-1.0.14-win-x64-setup.exe",
+      "size": 78115288,
+      "sha256": "a81a146f3e55830374e6b7abc0af6509a51cc0fcf56374fa30432c9ab63246c8"
     }
   }
 }

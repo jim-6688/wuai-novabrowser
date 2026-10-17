@@ -1012,6 +1012,12 @@ function wireQuickBar() {
       toast('收藏夹栏：' + BM_BAR_LABEL[next]);
     });
   }
+
+  // 「关于」：顶栏直达，版本/更新/下载入口不必再翻菜单进设置
+  const abtn = $('#qk-about');
+  if (abtn) {
+    abtn.addEventListener('click', () => openPanel('about'));
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -4445,9 +4451,9 @@ function wireExtUiWebview() {
   wv.addEventListener('new-window', (e) => {
     const url = e.url;
     e.preventDefault();               // 一律不弹独立窗口
-    if (!url) return;
-    if (url.startsWith('chrome-extension://')) wv.loadURL(url);
-    else createTab(url);
+    if (!url || /^about:/i.test(url)) return;                 // 空白/内部页：忽略
+    if (url.startsWith('chrome-extension://')) return;        // 扩展自己的页面：**不把面板导航走**（导航会变空白），保留当前 side_panel 就地渲染
+    createTab(url);                   // 外部（登录页等）：开成普通标签页，登录后侧边栏可就地刷新
   });
   wv.addEventListener('dom-ready', () => {
     const panel = $('#ext-ui-panel');
