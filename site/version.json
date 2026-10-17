@@ -18,7 +18,8 @@
     "修复「从已安装的浏览器导入书签」与导出后再导入会丢条目；修复网页里下载不显示进度",
     "修复自动更新与网页下载的进度条不跟着百分比走（在「关于」页里一直卡在 0%）",
     "拼图图标改为独立的「扩展」小窗：一行一个扩展，开关即可就地启用/停用，底部可直接「从文件安装」",
-    "拼图小窗里的扩展开关不再因布局被挤成圆形"
+    "拼图小窗里的扩展开关不再因布局被挤成圆形",
+    "修好「装上/开启的扩展看着没生效」：切换扩展开关后会立刻重载受影响的标签页，让扩展对正在看的页面也马上起作用（扩展只作用于 Chromium 内核的页，其它内核的页不会白重载）"
   ],
   "downloads": [
     {
@@ -35,16 +36,16 @@
     }
   ],
   "pc": {
-    "version": "1.0.10",
+    "version": "1.0.11",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.10/nova-pc-1.0.10-win-x64-setup.zip",
-    "size": 78108407,
-    "sha256": "bd9352abb60c127962ac99d2b2eb68a881a719c6967ee830f1ee332e9b7b5081",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.11/nova-pc-1.0.11-win-x64-setup.zip",
+    "size": 78109017,
+    "sha256": "d954d249f3df0654c245de2cb837f9e50ccd8ffe327207b421a8c30bc83f2b69",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.10/nova-pc-1.0.10-win-x64-setup.exe",
-      "size": 78110538,
-      "sha256": "d0cd91640b6feb912834a88ce70cc7d88a4d82a24dcf98e7c945abb83400a258"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.11/nova-pc-1.0.11-win-x64-setup.exe",
+      "size": 78111123,
+      "sha256": "216433ef1b5903f6ae94839502e1721e6255742a99dcc6326a860355fe485f29"
     }
   }
 }
