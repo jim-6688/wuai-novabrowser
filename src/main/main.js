@@ -15,6 +15,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard } = require('electron');
+const QRCode = require('qrcode'); // 本地生成二维码（分享用），不把网址丢第三方二维码接口
 
 const settings = require('./settings');
 // 新标签页的宿主侧逻辑。它是 src/renderer 下的双导出模块（既被外壳页面当
@@ -1584,6 +1585,19 @@ function registerIpc() {
 
   handle('shell:open-external', (url) => shell.openExternal(url));
   handle('shell:copy', (text) => { clipboard.writeText(String(text == null ? '' : text)); return true; });
+  /* 本地生成二维码（分享到微信/朋友圈等桌面无 API 的 App 时，用扫码桥接）。
+   * 为什么放主进程：qrcode 是 Node 库，渲染层 contextIsolation 下 require 不到；
+   * 而且本地生成不把网址泄露给第三方二维码服务。返回 PNG dataURL。 */
+  handle('shell:qrcode', async (text) => {
+    const s = String(text == null ? '' : text).slice(0, 2048);
+    if (!s) return { error: '没有内容可生成二维码' };
+    try {
+      const dataUrl = await QRCode.toDataURL(s, { width: 320, margin: 1, errorCorrectionLevel: 'M' });
+      return { ok: true, dataUrl };
+    } catch (e) {
+      return { error: '生成二维码失败：' + String(e && e.message || e) };
+    }
+  });
   handle('shell:show-item', (p) => shell.showItemInFolder(p));
   handle('app:userData', () => app.getPath('userData'));
   handle('app:open-user-data', () => shell.openPath(app.getPath('userData')));

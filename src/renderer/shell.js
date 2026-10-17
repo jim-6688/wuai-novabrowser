@@ -754,6 +754,97 @@ function syncOmnibox() {
   lock.title = secure ? '连接已加密' : '非加密连接或本地页面';
 }
 
+/* --- 地址栏网址 → 分享面板 / 二维码 --- */
+function openOmniShare() {
+  const t = activeTab();
+  const pop = $('#omni-share');
+  if (!pop) return;
+  const url = t ? t.url : '';
+  // 新标签页那种内置 file:// 页没有可分享的网址
+  if (!url || isNewTabUrl(url)) { toast('这个页面没有可分享的网址'); return; }
+  const title = t ? (t.title || '') : '';
+  const tEl = $('#os-title'), uEl = $('#os-url');
+  if (tEl) tEl.textContent = title || prettyUrl(url);
+  if (uEl) uEl.textContent = prettyUrl(url);
+  pop.dataset.url = url;
+  pop.dataset.title = title;
+  pop.hidden = false;
+}
+
+function closeOmniShare() {
+  const pop = $('#omni-share');
+  if (pop) pop.hidden = true;
+}
+
+function closeQrModal() {
+  const m = $('#qr-modal');
+  if (m) m.hidden = true;
+}
+
+/** 「复制简介」：标题 + 页面 description（尽力取，取不到就只标题）+ 链接。 */
+async function shareSummaryText() {
+  const t = activeTab();
+  if (!t) return '';
+  let desc = '';
+  if (t.webview && typeof t.webview.executeJavaScript === 'function') {
+    try {
+      desc = await t.webview.executeJavaScript(
+        "(document.querySelector('meta[name=\"description\"]')||{}).content||''");
+    } catch { /* 跨域或没权限就算了 */ }
+  }
+  const d = (desc && desc.length > 140) ? desc.slice(0, 140) + '…' : desc;
+  return [t.title || '', d, t.url].filter(Boolean).join('\n');
+}
+
+/** 本地生成二维码并弹层（微信/朋友圈等桌面无 API 的 App 用扫码桥接）。 */
+async function showQr(title) {
+  const pop = $('#omni-share');
+  const url = pop && pop.dataset.url;
+  if (!url) return;
+  const modal = $('#qr-modal'), img = $('#qr-img'), urlEl = $('#qr-url'), titleEl = $('#qr-title');
+  if (titleEl) titleEl.textContent = title || '用手机扫码';
+  if (urlEl) urlEl.textContent = url;
+  if (img) img.removeAttribute('src');
+  if (modal) modal.hidden = false;
+  const r = await bridge.system.qrcode(url);
+  if (r && r.ok && img) { img.src = r.dataUrl; }
+  else { toast((r && r.error) || '生成二维码失败'); }
+}
+
+async function handleShareAction(act) {
+  const pop = $('#omni-share');
+  const url = pop && pop.dataset.url;
+  const title = (pop && pop.dataset.title) || '';
+  if (!url) return;
+  if (act === 'copy-link') {
+    await bridge.system.copy(url);
+    toast('链接已复制');
+    closeOmniShare();
+  } else if (act === 'copy-summary') {
+    await bridge.system.copy(await shareSummaryText());
+    toast('已复制简介（标题 + 链接）');
+    closeOmniShare();
+  } else if (act === 'qr') {
+    showQr('扫码在手机上打开');
+  } else if (act === 'wechat') {
+    showQr('用微信扫码打开 / 转发');
+  } else if (act === 'moments') {
+    showQr('扫码后在朋友圈分享');
+  } else if (act === 'weibo') {
+    // 微博有网页分享接口
+    const u = 'https://service.weibo.com/share/share.php?url='
+      + encodeURIComponent(url) + '&title=' + encodeURIComponent(title || url);
+    bridge.system.openExternal(u);
+    toast('已打开微博分享页');
+    closeOmniShare();
+  } else if (act === 'xhs') {
+    // 小红书无分享接口：复制「标题 + 链接」去 App 粘贴
+    await bridge.system.copy((title ? title + '\n' : '') + url);
+    toast('已复制标题和链接，去小红书粘贴');
+    closeOmniShare();
+  }
+}
+
 function syncNavButtons() {
   const tab = activeTab();
   const wv = tab && tab.webview;
@@ -4909,6 +5000,27 @@ function wireUi() {
   });
   $('#nav-home').addEventListener('click', () => { const t = activeTab(); if (t) navigate(t.id, state.settings.homepage); });
 
+  /* --- 点地址栏网址 → 分享面板（input 相关的监听在下面 const input 之后挂）--- */
+  // 分享面板里的动作
+  $('#omni-share') && $('#omni-share').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-share]');
+    if (b) handleShareAction(b.dataset.share);
+  });
+  // 点外面收起分享面板（落点在地址栏或面板内则不收）
+  document.addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (t && typeof t.closest === 'function'
+        && (t.closest('#omni-share') || t.closest('#omni-input'))) return;
+    closeOmniShare();
+  });
+  // 二维码弹层
+  $('#qr-close') && $('#qr-close').addEventListener('click', closeQrModal);
+  $('#qr-modal') && $('#qr-modal').addEventListener('click', (ev) => { if (ev.target.id === 'qr-modal') closeQrModal(); });
+  $('#qr-copy') && $('#qr-copy').addEventListener('click', async () => {
+    const pop = $('#omni-share');
+    if (pop && pop.dataset.url) { await bridge.system.copy(pop.dataset.url); toast('链接已复制'); }
+  });
+
   // 地址栏
   const input = $('#omni-input');
   input.addEventListener('keydown', (ev) => {
@@ -4923,6 +5035,10 @@ function wireUi() {
     }
   });
   input.addEventListener('focus', () => input.select());
+  // 点网址（地址栏还没聚焦时的那次点击）→ 弹分享面板；已在编辑态不弹。
+  // 一开始打字（input）就收起，让位给编辑。
+  input.addEventListener('mousedown', () => { if (document.activeElement !== input) openOmniShare(); });
+  input.addEventListener('input', closeOmniShare);
 
   $('#omni-star').addEventListener('click', async () => {
     const t = activeTab();
@@ -5322,7 +5438,7 @@ function wireUi() {
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeQrModal(); closeOmniShare(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;

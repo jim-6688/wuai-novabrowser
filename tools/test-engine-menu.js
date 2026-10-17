@@ -65,10 +65,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('内核下拉渲染出 3 项', items.length === 3, `实际 ${items.length}`);
   check('面板初始为关闭', $('#engine-menu').hidden === true);
   check('触发器 aria-expanded=false', $('#omni-engine').getAttribute('aria-expanded') === 'false');
-  check('徽标停在地址栏右端（最后一个控件）', (() => {
+  check('徽标停在地址栏右端（最后一个可见控件）', (() => {
     const kids = [...$('#omnibox').children].map((c) => c.id || c.className);
-    // 期望顺序：锁 → 输入框 → 书签 → 分隔线 → 内核徽标 → 下拉面板
-    return kids.join(',') === 'omni-lock,omni-input,omni-star,ow-divider,omni-engine,engine-menu';
+    // 期望顺序：锁 → 输入框 → 书签 → 分隔线 → 内核徽标 → 下拉面板 → 分享面板。
+    // 末尾的 omni-share 是 position:absolute 的弹出层（默认 hidden、不占弹性布局），
+    // 所以内核徽标仍是视觉上最右的那个常驻控件 —— 这里只把 DOM 顺序补上它。
+    return kids.join(',') === 'omni-lock,omni-input,omni-star,ow-divider,omni-engine,engine-menu,omni-share';
   })(), [...$('#omnibox').children].map((c) => c.id || c.className).join(' → '));
   check('徽标本体在面板之前', (() => {
     const kids = [...$('#omnibox').children];

@@ -825,7 +825,11 @@ const MOCK_UPDATE = {
       userDataPath: async () => '（UI 预览模式，真实运行时为本机用户目录）',
       openUserData: async () => {},
       clearSiteData: async () => ({ cleared: 0, total: 4, failed: [], note: 'UI 预览模式：不会真的清空站点数据' }),
-      copy: async () => true
+      copy: async () => true,
+      /* 预览是网页、加载不到 Node 的 qrcode 库，回一张占位图，
+         让二维码弹层的交互能走一遍（真机上主进程会生成真二维码）。 */
+      qrcode: async () => ({ ok: true, dataUrl: 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220"><rect width="220" height="220" fill="#fff"/><text x="110" y="118" font-size="16" text-anchor="middle" fill="#888">二维码占位</text><text x="110" y="140" font-size="11" text-anchor="middle" fill="#aaa">UI 预览模式</text></svg>') })
     },
 
     /* AI · API 模式。预览不直连任何 API，回一句模拟回复，

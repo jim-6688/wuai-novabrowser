@@ -135,6 +135,47 @@
         <div class="em-list" id="engine-menu-list"></div>
         <div class="em-foot">点选即切换当前标签页内核，网址与登录态保留；橙色标记为兼容层</div>
       </div>
+
+      <!-- 点地址栏里的网址弹出的分享面板：复制链接 / 复制简介 / 二维码 / 分享到各 App -->
+      <div class="omni-share" id="omni-share" role="dialog" aria-label="分享" hidden>
+        <div class="os-page">
+          <div class="os-title" id="os-title">—</div>
+          <div class="os-url" id="os-url">—</div>
+        </div>
+        <div class="os-grid">
+          <button class="os-btn" data-share="copy-link" title="复制当前网址">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.2 11.8a3 3 0 0 1 0-4.2l1.8-1.8a3 3 0 0 1 4.2 4.2l-.9.9"/><path d="M11.8 8.2a3 3 0 0 1 0 4.2l-1.8 1.8a3 3 0 0 1-4.2-4.2l.9-.9"/></svg>
+            <span>复制链接</span>
+          </button>
+          <button class="os-btn" data-share="copy-summary" title="复制标题 + 简介 + 链接">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="2.5" width="12" height="15" rx="1.6"/><path d="M7.5 7h5M7.5 10h5M7.5 13h3"/></svg>
+            <span>复制简介</span>
+          </button>
+          <button class="os-btn" data-share="qr" title="生成本页二维码（本地生成）">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5.5" height="5.5" rx="1"/><rect x="11.5" y="3" width="5.5" height="5.5" rx="1"/><rect x="3" y="11.5" width="5.5" height="5.5" rx="1"/><path d="M11.5 11.5h2v2h-2zM15 11.5h1.5v2M11.5 15h2v1.5M15 15h1.5v1.5"/></svg>
+            <span>二维码</span>
+          </button>
+        </div>
+        <div class="os-sep">分享到</div>
+        <div class="os-grid os-grid-4">
+          <button class="os-btn" data-share="wechat" title="微信（扫码桥接）">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.6 3.6C4.8 3.6 2.6 5.5 2.6 7.8c0 1.3.8 2.5 2 3.2l-.5 1.9 2.1-1.1c.5.1 1 .2 1.4.2 2.8 0 5-1.9 5-4.2s-2.2-4.2-5-4.2z"/><path d="M13.2 7.6c2.5 0 4.6 1.6 4.6 3.7 0 1.1-.6 2.1-1.6 2.7l.4 1.6-1.8-.9c-.4.1-.9.2-1.3.2-2.6 0-4.6-1.7-4.6-3.8s2-3.5 4.6-3.5z"/></svg>
+            <span>微信</span>
+          </button>
+          <button class="os-btn" data-share="weibo" title="分享到微博">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><ellipse cx="8.5" cy="11" rx="5.5" ry="4"/><path d="M12.8 4.2c2.2 0 4 1.6 4 3.6M12.8 6.6c1.1 0 2 .8 2 1.8"/><path d="M5.6 9.4c1.6 0 2.9 1 2.9 2.2s-1.3 2.2-2.9 2.2-2.9-1-2.9-2.2 1.3-2.2 2.9-2.2z"/></svg>
+            <span>微博</span>
+          </button>
+          <button class="os-btn" data-share="xhs" title="小红书（复制标题+链接，去 App 粘贴）">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="2.8" width="12" height="14.4" rx="2.2"/><path d="M7.6 7h4.8M7.6 10h4.8M7.6 13h3"/></svg>
+            <span>小红书</span>
+          </button>
+          <button class="os-btn" data-share="moments" title="朋友圈（扫码桥接）">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><circle cx="10" cy="6.6" r="1.3"/><circle cx="6.8" cy="11.4" r="1.3"/><circle cx="12.8" cy="12" r="1.3"/></svg>
+            <span>朋友圈</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 下载：地址栏右侧的常驻入口。有下载时弹出一个贴在地址栏旁的小窗，
@@ -302,6 +343,21 @@
     <div class="drawer-body" id="drawer-body"></div>
   </aside>
   <div class="scrim" id="scrim" hidden></div>
+
+  <!-- ============ 二维码弹层（分享到桌面无 API 的 App：微信/朋友圈等扫码桥接） ============ -->
+  <div class="qr-modal" id="qr-modal" role="dialog" aria-label="二维码" hidden>
+    <div class="qr-card">
+      <div class="qr-head">
+        <span id="qr-title">用手机扫码</span>
+        <button class="qr-x" id="qr-close" title="关闭">×</button>
+      </div>
+      <div class="qr-imgwrap"><img id="qr-img" alt="本页二维码" /></div>
+      <div class="qr-url" id="qr-url">—</div>
+      <div class="qr-actions">
+        <button class="btn btn-sm" id="qr-copy">复制链接</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ============ AI 助手（右侧滑出） ============
        内嵌网页对话：右侧下拉选 AI，输入框内容发送后带入该 AI 的网页对话，

@@ -215,7 +215,9 @@ contextBridge.exposeInMainWorld('nova', {
     clearSiteData: () => ipcRenderer.invoke('app:clear-site-data'),
     /** 复制走主进程的剪贴板 —— 比渲染层的 navigator.clipboard 稳，
      *  后者在 file:// 下不算安全上下文，会直接抛异常 */
-    copy: (text) => ipcRenderer.invoke('shell:copy', text)
+    copy: (text) => ipcRenderer.invoke('shell:copy', text),
+    /** 本地生成二维码 PNG（dataURL）—— 分享到桌面无 API 的 App 时扫码桥接 */
+    qrcode: (text) => ipcRenderer.invoke('shell:qrcode', text)
   },
 
   /* --- AI 助手（API 集成）--- */
