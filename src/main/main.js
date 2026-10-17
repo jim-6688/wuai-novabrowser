@@ -1099,6 +1099,54 @@ function registerIpc() {
 
   handle('ext:list', () => extManager.list());
 
+  /* AI 助手：走 API（OpenAI 兼容的 /chat/completions）。
+   *
+   * 为什么改成 API：内嵌网页对话会被一些 AI 站点识别成嵌入式 webview、
+   * 以「环境异常 / 有隐私泄露风险」为由拒绝渲染。API 是自己的请求，
+   * 不受对方页面脚本摆布。请求放主进程发：一来避开页面 CORS，二来密钥
+   * 只在主进程与设置里流转，不落到渲染层页面上下文。
+   *
+   * cfg = { base, key, model, messages:[{role, content}] }
+   *   base  例：https://api.deepseek.com （末尾斜杠会自动去掉）
+   *   key   Bearer 令牌
+   *   model 例：deepseek-chat
+   * 返回 { ok:true, content } 或 { error }。 */
+  handle('ai:chat', async (cfg) => {
+    const base = String((cfg && cfg.base) || 'https://api.deepseek.com').replace(/\/+$/, '');
+    const key = String((cfg && cfg.key) || '').trim();
+    const model = String((cfg && cfg.model) || 'deepseek-chat').trim();
+    const messages = (cfg && Array.isArray(cfg.messages)) ? cfg.messages : [];
+    if (!key) return { error: '还没有填 API Key —— 在 AI 面板里选「API」后填写' };
+    if (!messages.length) return { error: '没有要发送的内容' };
+    // 超时护栏：LLM 偶尔会卡住，不能让 IPC 一直挂着
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 60000);
+    try {
+      const res = await fetch(base + '/chat/completions', {
+        method: 'POST',
+        signal: ac.signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model, messages, stream: false, temperature: 0.6 })
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => '');
+        return { error: `API 返回 HTTP ${res.status}${t ? '：' + t.slice(0, 300) : ''}` };
+      }
+      const data = await res.json();
+      const content = data && data.choices && data.choices[0]
+        && data.choices[0].message && data.choices[0].message.content;
+      if (typeof content !== 'string' || !content.trim()) {
+        return { error: 'API 返回里没有可用内容' };
+      }
+      return { ok: true, content };
+    } catch (e) {
+      const msg = (e && e.name === 'AbortError') ? '请求超时（60s）' : String(e && e.message || e);
+      return { error: '请求失败：' + msg };
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+
   /* 扫本机其它浏览器里已装的扩展。
    *
    * 为什么需要：Edge 商店的取包接口已经被微软关掉（一律 400），

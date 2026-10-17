@@ -807,6 +807,16 @@ svg {
 .ai-x:hover { background: var(--surface-2); color: var(--text); }
 .ai-body { flex: 1; min-height: 0; position: relative; background: var(--bg); }
 .ai-webview { width: 100%; height: 100%; border: 0; background: var(--bg); }
+/* API 模式：配置区 + 消息列表，铺满 ai-body（webview 此时 display:none） */
+.ai-api { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.ai-api-cfg { padding: var(--sp-2) var(--sp-3); display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--border); }
+.ai-api-cfg-row { display: flex; gap: 6px; }
+.ai-api-cfg-row .ai-input { flex: 1; min-width: 0; }
+.ai-chat { flex: 1; overflow-y: auto; padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
+.ai-msg { max-width: 88%; padding: 7px 10px; border-radius: 11px; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.ai-msg-me { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 3px; }
+.ai-msg-ai { align-self: flex-start; background: var(--surface-2); color: var(--text); border-bottom-left-radius: 3px; }
+.ai-msg-err { align-self: center; max-width: 96%; text-align: center; background: color-mix(in srgb, #e5484d 14%, transparent); color: #e5484d; font-size: 11.5px; }
 .ai-foot { border-top: 1px solid var(--border); padding: var(--sp-2) var(--sp-3) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
 .ai-row { display: flex; gap: var(--sp-2); align-items: center; }
 .ai-select {

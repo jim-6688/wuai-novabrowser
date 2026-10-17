@@ -4367,6 +4367,8 @@ function currentAi() {
 function openAiPanel() {
   const panel = $('#ai-panel');
   if (!panel) return;
+  applyAiMode();                 // API 模式藏起 webview、显示配置+消息列表
+  if (aiIsApiMode()) aiApiLoadCfg();
   panel.hidden = false;
   panel.classList.add('is-open');
   panel.setAttribute('aria-hidden', 'false');
@@ -4751,6 +4753,7 @@ async function aiInject(text) {
 }
 
 async function aiSend() {
+  if (aiIsApiMode()) return aiApiSend();
   const ai = currentAi();
   const text = ($('#ai-text') && $('#ai-text').value || '').trim();
   if (!text) { toast('先写点内容'); return; }
@@ -4770,6 +4773,82 @@ async function aiSend() {
   } else {
     const r = await aiInject(text);
     if (r !== 'ok') toast('已打开对话页，把内容贴进去即可');
+  }
+}
+
+/* --- AI · API 模式（内嵌网页常被对方以「环境异常」拒绝渲染，故走自己的 API）--- */
+const AI_API_DEFAULTS = { base: 'https://api.deepseek.com', model: 'deepseek-chat' };
+
+function aiIsApiMode() {
+  const sel = $('#ai-select');
+  return !!sel && sel.value === 'api';
+}
+
+/** 按当前选中的模式切换：API 模式显示配置+消息列表、藏起 webview；网页模式相反。 */
+function applyAiMode() {
+  const api = aiIsApiMode();
+  const apiBox = $('#ai-api');
+  const wv = $('#ai-webview');
+  if (apiBox) apiBox.hidden = !api;
+  if (wv) wv.style.display = api ? 'none' : '';
+}
+
+/** 把设置里存的 API 配置填进输入框（只填空着的，避免覆盖用户正在输入的）。 */
+function aiApiLoadCfg() {
+  const cfg = (state.settings && state.settings.aiApi) || {};
+  const base = $('#ai-api-base'), key = $('#ai-api-key'), model = $('#ai-api-model');
+  if (base && !base.value) base.value = cfg.base || AI_API_DEFAULTS.base;
+  if (key && !key.value) key.value = cfg.key || '';
+  if (model && !model.value) model.value = cfg.model || AI_API_DEFAULTS.model;
+}
+
+/** 存配置到设置（本机落盘，不联网）。 */
+async function aiApiSaveCfg() {
+  const aiApi = aiApiCfg();
+  state.settings = Object.assign({}, state.settings, { aiApi });
+  try { await bridge.settings.patch({ aiApi }); } catch { /* 存不上不影响这次发送 */ }
+}
+
+function aiApiCfg() {
+  return {
+    base: ($('#ai-api-base') && $('#ai-api-base').value || '').trim() || AI_API_DEFAULTS.base,
+    key: ($('#ai-api-key') && $('#ai-api-key').value || '').trim(),
+    model: ($('#ai-api-model') && $('#ai-api-model').value || '').trim() || AI_API_DEFAULTS.model
+  };
+}
+
+/** 往消息列表追加一条。role: 'me' | 'ai' | 'err'。文本按纯文本追加，不当 HTML 执行。 */
+function aiChatAppend(role, text) {
+  const box = $('#ai-chat');
+  if (!box) return null;
+  const div = document.createElement('div');
+  div.className = 'ai-msg ai-msg-' + role;
+  div.textContent = text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+async function aiApiSend() {
+  const text = ($('#ai-text') && $('#ai-text').value || '').trim();
+  if (!text) { toast('先写点内容'); return; }
+  const cfg = aiApiCfg();
+  if (!cfg.key) { toast('先填 API Key（AI 面板顶部）'); return; }
+  await aiApiSaveCfg();
+  if (!state.aiApiMessages) state.aiApiMessages = [];
+  state.aiApiMessages.push({ role: 'user', content: text });
+  aiChatAppend('me', text);
+  const ta = $('#ai-text'); if (ta) ta.value = '';
+  const thinking = aiChatAppend('ai', '思考中…');
+  const r = await bridge.ai.chat({ base: cfg.base, key: cfg.key, model: cfg.model, messages: state.aiApiMessages });
+  if (thinking) thinking.remove();
+  if (r && r.ok) {
+    state.aiApiMessages.push({ role: 'assistant', content: r.content });
+    aiChatAppend('ai', r.content);
+  } else {
+    // 失败时撤掉刚追加的用户消息，别在上下文里留一条没回复的
+    state.aiApiMessages.pop();
+    aiChatAppend('err', (r && r.error) || '请求失败');
   }
 }
 
@@ -4945,8 +5024,17 @@ function wireUi() {
   wireExtUiWebview();
   $('#ai-grab').addEventListener('click', aiGrab);
   $('#ai-send').addEventListener('click', aiSend);
-  $('#ai-clear').addEventListener('click', () => { const ta = $('#ai-text'); if (ta) ta.value = ''; });
+  $('#ai-clear').addEventListener('click', () => {
+    const ta = $('#ai-text'); if (ta) ta.value = '';
+    // API 模式下「清空」连对话一起清（那是这一模式的「内容」）
+    if (aiIsApiMode()) {
+      state.aiApiMessages = [];
+      const box = $('#ai-chat'); if (box) box.innerHTML = '';
+    }
+  });
   $('#ai-select').addEventListener('change', () => {
+    applyAiMode();
+    if (aiIsApiMode()) { aiApiLoadCfg(); return; }
     const ai = currentAi();
     const custom = !ai.url; // 自定义项没有预设地址
     $('#ai-custom').hidden = !custom;

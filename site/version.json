@@ -25,7 +25,8 @@
     "修好侧边栏扩展「单独弹出窗口、不嵌入面板、加载特慢」：承载面板现在会拦截扩展的 window.open——扩展自己的页面载回面板内、外部链接开成普通标签页，不再弹出独立小窗（也顺带少了重复加载）；面板载入时顶部有加载提示",
     "修好侧边栏扩展点开后空白：承载面板不再把扩展 window.open 的地址导航进面板（那会变空白）——扩展自己的页面保留在面板里就地渲染，外部登录页开成标签页，登录后侧边栏可就地刷新",
     "顶栏（品牌名右侧）新增「关于」按钮，一键进关于/版本/更新；「主题」「收藏夹」按钮补上文字",
-    "工具栏动作按钮（下载 / 广告拦截 / 媒体嗅探 / 扩展 / AI / 更新 / 菜单）加上文字标签，地址栏自动让出宽度"
+    "工具栏动作按钮（下载 / 广告拦截 / 媒体嗅探 / 扩展 / AI / 更新 / 菜单）加上文字标签，地址栏自动让出宽度",
+    "AI 助手新增「API」模式：内嵌网页常被对方识别成「环境异常」拒绝渲染，现可选 API（默认 DeepSeek，兼容其它 OpenAI 风格接口），填 地址 / Key / 模型 即可对话；请求由本机直发，Key 只存本机设置"
   ],
   "downloads": [
     {
@@ -42,16 +43,16 @@
     }
   ],
   "pc": {
-    "version": "1.0.14",
+    "version": "1.0.15",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.14/nova-pc-1.0.14-win-x64-setup.zip",
-    "size": 78113307,
-    "sha256": "4aa2f00498e490e243b8f8638bd38c6d0fb2e3b54bebd2340fcf7b9fd0fc21e5",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.15/nova-pc-1.0.15-win-x64-setup.zip",
+    "size": 78115678,
+    "sha256": "13ea683cb1c5c65221134c27d1b8e1365963357849436bbab3a8aa012c2290e9",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.14/nova-pc-1.0.14-win-x64-setup.exe",
-      "size": 78115288,
-      "sha256": "a81a146f3e55830374e6b7abc0af6509a51cc0fcf56374fa30432c9ab63246c8"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.15/nova-pc-1.0.15-win-x64-setup.exe",
+      "size": 78117754,
+      "sha256": "7939ab858d2604023e31a182d207e2f65c0eefdca4cbb1a6300f9509ef03692c"
     }
   }
 }

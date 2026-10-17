@@ -218,6 +218,14 @@ contextBridge.exposeInMainWorld('nova', {
     copy: (text) => ipcRenderer.invoke('shell:copy', text)
   },
 
+  /* --- AI 助手（API 集成）--- */
+  // 内嵌网页对话会被一些 AI 站点识别成「环境异常」而拒绝渲染，所以改走 API：
+  // 渲染层只收集 base/key/model 与对话，真正的 HTTP 请求在主进程发（避开 CORS，
+  // 也不把密钥暴露给页面上下文）。cfg = { base, key, model, messages:[{role,content}] }
+  ai: {
+    chat: (cfg) => ipcRenderer.invoke('ai:chat', cfg)
+  },
+
   window: {
     minimize: () => ipcRenderer.send('window:control', 'minimize'),
     maximize: () => ipcRenderer.send('window:control', 'maximize'),

@@ -828,6 +828,17 @@ const MOCK_UPDATE = {
       copy: async () => true
     },
 
+    /* AI · API 模式。预览不直连任何 API，回一句模拟回复，
+       让消息列表的交互（追加/思考态/清空）在预览里能真走一遍。 */
+    ai: {
+      chat: async (cfg) => {
+        const last = (cfg && cfg.messages && cfg.messages.length)
+          ? cfg.messages[cfg.messages.length - 1].content : '';
+        await new Promise((r) => setTimeout(r, 500));
+        return { ok: true, content: '（UI 预览模式）这是模拟回复。\n你刚才说：' + String(last).slice(0, 80) };
+      }
+    },
+
     window: { minimize() {}, maximize() {}, close() {} },
 
     on(channel, fn) {

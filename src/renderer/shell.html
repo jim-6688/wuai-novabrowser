@@ -314,6 +314,17 @@
     </header>
     <div class="ai-body">
       <webview id="ai-webview" class="ai-webview" allowpopups partition="persist:nova-chromium"></webview>
+      <!-- API 模式：内嵌网页常被对方识别成「环境异常」拒绝渲染，这里改走自己的 API 请求 -->
+      <div class="ai-api" id="ai-api" hidden>
+        <div class="ai-api-cfg">
+          <input id="ai-api-base" class="ai-input" placeholder="API 地址，如 https://api.deepseek.com" spellcheck="false" />
+          <div class="ai-api-cfg-row">
+            <input id="ai-api-key" class="ai-input" type="password" placeholder="API Key（sk-…）" spellcheck="false" />
+            <input id="ai-api-model" class="ai-input" placeholder="模型，如 deepseek-chat" spellcheck="false" />
+          </div>
+        </div>
+        <div class="ai-chat" id="ai-chat"></div>
+      </div>
     </div>
     <div class="ai-foot">
       <div class="ai-row">
@@ -322,6 +333,7 @@
           <option value="kimi">Kimi（免登录）</option>
           <option value="qwen">通义千问（免登录）</option>
           <option value="doubao">豆包（免登录）</option>
+          <option value="api">API（DeepSeek 等，需 Key）</option>
           <option value="custom">自定义…</option>
         </select>
         <button class="btn btn-sm" id="ai-grab" title="把当前页选中的文字带进来">带入当前页</button>
@@ -334,7 +346,7 @@
         <button class="btn btn-primary" id="ai-send">发送</button>
         <button class="btn" id="ai-clear">清空</button>
       </div>
-      <div class="ai-note">内嵌网页对话 · 免登录优先 · 不收集密钥</div>
+      <div class="ai-note">网页对话免登录优先；API 模式用你自己的 Key（只存本机设置，请求由本机直发）</div>
     </div>
   </aside>
 
