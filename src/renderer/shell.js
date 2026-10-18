@@ -4784,6 +4784,7 @@ function currentAi() {
 function openAiPanel() {
   const panel = $('#ai-panel');
   if (!panel) return;
+  positionAiPanel();
   applyAiMode();                 // API 模式藏起 webview、显示配置+消息列表
   if (aiIsApiMode()) aiApiLoadCfg();
   panel.hidden = false;
@@ -4806,6 +4807,18 @@ function openAiPanel() {
       });
     });
   }
+}
+
+/** 小窗贴着工具栏的 AI 按钮弹出；高度由 CSS 的 auto + 上限决定，这里只给定位与最大高度。 */
+function positionAiPanel() {
+  const panel = $('#ai-panel');
+  const btn = $('#btn-ai');
+  if (!panel || !btn) return;
+  const r = btn.getBoundingClientRect();
+  const top = Math.round(r.bottom + 8);
+  panel.style.top = top + 'px';
+  panel.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+  panel.style.maxHeight = Math.max(240, Math.min(520, window.innerHeight - top - 12)) + 'px';
 }
 
 function closeAiPanel() {
@@ -5540,6 +5553,10 @@ function wireUi() {
   // 注入走 aiInject，它自己会等就绪并在失败时如实返回，不会把异常抛到外面。
   const aiWv = $('#ai-webview');
   if (aiWv) {
+    // 「隐身」预处理：DeepSeek 等站点的风控会把内嵌浏览器判成「使用环境异常」，
+    // 在对方脚本之前抹平几个最常查的自动化特征（尽力而为，仍可能被拦）
+    try { aiWv.setAttribute('preload', new URL('./ai-stealth.js', location.href).href); }
+    catch { /* 预览等环境下拿不到绝对路径就算了 */ }
     const flushPending = async () => {
       if (!state.aiPending) return;
       const text = state.aiPending;
@@ -5550,6 +5567,17 @@ function wireUi() {
     };
     aiWv.addEventListener('did-finish-load', flushPending);
     aiWv.addEventListener('dom-ready', flushPending);
+    // 网页模式打不开（被风控拦 / 断网）→ 指条明路：改用 API 模式
+    aiWv.addEventListener('did-fail-load', (ev) => {
+      if (ev.errorCode === -3) return;          // ERR_ABORTED，主动取消不算
+      if (ev.isMainFrame === false) return;
+      toast('这个 AI 站点没能打开（可能屏蔽内嵌浏览器），可在下方改用「API 模式」');
+    });
+    // 窗口尺寸变了，开着的 AI 小窗重新贴回按钮下
+    window.addEventListener('resize', () => {
+      const p = $('#ai-panel');
+      if (p && p.classList.contains('is-open')) positionAiPanel();
+    });
   }
 
   // 拖拽安装扩展：把 .crx/.zip/.xpi 拖进浏览器窗口即装。见 wireDropInstall。

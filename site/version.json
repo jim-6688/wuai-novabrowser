@@ -33,7 +33,9 @@
     "新增「密码 / 登录凭证」（设置 → 密码）：Nova 自己保存账号密码（系统加密、只存本机、不上传），可「填充到当前页」自动填入登录框，支持手动添加/显示/复制/删除。另提供「从 Edge 导入」——但新版 Edge 用 App-Bound 加密（v20），第三方无法解密，会如实跳过",
     "网页右键菜单：链接（新标签页打开 / 复制链接）、选中文字（复制 / 搜索）、输入框（剪切 / 粘贴 / 全选）、后退 / 前进 / 刷新",
     "选中文字后弹出迷你条：搜索 / 复制（搜索在新标签页打开）",
-    "更新小窗改版：不再是整屏侧栏，改成贴着更新按钮的自适应小窗——高度随更新日志伸缩（内容多才滚动），进度条下不再留一大片空白；更新日志在「下载中 / 已下载」时也一并显示"
+    "更新小窗改版：不再是整屏侧栏，改成贴着更新按钮的自适应小窗——高度随更新日志伸缩（内容多才滚动），进度条下不再留一大片空白；更新日志在「下载中 / 已下载」时也一并显示",
+    "AI 面板改版：不再是整屏右侧栏，改成贴在工具栏 AI 按钮下方的紧凑小窗（约 400×520，内容多才滚动）",
+    "针对 AI 站点「使用环境异常」风控：网页模式加了隐身预处理（抹平 webdriver / plugins / userAgentData 等内嵌浏览器特征）；仍被拦时面板会提示改用「API 模式」（用自己的 Key，不经过对方网页风控）"
   ],
   "downloads": [
     {
@@ -50,16 +52,16 @@
     }
   ],
   "pc": {
-    "version": "1.0.21",
+    "version": "1.0.22",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.21/nova-pc-1.0.21-win-x64-setup.zip",
-    "size": 89470758,
-    "sha256": "72e834d1e6e94b90197ac6b657ae41fef6d4b9125621a336c792c336349e646d",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.22/nova-pc-1.0.22-win-x64-setup.zip",
+    "size": 89470133,
+    "sha256": "79dd1f4d1703c7eddf8b1284d97acc4a3ce67fc062bee3af3670bf9b5196a0d1",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.21/nova-pc-1.0.21-win-x64-setup.exe",
-      "size": 89472542,
-      "sha256": "715eb61ef44bf5405768b65f112c2543404b8b54b3d93851369ebd3bb204fea8"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.22/nova-pc-1.0.22-win-x64-setup.exe",
+      "size": 89471932,
+      "sha256": "85211cae13d18d480c360c0bc0be5954f4604612da6cf5526ffd0976ea0f61ce"
     }
   }
 }

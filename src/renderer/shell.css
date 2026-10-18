@@ -821,19 +821,27 @@ svg {
  * ------------------------------------------------------------------ */
 .ai-panel {
   position: fixed;
-  top: 0; right: 0; bottom: 0;
-  width: 420px;
-  max-width: 94vw;
+  top: 104px;            /* JS 会按 AI 按钮的位置覆盖这一条 */
+  right: 12px;
+  width: 400px;
+  max-width: min(94vw, 400px);
+  /* 不再是 top:0;bottom:0 的整屏侧栏：贴着工具栏下方的小窗，高度由内容与上限决定 */
+  height: auto;
+  max-height: min(64vh, 520px);
   background: var(--surface);
-  border-left: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow-3);
-  transform: translateX(102%);
-  transition: transform 220ms var(--ease);
+  overflow: hidden;
+  transform: translateY(-8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 200ms var(--ease), opacity 200ms var(--ease);
   display: flex;
   flex-direction: column;
   z-index: 45;
 }
-.ai-panel.is-open { transform: none; }
+.ai-panel.is-open { transform: none; opacity: 1; pointer-events: auto; }
 .ext-ui-panel {
   position: fixed;
   top: 0; right: 0; bottom: 0;
@@ -888,7 +896,7 @@ svg {
   padding: 2px 6px; border-radius: var(--r-sm);
 }
 .ai-x:hover { background: var(--surface-2); color: var(--text); }
-.ai-body { flex: 1; min-height: 0; position: relative; background: var(--bg); }
+.ai-body { flex: 0 1 auto; height: min(42vh, 340px); min-height: 140px; position: relative; background: var(--bg); overflow: hidden; }
 .ai-webview { width: 100%; height: 100%; border: 0; background: var(--bg); }
 /* API 模式：配置区 + 消息列表，铺满 ai-body（webview 此时 display:none） */
 .ai-api { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
@@ -1022,8 +1030,8 @@ svg {
   .icon-btn.is-busy svg { animation: none; }
 }
 
-/* 移动端同样从右侧滑入、但占满宽度（手机没有侧边空间） */
-[data-layout="mobile"] .ai-panel { width: 100%; max-width: none; border-left: 0; }
+/* 移动端：仍是工具栏下方的小窗，只是占满宽度（手机没有侧边空间） */
+[data-layout="mobile"] .ai-panel { left: 12px; right: 12px; width: auto; max-width: none; border-left: 0; }
 
 /* 自动更新是 PC 端的能力（手机端走 APK 的整包更新，逻辑在 UpdateManager）。
    窄屏档位下这一格连同面板一起隐去 —— 留着会让人点出一个装不了的更新。 */
