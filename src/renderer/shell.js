@@ -3356,7 +3356,8 @@ function updateStatusHtml(u) {
     const pct = Math.round(u.percent || 0);
     return `<div class="up-ver">正在下载 ${esc((u.info && u.info.version) || '')}</div>
       <div class="up-bar"><i style="width:${pct}%"></i></div>
-      <p class="up-none">${pct}%${u.speed ? ` · ${fmtBytes(u.speed)}/s` : ''}。下载完会校验 sha256，校验不过会丢弃重来。</p>`;
+      <p class="up-none">${pct}%${u.speed ? ` · ${fmtBytes(u.speed)}/s` : ''}。下载完会校验 sha256，校验不过会丢弃重来。</p>
+      ${notes}`;
   }
 
   if (u.status === 'ready') {
@@ -3365,6 +3366,7 @@ function updateStatusHtml(u) {
     const auto = updatePref().autoInstall && !u.autoInstallCancelled;
     return `<div class="up-ver">${esc((u.info && u.info.version) || '')} 已下载完毕</div>
       <p class="up-none">${auto ? '即将重启并拉起安装器。' : '重启后生效。'}当前页面里未保存的内容会丢失。</p>
+      ${notes}
       <button class="btn btn-primary" data-up="install">重启并安装</button>`;
   }
 
@@ -4969,9 +4971,22 @@ function openUpdatePanel() {
   const panel = $('#update-panel');
   if (!panel) return;
   syncUpdateBlocks();
+  positionUpdatePanel();
   panel.hidden = false;
   panel.classList.add('is-open');
   panel.setAttribute('aria-hidden', 'false');
+}
+
+/** 小窗贴着顶栏的更新按钮弹出；高度由内容决定，这里只给 top/right 与最大高度。 */
+function positionUpdatePanel() {
+  const panel = $('#update-panel');
+  const btn = $('#btn-update');
+  if (!panel || !btn) return;
+  const r = btn.getBoundingClientRect();
+  const top = Math.round(r.bottom + 8);
+  panel.style.top = top + 'px';
+  panel.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+  panel.style.maxHeight = Math.max(220, Math.min(560, window.innerHeight - top - 12)) + 'px';
 }
 
 function closeUpdatePanel() {
@@ -5548,9 +5563,26 @@ function wireUi() {
   // 按钮就不亮了。
   {
     const btn = $('#btn-update');
-    if (btn) btn.addEventListener('click', openUpdatePanel);
+    if (btn) btn.addEventListener('click', () => {
+      const p = $('#update-panel');
+      if (p && p.classList.contains('is-open')) closeUpdatePanel();
+      else openUpdatePanel();
+    });
     const panel = $('#update-panel');
     if (panel) $('#update-close').addEventListener('click', closeUpdatePanel);
+    // 小窗：点外面收起（点在面板内或更新按钮上不算）
+    document.addEventListener('click', (ev) => {
+      const p = $('#update-panel');
+      if (!p || !p.classList.contains('is-open')) return;
+      const t = ev.target;
+      if (t && typeof t.closest === 'function' && (t.closest('#update-panel') || t.closest('#btn-update'))) return;
+      closeUpdatePanel();
+    });
+    // 窗口尺寸变了，开着的小窗要重新贴回按钮下面
+    window.addEventListener('resize', () => {
+      const p = $('#update-panel');
+      if (p && p.classList.contains('is-open')) positionUpdatePanel();
+    });
 
     /* 更新相关的按钮**一律靠委托**处理，挂在 document 上而不是某个容器上。
      *
