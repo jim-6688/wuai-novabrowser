@@ -512,6 +512,12 @@ function mountTab(tab) {
   wv.addEventListener('new-window', (ev) => {
     createTab(ev.url, tab.engineId, { activate: !ev.disposition || ev.disposition === 'foreground-tab' });
   });
+  // 右键 → 交给主进程弹系统原生菜单（DOM 菜单会被 webview 盖住，原生不会）
+  wv.addEventListener('context-menu', (ev) => {
+    let wcId = 0;
+    try { wcId = wv.getWebContentsId(); } catch { /* 还没就绪 */ }
+    try { bridge.webview.contextMenu({ params: ev.params, wcId }); } catch { /* 桥没起来 */ }
+  });
   wv.addEventListener('crashed', () => { tab.crashed = true; renderTabstrip(); });
   // 网页加载失败 → 显示「无法打开此网页」提示页（此前是空白）。
   // errorCode -3 是 ERR_ABORTED（被新导航/主动中断取消），不算真的失败。
@@ -528,6 +534,8 @@ function mountTab(tab) {
     try { tab.wcId = wv.getWebContentsId(); } catch { /* 拿不到就留空，界面上会提示等待就绪 */ }
     // 自动拼页要等页面 DOM 就位才能找正文容器和下一页，所以挂在这一步
     injectAutoPage(tab);
+    // 选中文字后弹「搜索/复制」迷你条（注入到页面里，避免被 webview 盖住）
+    injectSelectionBar(tab);
   });
 
   host.appendChild(wv);
@@ -3171,6 +3179,66 @@ async function showPageImages() {
   if (t.webview && typeof t.webview.reload === 'function') t.webview.reload();
   toast('已放行本页图片 · 正在重载');
   refreshCurrent();
+}
+
+/**
+ * 往标签页里注入「选中文字 → 迷你条（搜索 / 复制）」。
+ * 为什么注入进页面而不是在外壳里画：<webview> 会盖在同层 DOM 之上，外壳画的小条会被盖住；
+ * 注入进页面（用 Shadow DOM 隔离样式）就不会被遮。搜索用 window.open → 复用 new-window 建新标签。
+ */
+function injectSelectionBar(tab) {
+  const wv = tab.webview;
+  if (!wv || typeof wv.executeJavaScript !== 'function') return;
+  const tpl = state.settings.searchTemplate || 'https://www.baidu.com/s?wd=%s';
+  const script = '(function(){'
+    + 'if(window.__novaSelBar)return "already";'
+    + 'var TPL=' + JSON.stringify(tpl) + ';'
+    + 'var host=document.createElement("div");'
+    + 'host.style.cssText="all:initial;position:fixed;z-index:2147483000;left:0;top:0";'
+    + 'var sh=host.attachShadow({mode:"open"});'
+    + 'sh.innerHTML="<style>'
+    +   '.bar{position:fixed;display:none;background:#1f2430;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.28);font:12px/1.2 -apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;overflow:hidden}'
+    +   '.bar.show{display:flex}'
+    +   'button{all:unset;padding:8px 12px;color:#fff;font-size:12px;cursor:pointer;white-space:nowrap}'
+    +   'button:hover{background:#2c3342}'
+    +   'button+button{border-left:1px solid rgba(255,255,255,.14)}'
+    + '</style>'
+    + '<div class=bar><button data-a=search>搜索</button><button data-a=copy>复制</button></div>";'
+    + 'document.documentElement.appendChild(host);'
+    + 'var bar=sh.querySelector(".bar");var cur="";'
+    + 'function hide(){bar.classList.remove("show")}'
+    + 'function place(){'
+    +   'var s=window.getSelection();if(!s||!s.rangeCount)return hide();'
+    +   'var t=s.toString().trim();if(!t)return hide();'
+    +   'var r;try{r=s.getRangeAt(0).getBoundingClientRect()}catch(e){return hide()}'
+    +   'if(!r||(!r.width&&!r.height))return hide();'
+    +   'cur=t;bar.classList.add("show");'
+    +   'var bw=112,x=r.left+r.width/2-bw/2,y=r.top-40;'
+    +   'if(y<4)y=r.bottom+8;if(x<4)x=4;'
+    +   'if(x>window.innerWidth-bw-8)x=window.innerWidth-bw-8;'
+    +   'bar.style.left=x+"px";bar.style.top=y+"px";'
+    + '}'
+    + 'document.addEventListener("mouseup",function(e){if(e.composedPath().indexOf(host)>=0)return;setTimeout(place,0)},true);'
+    + 'document.addEventListener("mousedown",function(e){if(e.composedPath().indexOf(host)>=0)return;hide()},true);'
+    + 'document.addEventListener("scroll",hide,true);'
+    + 'document.addEventListener("keydown",function(e){if(e.key==="Escape")hide()},true);'
+    + 'bar.addEventListener("mousedown",function(e){e.preventDefault()});'
+    + 'bar.addEventListener("click",function(e){'
+    +   'var b=e.target&&e.target.closest?e.target.closest("button"):null;if(!b)return;'
+    +   'var a=b.getAttribute("data-a");'
+    +   'if(a==="copy"){'
+    +     'try{navigator.clipboard.writeText(cur)}catch(err){}'
+    +     'try{var ta=document.createElement("textarea");ta.value=cur;ta.style.cssText="position:fixed;left:-9999px";document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove()}catch(err){}'
+    +     'hide();'
+    +   '}else if(a==="search"){'
+    +     'var u=TPL.replace("%s",encodeURIComponent(cur));'
+    +     'try{window.open(u,"_blank")}catch(err){}'
+    +     'hide();'
+    +   '}'
+    + '});'
+    + 'window.__novaSelBar=true;return "ok";'
+    + '})()';
+  try { wv.executeJavaScript(script); } catch { /* 页面还没就绪就算了 */ }
 }
 
 /**
@@ -5869,6 +5937,14 @@ function wireBridgeEvents() {
   bridge.on('tabs:open-request', (p) => {
     if (p.background) createTab(p.url, activeTab() ? activeTab().engineId : state.settings.defaultEngine, { activate: false });
     else createTab(p.url, activeTab() ? activeTab().engineId : state.settings.defaultEngine);
+  });
+  // 原生右键菜单的两条动作：搜索选中文字 / 在新标签页打开链接（都开新标签）
+  bridge.on('webview:search', (text) => {
+    const q = String(text || '').trim();
+    if (q) createTab(searchUrl(q), activeTab() ? activeTab().engineId : state.settings.defaultEngine);
+  });
+  bridge.on('webview:open-url', (url) => {
+    if (url) createTab(url, activeTab() ? activeTab().engineId : state.settings.defaultEngine);
   });
   bridge.on('shell:viewport', applyLayout);
 

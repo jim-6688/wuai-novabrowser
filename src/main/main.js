@@ -15,7 +15,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard, safeStorage, Menu, webContents } = require('electron');
 const QRCode = require('qrcode'); // 本地生成二维码（分享用），不把网址丢第三方二维码接口
 const creds = require('./credentials'); // 从 Edge 导入已存密码（本地解密）
 
@@ -1669,6 +1669,42 @@ function registerIpc() {
     });
     credWrite(items);
     return { ok: true };
+  });
+
+  /* --- 网页区右键菜单（系统原生 Menu）---
+   * 为什么用原生 Menu：<webview> 会盖在同层 DOM 之上，DOM 菜单会被网页遮住；
+   * 原生菜单不受影响。菜单项按右键上下文（链接 / 选中文字 / 可编辑）动态给。 */
+  ipcMain.on('webview:context-menu', (e, payload) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (!win) return;
+    const p = (payload && payload.params) || {};
+    let wc = null;
+    try { wc = webContents.fromId(payload.wcId); } catch { wc = null; }
+    const back = (ch, arg) => { try { e.sender.send(ch, arg); } catch { /* 窗口没了 */ } };
+    const short = (s) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > 16 ? t.slice(0, 16) + '…' : t; };
+    const tpl = [];
+
+    if (p.linkURL) {
+      tpl.push({ label: '在新标签页打开链接', click: () => back('webview:open-url', p.linkURL) });
+      tpl.push({ label: '复制链接地址', click: () => clipboard.writeText(p.linkURL) });
+      tpl.push({ type: 'separator' });
+    }
+    if (p.selectionText && p.selectionText.trim()) {
+      tpl.push({ label: '复制', click: () => { try { wc && wc.copy(); } catch { /* ignore */ } } });
+      tpl.push({ label: '搜索「' + short(p.selectionText) + '」', click: () => back('webview:search', p.selectionText.trim()) });
+      tpl.push({ type: 'separator' });
+    }
+    if (p.isEditable) {
+      tpl.push({ label: '剪切', click: () => { try { wc && wc.cut(); } catch { /* ignore */ } } });
+      tpl.push({ label: '粘贴', click: () => { try { wc && wc.paste(); } catch { /* ignore */ } } });
+      tpl.push({ label: '全选', click: () => { try { wc && wc.selectAll(); } catch { /* ignore */ } } });
+      tpl.push({ type: 'separator' });
+    }
+    tpl.push({ label: '后退', enabled: !!(wc && wc.canGoBack()), click: () => { try { wc && wc.goBack(); } catch { /* ignore */ } } });
+    tpl.push({ label: '前进', enabled: !!(wc && wc.canGoForward()), click: () => { try { wc && wc.goForward(); } catch { /* ignore */ } } });
+    tpl.push({ label: '刷新', click: () => { try { wc && wc.reload(); } catch { /* ignore */ } } });
+
+    try { Menu.buildFromTemplate(tpl).popup({ window: win }); } catch { /* 弹不出就算了 */ }
   });
 
   ipcMain.on('window:control', (_e, action) => {

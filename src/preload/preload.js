@@ -67,7 +67,11 @@ const EVENT_CHANNELS = [
      后者报百分比 —— 两者是不同节奏的事件，合成一个会在「下载中」这段时间
      反复重发整个状态，白白把更新日志刷满。 */
   'update:state',
-  'update:progress'
+  'update:progress',
+  /* 原生右键菜单里「搜索选中文字 / 在新标签页打开链接」两条动作要回到外壳做
+     （搜索开新标签、链接开新标签）。菜单在主进程弹，动作由这里转发回去。 */
+  'webview:search',
+  'webview:open-url'
 ];
 
 const listeners = new Map();
@@ -230,6 +234,13 @@ contextBridge.exposeInMainWorld('nova', {
     reveal: (id) => ipcRenderer.invoke('cred:reveal', id),
     remove: (id) => ipcRenderer.invoke('cred:remove', id),
     clear: () => ipcRenderer.invoke('cred:clear')
+  },
+
+  /* --- 网页区交互（右键菜单等）--- */
+  // 右键菜单交给主进程用系统原生 Menu 弹（原生菜单能盖在 <webview> 之上，
+  // DOM 菜单会被 webview 盖住）。payload = { params, wcId }。
+  webview: {
+    contextMenu: (payload) => ipcRenderer.send('webview:context-menu', payload)
   },
 
   /* --- AI 助手（API 集成）--- */

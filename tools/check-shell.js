@@ -735,6 +735,11 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /id: 'passwords'/.test(js) && /function buildPasswords/.test(js)
       && /'cred-import'/.test(js) && /'cred-add'/.test(js) && /'cred-fill'/.test(js)
       && /function fillLoginIntoActiveTab/.test(js)],
+
+  /* --- 网页右键菜单 + 选中文字迷你条 --- */
+  ['有网页右键菜单与选区迷你条',
+    /addEventListener\('context-menu'/.test(js) && /bridge\.webview\.contextMenu/.test(js)
+      && /function injectSelectionBar/.test(js) && /injectSelectionBar\(tab\)/.test(js)],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

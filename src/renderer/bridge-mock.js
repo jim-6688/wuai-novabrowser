@@ -853,6 +853,11 @@ const MOCK_UPDATE = {
       clear: async () => ({ ok: true })
     },
 
+    /* 网页区右键菜单：预览是普通网页，没有原生菜单，空实现即可。 */
+    webview: {
+      contextMenu: () => {}
+    },
+
     window: { minimize() {}, maximize() {}, close() {} },
 
     on(channel, fn) {
