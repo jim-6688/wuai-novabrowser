@@ -719,6 +719,16 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
       && /renderPageError\(\)/.test(js)],
   ['提示页会藏起承载 webview（否则错误页被 webview 盖住又成空白）',
     /function renderPageError[\s\S]{0,1200}?webview\.hidden = true/.test(js)],
+
+  /* --- 地址栏自动匹配（收藏 + 历史）--- */
+  ['有地址栏建议下拉 #omni-suggest',
+    /id="omni-suggest"/.test(html)],
+  ['从收藏 + 历史匹配并渲染建议',
+    /function omniSugMatches/.test(js)
+      && /function renderOmniSuggest/.test(js)
+      && /state\.bookmarks/.test(js) && /state\.historyCache/.test(js)],
+  ['方向键选、回车进建议',
+    /ev\.key === 'ArrowDown'/.test(js) && /function pickOmniSuggest/.test(js)],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

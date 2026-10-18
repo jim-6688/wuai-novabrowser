@@ -530,6 +530,29 @@ svg {
 .os-btn svg { width: 19px; height: 19px; }
 .os-btn span { font-size: 10.5px; line-height: 1; white-space: nowrap; }
 .os-sep { font-size: 10px; color: var(--text-4); padding: 0 2px; }
+/* 打字时的自动补齐下拉（收藏 + 历史）。压在地址栏下方，键盘上下选、回车进。 */
+.omni-suggest {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 61;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+  padding: 4px;
+  max-height: 340px; overflow-y: auto;
+}
+.osug-row {
+  display: flex; align-items: center; gap: var(--sp-2);
+  width: 100%; text-align: left;
+  padding: 6px 8px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--text); cursor: pointer;
+}
+.osug-row:hover, .osug-row.is-sel { background: var(--surface-2); }
+.osug-ico { flex: 0 0 18px; text-align: center; font-size: 13px; color: var(--text-4); }
+.osug-ico.is-bm { color: var(--brand); }
+.osug-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.osug-title { font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.osug-url { font-size: 11px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.osug-tag { flex: 0 0 auto; font-size: 10px; color: var(--text-4); padding: 1px 6px; border-radius: var(--r-pill); background: var(--surface-2); }
 /* 二维码弹层：居中卡片，扫码在手机上打开 */
 .qr-modal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(0,0,0,0.45); }
 .qr-card { width: 300px; max-width: 92vw; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-3); padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }

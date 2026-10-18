@@ -814,8 +814,9 @@ function openOmniShare() {
   const pop = $('#omni-share');
   if (!pop) return;
   const url = t ? t.url : '';
-  // 新标签页那种内置 file:// 页没有可分享的网址
-  if (!url || isNewTabUrl(url)) { toast('这个页面没有可分享的网址'); return; }
+  // 新标签页那种内置 file:// 页没有可分享的网址：静默不弹（地址栏点击同时是「去打字」，
+  // 不该每次点都弹个提示打断）
+  if (!url || isNewTabUrl(url)) return;
   const title = t ? (t.title || '') : '';
   const tEl = $('#os-title'), uEl = $('#os-url');
   if (tEl) tEl.textContent = title || prettyUrl(url);
@@ -897,6 +898,86 @@ async function handleShareAction(act) {
     toast('已复制标题和链接，去小红书粘贴');
     closeOmniShare();
   }
+}
+
+/* --- 地址栏自动匹配（收藏 + 历史）--- */
+// 收藏在 state.bookmarks 里；历史从主进程拉一批缓存（地址栏聚焦时刷新）。
+async function ensureHistoryCache(refresh) {
+  if (state.historyCache && !refresh) return state.historyCache;
+  try {
+    const list = await bridge.history.list(400);
+    state.historyCache = Array.isArray(list) ? list : [];
+  } catch { state.historyCache = state.historyCache || []; }
+  return state.historyCache;
+}
+
+function hideOmniSuggest() {
+  const el = $('#omni-suggest');
+  if (el) { el.hidden = true; el.innerHTML = ''; }
+  state.omniSugg = [];
+  state.omniSel = -1;
+}
+
+function paintOmniSel() {
+  const el = $('#omni-suggest');
+  if (!el) return;
+  [...el.querySelectorAll('.osug-row')].forEach((r, i) => r.classList.toggle('is-sel', i === state.omniSel));
+}
+
+function pickOmniSuggest(idx) {
+  const it = (state.omniSugg || [])[idx];
+  const input = $('#omni-input');
+  if (!it || !input) return;
+  input.value = it.url;
+  hideOmniSuggest();
+  const t = activeTab();
+  if (t) navigate(t.id, it.url);
+  input.blur();
+}
+
+/** 按输入串从收藏 + 历史里挑匹配项（收藏优先、按 URL 去重，最多 8 条）。 */
+function omniSugMatches(query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return [];
+  const seen = new Set();
+  const out = [];
+  const hit = (url, title) => {
+    const u = String(url || '').toLowerCase();
+    const u2 = u.replace(/^https?:\/\//, '').replace(/^www\./, '');
+    const t = String(title || '').toLowerCase();
+    return u.includes(q) || u2.includes(q) || t.includes(q);
+  };
+  const push = (item, type) => {
+    const url = item && item.url;
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    out.push({ url, title: (item && item.title) || url, type });
+  };
+  for (const b of (state.bookmarks || [])) if (hit(b.url, b.title)) push(b, 'bm');
+  for (const h of (state.historyCache || [])) if (hit(h.url, h.title)) push(h, 'hist');
+  return out.slice(0, 8);
+}
+
+function renderOmniSuggest() {
+  const el = $('#omni-suggest');
+  const input = $('#omni-input');
+  if (!el || !input) return;
+  // 历史还没缓存好：先拉，回来再补渲染一次
+  if (!state.historyCache) { ensureHistoryCache().then(() => { if (document.activeElement === input) renderOmniSuggest(); }); }
+  const list = omniSugMatches(input.value);
+  state.omniSugg = list;
+  state.omniSel = -1;
+  if (!list.length) { hideOmniSuggest(); return; }
+  el.innerHTML = list.map((it, i) => `
+    <button class="osug-row" data-idx="${i}" data-url="${esc(it.url)}">
+      <span class="osug-ico ${it.type === 'bm' ? 'is-bm' : 'is-hist'}">${it.type === 'bm' ? '★' : '↺'}</span>
+      <span class="osug-main">
+        <span class="osug-title">${esc(it.title)}</span>
+        <span class="osug-url">${esc(prettyUrl(it.url))}</span>
+      </span>
+      <span class="osug-tag">${it.type === 'bm' ? '收藏' : '历史'}</span>
+    </button>`).join('');
+  el.hidden = false;
 }
 
 function syncNavButtons() {
@@ -5086,22 +5167,49 @@ function wireUi() {
 
   // 地址栏
   const input = $('#omni-input');
+  if (state.omniSel == null) state.omniSel = -1;
   input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'ArrowDown') {
+      const list = state.omniSugg || [];
+      if (list.length) { ev.preventDefault(); state.omniSel = Math.min(state.omniSel + 1, list.length - 1); paintOmniSel(); }
+      return;
+    }
+    if (ev.key === 'ArrowUp') {
+      const list = state.omniSugg || [];
+      if (list.length) { ev.preventDefault(); state.omniSel = Math.max(state.omniSel - 1, -1); paintOmniSel(); }
+      return;
+    }
     if (ev.key === 'Enter') {
+      // 有高亮的建议就进那一条，否则按普通解析（地址/搜索词）
+      if (state.omniSel >= 0 && (state.omniSugg || [])[state.omniSel]) { ev.preventDefault(); pickOmniSuggest(state.omniSel); return; }
       const url = resolveInput(input.value);
       const t = activeTab();
       if (url && t) navigate(t.id, url);
+      hideOmniSuggest();
       input.blur();
     } else if (ev.key === 'Escape') {
+      if ($('#omni-suggest') && !$('#omni-suggest').hidden) { hideOmniSuggest(); return; }
       syncOmnibox();
       input.blur();
     }
   });
-  input.addEventListener('focus', () => input.select());
+  input.addEventListener('focus', () => { input.select(); ensureHistoryCache(true); });
   // 点网址（地址栏还没聚焦时的那次点击）→ 弹分享面板；已在编辑态不弹。
-  // 一开始打字（input）就收起，让位给编辑。
   input.addEventListener('mousedown', () => { if (document.activeElement !== input) openOmniShare(); });
-  input.addEventListener('input', closeOmniShare);
+  // 打字 → 收起分享面板、显示自动补齐（收藏 + 历史）
+  input.addEventListener('input', () => { closeOmniShare(); renderOmniSuggest(); });
+  // 失焦收起建议；点建议行用的是 mousedown+preventDefault，不会先触发这里
+  input.addEventListener('blur', hideOmniSuggest);
+  // 点建议行 → 跳转（mousedown 抢在 blur 前，避免点了却先失焦收起）
+  const sugEl = $('#omni-suggest');
+  if (sugEl) {
+    sugEl.addEventListener('mousedown', (ev) => {
+      const row = ev.target && ev.target.closest && ev.target.closest('[data-idx]');
+      if (!row) return;
+      ev.preventDefault();
+      pickOmniSuggest(Number(row.dataset.idx));
+    });
+  }
 
   $('#omni-star').addEventListener('click', async () => {
     const t = activeTab();
