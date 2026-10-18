@@ -2242,6 +2242,71 @@ async function buildHistory() {
   `;
 }
 
+async function buildPasswords() {
+  try { state.credentials = await bridge.credentials.list(); } catch { state.credentials = state.credentials || []; }
+  const list = state.credentials || [];
+  return `
+    <h2 class="sv-h2">密码 / 登录凭证</h2>
+    <div class="sv-lead">Nova 自己保存账号密码：<b>只存本机、系统加密、不上传</b>。到网站后可点「填充到当前页」自动填入登录框。</div>
+    <div class="btn-row" style="padding-top:0">
+      <button class="btn btn-primary" data-act="cred-fill" ${list.length ? '' : 'disabled'}>填充到当前页</button>
+      <button class="btn" data-act="cred-import" ${state.isPreview ? 'disabled title="UI 预览模式"' : ''}>从 Edge 导入</button>
+      <button class="btn" data-act="cred-clear" ${list.length ? '' : 'disabled'}>全部清空</button>
+    </div>
+    <div class="sv-card" style="padding:var(--sp-3)">
+      <div class="sv-lead" style="padding:0 0 var(--sp-2)">手动添加一条</div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap">
+        <input id="cred-origin" class="ai-input" placeholder="网站地址，如 https://example.com" style="flex:1;min-width:180px" spellcheck="false" />
+        <input id="cred-user" class="ai-input" placeholder="用户名 / 邮箱" style="flex:1;min-width:130px" spellcheck="false" />
+        <input id="cred-pass" class="ai-input" type="password" placeholder="密码" style="flex:1;min-width:130px" />
+        <button class="btn btn-sm" data-act="cred-add">添加</button>
+      </div>
+    </div>
+    ${list.length ? `<div class="sv-card">${list.map((c) => `
+      <div class="hist-row" data-cred-row="${esc(c.id)}">
+        <div class="hist-main">
+          <div class="hist-title">${esc(hostOf(c.origin) || c.origin)}</div>
+          <div class="hist-url">${esc(c.username || '（无用户名）')} · ${esc(c.origin)}</div>
+          <div class="cred-pw" hidden></div>
+        </div>
+        <div class="btn-row" style="padding:0">
+          <button class="btn btn-sm" data-act="cred-reveal" data-id="${esc(c.id)}">显示</button>
+          <button class="btn btn-sm" data-act="cred-copy" data-id="${esc(c.id)}">复制</button>
+          <button class="btn btn-sm" data-act="cred-del" data-id="${esc(c.id)}">删除</button>
+        </div>
+      </div>`).join('')}</div>` : '<div class="sv-empty">还没有保存任何账号密码。</div>'}
+  `;
+}
+
+/** 把当前标签页对应站点的账号密码填进登录框（尽力而为：找 password 框 + 它前面最近的文本/邮箱框）。 */
+async function fillLoginIntoActiveTab() {
+  const t = activeTab();
+  if (!t) { toast('没有打开的标签页'); return; }
+  const host = hostOf(t.url);
+  if (!host) { toast('当前页没有可填充的网站'); return; }
+  const cred = (state.credentials || []).find((c) => hostOf(c.origin) === host);
+  if (!cred) { toast('这个网站还没有保存的密码，先在上面添加'); return; }
+  const r = await bridge.credentials.reveal(cred.id);
+  if (!r || !r.ok) { toast((r && r.error) || '解密失败'); return; }
+  const wv = t.webview;
+  if (!wv || typeof wv.executeJavaScript !== 'function') { toast('当前页没法填充'); return; }
+  const code = '(function(u,p){try{'
+    + 'var pw=document.querySelector("input[type=password]");if(!pw)return "no-pw";'
+    + 'var form=pw.form||document;'
+    + 'var cands=form.querySelectorAll("input[type=text],input[type=email],input:not([type])");'
+    + 'var ue=null;for(var i=0;i<cands.length;i++){if(cands[i].compareDocumentPosition(pw)&Node.DOCUMENT_POSITION_FOLLOWING)ue=cands[i];}'
+    + 'function set(el,v){if(!el)return;el.focus();el.value=v;el.dispatchEvent(new Event("input",{bubbles:true}));el.dispatchEvent(new Event("change",{bubbles:true}));}'
+    + 'set(ue,u);set(pw,p);return "ok";'
+    + '}catch(e){return "err:"+e.message;}})('
+    + JSON.stringify(cred.username || '') + ',' + JSON.stringify(r.password) + ')';
+  try {
+    const res = await wv.executeJavaScript(code);
+    if (res === 'ok') { toast('已填入登录框'); closeSettings(); }
+    else if (res === 'no-pw') toast('当前页没找到密码输入框');
+    else toast('填充失败');
+  } catch { toast('填充失败'); }
+}
+
 function buildBookmarks() {
   const list = state.bookmarks || [];
   // 用户在书签页最可能想找的就是「那条栏去哪了」，所以在这一页指一次路。
@@ -3351,6 +3416,7 @@ const SETTINGS_NAV = [
     { id: 'downloads', label: '下载', icon: 'down', count: () => state.downloads.length }
   ] },
   { group: '系统', items: [
+    { id: 'passwords', label: '密码', icon: 'key', count: () => (state.credentials || []).length },
     { id: 'privacy', label: '隐私与数据', icon: 'lock' },
     { id: 'about', label: '关于吾爱Nova', icon: 'info' }
   ] }
@@ -3368,6 +3434,7 @@ const NAV_ICONS = {
   clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/>',
   down: '<path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/>',
   lock: '<path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/>',
+  key: '<circle cx="7" cy="13" r="3"/><path d="M9.1 11.1L16 4.2M13.9 4.2h2.4v2.4"/>',
   info: '<circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/>'
 };
 
@@ -3384,6 +3451,7 @@ const SECTION_BUILDERS = {
   history: buildHistory,
   downloads: buildDownloads,
   privacy: buildPrivacy,
+  passwords: buildPasswords,
   about: buildAbout
 };
 
@@ -4305,6 +4373,59 @@ function wireActions(root) {
         await bridge.history.clear();
         refreshCurrent();
         toast('历史已清空');
+      } else if (act === 'cred-import') {
+        toast('正在从 Edge 读取并解密…');
+        const r = await bridge.credentials.importEdge();
+        if (r && r.error) { toast(r.error); return; }
+        state.credentials = await bridge.credentials.list();
+        refreshCurrent();
+        if (!r.added && !r.dup) {
+          toast(r.skipped
+            ? 'Edge 这些密码用了新版 App-Bound 加密，暂无法导入（Edge 的安全限制）'
+            : 'Edge 里没有可导入的密码');
+          return;
+        }
+        const bits = [];
+        if (r.added) bits.push('新增 ' + r.added);
+        if (r.dup) bits.push('已存在 ' + r.dup);
+        if (r.skipped) bits.push('跳过 ' + r.skipped);
+        toast('导入完成：' + bits.join('，'));
+      } else if (act === 'cred-add') {
+        const g = (id) => { const el = root.querySelector('#' + id); return el ? el.value : ''; };
+        const r = await bridge.credentials.add({
+          origin: g('cred-origin').trim(), username: g('cred-user').trim(), password: g('cred-pass')
+        });
+        if (r && r.error) { toast(r.error); return; }
+        state.credentials = await bridge.credentials.list();
+        refreshCurrent();
+        toast('已保存这条密码');
+      } else if (act === 'cred-fill') {
+        await fillLoginIntoActiveTab();
+      } else if (act === 'cred-clear') {
+        await bridge.credentials.clear();
+        state.credentials = [];
+        refreshCurrent();
+        toast('已清空保存的密码');
+      } else if (act === 'cred-reveal') {
+        const row = b.closest('[data-cred-row]');
+        const pwEl = row && row.querySelector('.cred-pw');
+        if (!pwEl) return;
+        if (!pwEl.hidden) { pwEl.hidden = true; pwEl.textContent = ''; b.textContent = '显示'; return; }
+        const r = await bridge.credentials.reveal(b.dataset.id);
+        if (!r || !r.ok) { toast((r && r.error) || '解密失败'); return; }
+        pwEl.textContent = r.password;
+        pwEl.hidden = false;
+        b.textContent = '隐藏';
+      } else if (act === 'cred-copy') {
+        const r = await bridge.credentials.reveal(b.dataset.id);
+        if (!r || !r.ok) { toast((r && r.error) || '解密失败'); return; }
+        await bridge.system.copy(r.password);
+        toast('密码已复制');
+      } else if (act === 'cred-del') {
+        await bridge.credentials.remove(b.dataset.id);
+        state.credentials = await bridge.credentials.list();
+        refreshCurrent();
+        toast('已删除');
       } else if (act === 'dl-start') {
         const input = root.querySelector('#dl-url');
         const raw = (input ? input.value : '').trim();
@@ -5824,6 +5945,8 @@ async function init() {
   state.newTabFileUrl = boot.newTabFileUrl || '';
   state.extensions = boot.extensions || [];
   state.bookmarks = boot.settings.bookmarks || [];
+  state.credentials = [];
+  bridge.credentials.list().then((list) => { state.credentials = Array.isArray(list) ? list : []; }).catch(() => {});
   state.adblock = boot.adblock || state.adblock;
   state.allowlist = boot.allowlist || [];
   state.defaults = boot.defaults || null;

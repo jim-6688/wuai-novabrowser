@@ -284,7 +284,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   let navSecs = $$('#settings-nav .sv-nav-item').map((b) => b.dataset.sec);
   check('宽屏档位下导航里没有「移动端」',
-    !navSecs.includes('mobile') && navSecs.length === 11, navSecs.join(','));
+    !navSecs.includes('mobile') && navSecs.length === 12, navSecs.join(','));
   check('深链接落到 mobile 时兜底到常规（不留一个打不开的分区）',
     window.eval("(openSettings('mobile'), state.settingsSection)") === 'general',
     window.eval('state.settingsSection'));
@@ -294,7 +294,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   window.eval("renderSettingsSection('general')");
   navSecs = $$('#settings-nav .sv-nav-item').map((b) => b.dataset.sec);
   check('窄屏档位下「移动端」回到导航里',
-    navSecs.includes('mobile') && navSecs.length === 12, navSecs.join(','));
+    navSecs.includes('mobile') && navSecs.length === 13, navSecs.join(','));
   window.eval("state.settings.layout = 'desktop'");
   window.eval('applyLayout()');
 

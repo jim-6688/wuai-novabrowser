@@ -843,6 +843,16 @@ const MOCK_UPDATE = {
       }
     },
 
+    /* 登录凭证：预览模式不真的读 Edge 密码（需要本机 DPAPI），
+       只把交互走通 —— 导入回一句「预览不支持」，列表为空。 */
+    credentials: {
+      importEdge: async () => ({ error: 'UI 预览模式不支持从 Edge 导入密码' }),
+      list: async () => [],
+      reveal: async () => ({ error: 'UI 预览模式' }),
+      remove: async () => ({ ok: true }),
+      clear: async () => ({ ok: true })
+    },
+
     window: { minimize() {}, maximize() {}, close() {} },
 
     on(channel, fn) {

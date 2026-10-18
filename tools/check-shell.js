@@ -729,6 +729,12 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
       && /state\.bookmarks/.test(js) && /state\.historyCache/.test(js)],
   ['方向键选、回车进建议',
     /ev\.key === 'ArrowDown'/.test(js) && /function pickOmniSuggest/.test(js)],
+
+  /* --- 登录凭证（Nova 自己保存密码 + 填充）--- */
+  ['有密码分区与导入/添加/填充动作',
+    /id: 'passwords'/.test(js) && /function buildPasswords/.test(js)
+      && /'cred-import'/.test(js) && /'cred-add'/.test(js) && /'cred-fill'/.test(js)
+      && /function fillLoginIntoActiveTab/.test(js)],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

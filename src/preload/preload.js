@@ -220,6 +220,18 @@ contextBridge.exposeInMainWorld('nova', {
     qrcode: (text) => ipcRenderer.invoke('shell:qrcode', text)
   },
 
+  /* --- 登录凭证（密码）：从 Edge 导入 + 本机加密保存 --- */
+  // 只读 Edge 的登录数据、本地解密，密码由主进程用系统 safeStorage 加密落盘。
+  // 列表只回 origin/username；取明文要单独调 reveal。
+  credentials: {
+    importEdge: () => ipcRenderer.invoke('cred:import-edge'),
+    add: (c) => ipcRenderer.invoke('cred:add', c),
+    list: () => ipcRenderer.invoke('cred:list'),
+    reveal: (id) => ipcRenderer.invoke('cred:reveal', id),
+    remove: (id) => ipcRenderer.invoke('cred:remove', id),
+    clear: () => ipcRenderer.invoke('cred:clear')
+  },
+
   /* --- AI 助手（API 集成）--- */
   // 内嵌网页对话会被一些 AI 站点识别成「环境异常」而拒绝渲染，所以改走 API：
   // 渲染层只收集 base/key/model 与对话，真正的 HTTP 请求在主进程发（避开 CORS，

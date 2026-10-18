@@ -1,7 +1,7 @@
 {
   "name": "nova-browser",
   "productName": "吾爱Nova浏览器",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "private": true,
   "description": "多内核浏览器原型：Chromium / Gecko / IE(Trident) 内核切换，PC 与移动双端，内置广告拦截，支持 Chromium 插件与火狐扩展",
   "author": "WuAi",
@@ -91,6 +91,7 @@
     "jsdom": "^24.0.0"
   },
   "dependencies": {
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "sql.js": "^1.15.0"
   }
 }

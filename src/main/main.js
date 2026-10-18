@@ -13,9 +13,11 @@
 
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard, safeStorage } = require('electron');
 const QRCode = require('qrcode'); // 本地生成二维码（分享用），不把网址丢第三方二维码接口
+const creds = require('./credentials'); // 从 Edge 导入已存密码（本地解密）
 
 const settings = require('./settings');
 // 新标签页的宿主侧逻辑。它是 src/renderer 下的双导出模块（既被外壳页面当
@@ -1601,6 +1603,73 @@ function registerIpc() {
   handle('shell:show-item', (p) => shell.showItemInFolder(p));
   handle('app:userData', () => app.getPath('userData'));
   handle('app:open-user-data', () => shell.openPath(app.getPath('userData')));
+
+  /* --- 登录凭证（密码）：从 Edge 导入 + 本机加密保存 ---
+   * 只读 Edge（不写回）；密码用系统 safeStorage（Windows 上是 DPAPI）加密后落盘，
+   * 明文只在主进程内存里短暂存在，不写日志、不联网。列表只回 origin/username。 */
+  const credFile = () => path.join(app.getPath('userData'), 'credentials.json');
+  const credLoad = () => {
+    try {
+      const j = JSON.parse(fs.readFileSync(credFile(), 'utf8'));
+      return Array.isArray(j && j.items) ? j.items : [];
+    } catch { return []; }
+  };
+  const credWrite = (items) => {
+    try { fs.writeFileSync(credFile(), JSON.stringify({ items }, null, 2)); }
+    catch (e) { /* 写失败由调用方从返回值体现 */ }
+  };
+  handle('cred:import-edge', async () => {
+    if (!safeStorage.isEncryptionAvailable()) return { error: '系统加密不可用，无法安全保存密码' };
+    let r;
+    try { r = await creds.readEdgeLogins(); }
+    catch (e) { return { error: String(e && e.message || e) }; }
+    const items = credLoad();
+    const seen = new Set(items.map((x) => (x.origin + '\n' + x.username).toLowerCase()));
+    let added = 0, dup = 0;
+    for (const c of r.items) {
+      const k = (c.origin + '\n' + c.username).toLowerCase();
+      if (seen.has(k)) { dup++; continue; }
+      seen.add(k);
+      items.push({
+        id: crypto.randomUUID(),
+        origin: c.origin,
+        username: c.username,
+        enc: safeStorage.encryptString(c.password).toString('base64'),
+        ts: Date.now()
+      });
+      added++;
+    }
+    credWrite(items);
+    return { ok: true, added, dup, skipped: r.skipped || 0, total: items.length };
+  });
+  handle('cred:list', () => credLoad().map((x) => ({ id: x.id, origin: x.origin, username: x.username })));
+  handle('cred:reveal', (id) => {
+    const it = credLoad().find((x) => x.id === id);
+    if (!it) return { error: '没有这条记录' };
+    try { return { ok: true, password: safeStorage.decryptString(Buffer.from(it.enc, 'base64')) }; }
+    catch { return { error: '解密失败（可能换了 Windows 账户或系统密钥变了）' }; }
+  });
+  handle('cred:remove', (id) => { credWrite(credLoad().filter((x) => x.id !== id)); return { ok: true }; });
+  handle('cred:clear', () => { credWrite([]); return { ok: true }; });
+  // 手动添加一条（Edge 新版 v20 加密导不出来时，用户可自行录入）
+  handle('cred:add', (c) => {
+    if (!safeStorage.isEncryptionAvailable()) return { error: '系统加密不可用，无法安全保存密码' };
+    const origin = String((c && c.origin) || '').trim();
+    const username = String((c && c.username) || '').trim();
+    const password = String((c && c.password) || '');
+    if (!origin) return { error: '请填网站地址' };
+    if (!password) return { error: '请填密码' };
+    const items = credLoad();
+    const dup = items.some((x) => x.origin.toLowerCase() === origin.toLowerCase() && x.username === username);
+    if (dup) return { error: '这个站点 + 账号已经存过了' };
+    items.push({
+      id: crypto.randomUUID(), origin, username,
+      enc: safeStorage.encryptString(password).toString('base64'),
+      ts: Date.now()
+    });
+    credWrite(items);
+    return { ok: true };
+  });
 
   ipcMain.on('window:control', (_e, action) => {
     if (!mainWindow) return;
