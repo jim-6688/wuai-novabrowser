@@ -61,3 +61,5 @@ dist/
 
 # EdgeOne Pages 部署工具的产物副本（真正的项目关联在 project.json，要入库）
 site/.edgeone/assets/
+# 部署工具每次都会把函数打包成镜像放在这里，属于构建产物
+site/.edgeone/edge-functions/
