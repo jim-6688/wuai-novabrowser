@@ -219,6 +219,10 @@ contextBridge.exposeInMainWorld('nova', {
   },
 
   /* --- 系统 --- */
+  page: {
+    /** 当前页另存为 PDF：主进程弹保存框并写盘 */
+    savePdf: (wcId) => ipcRenderer.invoke('page:save-pdf', wcId)
+  },
   system: {
     /** 拖进来的文件 → 本地绝对路径。见文件头 pathForFile 的说明。
      *  渲染层拿不到 File.path，只能问这里要。 */

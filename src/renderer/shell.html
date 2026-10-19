@@ -290,6 +290,16 @@
     <button class="en-close" id="engine-notice-close">知道了</button>
   </div>
 
+  <!-- 页内查找：占布局的一条窄栏，不浮在视口上 ——
+       <webview> 是独立原生视图，同层 DOM 的 z-index 盖不住它。 -->
+  <div class="findbar" id="findbar" hidden>
+    <input id="find-input" placeholder="在页面中查找" spellcheck="false" autocomplete="off" />
+    <span class="find-count" id="find-count">0/0</span>
+    <button class="find-btn" id="find-prev" title="上一个（Shift+Enter）">↑</button>
+    <button class="find-btn" id="find-next" title="下一个（Enter）">↓</button>
+    <button class="find-btn find-x" id="find-close" title="关闭（Esc）">×</button>
+  </div>
+
   <!-- ============ 视口 ============ -->
   <main class="viewport" id="viewport">
     <div class="empty-state" id="empty-state" hidden>

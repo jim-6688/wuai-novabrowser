@@ -762,6 +762,50 @@ svg {
 }
 
 /* ---------- 6. 内核模式提示条 ---------- */
+/* 页内查找条：夹在提示条与视口之间，占一行高度（不覆盖 webview） */
+.findbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.findbar input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 5px var(--sp-3);
+  outline: none;
+}
+.findbar input:focus { border-color: var(--brand); }
+.find-count {
+  flex: 0 0 auto;
+  min-width: 48px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+.find-btn {
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+.find-btn:hover { background: var(--surface-3); color: var(--text); }
+.find-btn:disabled { opacity: .4; cursor: default; }
+.find-x { font-size: 15px; color: var(--text-3); }
+
 .engine-notice:not([hidden]) {
   display: flex;
   align-items: center;

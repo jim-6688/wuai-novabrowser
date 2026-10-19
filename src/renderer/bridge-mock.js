@@ -790,6 +790,10 @@ const MOCK_UPDATE = {
       })
     },
 
+    page: {
+      /* 预览模式下没有主进程，保存框与写盘都不存在 —— 只回一个成功占位 */
+      savePdf: async () => ({ ok: true, path: '(预览模式未写盘)' })
+    },
     system: {
       openExternal: async () => {},
       /* 预览是普通网页，拿不到拖进来的文件的本地路径 —— 浏览器标准里

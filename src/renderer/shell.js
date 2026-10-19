@@ -653,6 +653,12 @@ function mountTab(tab) {
   wv.hidden = true;
   // 点进网页时焦点落到 webview：Share 面板要跟着收起（网页内的点击不会冒泡到外壳文档）
   wv.addEventListener('focus', () => { closeOmniShare(); closeSniffPopover(); });
+  wv.addEventListener('found-in-page', (ev) => {
+    if (!activeTab() || activeTab().id !== tab.id) return;
+    const r = (ev && ev.result) || {};
+    const el = $('#find-count');
+    if (el) el.textContent = `${r.activeMatchOrdinal || 0}/${r.matches || 0}`;
+  });
 
   wv.addEventListener('did-start-loading', () => {
     // 新一轮加载开始 → 清掉上次的失败状态（重试/换网址时错误页要收起来）
@@ -813,6 +819,8 @@ function closeTab(id) {
 }
 
 function activateTab(id) {
+  // 先对**旧**标签页停掉查找高亮，再切 activeId（否则 stopFindInPage 会打到新页上）
+  closeFindBar();
   state.activeId = id;
   closeOmniShare(); // 切标签页时分享面板不该还挂在那儿
   closeSniffPopover(); // 嗅探清单按标签页归属，切页了旧清单没有意义
@@ -1153,6 +1161,59 @@ async function loadShareQr(url) {
 function closeOmniShare() {
   const pop = $('#omni-share');
   if (pop) pop.hidden = true;
+}
+
+/* --- 页内查找 ---
+ * 只对 Chromium 的 <webview> 有效：IE/Trident 走的是原生宿主，没有 findInPage。
+ */
+function openFindBar() {
+  const t = activeTab();
+  if (!t || !t.webview || t.webview.__bridge || typeof t.webview.findInPage !== 'function') {
+    toast('当前内核不支持页面内查找');
+    return;
+  }
+  const bar = $('#findbar');
+  if (!bar) return;
+  bar.hidden = false;
+  const input = $('#find-input');
+  if (input) {
+    input.focus();
+    input.select();
+    if (input.value) runFind(true);
+  }
+}
+
+function closeFindBar() {
+  const bar = $('#findbar');
+  if (!bar || bar.hidden) return;
+  bar.hidden = true;
+  state.findQuery = '';
+  const count = $('#find-count');
+  if (count) count.textContent = '0/0';
+  const t = activeTab();
+  if (t && t.webview && typeof t.webview.stopFindInPage === 'function') {
+    try { t.webview.stopFindInPage('clearSelection'); } catch { /* 页面可能已经换了 */ }
+  }
+}
+
+function runFind(forward) {
+  const t = activeTab();
+  const input = $('#find-input');
+  if (!t || !t.webview || !input || typeof t.webview.findInPage !== 'function') return;
+  const q = input.value;
+  if (!q) {
+    if (typeof t.webview.stopFindInPage === 'function') t.webview.stopFindInPage('clearSelection');
+    const c = $('#find-count');
+    if (c) c.textContent = '0/0';
+    state.findQuery = '';
+    return;
+  }
+  // 换了关键词要重新开始，否则 findNext 会接着上一次的结果往后跳
+  const fresh = q !== state.findQuery;
+  state.findQuery = q;
+  try {
+    t.webview.findInPage(q, { forward: forward !== false, findNext: !fresh });
+  } catch { /* 页面正在加载时可能失败，下一次输入会再试 */ }
 }
 
 /** 「复制简介」：标题 + 页面 description（尽力取，取不到就只标题）+ 链接。 */
@@ -1709,6 +1770,10 @@ function renderMenuPanel() {
         <span class="lr-sub">无图模式 ${esc(noImageLabel())} · 自动拼页 ${mobilePref().autoPage ? '开' : '关'}</span>
       </span>
       <span class="lr-tail">›</span>
+    </div>
+    <div class="list-row is-click" data-act="save-pdf">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M5 2.5h7l3 3v12H5z"/><path d="M12 2.5v3h3"/><path d="M7.5 12h5M7.5 15h3"/></svg></span>
+      <span class="lr-main"><span class="lr-title">另存为 PDF</span><span class="lr-sub">把当前页保存成本地 PDF</span></span>
     </div>
     <div class="list-row is-click" data-panel="adblock">
       <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/></svg></span>
@@ -4801,6 +4866,17 @@ function wireActions(root) {
     b.addEventListener('click', async () => {
       const act = b.dataset.act;
       if (act === 'new-tab') { createTab(newTabUrl(), state.settings.defaultEngine); closeDrawer(); }
+      else if (act === 'save-pdf') {
+        const t = activeTab();
+        if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持另存为 PDF'); return; }
+        let id = t.wcId;
+        if (id == null && typeof t.webview.getWebContentsId === 'function') {
+          try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+        }
+        const r = await bridge.page.savePdf(id);
+        if (r && r.ok) { closeDrawer(); toast('已保存 PDF'); }
+        else if (r && r.error) toast(r.error);
+      }
       else if (act === 'home') { const t = activeTab(); if (t) navigate(t.id, state.settings.homepage); closeDrawer(); }
       else if (act === 'bookmark' || act === 'bookmark-current') {
         const t = activeTab();
@@ -6374,6 +6450,16 @@ function wireUi() {
     if (t.webview && typeof t.webview.reload === 'function') t.webview.reload();
     else navigate(t.id, t.url);
   });
+  // 页内查找：输入即查，Enter 下一个、Shift+Enter 上一个
+  $('#find-input') && $('#find-input').addEventListener('input', () => runFind(true));
+  $('#find-input') && $('#find-input').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); runFind(!ev.shiftKey); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); closeFindBar(); }
+  });
+  $('#find-next') && $('#find-next').addEventListener('click', () => runFind(true));
+  $('#find-prev') && $('#find-prev').addEventListener('click', () => runFind(false));
+  $('#find-close') && $('#find-close').addEventListener('click', closeFindBar);
+
   $('#pe-home') && $('#pe-home').addEventListener('click', () => {
     const t = activeTab();
     if (!t) return;
@@ -6397,11 +6483,12 @@ function wireUi() {
     if (mod && ev.key.toLowerCase() === 't') { ev.preventDefault(); createTab(newTabUrl(), state.settings.defaultEngine); }
     else if (mod && ev.key.toLowerCase() === 'w') { ev.preventDefault(); if (state.activeId) closeTab(state.activeId); }
     else if (mod && ev.key.toLowerCase() === 'l') { ev.preventDefault(); $('#omni-input').focus(); }
+    else if (mod && ev.key.toLowerCase() === 'f') { ev.preventDefault(); openFindBar(); }
     else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); openPanel('adblock'); }
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;

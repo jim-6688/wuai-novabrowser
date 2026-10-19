@@ -1666,6 +1666,28 @@ function registerIpc() {
   });
 
   handle('shell:open-external', (url) => shell.openExternal(url));
+
+  // 把当前页另存为 PDF。渲染层只给 webContents id，磁盘读写与保存框都在主进程做。
+  handle('page:save-pdf', async (wcId) => {
+    const wc = webContents.fromId(Number(wcId));
+    if (!wc || wc.isDestroyed()) return { ok: false, error: '页面已关闭' };
+    let name = '页面';
+    try { name = wc.getTitle() || name; } catch { /* 拿不到标题就用默认名 */ }
+    name = String(name).replace(/[\\/:*?"<>|]+/g, '_').trim().slice(0, 80) || '页面';
+    const picked = await dialog.showSaveDialog(mainWindow, {
+      title: '另存为 PDF',
+      defaultPath: path.join(app.getPath('downloads'), name + '.pdf'),
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    });
+    if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
+    try {
+      const data = await wc.printToPDF({ printBackground: true });
+      fs.writeFileSync(picked.filePath, data);
+      return { ok: true, path: picked.filePath };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  });
   handle('shell:copy', (text) => { clipboard.writeText(String(text == null ? '' : text)); return true; });
   /* 本地生成二维码（分享到微信/朋友圈等桌面无 API 的 App 时，用扫码桥接）。
    * 为什么放主进程：qrcode 是 Node 库，渲染层 contextIsolation 下 require 不到；
