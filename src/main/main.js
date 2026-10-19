@@ -715,6 +715,26 @@ function wireDownloads(ses, engineId) {
  * 页面事件接线路由
  * ------------------------------------------------------------------ */
 
+/**
+ * 渲染进程退出的现场记录。
+ *
+ * <p>这类崩溃在界面上表现为「整块灰」（guest 未绘制时的占位面，实测正是 #808080），
+ * 用户只能描述成“过一会变灰了”。把 reason / exitCode / URL 写进 userData/crash.log，
+ * 事后能直接看出是 oom、crashed 还是被系统 kill。
+ */
+function logRendererGone(contents, details) {
+  try {
+    const rec = {
+      at: new Date().toISOString(),
+      reason: (details && details.reason) || 'unknown',
+      exitCode: details ? details.exitCode : null,
+      url: (contents && typeof contents.getURL === 'function') ? contents.getURL() : '',
+      engine: sessionEngineMap.get(contents && contents.session) || 'chromium'
+    };
+    fs.appendFileSync(path.join(app.getPath('userData'), 'crash.log'), JSON.stringify(rec) + '\n');
+  } catch { /* 写日志失败不该影响运行 */ }
+}
+
 function wireContents(contents) {
   const engineId = sessionEngineMap.get(contents.session) || 'chromium';
   const engine = registry.get(engineId);
@@ -838,6 +858,7 @@ function wireContents(contents) {
   contents.on('did-stop-loading', () => send('tab:loading', { id: contents.id, loading: false }));
 
   contents.on('render-process-gone', (_e, details) => {
+    logRendererGone(contents, details);
     send('tab:crashed', { id: contents.id, reason: details.reason });
   });
 

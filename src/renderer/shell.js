@@ -693,10 +693,9 @@ function mountTab(tab) {
   // 渲染进程崩了：DOM 事件能立刻收到（但不带原因），主进程还会补一条带 reason 的。
   // 不处理的话界面只会留一块灰色（guest 未绘制的占位面），用户完全不知道发生了什么。
   wv.addEventListener('crashed', () => {
-    tab.crashed = true;
-    tab.loadError = { code: 'crash', desc: '', url: tab.url };
-    if (activeTab() && activeTab().id === tab.id) renderPageError();
-    renderTabstrip();
+    // 自动重建后，旧 <webview> 的事件还可能冒出来，别把新一轮又算成第二次崩溃
+    if (tab.webview !== wv) return;
+    handleTabCrash(tab, '');
   });
   // 网页加载失败 → 显示「无法打开此网页」提示页（此前是空白）。
   // errorCode -3 是 ERR_ABORTED（被新导航/主动中断取消），不算真的失败。
@@ -735,6 +734,51 @@ function destroyTab(tab) {
   tab.webview = null;
   // 标签页没了，它嗅到的资源也一并释放（主进程侧销毁 webContents 时同样会清）
   if (tab.wcId != null) state.sniffByWc.delete(tab.wcId);
+}
+
+/**
+ * 重建一个标签页的渲染载体。
+ *
+ * <p>渲染进程已经退出时 `webview.reload()` 是对着尸体喊话 —— 必须把 <webview>
+ * 整个换掉。URL 与内核保持不变。
+ */
+function remountTab(tab) {
+  if (!tab) return;
+  const url = tab.url;
+  const engineId = tab.engineId;
+  destroyTab(tab);
+  tab.wcId = null;
+  tab.crashed = false;
+  tab.loadError = null;
+  tab.url = url;
+  tab.engineId = engineId;
+  mountTab(tab);
+  if (state.activeId === tab.id) activateTab(tab.id);
+}
+
+/**
+ * 渲染进程崩溃的统一处理。
+ *
+ * <p>崩溃后界面会变成一块 #808080（guest 未绘制时的占位面，实测就是这个值）。
+ * 第一次先在原地静默重建，用户基本无感；只有短时间内反复崩（60 秒内第二次）
+ * 才停下来报错，避免把崩溃循环变成无限重载。
+ */
+function handleTabCrash(tab, reason) {
+  if (!tab) return;
+  tab.crashed = true;
+  const now = Date.now();
+  if (!tab.crashAt || now - tab.crashAt > 60000) tab.crashCount = 0;
+  tab.crashAt = now;
+  tab.crashCount = (tab.crashCount || 0) + 1;
+
+  if (tab.crashCount === 1) {
+    remountTab(tab);
+    toast('页面渲染进程异常，已自动恢复');
+    return;
+  }
+  tab.loadError = { code: 'crash', desc: reason || '', url: tab.url };
+  if (activeTab() && activeTab().id === tab.id) renderPageError();
+  renderTabstrip();
 }
 
 function closeTab(id) {
@@ -6104,14 +6148,8 @@ function wireUi() {
     renderPageError();
     // 渲染进程已经没了，reload() 对它是无效的 —— 必须重建渲染载体
     if (crashed) {
-      const url = t.url;
-      const engineId = t.engineId;
-      destroyTab(t);
-      t.wcId = null;
-      t.url = url;
-      t.engineId = engineId;
-      mountTab(t);
-      activateTab(t.id);
+      t.crashCount = 0; // 用户主动重试，重新给一次自动恢复的机会
+      remountTab(t);
       return;
     }
     if (t.webview && typeof t.webview.reload === 'function') t.webview.reload();
@@ -6246,10 +6284,7 @@ function wireBridgeEvents() {
     if (!p || p.id == null) return;
     const t = state.tabs.find((x) => x.wcId === p.id);
     if (!t) return;
-    t.crashed = true;
-    t.loadError = { code: 'crash', desc: p.reason || '', url: t.url };
-    if (activeTab() && activeTab().id === t.id) renderPageError();
-    renderTabstrip();
+    handleTabCrash(t, p.reason || '');
   });
 
   /* --- 无图模式 --- */
