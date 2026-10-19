@@ -28,6 +28,12 @@ const DEFAULTS = {
   newTabPage: 'start',
   searchTemplate: 'https://www.baidu.com/s?wd=%s',
   defaultEngine: 'chromium',
+  /**
+   * 按站点自动切换内核。数组便于整体替换：
+   *   [{ host: 'example.com', engine: 'trident' }]
+   * 匹配顺序是「精确主机 → 逐级父域」：写 example.com 也会命中 www.example.com。
+   */
+  siteEngines: [],
   /** auto | desktop | mobile —— auto 由窗口宽度决定 */
   layout: 'auto',
   theme: 'light',

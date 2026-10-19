@@ -34,9 +34,9 @@ const check = (name, cond, extra) => {
         ENGINE_MANIFEST.replace(/\\/g, '/').endsWith('native/engines/manifest.json'));
   check('清单能被读取', man !== null);
   if (!man) { console.log('\n清单缺失，后续用例跳过\n'); process.exit(1); }
-  check('清单含三个内核', ['chromium', 'gecko', 'trident'].every((k) => man.engines[k]),
+  check('清单含两个内核', ['chromium', 'trident'].every((k) => man.engines[k]),
         Object.keys(man.engines).join(', '));
-  check('清单记录了原生宿主探测结果', Array.isArray(man.hosts) && man.hosts.length === 2,
+  check('清单记录了原生宿主探测结果', Array.isArray(man.hosts) && man.hosts.length === 1,
         man.hosts.map((h) => h.id + (h.present ? '✓' : '✗')).join(' '));
 
   /* ---------------------------------------------------------------- */
@@ -46,42 +46,20 @@ const check = (name, cond, extra) => {
   const by = Object.fromEntries(list.map((e) => [e.id, e]));
 
   check('Chromium = 原生内核', by.chromium.mode === 'native', by.chromium.modeLabel);
-  check('Gecko 无宿主 → 兼容层', by.gecko.mode === 'compat', by.gecko.modeLabel);
-  check('Trident 无宿主 → 兼容层', by.trident.mode === 'compat', by.trident.modeLabel);
+  check('Trident 随包提供宿主 → 原生桥接', by.trident.mode === 'bridge', by.trident.modeLabel);
   check('原生内核不报降级原因', by.chromium.fallbackReason === null);
-  check('兼容层必须给出降级原因', !!by.gecko.fallbackReason && !!by.trident.fallbackReason);
+  check('桥接内核不报降级原因', by.trident.fallbackReason === null);
 
   /* ---------------------------------------------------------------- */
-  console.log('\n[C] 降级原因要说清「缺的是哪一环」');
-  check('Gecko 原因写明真内核二进制已就位',
-        /真内核二进制已就位/.test(by.gecko.fallbackReason));
-  check('Gecko 原因点明架构是 x86（32 位约束）',
-        /x86/.test(by.gecko.fallbackReason), by.gecko.fallbackReason.slice(0, 60) + '…');
-  check('Gecko 原因指明缺 gecko-host.exe',
-        /gecko-host\.exe/.test(by.gecko.fallbackReason));
-  check('Gecko 原因不谎称已下载（须提「需自行编译」）',
-        /自行编译/.test(by.gecko.fallbackReason));
-  check('Trident 原因说明内核由系统提供（不是下载来的）',
-        /系统提供/.test(by.trident.fallbackReason), by.trident.fallbackReason.slice(0, 50) + '…');
-  check('Trident 原因指明缺 trident-host.exe',
-        /trident-host\.exe/.test(by.trident.fallbackReason));
+  console.log('\n[C] 原生桥接的就绪状态');
+  check('Trident kernel.bridgeReady = true（宿主已随包提供）',
+        by.trident.kernel && by.trident.kernel.bridgeReady === true);
+  check('Trident 内核由系统提供（不是下载来的）',
+        (man.engines.trident.sources || []).some((x) => x.role === 'system'),
+        (man.engines.trident.sources || []).map((x) => x.role).join(', '));
 
   /* ---------------------------------------------------------------- */
   console.log('\n[D] 描述符携带内核二进制详情（供 UI 展示）');
-  const gk = by.gecko.kernel;
-  check('Gecko 描述符有 kernel 字段', !!gk);
-  check('kernel.binariesReady = true', gk.binariesReady === true);
-  check('kernel.bridgeReady = false（宿主未编译）', gk.bridgeReady === false);
-  check('kernel.arch 反映真实架构', /x86/.test(gk.arch || ''), gk.arch);
-  check('kernel.sources 列出 2 个 Gecko 发行版', gk.sources.length === 2,
-        gk.sources.map((s) => s.id).join(', '));
-  check('每个 source 都带 PE 特征识别结果',
-        gk.sources.every((s) => s.signature && s.signature.valid && s.signature.detected),
-        gk.sources.map((s) => s.signature.detected).join(' | '));
-  check('PE 识别为 Gecko/XPCOM',
-        gk.sources.every((s) => /Gecko/.test(s.signature.detected)));
-  check('source 带体积与文件数', gk.sources.every((s) => s.sizeBytes > 0 && s.fileCount > 0));
-
   const ce = by.chromium.kernel;
   check('Chromium 列出 2 个发行版（Electron + CEF）', ce.sources.length === 2,
         ce.sources.map((s) => s.id).join(', '));
@@ -104,10 +82,10 @@ const check = (name, cond, extra) => {
 
   /* ---------------------------------------------------------------- */
   console.log('\n[F] NDJSON 宿主协议');
-  const host = new NativeKernelHost('gecko');
+  const host = new NativeKernelHost('nohost');
   const probe = host.probe();
   check('probe() 在无二进制时返回 available=false', probe.available === false);
-  check('probe() 给出人类可读的 reason', /gecko-host/.test(probe.reason || ''), probe.reason);
+  check('probe() 给出人类可读的 reason', /nohost-host/.test(probe.reason || ''), probe.reason);
 
   // 用假 stdin 顶替子进程，直接灌数据进协议解析器
   let written = [];
@@ -119,7 +97,7 @@ const check = (name, cond, extra) => {
   host.on('ready', (m) => seen.push(['ready', m.kernel]));
 
   // 一次灌入多行：必须逐行正确切分（含跨 chunk 的半行）
-  host._onData('{"t":"ready","kernel":"gecko","version":"45.0"}\n{"t":"title","viewId":1,"tit');
+  host._onData('{"t":"ready","kernel":"trident","version":"11.0"}\n{"t":"title","viewId":1,"tit');
   check('半行不会被误解析', seen.length === 1 && seen[0][0] === 'ready',
         JSON.stringify(seen));
   host._onData('le":"示例站点"}\n{"t":"url","viewId":1,"url":"https://52ta.top/"}\n');

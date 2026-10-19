@@ -72,7 +72,7 @@ const EVENT_CHANNELS = [
      （搜索开新标签、链接开新标签）。菜单在主进程弹，动作由这里转发回去。 */
   'webview:search',
   'webview:open-url',
-  /* 内核桥接：原生宿主（trident/gecko host）发来的事件（frame/title/url/cursor/…）。
+  /* 内核桥接：原生宿主（trident host）发来的事件（frame/title/url/cursor/…）。
      渲染进程据此把帧画到标签页、同步地址与标题。 */
   'host:event'
 ];
@@ -102,7 +102,7 @@ contextBridge.exposeInMainWorld('nova', {
     reResolve: (forceCompat) => ipcRenderer.invoke('engine:re-resolve', forceCompat)
   },
 
-  /* --- 内核桥接：渲染进程 ↔ 原生宿主（trident/gecko host）--- */
+  /* --- 内核桥接：渲染进程 ↔ 原生宿主（trident host）--- */
   host: {
     // 发指令给宿主：create/navigate/resize/input/eval/destroy/activate/stop。
     // 返回宿主的 reply（携带 ok 与可选 result/viewId）。compat 模式下宿主没运行，返回 {ok:false}。

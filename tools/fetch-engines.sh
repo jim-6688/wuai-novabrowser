@@ -2,10 +2,9 @@
 # =============================================================================
 # Nova 多内核浏览器 —— 引擎抓取器
 #
-# 把三个内核的真实程序拉到 native/engines/ 下。
+# 把可下载的内核程序拉到 native/engines/ 下（Trident 由系统 mshtml.dll 提供，不下载）。
 #
 #   bash tools/fetch-engines.sh              # 抓全部
-#   bash tools/fetch-engines.sh --only=gecko # 只抓 Gecko
 #   bash tools/fetch-engines.sh --list       # 只看目标
 #   bash tools/fetch-engines.sh --no-extract # 只下载，不解包
 #
@@ -43,7 +42,6 @@ done
 CEF_VER='154.0.34'
 CEF_CHROMIUM='154.0.8037.98'
 CEF_TAG="cef_binary_${CEF_VER}+g14c5a08+chromium-${CEF_CHROMIUM}"
-GECKOFX_VER='1.0.5'
 
 mb() { awk -v b="$1" 'BEGIN{printf "%.1f MB", b/1048576}'; }
 banner() { printf '\n%s%s%s\n' "$B" "$1" "$R"; }
@@ -112,17 +110,14 @@ extract_tar_bz2() {  # $1=归档 $2=目标目录（剥离顶层目录）
 # 目标清单
 # ---------------------------------------------------------------------------
 CEF_URL="https://cef-builds.spotifycdn.com/${CEF_TAG}_windows64_minimal.tar.bz2"
-GECKOFX_URL="https://api.nuget.org/v3-flatcontainer/geckofx/${GECKOFX_VER}/geckofx.${GECKOFX_VER}.nupkg"
-GECKOFX_MIRROR="https://nuget.cdn.azure.cn/v3-flatcontainer/geckofx/${GECKOFX_VER}/geckofx.${GECKOFX_VER}.nupkg"
-XUL41_URL="https://ftp.mozilla.org/pub/xulrunner/releases/41.0.2/runtimes/xulrunner-41.0.2.en-US.win32.zip"
 
 want() { [ -z "$ONLY" ] && return 0; [ "$ONLY" = "$1" ]; }
 
 printf '\n%sNova 内核抓取器%s  %s→ %s%s\n' "$B" "$R" "$D" "$ENGINES" "$R"
-printf '%s三个内核：Chromium(Blink) / Gecko / Trident(IE)%s\n' "$D" "$R"
+printf '%s双内核：Chromium(Blink) / Trident(IE)%s\n' "$D" "$R"
 
 banner '抓取目标'
-for id in chromium-cef gecko-xulrunner45 gecko-xulrunner41 trident chromium-electron; do
+for id in chromium-cef trident chromium-electron; do
   if want "$id"; then printf '  %s●%s %-20s\n' "$CY" "$R" "$id"
   else              printf '  %s○%s %s%-20s%s\n' "$D" "$R" "$D" "$id" "$R"; fi
 done
@@ -156,51 +151,10 @@ if want chromium-cef; then
 fi
 
 # ---------------------------------------------------------------------------
-# [2] Gecko · GeckoFX 45（含 XULRunner 45）
-# ---------------------------------------------------------------------------
-if want gecko-xulrunner45; then
-  banner '[2] Gecko · GeckoFX 45（含 XULRunner 45）'
-  info 'GeckoFX 45.0.6.0 / XULRunner 45.0.0.5873'
-  info 'NuGet 包自带 XULRunner 45 二进制 + .NET 绑定 —— 目前唯一拿得到 Gecko 45 的渠道，'
-  hint 'Mozilla 官方归档 2015 年就停在 41.0.2。'
-  INFO=$(curl -sIL --max-time 30 "$GECKOFX_URL" | tr -d '\r' | awk 'tolower($1)=="content-length:"{n=$2} END{print n+0}')
-  URL="$GECKOFX_URL"
-  if [ "${INFO:-0}" = "0" ]; then
-    info '主源探测失败，改用 Azure 中国镜像'
-    URL="$GECKOFX_MIRROR"
-    INFO=$(curl -sIL --max-time 30 "$URL" | tr -d '\r' | awk 'tolower($1)=="content-length:"{n=$2} END{print n+0}')
-  fi
-  info "远端 $(mb "$INFO")"
-  # .nupkg 本质是 zip，落盘成 .zip 让 unzip 处理更顺
-  if fetch "$URL" "$DL/geckofx-${GECKOFX_VER}.zip" "$INFO"; then
-    [ "$DO_EXTRACT" = 1 ] && extract_zip "$DL/geckofx-${GECKOFX_VER}.zip" "$ENGINES/gecko-xulrunner45" || true
-  else
-    FAILED=$((FAILED+1))
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-# [3] Gecko · Mozilla 官方 XULRunner 41
-# ---------------------------------------------------------------------------
-if want gecko-xulrunner41; then
-  banner '[3] Gecko · Mozilla 官方 XULRunner'
-  info 'XULRunner 41.0.2 (win32, 官方归档)'
-  info 'Mozilla 官方发布的最后一个 XULRunner。版本比 GeckoFX 的 45 旧，'
-  hint '但是唯一「官方原厂」的 Gecko 引擎归档，留作对照与降级备选。'
-  INFO=$(curl -sIL --max-time 30 "$XUL41_URL" | tr -d '\r' | awk 'tolower($1)=="content-length:"{n=$2} END{print n+0}')
-  info "远端 $(mb "$INFO")"
-  if fetch "$XUL41_URL" "$DL/xulrunner-41.0.2.en-US.win32.zip" "$INFO"; then
-    [ "$DO_EXTRACT" = 1 ] && extract_zip "$DL/xulrunner-41.0.2.en-US.win32.zip" "$ENGINES/gecko-xulrunner41" || true
-  else
-    FAILED=$((FAILED+1))
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-# [4] Trident —— 系统组件，不下载
+# [2] Trident —— 系统组件，不下载
 # ---------------------------------------------------------------------------
 if want trident; then
-  banner '[4] Trident/IE · 系统组件'
+  banner '[2] Trident/IE · 系统组件'
   info 'IE 内核不是可下载的独立程序 —— 它就是系统里的 mshtml.dll，由 Windows 提供。'
   info '这里只登记，不下载任何东西。'
   for dll in '/c/Windows/System32/mshtml.dll' '/c/Windows/SysWOW64/mshtml.dll'; do
@@ -213,10 +167,10 @@ if want trident; then
 fi
 
 # ---------------------------------------------------------------------------
-# [5] Chromium · Electron —— npm 管理，这里只提示
+# [3] Chromium · Electron —— npm 管理，这里只提示
 # ---------------------------------------------------------------------------
 if want chromium-electron; then
-  banner '[5] Chromium · Electron 主内核 (npm 管理)'
+  banner '[3] Chromium · Electron 主内核 (npm 管理)'
   if [ -f "$ROOT/node_modules/electron/package.json" ]; then
     V=$(grep -o '"version": *"[^"]*"' "$ROOT/node_modules/electron/package.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
     ok "Electron $V 已安装"

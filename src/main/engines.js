@@ -5,10 +5,10 @@
  * ---------------------------------------------------------------------------
  * 设计原则：
  *  1. 内核能力差异全部收敛到 Engine Adapter 里，上层（tab / renderer / adblock）
- *     只认 engine.id，不关心底下是 Blink、Gecko 还是 Trident。
+ *     只认 engine.id，不关心底下是 Blink 还是 Trident。
  *  2. 三种运行时模式，UI 必须如实标注，不允许把兼容层伪装成真内核：
  *       native  真正的内核进程内渲染（Chromium/Blink 走这条）
- *       bridge  通过「原生内核宿主进程」渲染（native/bin/*-host.exe，真 Gecko / 真 Trident）
+ *       bridge  通过「原生内核宿主进程」渲染（native/bin/*-host.exe，真 Trident）
  *       compat  兼容层：用 Chromium 渲染，但完整伪造该内核的 UA / 客户端提示 / 文档模式 / API 垫片
  *  3. 原生宿主二进制存在时自动升级为 bridge，不存在就诚实降级为 compat。
  */
@@ -185,37 +185,6 @@ const SHIMS = {
     // 5) 条件注释残留在 innerHTML 里时兜底清理
     window.__NOVA_IE_COMPAT_READY__ = true;
   } catch (e) { /* 静默 */ }
-})();`,
-
-  gecko: `/* Nova · Gecko 兼容层垫片 */
-(function () {
-  if (window.__NOVA_ENGINE_SHIM__) return;
-  window.__NOVA_ENGINE_SHIM__ = 'gecko-compat';
-  try {
-    // 1) Firefox WebExtension 里 browser.* 是 promise 风格；Chromium 只有 chrome.*
-    //    把 browser 指过去，让「先探测 browser 再探测 chrome」的站点/扩展能跑
-    if (!window.browser && window.chrome) window.browser = window.chrome;
-    // 2) moz 前缀属性兜底
-    var d = document;
-    if (!('mozFullScreenEnabled' in d) && 'fullscreenEnabled' in d) {
-      Object.defineProperty(d, 'mozFullScreenEnabled', { get: function () { return d.fullscreenEnabled; }, configurable: true });
-    }
-    if (!('mozHidden' in d) && 'hidden' in d) {
-      Object.defineProperty(d, 'mozHidden', { get: function () { return d.hidden; }, configurable: true });
-    }
-    // 3) 老站用 mozRequestAnimationFrame 做特性检测
-    if (!window.mozRequestAnimationFrame) window.mozRequestAnimationFrame = window.requestAnimationFrame;
-    if (!window.mozCancelAnimationFrame) window.mozCancelAnimationFrame = window.cancelAnimationFrame;
-    // 4) CSS.supports('-moz-*') 兜底：把 -moz-appearance 映射为可用的 appearance
-    if (window.CSS && CSS.supports && !CSS.supports('-moz-appearance', 'none')) {
-      var orig = CSS.supports.bind(CSS);
-      CSS.supports = function (a, b) {
-        if (typeof a === 'string' && a.indexOf('-moz-') === 0) return orig('appearance', b);
-        return orig(a, b);
-      };
-    }
-    window.__NOVA_GECKO_COMPAT_READY__ = true;
-  } catch (e) { /* 静默 */ }
 })();`
 };
 
@@ -243,24 +212,6 @@ const DEFINITIONS = [
     notes: '进程内真实 Blink 渲染，插件与 DevTools 完整可用。'
   },
   {
-    id: 'gecko',
-    label: 'Gecko',
-    vendor: 'Firefox 内核',
-    short: 'GK',
-    accent: '#FF7139',
-    partition: 'persist:nova-gecko',
-    runtime: 'bridge', // 有二进制的原生宿主 → bridge
-    canBeNative: false,
-    userAgent:
-      `Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:${CHROME_MAJOR}.0) Gecko/20100101 Firefox/${CHROME_MAJOR}.0`,
-    clientHints: { platform: '"Windows"', mobile: '?0' },
-    headers: { 'Sec-Fetch-Site': 'none' },
-    shim: SHIMS.gecko,
-    capabilities: { crx: 'polyfill', xpi: true, adblock: true, devtools: false },
-    notes: '真内核 XULRunner 45 二进制已在 native/engines/gecko-xulrunner45（32 位，xul.dll 38MB）。' +
-      '尚缺原生宿主 native/bin/gecko-host.exe —— 必须编译为 x86，否则无法加载 32 位 xul.dll。'
-  },
-  {
     id: 'trident',
     label: 'IE / Trident',
     vendor: 'IE11 兼容内核',
@@ -276,7 +227,7 @@ const DEFINITIONS = [
     shim: SHIMS.trident,
     capabilities: { crx: false, xpi: false, adblock: true, devtools: false },
     notes: 'Trident 不是可下载的独立程序 —— 它由系统 mshtml.dll 提供（已检测到，22MB）。' +
-      '尚缺原生宿主 native/bin/trident-host.exe（MSHTML WebBrowser 控件宿主），编译前以兼容层渲染。'
+      '原生宿主 native/bin/trident-host.exe（MSHTML WebBrowser 控件宿主）随安装包一起分发。'
   }
 ];
 

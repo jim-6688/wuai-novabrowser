@@ -421,7 +421,8 @@ function activeTab() {
 
 function createTab(url, engineId, { activate = true } = {}) {
   const id = ++state.seq;
-  const engineKey = engineId || state.settings.defaultEngine || 'chromium';
+  const engineKey = engineId || siteEngineFor(url || state.settings.homepage)
+    || state.settings.defaultEngine || 'chromium';
   const tab = {
     id,
     engineId: engineKey,
@@ -668,6 +669,15 @@ function mountTab(tab) {
     // 「仅新标签页」档位下，从新标签页上一跳走就得把这行收起来。
     syncBookmarkBar();
     persistSession();
+
+    // 站内点进了「规则指向另一个内核」的站点：等这次事件走完再换，避免拆掉正在派发的对象
+    const want = siteEngineFor(ev.url);
+    if (want && want !== tab.engineId && engineExists(want)) {
+      setTimeout(() => {
+        if (tab.webview !== wv) return; // 期间已经重建过就别重复切
+        switchEngine(tab.id, want);
+      }, 0);
+    }
   });
   wv.addEventListener('did-navigate-in-page', (ev) => {
     if (ev.isMainFrame) { tab.url = ev.url; syncOmnibox(); persistSession(); }
@@ -867,10 +877,62 @@ function renderPageError() {
   if (t && t.webview) t.webview.hidden = true;
 }
 
+/**
+ * 站点规则：精确主机 → 逐级父域。
+ *
+ * <p>规则里写 example.com，www.example.com 也要命中 —— 用户不会为了
+ * 「带不带 www」写两条。逐级去掉最左边的标签，直到没有点为止。
+ */
+function siteEngineFor(url) {
+  const rules = (state.settings && state.settings.siteEngines) || [];
+  if (!rules.length) return null;
+  let host = '';
+  try { host = new URL(url).hostname.toLowerCase(); } catch { return null; }
+  if (!host) return null;
+  let h = host;
+  while (h) {
+    const hit = rules.find((x) => String(x.host || '').toLowerCase() === h);
+    if (hit) return hit.engine;
+    const i = h.indexOf('.');
+    if (i < 0) break;
+    h = h.slice(i + 1);
+  }
+  return null;
+}
+
+/** 把用户输入揉成裸主机名：去掉协议、路径、空白与大小写差异。 */
+function normalizeSiteHost(raw) {
+  let s = String(raw || '').trim().toLowerCase();
+  if (!s) return '';
+  s = s.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(s) ? s : '';
+}
+
+function engineExists(id) {
+  return (state.engines || []).some((e) => e.id === id);
+}
+
+function engineLabel(id) {
+  const e = (state.engines || []).find((x) => x.id === id);
+  return e ? e.label : id;
+}
+
 function navigate(id, url) {
   const tab = state.tabs.find((t) => t.id === id);
   if (!tab || !url) return;
   tab.url = url;
+
+  // 站点规则优先：目标站点配了另一个内核，就直接换过去。
+  // switchEngine 会拿 tab.url 重新加载，所以这里不要再自己 load 一次。
+  const want = siteEngineFor(url);
+  if (want && want !== tab.engineId && engineExists(want)) {
+    switchEngine(tab.id, want);
+    syncOmnibox();
+    syncBookmarkBar();
+    persistSession();
+    return;
+  }
+
   if (tab.webview) {
     if (typeof tab.webview.loadURL === 'function') tab.webview.loadURL(url);
     else tab.webview.setAttribute('src', url);
@@ -3621,8 +3683,8 @@ function buildEngines() {
   return `
     <h2 class="sv-h2">内核</h2>
     <div class="sv-lead">
-      三档运行时：<b>native</b>（进程内真实 Blink）/ <b>bridge</b>（原生宿主进程，NDJSON over stdio）/
-      <b>compat</b>（兼容层：Chromium 渲染 + 伪造 UA 与 API 垫片）。探测不到宿主的绝不假装成真内核。
+      双内核：<b>Chromium</b>（进程内真实 Blink）与 <b>IE / Trident</b>（原生宿主进程，NDJSON over stdio）。
+      探测不到宿主的绝不假装成真内核，会如实降级为兼容层并说明原因。
     </div>
 
     <div class="panel-label">当前状态</div>
@@ -3647,10 +3709,35 @@ function buildEngines() {
     <div class="panel-section">
       <button class="btn" data-act="probe-engine" style="width:100%">重新探测原生内核宿主</button>
       <div class="muted" style="padding:var(--sp-2) 0 0">
-        把 <code>gecko-host.exe</code> / <code>trident-host.exe</code> 放进
-        <code>native/bin/</code> 后重新探测，对应内核会从「兼容层」升级为「原生桥接」。<br />
+        把 <code>trident-host.exe</code> 放进 <code>native/bin/</code> 后重新探测，
+        IE 内核会从「兼容层」升级为「原生桥接」。<br />
         抓取内核：<code>bash tools/fetch-engines.sh</code>　校验：<code>node tools/check-engines.js</code>
       </div>
+    </div>
+
+    <div class="panel-label">按站点自动切换</div>
+    <div class="sv-card">
+      ${(state.settings.siteEngines || []).length
+        ? (state.settings.siteEngines || []).map((r) => `
+          <div class="list-row">
+            <span class="lr-main">
+              <span class="lr-title">${esc(r.host)}</span>
+              <span class="lr-sub">打开该站及其子域时自动使用 ${esc(engineLabel(r.engine))}</span>
+            </span>
+            <button class="btn btn-sm" data-rule-del="${esc(r.host)}">移除</button>
+          </div>`).join('')
+        : '<div class="sv-empty">还没有规则。比如把老 OA / 网银域名指到 IE，其余走 Chromium。</div>'}
+    </div>
+    <div class="dl-new" style="padding-top:var(--sp-2)">
+      <input id="site-rule-host" placeholder="example.com" spellcheck="false" />
+      <select id="site-rule-engine" class="site-rule-sel">
+        ${state.engines.map((e) => `<option value="${esc(e.id)}">${esc(e.label)}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary" id="site-rule-add">添加</button>
+    </div>
+    <div class="muted" style="padding:var(--sp-2) 0 0">
+      规则按「精确主机 → 逐级父域」匹配：写 <code>example.com</code> 也会命中 <code>www.example.com</code>。
+      手动切换只对当前标签页这一次有效，重新打开仍按规则走。
     </div>
   `;
 }
@@ -4896,6 +4983,39 @@ function wireActions(root) {
       }
     });
   });
+
+  /* --- 站点内核规则：增 / 删 --- */
+  root.querySelectorAll('[data-rule-del]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const host = b.dataset.ruleDel;
+      const list = (state.settings.siteEngines || []).filter((x) => x.host !== host);
+      state.settings.siteEngines = list;
+      await bridge.settings.patch({ siteEngines: list });
+      refreshCurrent();
+      toast('已移除站点规则');
+    });
+  });
+  const ruleAdd = root.querySelector('#site-rule-add');
+  if (ruleAdd) {
+    const hostEl = root.querySelector('#site-rule-host');
+    const engEl = root.querySelector('#site-rule-engine');
+    const submit = async () => {
+      const host = normalizeSiteHost(hostEl && hostEl.value);
+      if (!host) { toast('请输入域名，例如 example.com'); return; }
+      const engineId = engEl && engEl.value;
+      if (!engineExists(engineId)) { toast('该内核当前不可用'); return; }
+      const list = (state.settings.siteEngines || []).slice();
+      const i = list.findIndex((x) => x.host === host);
+      if (i >= 0) list[i] = { host, engine: engineId };
+      else list.push({ host, engine: engineId });
+      state.settings.siteEngines = list;
+      await bridge.settings.patch({ siteEngines: list });
+      refreshCurrent();
+      toast(`已设置 ${host} → ${engineLabel(engineId)}`);
+    };
+    ruleAdd.addEventListener('click', submit);
+    if (hostEl) hostEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') submit(); });
+  }
 
   root.querySelectorAll('[data-panel]').forEach((row) => {
     row.addEventListener('click', () => openPanel(row.dataset.panel));

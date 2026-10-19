@@ -33,22 +33,6 @@ if (typeof window !== 'undefined' && !window.nova) {
         }
       ]
     },
-    gecko: {
-      binariesReady: true, bridgeReady: false, arch: 'x86 (I386)',
-      blocker: '真内核二进制已就位（x86），缺原生宿主 native/bin/gecko-host.exe —— 需编译为 x86，见 native/README.md',
-      sources: [
-        {
-          id: 'gecko-xulrunner45', label: 'GeckoFX 45 + XULRunner 45', version: 'GeckoFX 45.0.6.0 / XULRunner 45.0.0.5873',
-          complete: true, sizeBytes: 77411238, fileCount: 32,
-          signature: { valid: true, detected: 'Gecko / XULRunner (XPCOM)', arch: 'x86 (I386)', exportCount: 1847, linkedAt: '2016-01-30' }
-        },
-        {
-          id: 'gecko-xulrunner41', label: 'Mozilla 官方 XULRunner', version: 'XULRunner 41.0.2 (win32, 官方归档)',
-          complete: true, sizeBytes: 78387375, fileCount: 50,
-          signature: { valid: true, detected: 'Gecko / XULRunner (XPCOM)', arch: 'x86 (I386)', exportCount: 1123, linkedAt: '2015-10-14' }
-        }
-      ]
-    },
     trident: {
       binariesReady: true, bridgeReady: false, arch: 'x64 (AMD64)',
       blocker: '内核由系统 mshtml.dll 提供，缺原生宿主 native/bin/trident-host.exe —— 见 native/README.md',
@@ -70,16 +54,6 @@ if (typeof window !== 'undefined' && !window.nova) {
       shim: null, capabilities: { crx: true, xpi: 'polyfill', adblock: true, devtools: true },
       notes: '进程内真实 Blink 渲染，插件与 DevTools 完整可用。', fallbackReason: null,
       kernel: kernelOf('chromium')
-    },
-    {
-      id: 'gecko', label: 'Gecko', vendor: 'Firefox 内核', short: 'GK',
-      accent: '#FF7139', partition: 'persist:nova-gecko', mode: 'compat', modeLabel: '兼容层',
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0',
-      shim: '/* gecko shim */',
-      capabilities: { crx: 'polyfill', xpi: true, adblock: true, devtools: false },
-      notes: '真内核 XULRunner 45 二进制已在 native/engines/gecko-xulrunner45（32 位，xul.dll 38MB）。尚缺原生宿主 native/bin/gecko-host.exe —— 必须编译为 x86。',
-      fallbackReason: '真内核二进制已就位（x86）：GeckoFX 45.0.6.0 / XULRunner 45.0.0.5873、XULRunner 41.0.2 (win32, 官方归档)。尚缺原生宿主 native/bin/gecko-host.exe（需自行编译），编译前以兼容层渲染。',
-      kernel: kernelOf('gecko')
     },
     {
       id: 'trident', label: 'IE / Trident', vendor: 'IE11 兼容内核', short: 'IE',
@@ -558,7 +532,8 @@ const MOCK_UPDATE = {
     engines: {
       list: async () => engines,
       reResolve: async () => {
-        engines[1].fallbackReason = '未找到原生宿主 native/bin/gecko-host.exe，已降级为兼容层';
+        const tri = engines.find((e) => e.id === 'trident');
+        if (tri) tri.fallbackReason = '未找到原生宿主 native/bin/trident-host.exe，已降级为兼容层';
         return engines;
       }
     },

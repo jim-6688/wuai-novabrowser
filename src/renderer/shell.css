@@ -1659,6 +1659,19 @@ svg {
 }
 .dl-new input:focus { border-color: var(--brand); }
 .dl-new input::placeholder { color: var(--text-4); }
+/* 站点内核规则里的内核选择器：跟输入框同一套观感 */
+.site-rule-sel {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2) var(--sp-2);
+  outline: none;
+  cursor: pointer;
+}
+.site-rule-sel:focus { border-color: var(--brand); }
 
 .btn-sm { padding: var(--sp-1) var(--sp-3); font-size: 11px; }
 

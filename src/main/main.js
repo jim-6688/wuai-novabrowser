@@ -188,7 +188,7 @@ async function bootstrap() {
   wireDownloads(session.defaultSession, 'chromium');
   wireSniffer(session.defaultSession);
 
-  // 6.5) 内核桥接：原生宿主（trident/gecko host）跑起来后，把它的事件转发给渲染进程。
+  // 6.5) 内核桥接：原生宿主（trident host）跑起来后，把它的事件转发给渲染进程。
   // 只有 resolve 到 bridge 的内核才有运行中的宿主进程；compat 内核不在此列。
   // host 通过 NDJSON 发出的 frame/title/url/cursor/log/error 都原样转出去（附上 engineId），
   // 供渲染进程把帧画到标签页、同步地址/标题。

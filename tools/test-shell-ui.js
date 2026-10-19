@@ -170,7 +170,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const make = function (id, engineId) {
       return { id: id, engineId: engineId, webview: { reload: function () { this.__n = (this.__n || 0) + 1; } } };
     };
-    state.tabs = [ make(901, 'chromium'), make(902, 'chromium'), make(903, 'gecko') ];
+    state.tabs = [ make(901, 'chromium'), make(902, 'chromium'), make(903, 'trident') ];
   })()`);
   check('已布好 3 个标签页（2 chromium + 1 其它内核）',
     window.eval('state.tabs.length') === 3, String(window.eval('state.tabs.length')));

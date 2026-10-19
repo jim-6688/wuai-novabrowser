@@ -1,11 +1,11 @@
 # 原生内核宿主（Native Kernel Host）
 
-Nova 的三内核能力分成两层：
+Nova 的双内核能力分成两层：
 
 | 层 | 负责 | 状态 |
 |---|---|---|
 | **Chromium / Blink** | 进程内真实渲染 | ✅ 已实现（Electron 自带 Chromium） |
-| **Gecko / Trident 的「原生桥接」** | 由本目录的原生宿主进程渲染，Nova 通过 NDJSON 协议收发 | ⚠️ 内核二进制**已下载就位**，宿主二进制待编译 |
+| **IE / Trident 的「原生桥接」** | 由本目录的原生宿主进程渲染，Nova 通过 NDJSON 协议收发 | ✅ 宿主随包提供（`native/bin/trident-host.exe`） |
 
 没有宿主二进制时，内核适配层会**如实降级为兼容层**（Chromium 渲染 + 伪造该内核的 UA / 客户端提示 / 文档模式 / API 垫片），
 并在界面上明确标注「兼容层」+ 弹出降级原因提示条。**绝不静默伪装成真内核。**
@@ -21,27 +21,15 @@ Nova 的三内核能力分成两层：
 |---|---|---|---|---|
 | Chromium · Electron | `node_modules/electron/dist/` | Electron 30.5.1 | 254 MB | PE32+ **x64**，导出 3126（V8） |
 | Chromium · CEF | `native/engines/chromium-cef/` | CEF 154.0.34 / Chromium 154.0.8037.98 | 422 MB | PE32+ **x64**，导出 249（`cef_*`） |
-| **Gecko** · GeckoFX 45 | `native/engines/gecko-xulrunner45/output/` | XULRunner 45.0.0.5873 | 74 MB | PE32 **x86**，导出 1847（`NS_*`） |
-| Gecko · 官方 XULRunner | `native/engines/gecko-xulrunner41/xulrunner/` | XULRunner 41.0.2（2015 官方归档） | 75 MB | PE32 **x86**，导出 1123 |
 | **Trident** · MSHTML | `C:/Windows/System32/mshtml.dll` | 系统组件（**无需下载**） | 22 MB | PE32+ **x64**，导出 22 |
 
 > Electron 的 103.8 MB 发布包还额外做了**上游哈希比对**：本地 SHA-256 `443119bb…b4b3` 与 npm 包内官方
 > `checksums.json` 记录**逐字节一致**，证明 Chromium 主内核未被篡改。
 
-### ⚠️ 一条必须记住的约束：Gecko 是 32 位的
-
-GeckoFX 45 与 XULRunner 41 的 `xul.dll` **都是 PE32 / I386（32 位）**。
-这直接决定了两件事：
-
-1. `gecko-host.exe` **必须编译为 x86**（平台目标选 `x86`，**不要用 `AnyCPU`** —— 在 64 位系统上 AnyCPU 会以 64 位进程启动，加载 32 位 `xul.dll` 必然失败，报 `BadImageFormatException`）。
-2. 如果做成 x86 宿主，它与 Nova 主进程（x64）之间**只能走进程间通信**，不能用同进程指针 —— 这正是本目录 NDJSON 协议存在的原因。
-
-Chromium/CEF 那侧是 x64，与 Electron 主进程同架构；Trident 两种位宽的 `mshtml.dll` 系统里都有，宿主按需要选。
-
 ### 抓取与校验命令
 
 ```bash
-bash tools/fetch-engines.sh              # 下载全部三个内核（可 --only=gecko 只抓 Gecko）
+bash tools/fetch-engines.sh              # 下载全部内核
 node tools/check-engines.js              # 校验并生成 native/engines/manifest.json
 node tools/check-engines.js --json       # 打印清单原文
 ```
@@ -54,7 +42,6 @@ node tools/check-engines.js --json       # 打印清单原文
 
 ```
 native/bin/trident-host.exe     ← IE / MSHTML 宿主
-native/bin/gecko-host.exe       ← Gecko / GeckoFX 宿主
 ```
 
 Nova 以 `spawn(exe, ['--ndjson'])` 启动，stdin/stdout 上跑**换行分隔的 JSON**（每行一个完整 JSON 对象，UTF-8）。
@@ -147,45 +134,7 @@ using (var bmp = new Bitmap(w, h)) {
 
 ---
 
-## 三、Gecko 宿主（`gecko-host.exe`）怎么搭
-
-**运行时已经下好了**，直接指向它即可：
-
-```
-native/engines/gecko-xulrunner45/output/     ← xul.dll / omni.ja / nss3.dll / mozglue.dll …
-native/engines/gecko-xulrunner45/lib/        ← Geckofx-Core.dll / Geckofx-Winforms.dll（.NET 绑定）
-```
-
-**路径 A：GeckoFX（推荐，.NET）**
-
-```csharp
-// 工程必须把「平台目标」设为 x86 —— 见上文 §0 的 32 位约束
-Xpcom.Initialize(@"D:\...\novabrowser\native\engines\gecko-xulrunner45\output");
-
-var browser = new GeckoWebBrowser { Dock = DockStyle.Fill };
-browser.DocumentCompleted += (s, e) => Emit("url", browser.Url.ToString());
-browser.Navigate(url);
-// 帧推送同 Trident：抓位图 → BGRA → base64
-```
-
-- `Xpcom.Initialize` 的参数是**含 `xul.dll` 的那一层目录**（本仓库里是 `…/output`，不是它的上级）。
-- 需要的引用：`Geckofx-Core.dll`、`Geckofx-Winforms.dll`（在 `lib/`）。把 `output/` 整个目录复制到宿主输出目录，
-  或让宿主运行时按上面的绝对路径初始化。
-- `Xpcom.Initialize` **只能调用一次**；协议里的 `create` 要支持多视图时共用同一个 Xpcom。
-- GeckoFX 与 Gecko 版本强绑定（这里是 45 ↔ 45.0.0.5873），升级必须成对升。
-- 若改用官方 XULRunner 41（`native/engines/gecko-xulrunner41/xulrunner/`），需要配套 **GeckoFX 41**，
-  当前仓库里的 GeckoFX 是 45 版，**不能混用**。
-
-**路径 B：内嵌 Firefox 的 `-embedding`（已废弃，仅作参考）**
-
-旧版 Firefox 支持 `-embedding` 提供嵌入窗口句柄，新版已移除。除非你自己编译 Gecko，否则不要走这条。
-
-> 备注：官方 XULRunner 归档只到 **41.0.2**（2015 年 Mozilla 停止发布），所以 Gecko 45 只能从 NuGet 的
-> `GeckoFX` 包取（该包内嵌了 XULRunner 45 运行时）。这是当前唯一拿得到 Gecko 45 的渠道。
-
----
-
-## 四、接了宿主之后会发生什么
+## 三、接了宿主之后会发生什么
 
 1. 把 `trident-host.exe` 放进 `native/bin/`。
 2. 在 Nova 里打开 **设置 → 内核桥接 → 重新探测原生内核宿主**。

@@ -117,46 +117,6 @@ const CATALOG = [
     ],
   },
   {
-    engine: 'gecko',
-    label: 'Gecko',
-    sources: [
-      {
-        id: 'gecko-xulrunner45',
-        label: 'GeckoFX 45 + XULRunner 45',
-        root: 'native/engines/gecko-xulrunner45',
-        version: 'GeckoFX 45.0.6.0 / XULRunner 45.0.0.5873',
-        role: 'primary',
-        archExpect: 'x86',
-        signature: 'output/xul.dll',
-        probes: [
-          ['output/xul.dll', 'Gecko 引擎核心库'],
-          ['output/omni.ja', 'Gecko 运行时资源'],
-          ['output/nss3.dll', 'NSS 加密库'],
-          ['output/mozglue.dll', 'Gecko 胶水层'],
-          ['output/plugin-container.exe', 'Gecko 插件进程宿主'],
-          ['lib/Geckofx-Core.dll', '.NET GeckoFX 绑定'],
-          ['lib/Geckofx-Winforms.dll', 'GeckoFX Windows 窗体控件'],
-        ],
-      },
-      {
-        id: 'gecko-xulrunner41',
-        label: 'Mozilla 官方 XULRunner',
-        root: 'native/engines/gecko-xulrunner41',
-        version: 'XULRunner 41.0.2 (win32, 官方归档)',
-        role: 'reference',
-        archExpect: 'x86',
-        signature: 'xulrunner/xul.dll',
-        probes: [
-          ['xulrunner/xulrunner.exe', 'XULRunner 主程序'],
-          ['xulrunner/xul.dll', 'Gecko 引擎核心库'],
-          ['xulrunner/omni.ja', 'Gecko 运行时资源'],
-          ['xulrunner/js.exe', 'SpiderMonkey JS 引擎'],
-          ['xulrunner/crashreporter.exe', '崩溃报告器'],
-        ],
-      },
-    ],
-  },
-  {
     engine: 'trident',
     label: 'IE / Trident',
     sources: [
@@ -265,7 +225,7 @@ function inspectSource(src) {
 }
 
 function inspectHosts() {
-  const want = ['gecko-host', 'trident-host'];
+  const want = ['trident-host'];
   const exts = process.platform === 'win32' ? ['.exe', ''] : [''];
   return want.map((k) => {
     let found = null;

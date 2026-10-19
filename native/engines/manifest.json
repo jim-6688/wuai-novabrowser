@@ -1,20 +1,14 @@
 {
-  "generatedAt": "2026-10-11T12:47:24.145Z",
+  "generatedAt": "2026-10-19T16:37:45.555Z",
   "platform": "win32 x64",
   "node": "v22.22.2",
   "engineRoot": "native/engines",
   "hosts": [
     {
-      "id": "gecko-host",
-      "present": false,
-      "path": null,
-      "sizeBytes": 0
-    },
-    {
       "id": "trident-host",
-      "present": false,
-      "path": null,
-      "sizeBytes": 0
+      "present": true,
+      "path": "native/bin/trident-host.exe",
+      "sizeBytes": 23040
     }
   ],
   "engines": {
@@ -35,8 +29,8 @@
           "dir": "node_modules/electron/dist",
           "present": true,
           "complete": true,
-          "sizeBytes": 266413849,
-          "fileCount": 73,
+          "sizeBytes": 266430129,
+          "fileCount": 74,
           "arch": "x64 (AMD64)",
           "archNote": null,
           "probes": [
@@ -213,219 +207,14 @@
         }
       ]
     },
-    "gecko": {
-      "engine": "gecko",
-      "label": "Gecko",
-      "mode": "compat",
-      "binariesReady": true,
-      "bridgeReady": false,
-      "arch": "x86 (I386)",
-      "blocker": "真内核二进制已就位（gecko-xulrunner45, gecko-xulrunner41），缺原生宿主 native/bin/gecko-host.exe —— 需自行编译，见 native/README.md",
-      "sources": [
-        {
-          "id": "gecko-xulrunner45",
-          "label": "GeckoFX 45 + XULRunner 45",
-          "version": "GeckoFX 45.0.6.0 / XULRunner 45.0.0.5873",
-          "role": "primary",
-          "dir": "native/engines/gecko-xulrunner45",
-          "present": true,
-          "complete": true,
-          "sizeBytes": 77411238,
-          "fileCount": 32,
-          "arch": "x86 (I386)",
-          "archNote": null,
-          "probes": [
-            {
-              "desc": "Gecko 引擎核心库",
-              "present": true,
-              "sizeBytes": 38625360,
-              "path": "native/engines/gecko-xulrunner45/output/xul.dll"
-            },
-            {
-              "desc": "Gecko 运行时资源",
-              "present": true,
-              "sizeBytes": 9899645,
-              "path": "native/engines/gecko-xulrunner45/output/omni.ja"
-            },
-            {
-              "desc": "NSS 加密库",
-              "present": true,
-              "sizeBytes": 1603664,
-              "path": "native/engines/gecko-xulrunner45/output/nss3.dll"
-            },
-            {
-              "desc": "Gecko 胶水层",
-              "present": true,
-              "sizeBytes": 96848,
-              "path": "native/engines/gecko-xulrunner45/output/mozglue.dll"
-            },
-            {
-              "desc": "Gecko 插件进程宿主",
-              "present": true,
-              "sizeBytes": 280144,
-              "path": "native/engines/gecko-xulrunner45/output/plugin-container.exe"
-            },
-            {
-              "desc": ".NET GeckoFX 绑定",
-              "present": true,
-              "sizeBytes": 2014208,
-              "path": "native/engines/gecko-xulrunner45/lib/Geckofx-Core.dll"
-            },
-            {
-              "desc": "GeckoFX Windows 窗体控件",
-              "present": true,
-              "sizeBytes": 138240,
-              "path": "native/engines/gecko-xulrunner45/lib/Geckofx-Winforms.dll"
-            }
-          ],
-          "signature": {
-            "file": "native/engines/gecko-xulrunner45/output/xul.dll",
-            "valid": true,
-            "peType": "PE32",
-            "arch": "x86 (I386)",
-            "is64": false,
-            "subsystem": "WINDOWS_GUI",
-            "exportCount": 1847,
-            "dllName": "xul.dll",
-            "linkedAt": "2016-01-30",
-            "imageBytes": 39313408,
-            "sampleExports": [
-              "??$EdgeNeedsSweep@PAVAccessorShape@js@@@gc@js@@YA_NPAV?$Heap@PAVAccessorShape@js@@@JS@@@Z",
-              "??$EdgeNeedsSweep@PAVArgumentsObject@js@@@gc@js@@YA_NPAV?$Heap@PAVArgumentsObject@js@@@JS@@@Z",
-              "??$EdgeNeedsSweep@PAVArrayBufferObject@js@@@gc@js@@YA_NPAV?$Heap@PAVArrayBufferObject@js@@@JS@@@Z",
-              "??$EdgeNeedsSweep@PAVArrayBufferObjectMaybeShared@js@@@gc@js@@YA_NPAV?$Heap@PAVArrayBufferObjectMaybeShared@js@@@JS@@@Z"
-            ],
-            "detected": "Gecko / XULRunner (XPCOM)",
-            "errors": []
-          },
-          "sha256": [
-            {
-              "file": "output/xul.dll",
-              "sha256": "756f78a4295f0870f858fb59147cbf59947ddb4cea2ba285263b600f3bf6dd39"
-            },
-            {
-              "file": "output/omni.ja",
-              "sha256": "1d39c17e88a969018fcdcbda7fdb9253a5165aa763a10963950d39568ec3f92b"
-            },
-            {
-              "file": "output/nss3.dll",
-              "sha256": "4c965ab79d4c7131f87d5cde7ecc8923be8d26e86f4ee3a6a15463aeb97a413a"
-            },
-            {
-              "file": "output/mozglue.dll",
-              "sha256": "0edcfa424f9da0d1894d99b99db4de8ea1b31f7717e8e14dd643f87d4d1c8eb6"
-            },
-            {
-              "file": "output/plugin-container.exe",
-              "sha256": "70ad689e89c97476474f209a802167eb058dce71c7eebe83fa633c8920b24461"
-            },
-            {
-              "file": "lib/Geckofx-Core.dll",
-              "sha256": "9e7c16247e476e9d2353353a24300669ca20ab437c2fefe2586faf3a16a75d2b"
-            },
-            {
-              "file": "lib/Geckofx-Winforms.dll",
-              "sha256": "796bf8ef739e81d2781e7df5ab50a54354bf2371a2414fd71f3a62ce1aa7598f"
-            }
-          ]
-        },
-        {
-          "id": "gecko-xulrunner41",
-          "label": "Mozilla 官方 XULRunner",
-          "version": "XULRunner 41.0.2 (win32, 官方归档)",
-          "role": "reference",
-          "dir": "native/engines/gecko-xulrunner41",
-          "present": true,
-          "complete": true,
-          "sizeBytes": 78387375,
-          "fileCount": 50,
-          "arch": "x86 (I386)",
-          "archNote": null,
-          "probes": [
-            {
-              "desc": "XULRunner 主程序",
-              "present": true,
-              "sizeBytes": 88064,
-              "path": "native/engines/gecko-xulrunner41/xulrunner/xulrunner.exe"
-            },
-            {
-              "desc": "Gecko 引擎核心库",
-              "present": true,
-              "sizeBytes": 36295680,
-              "path": "native/engines/gecko-xulrunner41/xulrunner/xul.dll"
-            },
-            {
-              "desc": "Gecko 运行时资源",
-              "present": true,
-              "sizeBytes": 12033392,
-              "path": "native/engines/gecko-xulrunner41/xulrunner/omni.ja"
-            },
-            {
-              "desc": "SpiderMonkey JS 引擎",
-              "present": true,
-              "sizeBytes": 4283392,
-              "path": "native/engines/gecko-xulrunner41/xulrunner/js.exe"
-            },
-            {
-              "desc": "崩溃报告器",
-              "present": true,
-              "sizeBytes": 281088,
-              "path": "native/engines/gecko-xulrunner41/xulrunner/crashreporter.exe"
-            }
-          ],
-          "signature": {
-            "file": "native/engines/gecko-xulrunner41/xulrunner/xul.dll",
-            "valid": true,
-            "peType": "PE32",
-            "arch": "x86 (I386)",
-            "is64": false,
-            "subsystem": "WINDOWS_GUI",
-            "exportCount": 1123,
-            "dllName": "xul.dll",
-            "linkedAt": "2015-10-14",
-            "imageBytes": 36966400,
-            "sampleExports": [
-              "??0?$SecurityWrapper@VCrossCompartmentWrapper@js@@@js@@QAE@ABV01@@Z",
-              "??0?$SecurityWrapper@VCrossCompartmentWrapper@js@@@js@@QAE@I_N@Z",
-              "??0?$SecurityWrapper@VWrapper@js@@@js@@QAE@ABV01@@Z",
-              "??0?$SecurityWrapper@VWrapper@js@@@js@@QAE@I_N@Z"
-            ],
-            "detected": "Gecko / XULRunner (XPCOM)",
-            "errors": []
-          },
-          "sha256": [
-            {
-              "file": "xulrunner/xulrunner.exe",
-              "sha256": "942f13a75851a213baef0a717bd614cb7e585de883a2720ca3a5afd833bdefd3"
-            },
-            {
-              "file": "xulrunner/xul.dll",
-              "sha256": "7e061c8d86ac6dea0936d943d7b5a961ec7a8ad6c8976210d31115bbcfd79b28"
-            },
-            {
-              "file": "xulrunner/omni.ja",
-              "sha256": "a2b4989d56da36b5192b89738659fffa05c3659f83f205b97c762873a53f43aa"
-            },
-            {
-              "file": "xulrunner/js.exe",
-              "sha256": "e7f30c8614f8ef247298e64f9ffaeed628679a82fe2cc458e40ecfc0f32b1394"
-            },
-            {
-              "file": "xulrunner/crashreporter.exe",
-              "sha256": "99c05534d06888c9750b1bef4dc3c1590ee824fd560122bf7fae76102ef04158"
-            }
-          ]
-        }
-      ]
-    },
     "trident": {
       "engine": "trident",
       "label": "IE / Trident",
-      "mode": "compat",
+      "mode": "bridge",
       "binariesReady": true,
-      "bridgeReady": false,
+      "bridgeReady": true,
       "arch": "x64 (AMD64)",
-      "blocker": "真内核二进制已就位（trident-mshtml），缺原生宿主 native/bin/trident-host.exe —— 需自行编译，见 native/README.md",
+      "blocker": null,
       "sources": [
         {
           "id": "trident-mshtml",
@@ -435,7 +224,7 @@
           "dir": null,
           "present": true,
           "complete": true,
-          "sizeBytes": 60756480,
+          "sizeBytes": 60757504,
           "fileCount": 0,
           "arch": "x64 (AMD64)",
           "archNote": null,
@@ -449,13 +238,13 @@
             {
               "desc": "IE 框架（WebBrowser 控件宿主）",
               "present": true,
-              "sizeBytes": 13135872,
+              "sizeBytes": 13136384,
               "path": "C:/Windows/System32/ieframe.dll"
             },
             {
               "desc": "IE 网络栈",
               "present": true,
-              "sizeBytes": 5093376,
+              "sizeBytes": 5093888,
               "path": "C:/Windows/System32/wininet.dll"
             },
             {
@@ -474,7 +263,7 @@
             "subsystem": "WINDOWS_GUI",
             "exportCount": 22,
             "dllName": "MSHTML.dll",
-            "linkedAt": "2020-11-30",
+            "linkedAt": "2017-02-20",
             "imageBytes": 23597056,
             "sampleExports": [
               "ClearPhishingFilterData",
