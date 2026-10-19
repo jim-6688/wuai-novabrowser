@@ -1751,6 +1751,31 @@ function wireQuickBar() {
   }
 }
 
+/** 命令面板：输入框实时过滤 + 键盘导航 + 背景关闭。只在启动时绑定一次。 */
+function wireCmdPalette() {
+  const inp = $('#cmd-input');
+  const box = $('#cmd-palette');
+  if (!inp || !box) return;
+  inp.addEventListener('input', () => { cmdSel = 0; renderCmdList(inp.value); });
+  inp.addEventListener('keydown', (ev) => {
+    if (ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      if (cmdItemsFlat.length) { cmdSel = Math.min(cmdItemsFlat.length - 1, cmdSel + 1); paintCmdSel(); }
+    } else if (ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      if (cmdItemsFlat.length) { cmdSel = Math.max(0, cmdSel - 1); paintCmdSel(); }
+    } else if (ev.key === 'Enter') {
+      ev.preventDefault();
+      runCmdItem(cmdSel);
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      closeCmdPalette();
+    }
+  });
+  // 点击背景（不是面板本身）关闭
+  box.addEventListener('mousedown', (ev) => { if (ev.target.hasAttribute('data-cmd-close')) closeCmdPalette(); });
+}
+
 /* ------------------------------------------------------------------ *
  * 抽屉面板
  * ------------------------------------------------------------------ */
@@ -5262,6 +5287,248 @@ function closeTabGrid() {
   $('#tab-grid').hidden = true;
   state.tabQuery = '';
 }
+
+/* ------------------------------------------------------------------ *
+ * 命令面板（Ctrl+K）
+ * ------------------------------------------------------------------ */
+
+/** 命令面板里用到的图标，全是 20x20 viewBox 的 path 串，渲染时统一包一层 <svg>。 */
+const CMD_ICON = {
+  plus: '<path d="M10 4v12M4 10h12"/>',
+  minus: '<path d="M4 10h12"/>',
+  x: '<path d="M5 5l10 10M15 5L5 15"/>',
+  reset: '<path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9"/><path d="M16 4v3.5h-3.5"/>',
+  home: '<path d="M3.5 9L10 3.5 16.5 9v7.5h-5v-4h-3v4h-5z"/>',
+  gear: '<circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/>',
+  star: '<path d="M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z"/>',
+  search: '<circle cx="9" cy="9" r="6"/><path d="M14 14l3.5 3.5"/>',
+  camera: '<rect x="2.5" y="4.5" width="15" height="11" rx="1.6"/><circle cx="10" cy="10" r="2.6"/><path d="M6.5 4.5l1-2h5l1 2"/>',
+  pdf: '<path d="M5 2.5h7l3 3v12H5z"/><path d="M12 2.5v3h3"/><path d="M7.5 12h5M7.5 15h3"/>',
+  book: '<path d="M3 5.5C3 4.7 3.7 4 4.5 4H9v12H4.5C3.7 16 3 15.3 3 14.5z"/><path d="M17 5.5C17 4.7 16.3 4 15.5 4H11v12h4.5c.8 0 1.5-.7 1.5-1.5z"/>',
+  mute: '<path d="M4 8.5v3h2.5L10 15V5L6.5 8.5z"/><path d="M13 8l4 4M17 8l-4 4"/>',
+  link: '<path d="M8 12l4-4"/><path d="M9 6.5l1.5-1.5a3 3 0 0 1 4 4L13 10.5"/><path d="M11 13.5l-1.5 1.5a3 3 0 0 1-4-4L7 9.5"/>',
+  down: '<path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/>',
+  eye: '<path d="M2.5 10S5.5 5 10 5s7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5z"/><circle cx="10" cy="10" r="2.6"/>',
+  lock: '<path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/>',
+  chip: '<rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/>',
+  clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/>',
+  tab: '<rect x="2.5" y="5" width="10" height="10" rx="1.4"/><path d="M12.5 8h5M12.5 11h5"/>',
+  globe: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.5 2.4 2.5 11.6 0 14M10 3c-2.5 2.4-2.5 11.6 0 14"/>'
+};
+
+/** 全部设置分区的扁平列表，命令面板里「打开设置」用它动态生成。 */
+const ALL_PANELS = SETTINGS_NAV.flatMap((g) => g.items || []);
+
+/** 当前页是否已在书签里，决定命令面板的「加入/移出」文案。 */
+function bookmarkToggleLabel() {
+  const t = activeTab();
+  const on = !!t && (state.bookmarks || []).some((b) => b.url === t.url);
+  return on ? '移出书签' : '加入书签';
+}
+
+async function toggleBookmarkCurrent() {
+  const t = activeTab();
+  if (!t) { toast('还没有打开的标签页'); return; }
+  const existing = (state.bookmarks || []).find((b) => b.url === t.url);
+  if (existing) state.bookmarks = await bridge.bookmarks.remove(t.url);
+  else state.bookmarks = await bridge.bookmarks.add({ title: t.title, url: t.url, favicon: t.favicon || null });
+  refreshCurrent();
+  toast(existing ? '已移出书签' : '已加入书签');
+}
+
+/** 整页截图 / 另存为 PDF 的复用入口（与菜单面板里的逻辑一致）。 */
+async function cmdCapturePage() {
+  const t = activeTab();
+  if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持网页截图'); return; }
+  let id = t.wcId;
+  if (id == null && typeof t.webview.getWebContentsId === 'function') {
+    try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+  }
+  const r = await bridge.page.capture(id, 'full');
+  if (r && r.ok) toast('截图已保存');
+  else if (r && r.error) toast(r.error);
+}
+
+async function cmdSavePdfPage() {
+  const t = activeTab();
+  if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持另存为 PDF'); return; }
+  let id = t.wcId;
+  if (id == null && typeof t.webview.getWebContentsId === 'function') {
+    try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+  }
+  const r = await bridge.page.savePdf(id);
+  if (r && r.ok) toast('已保存 PDF');
+  else if (r && r.error) toast(r.error);
+}
+
+/** 在「当前标签页」打开一个地址；没有标签页就新建一个。 */
+function cmdOpenUrl(url) {
+  const t = activeTab();
+  if (t) navigate(t.id, url);
+  else createTab(url, state.settings.defaultEngine);
+}
+
+/** 命令面板全部内置动作。部分文案带状态（书签 / 无图），所以每次打开都重新算。 */
+function cmdBaseActions() {
+  const actions = [
+    { id: 'new-tab', label: '新建标签页', hint: 'Ctrl+T', icon: 'plus', run: () => createTab(newTabUrl(), state.settings.defaultEngine) },
+    { id: 'new-tab-blank', label: '新建空白标签页', icon: 'plus', run: () => createTab('about:blank', state.settings.defaultEngine) },
+    { id: 'settings', label: '打开设置', icon: 'gear', run: () => openPanel('general') },
+    { id: 'home', label: '回到主页', icon: 'home', run: () => { const t = activeTab(); if (t) navigate(t.id, state.settings.homepage); } },
+    { id: 'toggle-bookmark', label: bookmarkToggleLabel(), icon: 'star', run: () => toggleBookmarkCurrent() },
+    { id: 'find', label: '页内查找', hint: 'Ctrl+F', icon: 'search', run: () => openFindBar() },
+    { id: 'capture', label: '整页截图', icon: 'camera', run: () => cmdCapturePage() },
+    { id: 'pdf', label: '另存为 PDF', icon: 'pdf', run: () => cmdSavePdfPage() },
+    { id: 'read', label: '阅读增强（无图 / 拼页）', icon: 'book', run: () => openReadSheet() },
+    { id: 'mute', label: '静音 / 取消静音当前标签页', icon: 'mute', run: () => { const t = activeTab(); if (t) toggleTabMute(t.id); } },
+    { id: 'copy-url', label: '复制当前网址', icon: 'link', run: async () => { const t = activeTab(); if (t) { await bridge.system.copy(t.url); toast('已复制当前网址'); } } },
+    { id: 'open-dl-folder', label: '打开下载目录', icon: 'down', run: async () => { await bridge.downloads.showInFolder(state.downloadsDir || ''); } },
+    { id: 'zoom-in', label: '放大页面', hint: 'Ctrl++', icon: 'plus', run: () => stepZoom(activeTab(), 1) },
+    { id: 'zoom-out', label: '缩小页面', hint: 'Ctrl+-', icon: 'minus', run: () => stepZoom(activeTab(), -1) },
+    { id: 'zoom-reset', label: '重置缩放', hint: 'Ctrl+0', icon: 'reset', run: () => setTabZoom(activeTab(), 1) },
+    { id: 'close-tab', label: '关闭当前标签页', hint: 'Ctrl+W', icon: 'x', run: () => { if (state.activeId) closeTab(state.activeId); } },
+    { id: 'clear-site-data', label: '清空站点数据', icon: 'lock', run: async () => { const r = await bridge.system.clearSiteData(); toast(r && r.note ? r.note : (r && r.cleared ? `已清空 ${r.cleared} 个分区` : '已清空站点数据')); } },
+    { id: 'no-image', label: noImageLevel() === 'off' ? '无图模式：开启' : '无图模式：关闭', icon: 'eye', run: async () => { await applyNoImage(noImageLevel() === 'off' ? 'image' : 'off'); } }
+  ];
+  // 设置分区
+  for (const s of ALL_PANELS) actions.push({ id: 'panel-' + s.id, label: '打开' + s.label, icon: (NAV_ICONS[s.icon] || CMD_ICON.gear), run: () => openPanel(s.id) });
+  // 内核切换
+  for (const e of (state.engines || [])) actions.push({ id: 'engine-' + e.id, label: `切换内核：${e.label}`, sub: e.modeLabel, icon: CMD_ICON.chip, run: () => { const t = activeTab(); if (t) switchEngine(t.id, e.id); } });
+  return actions;
+}
+
+/**
+ * 根据输入串组装命令面板结果。返回分组结构：[{ group, items:[{label,sub,icon,hint,run}] }]。
+ * 空串时给「常用 + 已打开的标签页」；有串时跨 命令 / 标签页 / 书签 / 历史 匹配，
+ * 最后补一个「打开网址 / 搜索」的最终兜底项。
+ */
+async function getCmdItems(query) {
+  const q = (query || '').trim().toLowerCase();
+  const actions = cmdBaseActions();
+
+  const tabItems = (state.tabs || []).map((t) => ({
+    group: '已打开的标签页', label: t.title || prettyUrl(t.url), sub: prettyUrl(t.url), icon: CMD_ICON.tab,
+    run: () => activateTab(t.id)
+  }));
+  const bmItems = (state.bookmarks || []).map((b) => ({
+    group: '书签', label: b.title || b.url, sub: b.url, icon: CMD_ICON.star,
+    run: () => cmdOpenUrl(b.url)
+  }));
+  const histItems = (state.historyCache || []).map((h) => ({
+    group: '历史记录', label: h.title || h.url, sub: h.url, icon: CMD_ICON.clock,
+    run: () => cmdOpenUrl(h.url)
+  }));
+
+  const groups = [];
+  if (!q) {
+    const common = ['new-tab', 'settings', 'home', 'find', 'capture', 'pdf', 'toggle-bookmark', 'no-image'];
+    groups.push({ group: '常用', items: actions.filter((a) => common.includes(a.id)) });
+    groups.push({ group: '已打开的标签页', items: tabItems.slice(0, 8) });
+    return groups;
+  }
+
+  const matchedActions = actions.filter((a) => (a.label || '').toLowerCase().includes(q) || (a.hint || '').toLowerCase().includes(q));
+  if (matchedActions.length) groups.push({ group: '命令', items: matchedActions });
+
+  const hit = (i) => ((i.label + ' ' + (i.sub || '')).toLowerCase().includes(q));
+  const tabHit = tabItems.filter(hit);
+  if (tabHit.length) groups.push({ group: '已打开的标签页', items: tabHit.slice(0, 8) });
+  const bmHit = bmItems.filter(hit);
+  if (bmHit.length) groups.push({ group: '书签', items: bmHit.slice(0, 8) });
+  const histHit = histItems.filter(hit);
+  if (histHit.length) groups.push({ group: '历史记录', items: histHit.slice(0, 8) });
+
+  const resolved = resolveInput(query);
+  if (resolved) {
+    const isSearch = resolved === searchUrl(query);
+    groups.push({
+      group: isSearch ? '搜索' : '网址',
+      items: [{
+        label: isSearch ? `用默认引擎搜索：${query}` : `打开 ${resolved}`,
+        sub: isSearch ? searchUrl(query) : resolved,
+        icon: isSearch ? CMD_ICON.search : CMD_ICON.globe,
+        run: () => cmdOpenUrl(resolved)
+      }]
+    });
+  }
+  return groups;
+}
+
+let cmdSel = 0;
+let cmdItemsFlat = [];
+
+/** 把分组结果渲染进列表，并维护扁平序号 cmdItems 供键盘/点击执行。 */
+async function renderCmdList(query) {
+  const groups = await getCmdItems(query);
+  const list = $('#cmd-list');
+  if (!list) return;
+  cmdItemsFlat = [];
+  if (!groups.length || !groups.some((g) => g.items && g.items.length)) {
+    list.innerHTML = '<div class="cmd-empty">没有匹配的结果</div>';
+    cmdSel = -1;
+    return;
+  }
+  let html = '';
+  let idx = 0;
+  for (const g of groups) {
+    if (!g.items || !g.items.length) continue;
+    html += `<div class="cmd-group">${esc(g.group)}</div>`;
+    for (const it of g.items) {
+      const i = idx++;
+      cmdItemsFlat.push(it);
+      const sel = i === cmdSel ? ' is-sel' : '';
+      const ico = it.icon ? `<svg viewBox="0 0 20 20">${it.icon}</svg>` : '';
+      html += `<div class="cmd-row${sel}" data-cmd="${i}">
+        <span class="cmd-ico">${ico}</span>
+        <span class="cmd-main"><span class="cmd-title">${esc(it.label)}</span>${it.sub ? `<span class="cmd-sub">${esc(it.sub)}</span>` : ''}</span>
+        ${it.hint ? `<span class="cmd-hint">${esc(it.hint)}</span>` : ''}
+      </div>`;
+    }
+  }
+  list.innerHTML = html;
+  if (cmdSel >= cmdItemsFlat.length) cmdSel = cmdItemsFlat.length - 1;
+  if (cmdSel < 0) cmdSel = 0;
+  paintCmdSel();
+  list.querySelectorAll('.cmd-row').forEach((r) => {
+    const i = Number(r.dataset.cmd);
+    r.addEventListener('mousemove', () => { cmdSel = i; paintCmdSel(); });
+    r.addEventListener('click', () => runCmdItem(i));
+  });
+}
+
+function paintCmdSel() {
+  const list = $('#cmd-list');
+  if (!list) return;
+  const rows = [...list.querySelectorAll('.cmd-row')];
+  rows.forEach((r, i) => r.classList.toggle('is-sel', i === cmdSel));
+  const sel = rows[cmdSel];
+  if (sel && typeof sel.scrollIntoView === 'function') sel.scrollIntoView({ block: 'nearest' });
+}
+
+function runCmdItem(idx) {
+  const it = cmdItemsFlat[idx];
+  if (!it) return;
+  closeCmdPalette();
+  try { it.run(); } catch (e) { console.error('[cmd] run failed', e); }
+}
+
+function openCmdPalette() {
+  const inp = $('#cmd-input');
+  if (!inp) return;
+  cmdSel = 0;
+  $('#cmd-palette').hidden = false;
+  // 历史缓存可能还没拉过，先确保有，再渲染（失败就静默退回到书签/标签页）。
+  ensureHistoryCache(false).then(() => { if (!$('#cmd-palette').hidden) renderCmdList(inp.value); });
+  renderCmdList('');
+  inp.focus();
+  if (inp.select) inp.select();
+}
+
+function closeCmdPalette() {
+  const el = $('#cmd-palette');
+  if (el) el.hidden = true;
+}
+
 function openSheet() { $('#engine-sheet').hidden = false; syncEngineUi(); }
 function closeSheet() { $('#engine-sheet').hidden = true; }
 
@@ -6630,11 +6897,12 @@ function wireUi() {
     else if (mod && ev.key === '-') { ev.preventDefault(); stepZoom(activeTab(), -1); }
     else if (mod && ev.key === '0') { ev.preventDefault(); setTabZoom(activeTab(), 1); }
     else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); openPanel('adblock'); }
+    else if (mod && ev.key.toLowerCase() === 'k') { ev.preventDefault(); openCmdPalette(); }
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); closeCmdPalette(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -6645,6 +6913,7 @@ function wireUi() {
   });
 
   wireQuickBar();
+  wireCmdPalette();
   window.addEventListener('resize', applyLayout);
 }
 

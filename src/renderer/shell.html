@@ -480,6 +480,20 @@
     <button class="tg-new" id="tg-new">+ 新建标签页</button>
   </section>
 
+  <!-- ============ 命令面板（Ctrl+K） ============ -->
+  <section class="cmd-palette" id="cmd-palette" hidden>
+    <div class="cmd-backdrop" data-cmd-close></div>
+    <div class="cmd-box" role="dialog" aria-label="命令面板">
+      <div class="cmd-input-row">
+        <svg class="cmd-search-ico" viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14l3.5 3.5" stroke-linecap="round"/></svg>
+        <input id="cmd-input" class="cmd-input" type="text" placeholder="输入命令、网址或搜索词…" spellcheck="false" autocomplete="off" />
+        <span class="cmd-kbd">Esc</span>
+      </div>
+      <div class="cmd-list" id="cmd-list"></div>
+      <div class="cmd-foot">↑ ↓ 选择　·　↵ 执行　·　Esc 关闭</div>
+    </div>
+  </section>
+
   <!-- ============ 内核切换底部弹层（移动端） ============ -->
   <div class="sheet" id="engine-sheet" hidden>
     <div class="sheet-card">
