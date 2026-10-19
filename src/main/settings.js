@@ -34,6 +34,11 @@ const DEFAULTS = {
    * 匹配顺序是「精确主机 → 逐级父域」：写 example.com 也会命中 www.example.com。
    */
   siteEngines: [],
+  /**
+   * 按域名记住的缩放比例：{ "example.com": 1.1 }。
+   * 重置为 100% 时写 null（deepMerge 不会删键，读的时候把 null 当 1）。
+   */
+  zoomByHost: {},
   /** auto | desktop | mobile —— auto 由窗口宽度决定 */
   layout: 'auto',
   theme: 'light',

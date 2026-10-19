@@ -36,6 +36,12 @@ const OMNI_DEFAULT_PLACEHOLDER = (() => {
  * 状态
  * ------------------------------------------------------------------ */
 
+/**
+ * 标签页 webview 的 preload：页面里的 Ctrl+滚轮 / Ctrl+±0 通过它转回外壳。
+ * 用相对 shell.html 的路径拼，dev 与 asar 里都成立。
+ */
+const WEBVIEW_PRELOAD_URL = new URL('../preload/webview-preload.js', window.location.href).href;
+
 const state = {
   engines: [],
   engineMap: new Map(),
@@ -649,10 +655,18 @@ function mountTab(tab) {
   wv.setAttribute('useragent', e.userAgent);
   wv.setAttribute('allowpopups', '');
   wv.setAttribute('webpreferences', 'contextIsolation=yes, nodeIntegration=no, sandbox=yes');
+  wv.setAttribute('preload', WEBVIEW_PRELOAD_URL);
   wv.dataset.tabId = String(tab.id);
   wv.hidden = true;
   // 点进网页时焦点落到 webview：Share 面板要跟着收起（网页内的点击不会冒泡到外壳文档）
   wv.addEventListener('focus', () => { closeOmniShare(); closeSniffPopover(); });
+  // 页面里的缩放操作（preload 转来的）：Ctrl+滚轮 / Ctrl+±0
+  wv.addEventListener('ipc-message', (ev) => {
+    if (!ev || ev.channel !== 'nova-zoom') return;
+    const dir = ev.args && ev.args[0];
+    if (dir === 'reset') setTabZoom(tab, 1);
+    else stepZoom(tab, dir === 'in' ? 1 : -1);
+  });
   wv.addEventListener('found-in-page', (ev) => {
     if (!activeTab() || activeTab().id !== tab.id) return;
     const r = (ev && ev.result) || {};
@@ -669,6 +683,8 @@ function mountTab(tab) {
   wv.addEventListener('did-stop-loading', () => { tab.loading = false; renderTabstrip(); syncNavButtons(); });
   wv.addEventListener('did-navigate', (ev) => {
     tab.url = ev.url;
+    // 换了站点：套用该域名记住的缩放（不落盘，只是应用）
+    if (tab.webview === wv) setTabZoom(tab, zoomForHost(ev.url), { persist: false, silent: true });
     syncOmnibox();
     renderTabGrid();
     // 网页里点链接跳转走的是这条事件，不经过外壳的 navigate()。
@@ -916,6 +932,45 @@ function normalizeSiteHost(raw) {
   return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(s) ? s : '';
 }
 
+/* --- 页面缩放（按站点记忆）--- */
+/** 缩放的键：主机名去掉 www.（用户不会为带不带 www 记两套比例）。 */
+function zoomKey(url) {
+  const host = hostOf(url);
+  return host ? host.replace(/^www\./, '') : '';
+}
+
+function zoomForHost(url) {
+  const key = zoomKey(url);
+  if (!key) return 1;
+  const v = (state.settings.zoomByHost || {})[key];
+  return (typeof v === 'number' && v >= 0.25 && v <= 5) ? v : 1;
+}
+
+function setTabZoom(tab, factor, opts) {
+  if (!tab || !tab.webview || tab.webview.__bridge) return false;
+  const o = opts || {};
+  const f = Math.min(5, Math.max(0.25, Math.round(factor * 100) / 100));
+  try { tab.webview.setZoomFactor(f); } catch { return false; }
+  tab.zoom = f;
+  const host = zoomKey(tab.url);
+  if (o.persist !== false && host) {
+    const map = Object.assign({}, state.settings.zoomByHost || {});
+    // 100% 写 null：deepMerge 不会删键，读的时候把 null 当 1
+    map[host] = Math.abs(f - 1) < 0.005 ? null : f;
+    state.settings.zoomByHost = map;
+    bridge.settings.patch({ zoomByHost: map });
+  }
+  if (!o.silent) toast(`缩放 ${Math.round(f * 100)}%`);
+  return true;
+}
+
+/** 按 10% 一档放大/缩小；dir > 0 放大。 */
+function stepZoom(tab, dir) {
+  if (!tab) return;
+  const cur = typeof tab.zoom === 'number' ? tab.zoom : zoomForHost(tab.url);
+  setTabZoom(tab, cur * (dir > 0 ? 1.1 : 1 / 1.1));
+}
+
 function engineExists(id) {
   return (state.engines || []).some((e) => e.id === id);
 }
@@ -1005,6 +1060,17 @@ function persistSession() {
  * 渲染：标签条 / 标签总览
  * ------------------------------------------------------------------ */
 
+/** 静音/取消静音当前标签页。图标由 t.audible / t.muted 共同决定。 */
+function toggleTabMute(id) {
+  const t = state.tabs.find((x) => x.id === id);
+  if (!t || !t.webview || t.webview.__bridge) return;
+  const next = !t.muted;
+  try { t.webview.setAudioMuted(next); } catch { return; }
+  t.muted = next;
+  renderTabstrip();
+  toast(next ? '已静音此标签页' : '已取消静音');
+}
+
 function renderTabstrip() {
   const box = $('#tabs');
   box.innerHTML = state.tabs.map((t) => {
@@ -1017,6 +1083,10 @@ function renderTabstrip() {
            style="--tab-accent:${e.accent}" title="${esc(t.title)}&#10;${esc(t.url)}">
         ${t.loading ? '<span class="tab-spinner"></span>' : `<span class="tab-favicon">${fav}</span>`}
         <span class="tab-title">${esc(t.title)}</span>
+        ${(t.audible || t.muted) ? `<button class="tab-audio ${t.muted ? 'is-muted' : ''}" data-mute="${t.id}" title="${t.muted ? '取消静音' : '静音此标签页'}">` +
+          `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8h3l4-3v10l-4-3H4z"/>` +
+          (t.muted ? '<path d="M13.5 8l4 4M17.5 8l-4 4"/>' : '<path d="M14 7.5a4 4 0 0 1 0 5"/>') +
+          `</svg></button>` : ''}
         <span class="tab-engine">${esc(e.short)}</span>
         <button class="tab-close" data-close="${t.id}" title="关闭标签页">
           <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" /></svg>
@@ -1033,6 +1103,9 @@ function renderTabstrip() {
   });
   box.querySelectorAll('[data-close]').forEach((b) => {
     b.addEventListener('click', (ev) => { ev.stopPropagation(); closeTab(Number(b.dataset.close)); });
+  });
+  box.querySelectorAll('[data-mute]').forEach((b) => {
+    b.addEventListener('click', (ev) => { ev.stopPropagation(); toggleTabMute(Number(b.dataset.mute)); });
   });
 
   $('#mb-tab-count').textContent = String(state.tabs.length);
@@ -1770,6 +1843,10 @@ function renderMenuPanel() {
         <span class="lr-sub">无图模式 ${esc(noImageLabel())} · 自动拼页 ${mobilePref().autoPage ? '开' : '关'}</span>
       </span>
       <span class="lr-tail">›</span>
+    </div>
+    <div class="list-row is-click" data-act="capture-page">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><rect x="2.5" y="4.5" width="15" height="11" rx="1.6"/><circle cx="10" cy="10" r="2.6"/><path d="M6.5 4.5l1-2h5l1 2"/></svg></span>
+      <span class="lr-main"><span class="lr-title">整页截图</span><span class="lr-sub">保存为 PNG，含滚动出屏幕的部分</span></span>
     </div>
     <div class="list-row is-click" data-act="save-pdf">
       <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M5 2.5h7l3 3v12H5z"/><path d="M12 2.5v3h3"/><path d="M7.5 12h5M7.5 15h3"/></svg></span>
@@ -4866,6 +4943,17 @@ function wireActions(root) {
     b.addEventListener('click', async () => {
       const act = b.dataset.act;
       if (act === 'new-tab') { createTab(newTabUrl(), state.settings.defaultEngine); closeDrawer(); }
+      else if (act === 'capture-page') {
+        const t = activeTab();
+        if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持网页截图'); return; }
+        let id = t.wcId;
+        if (id == null && typeof t.webview.getWebContentsId === 'function') {
+          try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+        }
+        const r = await bridge.page.capture(id, 'full');
+        if (r && r.ok) { closeDrawer(); toast('截图已保存'); }
+        else if (r && r.error) toast(r.error);
+      }
       else if (act === 'save-pdf') {
         const t = activeTab();
         if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持另存为 PDF'); return; }
@@ -6484,6 +6572,9 @@ function wireUi() {
     else if (mod && ev.key.toLowerCase() === 'w') { ev.preventDefault(); if (state.activeId) closeTab(state.activeId); }
     else if (mod && ev.key.toLowerCase() === 'l') { ev.preventDefault(); $('#omni-input').focus(); }
     else if (mod && ev.key.toLowerCase() === 'f') { ev.preventDefault(); openFindBar(); }
+    else if (mod && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); stepZoom(activeTab(), 1); }
+    else if (mod && ev.key === '-') { ev.preventDefault(); stepZoom(activeTab(), -1); }
+    else if (mod && ev.key === '0') { ev.preventDefault(); setTabZoom(activeTab(), 1); }
     else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); openPanel('adblock'); }
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
@@ -6595,6 +6686,15 @@ function wireBridgeEvents() {
 
   // 主进程发来的轻提示（例如 ed2k 链接没有客户端可用、已复制到剪贴板）
   bridge.on('app:toast', (m) => toast(String(m || '')));
+
+  // 音频状态（主进程 isCurrentlyAudible 查询后发来）
+  bridge.on('tab:audio', (p) => {
+    if (!p || p.id == null) return;
+    const t = state.tabs.find((x) => x.wcId === p.id);
+    if (!t) return;
+    t.audible = !!p.audible;
+    renderTabstrip();
+  });
 
   /* --- 无图模式 --- */
   bridge.on('mobile:stats', (s) => {

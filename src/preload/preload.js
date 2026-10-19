@@ -43,6 +43,7 @@ const EVENT_CHANNELS = [
   'tab:loading',
   'tab:dom-ready',
   'tab:crashed',
+  'tab:audio',
   'app:toast',
   'tabs:open-request',
   'download:update',
@@ -221,7 +222,9 @@ contextBridge.exposeInMainWorld('nova', {
   /* --- 系统 --- */
   page: {
     /** 当前页另存为 PDF：主进程弹保存框并写盘 */
-    savePdf: (wcId) => ipcRenderer.invoke('page:save-pdf', wcId)
+    savePdf: (wcId) => ipcRenderer.invoke('page:save-pdf', wcId),
+    /** 网页截图：mode = 'full'（整页）| 'view'（可见区域） */
+    capture: (wcId, mode) => ipcRenderer.invoke('page:capture', wcId, mode)
   },
   system: {
     /** 拖进来的文件 → 本地绝对路径。见文件头 pathForFile 的说明。

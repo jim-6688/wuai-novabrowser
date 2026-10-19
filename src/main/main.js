@@ -893,6 +893,16 @@ function wireContents(contents) {
     send('tab:crashed', { id: contents.id, reason: details.reason });
   });
 
+  // 页面标签的音频状态（缩放走 webview 的 preload，不在这里做）
+  if (contents.getType() === 'webview') {
+    // 注意：这个事件的第二个参数在 Electron 30 里拿不到，直接问 isCurrentlyAudible()
+    contents.on('audio-state-changed', () => {
+      let audible = false;
+      try { audible = contents.isCurrentlyAudible(); } catch { /* 页面销毁中 */ }
+      send('tab:audio', { id: contents.id, audible });
+    });
+  }
+
   // 注入内核兼容层垫片 + 广告元素隐藏样式 + 无图占位样式
   contents.on('dom-ready', async () => {
     const url = contents.getURL();
@@ -1666,6 +1676,60 @@ function registerIpc() {
   });
 
   handle('shell:open-external', (url) => shell.openExternal(url));
+
+  // 网页截图：整页走 CDP 的 captureBeyondViewport，可见区域走 capturePage。
+  handle('page:capture', async (wcId, mode) => {
+    const wc = webContents.fromId(Number(wcId));
+    if (!wc || wc.isDestroyed()) return { ok: false, error: '页面已关闭' };
+    let png = null;
+    try {
+      if (mode === 'full') {
+        const dbg = wc.debugger;
+        dbg.attach('1.3');
+        try {
+          const m = await dbg.sendCommand('Page.getLayoutMetrics');
+          const size = m.cssContentSize || m.contentSize || { width: 1280, height: 800 };
+          // 极长页面（评论区）截出来是几百 MB 的图，这里设个上限
+          const width = Math.min(20000, Math.max(1, Math.ceil(size.width)));
+          const height = Math.min(30000, Math.max(1, Math.ceil(size.height)));
+          const shot = await dbg.sendCommand('Page.captureScreenshot', {
+            format: 'png',
+            captureBeyondViewport: true,
+            clip: { x: 0, y: 0, width, height, scale: 1 }
+          });
+          png = Buffer.from(shot.data, 'base64');
+        } finally {
+          try { dbg.detach(); } catch { /* 已经断开 */ }
+        }
+      } else {
+        const img = await wc.capturePage();
+        png = img.toPNG();
+      }
+    } catch (e) {
+      // DevTools 占用调试器等情况：退回可见区域截图，别让用户什么都没拿到
+      try {
+        const img = await wc.capturePage();
+        png = img.toPNG();
+      } catch (e2) {
+        return { ok: false, error: String((e2 && e2.message) || e2) };
+      }
+    }
+    let name = '网页截图';
+    try { name = wc.getTitle() || name; } catch { /* noop */ }
+    name = String(name).replace(/[\\/:*?"<>|]+/g, '_').trim().slice(0, 80) || '网页截图';
+    const picked = await dialog.showSaveDialog(mainWindow, {
+      title: '保存网页截图',
+      defaultPath: path.join(app.getPath('pictures'), name + '.png'),
+      filters: [{ name: 'PNG', extensions: ['png'] }]
+    });
+    if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
+    try {
+      fs.writeFileSync(picked.filePath, png);
+      return { ok: true, path: picked.filePath };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  });
 
   // 把当前页另存为 PDF。渲染层只给 webContents id，磁盘读写与保存框都在主进程做。
   handle('page:save-pdf', async (wcId) => {

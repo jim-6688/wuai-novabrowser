@@ -308,6 +308,22 @@ svg {
 }
 .tab-favicon img { width: 100%; height: 100%; object-fit: contain; }
 .tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.tab-audio {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.tab-audio svg { width: 12px; height: 12px; }
+.tab-audio:hover { background: var(--surface-3); color: var(--text); }
+.tab-audio.is-muted { color: var(--text-4); }
+
 .tab-engine {
   font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
   color: var(--tab-accent, var(--brand));
