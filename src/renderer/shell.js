@@ -1353,9 +1353,70 @@ async function refreshHostIcons(force = false) {
  * 所以设置里给的三档不是「上/下」而是「什么时候露出来」。
  * 宽屏窄屏共用这一条，差别只在样式（见 shell.css 的 [data-layout="mobile"]）。
  */
+/** 一条书签的展示信息：图标三层降级（站点缓存 → 自带 favicon → 首字母）。 */
+function bmEntry(b) {
+  const host = hostOf(b.url);
+  const label = b.title || host || b.url;
+  const src = hostIcon(b.url) || b.favicon || '';
+  const icon = src
+    ? `<img src="${esc(src)}" alt="" onerror="this.remove()" />`
+    : esc((host || 'N').slice(0, 1).toUpperCase());
+  return { host, label, icon, hostLine: (host || '').replace(/^www\./, '') };
+}
+
+function renderBmMenu() {
+  const menu = $('#bm-menu');
+  if (!menu) return;
+  menu.innerHTML = (state.bookmarks || []).map((b) => {
+    const p = bmEntry(b);
+    return `<button class="bm-menu-item" role="menuitem" data-bm="${esc(b.url)}"` +
+      ` title="${esc(p.label)}&#10;${esc(b.url)}">` +
+      `<span class="bm-fav">${p.icon}</span>` +
+      `<span class="bm-menu-text">` +
+      `<span class="bm-menu-title">${esc(p.label)}</span>` +
+      (p.hostLine ? `<span class="bm-menu-host">${esc(p.hostLine)}</span>` : '') +
+      `</span></button>`;
+  }).join('');
+}
+
+function closeBmMenu() {
+  const menu = $('#bm-menu');
+  const btn = $('#bm-more');
+  if (menu) menu.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function toggleBmMenu() {
+  const menu = $('#bm-menu');
+  const btn = $('#bm-more');
+  if (!menu || !btn) return;
+  if (!menu.hidden) { closeBmMenu(); return; }
+  renderBmMenu();
+  menu.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+}
+
+/**
+ * 决定「更多」露不露。
+ *
+ * <p>先把按钮显示出来再量：按钮本身要占宽度。若按“隐藏时”的宽度判断，
+ * 会出现「本来刚好 → 显示按钮 → 反而溢出」的抖动。
+ */
+function updateBmOverflow() {
+  const track = $('#bm-track');
+  const btn = $('#bm-more');
+  if (!track || !btn) return;
+  const wasHidden = btn.hidden;
+  btn.hidden = false;
+  const overflow = track.scrollWidth - track.clientWidth > 2;
+  btn.hidden = !overflow;
+  if (!overflow && !wasHidden) closeBmMenu();
+}
+
 function renderBookmarkBar(force = false) {
   const bar = $('#bookmark-bar');
-  if (!bar) return;
+  const track = $('#bm-track');
+  if (!bar || !track) return;
 
   const mode = bmBarMode();
   const tab = activeTab();
@@ -1366,7 +1427,8 @@ function renderBookmarkBar(force = false) {
 
   if (!show) {
     if (!bar.hidden) bar.hidden = true;
-    if (bar.firstChild) bar.innerHTML = '';
+    if (track.firstChild) track.innerHTML = '';
+    closeBmMenu();
     bmBarSig = null;
     return;
   }
@@ -1384,33 +1446,28 @@ function renderBookmarkBar(force = false) {
 
   // 空栏不留一条纯白 —— 那条空带子看着像个渲染失败的控件。
   if (!list.length) {
-    bar.innerHTML = '<span class="bm-empty">收藏夹栏还是空的 —— 地址栏右侧的星形按钮可以把当前页钉到这里</span>';
+    track.innerHTML = '<span class="bm-empty">收藏夹栏还是空的 —— 地址栏右侧的星形按钮可以把当前页钉到这里</span>';
+    const emptyBtn = $('#bm-more');
+    if (emptyBtn) emptyBtn.hidden = true;
+    closeBmMenu();
     return;
   }
 
-  bar.innerHTML = list.map((b) => {
-    const host = hostOf(b.url);
-    const label = b.title || host || b.url;
-    // 三层，从可靠到兜底：站点图标缓存（主进程按站点抓的，落盘、有 TTL）
-    // → 书签自带的 favicon（收藏那一刻抄下来的外链，可能空、可能已失效）
-    // → 首字母方块（新标签页磁贴用的是同一套兜底）。
-    const src = hostIcon(b.url) || b.favicon || '';
-    const icon = src
-      ? `<img src="${esc(src)}" alt="" onerror="this.remove()" />`
-      : esc((host || 'N').slice(0, 1).toUpperCase());
-    // 标题下面补一行主机名（与安卓那条栏一致）。没有它的话，一长条书签里
-    // 「知乎」和「知乎回答」分不出来，得逐个点进去才知道跳哪。
-    // 只到主机名、不带 https:// 与 www.：这一行是给「分得清哪一家」用的，
-    // 整条路径写进来只会把格子撑宽 —— 而那部分信息标题里已经有了。
-    const hostLine = (host || '').replace(/^www\./, '');
-    return `<button class="bm-item" data-bm="${esc(b.url)}"` +
-      ` title="${esc(label)}&#10;${esc(b.url)}&#10;右键移出收藏夹栏">` +
-      `<span class="bm-fav">${icon}</span>` +
+  // 条目之间插一条细分隔线：纯靠间距太挤，加边框又会把每格框死。
+  track.innerHTML = list.map((b, i) => {
+    const p = bmEntry(b);
+    const item = `<button class="bm-item" data-bm="${esc(b.url)}"` +
+      ` title="${esc(p.label)}&#10;${esc(b.url)}&#10;右键移出收藏夹栏">` +
+      `<span class="bm-fav">${p.icon}</span>` +
       `<span class="bm-text">` +
-      `<span class="bm-title">${esc(label)}</span>` +
-      (hostLine ? `<span class="bm-host">${esc(hostLine)}</span>` : '') +
+      `<span class="bm-title">${esc(p.label)}</span>` +
+      (p.hostLine ? `<span class="bm-host">${esc(p.hostLine)}</span>` : '') +
       `</span></button>`;
+    return (i ? '<span class="bm-sep" aria-hidden="true"></span>' : '') + item;
   }).join('');
+
+  closeBmMenu();
+  updateBmOverflow();
 }
 
 /**
@@ -5738,6 +5795,24 @@ function wireUi() {
     state.bookmarks = await bridge.bookmarks.remove(el.dataset.bm);
     refreshCurrent();
     toast('已移出收藏夹栏');
+  });
+
+  // 「更多」：栏里放不下时出现，点开列出全部书签
+  $('#bm-more') && $('#bm-more').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    toggleBmMenu();
+  });
+  $('#bm-menu') && $('#bm-menu').addEventListener('click', () => closeBmMenu());
+  document.addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (t && typeof t.closest === 'function' && t.closest('#bm-more')) return;
+    closeBmMenu();
+  });
+  // 窗口变宽变窄会改变「放不放得下」，重算一次（防抖，避免拖拽时狂算）
+  let bmResizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(bmResizeTimer);
+    bmResizeTimer = setTimeout(updateBmOverflow, 120);
   });
 
   // 工具栏

@@ -275,7 +275,13 @@
        内容是 JS 渲的（renderBookmarkBar）；显隐由设置项 bookmarkBar 决定，
        走 hidden 属性而不是内联 display —— 后者会跟 [hidden] 的规则打架。
        宽窄两档都渲染这一条，窄档只是样式收窄。 -->
-  <div class="bookmarkbar" id="bookmark-bar" hidden></div>
+  <!-- 收藏夹栏：条目在 .bm-track 里横向滚；放不下时右侧出现「更多」，
+       点开列出全部书签（栏里滚出去的那些也能直接找到）。 -->
+  <div class="bookmarkbar" id="bookmark-bar" hidden>
+    <div class="bm-track" id="bm-track"></div>
+    <button class="bm-more" id="bm-more" type="button" title="更多书签" aria-haspopup="menu" aria-expanded="false" hidden>更多</button>
+    <div class="bm-menu" id="bm-menu" role="menu" aria-label="全部书签" hidden></div>
+  </div>
 
   <!-- ============ 内核模式提示 ============ -->
   <div class="engine-notice" id="engine-notice" hidden>
