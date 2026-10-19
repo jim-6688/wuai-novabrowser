@@ -119,12 +119,16 @@ namespace Nova.TridentHost
 
         public TridentHost()
         {
-            // 离屏但保持可见 —— DrawToBitmap 需要控件在可见窗口层级里才有内容。
+            // 必须放在**屏幕内**：Windows 不会为完全离屏的窗口做真实绘制，
+            // DrawToBitmap 会一直返回纯白（实测放在 -32000 时，百度只抓到 1 张纯白帧，
+            // 而 url/title 事件是正常的 —— 也就是“页面打开了但不显示”）。
+            // 用户看不见靠下面三件事：Opacity≈1/255、点击穿透、永远压在最底层。
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.Manual;
-            Location = new Point(-32000, -32000);
+            Location = new Point(0, 0);
             Size = new Size(1024, 768);
+            Opacity = 0.01;
             Visible = false;
 
             _frameTimer = new System.Windows.Forms.Timer();
@@ -135,6 +139,47 @@ namespace Nova.TridentHost
             _stdinThread = new Thread(new ThreadStart(StdinLoop));
             _stdinThread.IsBackground = true;
             _stdinThread.Name = "stdin";
+        }
+
+        // 窗口必须在屏幕内才会真正绘制，但又不能让用户看见/点到：
+        //   WS_EX_TRANSPARENT  点击穿透（否则会挡住桌面点击）
+        //   WS_EX_LAYERED      配合 Opacity 做近乎全透明
+        //   WS_EX_NOACTIVATE   显示时不抢焦点
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= 0x00000020; // WS_EX_TRANSPARENT
+                cp.ExStyle |= 0x00080000; // WS_EX_LAYERED
+                cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
+                return cp;
+            }
+        }
+
+        protected override bool ShowWithoutActivation
+        {
+            get { return true; }
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
+            int X, int Y, int cx, int cy, uint uFlags);
+
+        private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+
+        /** 压到所有窗口下面：屏幕内保证会被绘制，同时不遮住浏览器。 */
+        private void KeepAtBottom()
+        {
+            try
+            {
+                SetWindowPos(Handle, HWND_BOTTOM, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+            catch { /* 压不到最底层也不影响抓帧 */ }
         }
 
         private void OnFrameTick(object sender, EventArgs e)
@@ -400,6 +445,7 @@ namespace Nova.TridentHost
                 view.Browser.BringToFront();
                 _activeViewId = viewId;
                 Visible = true;
+                KeepAtBottom();
             }
         }
 
