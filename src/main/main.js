@@ -578,6 +578,11 @@ function createDownloadManager() {
     dir: prefs.dir || app.getPath('downloads'),
     threads: prefs.threads || 8,
     maxConcurrent: prefs.maxConcurrent || 3,
+    // 限速走 getter：用户改设置后下一步写盘就按新速度走，不必重启任务
+    speedLimitFor: () => {
+      const kb = Number(settings.get('download').speedLimitKB || 0);
+      return kb > 0 ? kb * 1024 : 0;
+    },
     headersFor: async (url, engineId) => {
       const ses = engineSessions.get(engineId) || session.defaultSession;
       const engine = registry.get(engineId) || {};

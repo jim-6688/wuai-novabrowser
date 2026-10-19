@@ -96,6 +96,11 @@ const DEFAULTS = {
     takeOver: true,
     threads: 8,
     maxConcurrent: 3,
+    /**
+     * 全局限速（KB/s），0 = 不限速。
+     * 对所有任务合计生效 —— 限单个任务在多任务时没有意义。
+     */
+    speedLimitKB: 0,
     dir: ''
   },
   /**

@@ -680,6 +680,32 @@ async function download(mgr, url, opts = {}) {
     adopted.find((t) => t.id === 'a1').state === 'paused');
   check('已完成的任务保持 done', adopted.find((t) => t.id === 'a2').state === 'done');
 
+  /* ---------- 全局限速 ---------- */
+  console.log('\n[G] 全局限速（令牌桶）');
+  {
+    const { mgr: mgrL2 } = mkManager(path.join(tmpRoot, 'limit1'), { speedLimitFor: () => 20000 }); // 20 KB/s
+    const t0 = Date.now();
+    for (let i = 0; i < 5; i += 1) await mgrL2.throttle(4000); // 5 × 4KB = 20KB
+    const dt = Date.now() - t0;
+    check('限速 20KB/s 时传 20KB 大约 1 秒', dt >= 700 && dt < 2600, dt + 'ms');
+  }
+  {
+    const { mgr: mgrL3 } = mkManager(path.join(tmpRoot, 'limit2')); // 不限速
+    const t0 = Date.now();
+    for (let i = 0; i < 300; i += 1) await mgrL3.throttle(1024);
+    check('不限速时全部放行', Date.now() - t0 < 400, (Date.now() - t0) + 'ms');
+  }
+  {
+    // 限速值改成 0（用户切回不限速）后必须立刻放行
+    let limit = 1024;
+    const { mgr: mgrL4 } = mkManager(path.join(tmpRoot, 'limit3'), { speedLimitFor: () => limit });
+    await mgrL4.throttle(2048);
+    limit = 0;
+    const t0 = Date.now();
+    await mgrL4.throttle(4096);
+    check('取消限速后立即恢复不限速', Date.now() - t0 < 200, (Date.now() - t0) + 'ms');
+  }
+
   /* ---------- 收尾 ---------- */
   await mgrB.shutdown(); await mgrC.shutdown(); await mgrD.shutdown();
   await mgrE.shutdown(); await mgrF.shutdown(); await mgrK.shutdown();

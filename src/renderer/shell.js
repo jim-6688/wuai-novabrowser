@@ -111,6 +111,7 @@ const state = {
   noImageJs: '',
   /** 当前页自动拼页状态（由页面内脚本回读，见 readAutoPageStatus） */
   autoPageStatus: null,
+  tabQuery: '',   // 多标签视图的搜索词
   isPreview: !!bridge.isPreview,
   /** AI 面板：发送时若 webview 还没在目标对话页，先把内容暂存，载入完成后注入 */
   aiPending: ''
@@ -1114,7 +1115,15 @@ function renderTabstrip() {
 
 function renderTabGrid() {
   const list = $('#tg-list');
-  list.innerHTML = state.tabs.map((t) => {
+  const q = (state.tabQuery || '').trim().toLowerCase();
+  const tabs = q
+    ? state.tabs.filter((t) => (t.title + ' ' + t.url).toLowerCase().includes(q))
+    : state.tabs;
+  if (!tabs.length) {
+    list.innerHTML = `<div class="tg-empty">没有匹配「${esc(q)}」的标签页</div>`;
+    return;
+  }
+  list.innerHTML = tabs.map((t) => {
     const e = engine(t.engineId);
     return `
       <div class="tg-card ${t.id === state.activeId ? 'is-active' : ''}" data-tab="${t.id}"
@@ -3209,6 +3218,10 @@ async function buildDownloads() {
     <div class="panel-label">同时进行的任务数</div>
     ${seg('dl-conc', [1, 2, 3, 5], conc)}
 
+    <div class="panel-label">限速（所有任务合计）</div>
+    ${seg('dl-limit', [0, 256, 512, 1024, 2048], prefs.speedLimitKB || 0, (v) => (v === 0 ? '不限速' : v + ' KB/s'))}
+    <div class="muted" style="padding-bottom:var(--sp-3)">对所有任务合计生效；改完立即生效，正在下载的任务下一块数据就按新速度走。</div>
+
     <div class="sv-card" style="margin-top:var(--sp-3)">
       <div class="list-row">
         <span class="lr-main">
@@ -4805,6 +4818,16 @@ function wireActions(root) {
     });
   });
 
+  root.querySelectorAll('#dl-limit button').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const v = Number(b.dataset.v);
+      root.querySelectorAll('#dl-limit button').forEach((x) => x.classList.toggle('is-active', x === b));
+      state.settings.download = Object.assign({}, state.settings.download, { speedLimitKB: v });
+      await bridge.settings.patch({ download: { speedLimitKB: v } });
+      toast(v === 0 ? '已取消限速' : `全局限速已设为 ${v} KB/s`);
+    });
+  });
+
   root.querySelectorAll('[data-dlcfg]').forEach((sw) => {
     sw.addEventListener('click', async () => {
       const key = sw.dataset.dlcfg;
@@ -5225,8 +5248,20 @@ function wireActions(root) {
  * 移动端
  * ------------------------------------------------------------------ */
 
-function openTabGrid() { $('#tab-grid').hidden = false; renderTabGrid(); }
-function closeTabGrid() { $('#tab-grid').hidden = true; }
+function openTabGrid() {
+  state.tabQuery = '';
+  const inp = $('#tg-search');
+  if (inp) inp.value = '';
+  $('#tab-grid').hidden = false;
+  renderTabGrid();
+  // 打开就聚焦搜索框：这个视图的入口多数时候就是想「找一个标签页」
+  if (inp) inp.focus();
+}
+
+function closeTabGrid() {
+  $('#tab-grid').hidden = true;
+  state.tabQuery = '';
+}
 function openSheet() { $('#engine-sheet').hidden = false; syncEngineUi(); }
 function closeSheet() { $('#engine-sheet').hidden = true; }
 
@@ -5983,6 +6018,25 @@ function wireUi() {
   $('#tab-new').addEventListener('click', () => createTab(newTabUrl(), state.settings.defaultEngine));
   $('#tab-list-btn').addEventListener('click', openTabGrid);
   $('#tg-close').addEventListener('click', closeTabGrid);
+  // 标签页搜索：输入即筛，Enter 跳第一个匹配，Esc 先清词再关
+  $('#tg-search').addEventListener('input', (ev) => {
+    state.tabQuery = ev.target.value || '';
+    renderTabGrid();
+  });
+  $('#tg-search').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      if ((state.tabQuery || '').trim()) { state.tabQuery = ''; ev.target.value = ''; renderTabGrid(); }
+      else closeTabGrid();
+    } else if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const q = (state.tabQuery || '').trim().toLowerCase();
+      const hit = q
+        ? state.tabs.find((t) => (t.title + ' ' + t.url).toLowerCase().includes(q))
+        : state.tabs[0];
+      if (hit) { activateTab(hit.id); closeTabGrid(); }
+    }
+  });
   $('#tg-new').addEventListener('click', () => { createTab(newTabUrl(), state.settings.defaultEngine); closeTabGrid(); });
 
   // 导航。goBack / goForward 与 canGoBack 一样要求 webview 已 dom-ready，
@@ -6578,6 +6632,7 @@ function wireUi() {
     else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); openPanel('adblock'); }
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
+    else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
     else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
     else if (mod && ev.key === 'Tab') {

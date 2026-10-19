@@ -763,6 +763,7 @@ function pumpToFile(task, chunk, res, opts) {
           limit -= b.length;
         }
         if (b.length) {
+          await task.ctx.throttle(b.length);
           await task.fh.write(b, 0, b.length, chunk.cursor);
           chunk.cursor += b.length;
           task.received += b.length;
@@ -806,6 +807,8 @@ class DownloadManager {
     this.dir = opts.dir || process.cwd();
     this.threads = opts.threads || 8;
     this.maxConcurrent = opts.maxConcurrent || 3;
+    /** 全局限速：async () => 每秒字节数，0 表示不限速 */
+    this.speedLimitFor = opts.speedLimitFor || (() => 0);
     this.onUpdate = opts.onUpdate || (() => {});
     this.headersFor = opts.headersFor || (async () => ({}));
     this.tasks = new Map();
@@ -825,7 +828,9 @@ class DownloadManager {
       onUpdate: (s) => this.onUpdate(s),
       enqueueRun: (t) => { this.queue.push(t); this.pump(); },
       pump: () => this.pump(),
-      headersFor: this.headersFor
+      headersFor: this.headersFor,
+      // 全局限速：任务写盘前都过这一道
+      throttle: (n) => this.throttle(n)
     });
     this.tasks.set(task.id, task);
     this.queue.push(task);
@@ -892,6 +897,27 @@ class DownloadManager {
       else if (t.state === 'error') error += 1;
     }
     return { active, done, error, queued: this.queue.length, speed, total: this.tasks.size };
+  }
+
+  /**
+   * 全局限速（令牌桶）。
+   *
+   * <p>放在写盘前，而不是读流前：所有任务都过这一道，合计速度才是真的合计。
+   * 返回 0 时直接放行，不占事件循环、不拖慢不限速的用户。
+   */
+  async throttle(bytes) {
+    const limit = Number(this.speedLimitFor()) || 0;
+    if (limit <= 0 || bytes <= 0) return;
+    const now = Date.now();
+    if (this._tokensAt === undefined) { this._tokensAt = now; this._tokens = 0; }
+    this._tokens = Math.min(limit, this._tokens + (now - this._tokensAt) / 1000 * limit);
+    this._tokensAt = now;
+    if (this._tokens >= bytes) { this._tokens -= bytes; return; }
+    const deficit = bytes - this._tokens;
+    this._tokens = 0; // 已有令牌算已消耗
+    await delay(Math.max(5, Math.ceil(deficit / limit * 1000)));
+    // 等待期间不要再计一次：baseline 推到结束时刻，否则会「越等越快」
+    this._tokensAt = Date.now();
   }
 
   /** 按并发上限把排队中的任务放出去 */
