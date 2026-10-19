@@ -32,20 +32,26 @@
     }
   ],
   "pc": {
-    "version": "1.0.23",
+    "version": "1.0.24",
     "changelog": [
-      "IE 模式改为真·IE11 渲染：内置原生 Trident 宿主，基于 IE 的 ActiveX / VBScript / 条件注释系统现在可以正常打开了",
-      "IE 页面支持鼠标点击、键盘输入与滚轮滚动，地址与标题会实时同步",
-      "原生宿主随安装包一起分发，不需要另外安装任何组件",
-      "设置 → 内核桥接 会如实显示 IE/Trident 当前是「原生桥接」还是「兼容层」"
+      "收藏夹栏：条目之间加分隔线；书签放不下时右侧出现「更多」菜单，列出全部书签",
+      "地址栏右侧新增分享小窗（可生成二维码），工具栏的媒体嗅探也改成小窗，不再跳整页设置",
+      "内核调整为双内核（Chromium + IE/Trident），去掉 Gecko；新增按站点自动切换内核的规则",
+      "修复 IE 模式部分网站白屏：宿主窗口改为屏幕内绘制，并去掉「窗口离屏」导致的抓空",
+      "标签页渲染进程崩溃不再留一块灰：首次自动重建，反复崩溃才提示，并记录崩溃原因便于排查",
+      "新增页内查找（Ctrl+F）、另存为 PDF、整页截图、标签页静音与音频指示",
+      "新增 Ctrl+滚轮 / Ctrl+±0 页面缩放，并按站点记住比例；新增标签页搜索（Alt+Q）",
+      "新增下载全局限速（不限速 / 256K / 512K / 1M / 2M 每秒），对所有任务合计生效",
+      "支持 ed2k / magnet 链接：识别后交给本地下载客户端，没有客户端时复制链接并提示",
+      "修复 AI 面板在网页对话模式下出现两个输入框；修复打包命令被宿主进程占用导致失败"
     ],
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.23/nova-pc-1.0.23-win-x64-setup.zip",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.24/nova-pc-1.0.23-win-x64-setup.zip",
     "size": 89483305,
     "sha256": "51f4a6df0635648f373c63082f8506ccf38311c36e49c25902cf4c80ef6e51ec",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.23/nova-pc-1.0.23-win-x64-setup.exe",
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.24/nova-pc-1.0.23-win-x64-setup.exe",
       "size": 89484604,
       "sha256": "0d552e251d03b8a9f04ab733b7b412e5f7dc23d4c5ca0af0ddd261495b5a907f"
     }
