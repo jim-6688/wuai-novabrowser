@@ -5707,6 +5707,14 @@ function applyAiMode() {
   const wv = $('#ai-webview');
   if (apiBox) apiBox.hidden = !api;
   if (wv) wv.style.display = api ? 'none' : '';
+
+  // 网页模式的对话页面**自带输入框**，底栏再摆一个就成了「两个文本框」。
+  // 网页模式下把底栏那套（textarea + 发送/清空）收起，只留「带入当前页」，
+  // 由它直接把内容注入页面输入框；API 模式没有页面输入，才需要这套。
+  const ta = $('#ai-text');
+  const acts = $('#ai-actions');
+  if (ta) ta.hidden = !api;
+  if (acts) acts.hidden = !api;
 }
 
 /** 把设置里存的 API 配置填进输入框（只填空着的，避免覆盖用户正在输入的）。 */
@@ -5779,6 +5787,18 @@ async function aiGrab() {
     text = (t && t.title ? t.title + '\n' : '') + (t && t.url ? t.url : '');
   }
   if (!text.trim()) { toast('没有可带入的内容'); return; }
+
+  // 网页模式：直接注进页面自己的输入框（底栏那个已被 applyAiMode 收起）
+  if (!aiIsApiMode()) {
+    openAiPanel();
+    const r = await aiInject(text.trim());
+    if (r === 'ok') { toast('已带入 AI 对话框'); return; }
+    // 页面还没就绪 / 找不到输入框：退回复制，别让用户以为没反应
+    try { await bridge.system.copy(text.trim()); } catch { /* 复制失败也不致命 */ }
+    toast('已复制，粘贴到对话框即可');
+    return;
+  }
+
   const ta = $('#ai-text');
   if (ta) { ta.value = (ta.value ? ta.value + '\n\n' : '') + text.trim(); ta.focus(); }
   openAiPanel();
