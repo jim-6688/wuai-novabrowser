@@ -3,8 +3,10 @@
 /* AI 面板里那个网页的「隐身」预处理（webview 的 preload）。
  *
  * DeepSeek 等站点风控很严，会把内嵌浏览器判成「使用环境异常」而拒绝渲染 —— 截图里
- * 那个报错就是它。UA 已经由内核侧给成干净 Chrome 串（见 engines.js），这里在对方
- * 脚本之前把另外几个最常被查的自动化/内嵌特征抹平。
+ * 那个报错就是它。UA 已由 webview 的 useragent 属性换成干净 Chrome 串（内核级覆盖，
+ * 请求头和 navigator.userAgent 一起换；只改请求头的 onBeforeSendHeaders 挡不住页面
+ * 脚本里读 navigator.userAgent 的风控），这里在对方脚本之前把另外几个最常被查的
+ * 自动化/内嵌特征抹平。
  *
  * **尽力而为，不保证**：风控规则不公开（还可能查 WebGL 指纹、行为等），仍可能被拦。
  * 真被拦时请用面板里的「API 模式」（用自己的 Key，走 API 请求，不经过对方网页风控）。

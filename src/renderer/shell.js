@@ -5557,6 +5557,15 @@ function wireUi() {
     // 在对方脚本之前抹平几个最常查的自动化特征（尽力而为，仍可能被拦）
     try { aiWv.setAttribute('preload', new URL('./ai-stealth.js', location.href).href); }
     catch { /* 预览等环境下拿不到绝对路径就算了 */ }
+    // UA 属性：主进程的 onBeforeSendHeaders 只改请求头，改不到页面 JS 里读的
+    // navigator.userAgent —— 默认串带着 Electron/x.y.z 令牌，DeepSeek 等风控
+    // 在脚本里一查一个准，直接判「环境异常」拒渲染。webview 的 useragent 属性
+    // 是内核级覆盖：请求头和 navigator.userAgent 一起换成干净 Chrome 串
+    //（标签页的 webview 也是这么设的，见 mountTab）。
+    try {
+      const eng = engine('chromium');
+      if (eng && eng.userAgent) aiWv.setAttribute('useragent', eng.userAgent);
+    } catch { /* 预览模式下没有引擎清单，跳过 */ }
     const flushPending = async () => {
       if (!state.aiPending) return;
       const text = state.aiPending;
