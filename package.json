@@ -44,7 +44,7 @@
     "mobile:check": "node tools/check-mobile-sync.js",
     "mobile:test": "cd android-app && gradlew.bat testDebugUnitTest",
     "mobile:build": "npm run mobile:check && cd android-app && gradlew.bat assembleDebug",
-    "host:build": "cmd /c native\\host\\build-trident.bat",
+    "host:build": "node tools/build-host.js",
     "pc:dir": "npm run host:build && electron-builder --win --x64 --dir",
     "pc:build": "npm run host:build && electron-builder --win --x64",
     "pc:zip": "node tools/make-zip.js",

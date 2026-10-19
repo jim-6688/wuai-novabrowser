@@ -23,6 +23,16 @@ if not exist "%CSC%" (
 
 if not exist "%OUTDIR%" mkdir "%OUTDIR%"
 
+REM Nova 可能正把这个宿主拉起来跑着。此时 csc 会报 CS0016（输出文件被占用），
+REM 整个 pc:build 会因此失败。直接 taskkill：没在跑时它返回非 0，忽略即可。
+REM （不要用 tasklist|find 探测 —— 在 Git Bash 的 PATH 下 find 会解析成 Unix 的 find。）
+taskkill /IM trident-host.exe /F >nul 2>&1
+if not errorlevel 1 (
+  echo [i] trident-host.exe was running - closed it so the output can be replaced.
+  REM 给系统一点时间释放文件句柄（timeout 在非交互环境里不可靠，用 ping 等）
+  ping -n 2 127.0.0.1 >nul
+)
+
 echo [1/2] Compiling with %CSC% (/platform:x86, /codepage:utf8)...
 "%CSC%" /nologo /target:exe /platform:x86 /codepage:65001 /out:"%OUT%" ^
   /reference:System.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll ^
