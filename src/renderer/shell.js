@@ -651,7 +651,7 @@ function mountTab(tab) {
   wv.dataset.tabId = String(tab.id);
   wv.hidden = true;
   // 点进网页时焦点落到 webview：Share 面板要跟着收起（网页内的点击不会冒泡到外壳文档）
-  wv.addEventListener('focus', closeOmniShare);
+  wv.addEventListener('focus', () => { closeOmniShare(); closeSniffPopover(); });
 
   wv.addEventListener('did-start-loading', () => {
     // 新一轮加载开始 → 清掉上次的失败状态（重试/换网址时错误页要收起来）
@@ -754,6 +754,7 @@ function closeTab(id) {
 function activateTab(id) {
   state.activeId = id;
   closeOmniShare(); // 切标签页时分享面板不该还挂在那儿
+  closeSniffPopover(); // 嗅探清单按标签页归属，切页了旧清单没有意义
   for (const t of state.tabs) {
     if (t.webview) t.webview.hidden = t.id !== id;
   }
@@ -1855,7 +1856,7 @@ function sniffItem(rec) {
     </div>`;
 }
 
-function buildSniffer() {
+function buildSniffer(compact = false) {
   const prefs = (state.settings && state.settings.sniffer) || {};
   const enabled = prefs.enabled !== false;
   const autoProbe = prefs.autoProbe !== false;
@@ -1900,12 +1901,17 @@ function buildSniffer() {
              播放一次页面上的媒体，或往下滚动触发懒加载，资源出现后会自动冒出来。
            </div>`));
 
-  return `
+  // 小窗模式（按钮下方那个）省掉页头与长说明：那两块在 340px 里只会把清单挤下去。
+  // 设置页仍用完整版，两者内容同源，改一处两边都变。
+  const head = compact ? '' : `
     <h2 class="sv-h2">媒体嗅探</h2>
     <div class="sv-lead">
       在响应头阶段识别页面加载的音视频与流媒体，判定依据分四级置信度，并把依据如实标在每一条上。
       识别不改写任何请求，纯旁路观察。
-    </div>
+    </div>`;
+
+  return `
+    ${head}
 
     <div class="sn-engine">
       <div class="sn-engine-head">
@@ -1974,12 +1980,12 @@ function buildSniffer() {
            ${segs.length > 200 ? `<div class="muted">仅显示前 200 条，共 ${segs.length} 条。</div>` : ''}`
         : ''}` : ''}
 
-    <div class="sv-note">
+    ${compact ? '' : `<div class="sv-note">
       嗅探只认「响应里声明了媒体类型」的资源。几种情况会漏，这里说清楚：
       用 <code>blob:</code> 或 MSE 在页面里现拼的流（如部分直播与 DRM 视频）网络上没有可下载的完整地址；
       加了密或需要特殊鉴权头的链接能嗅到、但下载可能被拒；
       加密的 HLS（<code>#EXT-X-KEY</code>）分片单独下下来也解不开。
-    </div>
+    </div>`}
   `;
 }
 
@@ -2411,6 +2417,41 @@ function closeExtPopover() {
 function toggleExtPopover() {
   if ($('#ext-popover').hidden) openExtPopover();
   else closeExtPopover();
+}
+
+/* --- 媒体嗅探小窗 ---
+ * 内容与设置页「媒体嗅探」同一份（buildSniffer），只是 compact 模式省掉页头和长说明。
+ * 这里不复制任何逻辑：开关、清空、下载这些动作仍由 wireActions 统一绑定。
+ */
+function renderSniffPopover() {
+  const body = $('#sniff-pop-body');
+  if (!body) return;
+  body.innerHTML = buildSniffer(true);
+  wireActions(body);
+}
+
+function openSniffPopover() {
+  const pop = $('#sniff-pop');
+  if (!pop) return;
+  renderSniffPopover();
+  pop.hidden = false;
+  const btn = $('#btn-sniff');
+  if (btn) btn.setAttribute('aria-expanded', 'true');
+}
+
+function closeSniffPopover() {
+  const pop = $('#sniff-pop');
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  const btn = $('#btn-sniff');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function toggleSniffPopover() {
+  const pop = $('#sniff-pop');
+  if (!pop) return;
+  if (pop.hidden) openSniffPopover();
+  else closeSniffPopover();
 }
 
 async function buildHistory() {
@@ -3883,6 +3924,7 @@ function goSettingsBack() {
 
 function openSettings(id) {
   closeDrawer();
+  closeSniffPopover(); // 整页设置盖上来时，小窗不该还浮在上面
   // 每次从外面进设置页都从一页新历史开始：上一轮「常规 → 外观」不该让这一次
   // 的返回按钮一推开门就是亮的。
   state.settingsTrail = [];
@@ -3949,6 +3991,10 @@ function refreshCurrent() {
   const read = $('#read-sheet');
   if (read && !read.hidden) renderReadSheet();
 
+  // 嗅探小窗开着时跟着刷新。预览中的 <video> 不能重绘 —— 会被拆掉、播放中断。
+  const sniffPop = $('#sniff-pop');
+  if (sniffPop && !sniffPop.hidden && !state.sniffPreview) renderSniffPopover();
+
   if (state.panel === 'menu') renderMenuPanel();
 }
 
@@ -4006,9 +4052,12 @@ function doRefreshDownloads() {
 let sniffRefreshTimer = null;
 
 function refreshSniffer(force = false) {
-  if (state.settingsSection !== 'sniffer') return;
+  // 设置页的嗅探分区 或 工具栏小窗，任一个开着就该刷
+  const pop = $('#sniff-pop');
+  const popOpen = !!(pop && !pop.hidden);
   const view = $('#settings-view');
-  if (!view || view.hidden) return;
+  const settingsOpen = state.settingsSection === 'sniffer' && !!view && !view.hidden;
+  if (!popOpen && !settingsOpen) return;
 
   if (force) {
     clearTimeout(sniffRefreshTimer);
@@ -5645,7 +5694,7 @@ function wireUi() {
   document.addEventListener('click', closeEngineMenu);
 
   $('#btn-shield').addEventListener('click', () => openPanel('adblock'));
-  $('#btn-sniff').addEventListener('click', () => openPanel('sniffer'));
+  $('#btn-sniff').addEventListener('click', () => toggleSniffPopover());
 
   /* 拼图图标 = 打开**独立的扩展小窗**（就地开关），不再直接跳进设置。
    *
@@ -5667,6 +5716,20 @@ function wireUi() {
   $('#ext-pop-manage').addEventListener('click', () => {
     closeExtPopover();
     openPanel('extensions');
+  });
+
+  // 媒体嗅探小窗：点外面 / 点网页 / 改窗口尺寸都收起
+  document.addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (t && typeof t.closest === 'function'
+        && (t.closest('#sniff-pop') || t.closest('#btn-sniff'))) return;
+    closeSniffPopover();
+  });
+  window.addEventListener('resize', closeSniffPopover);
+  $('#sniff-pop-close').addEventListener('click', closeSniffPopover);
+  $('#sniff-pop-manage').addEventListener('click', () => {
+    closeSniffPopover();
+    openPanel('sniffer');
   });
   $('#ext-pop-install').addEventListener('click', async () => {
     // 走设置页那个按钮用的**同一个函数**，不在这儿再抄一遍装扩展的逻辑
@@ -6058,7 +6121,7 @@ function wireUi() {
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;

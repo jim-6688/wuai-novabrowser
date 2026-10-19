@@ -1226,6 +1226,15 @@ svg {
  * ------------------------------------------------------------------ */
 .ext-cluster { position: relative; display: flex; align-items: center; }
 
+/* 媒体嗅探小窗：外壳复用 .dl-popover，内容按窄窗收一收 */
+.sniff-cluster { position: relative; display: flex; align-items: center; }
+/* 宽度沿用 .dl-popover 的 320（与扩展小窗一致），这里只收内部留白 */
+.sniff-popover .dl-pop-list { padding: 10px 12px; }
+.sniff-popover .sn-engine { padding: 10px; }
+/* 窄窗里五列统计会挤成一团，三列更好读 */
+.sniff-popover .sn-stats { grid-template-columns: repeat(3, 1fr); }
+.sniff-popover .sn-card .sn-item { padding: 10px 12px; }
+
 /* 扩展一行：图标 / 名字+版本 / 开关。比设置里那张卡片矮得多 ——
    这里的目标是「一眼扫完、顺手切一个」，不是读描述。 */
 .ext-pop-row {

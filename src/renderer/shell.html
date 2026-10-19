@@ -201,11 +201,26 @@
         <span class="ib-label">广告拦截</span>
         <i class="badge" id="shield-count">0</i>
       </button>
-      <button class="icon-btn has-badge has-label" id="btn-sniff" title="媒体嗅探">
-        <svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4" /><path d="M5.5 8.5l2.4 1.5-2.4 1.5z" /><path d="M14 8a3.2 3.2 0 0 1 0 5" /><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4" /></svg>
-        <span class="ib-label">媒体嗅探</span>
-        <i class="badge" id="sniff-count">0</i>
-      </button>
+      <!-- 媒体嗅探：点按钮弹出贴在下方的小窗（复用下载/扩展小窗的 .dl-popover）。
+           内容和设置里的「媒体嗅探」是同一份，只是省掉了页头和长说明；
+           底部留一个「在设置里管理」的入口，需要看完整说明时再过去。 -->
+      <div class="sniff-cluster">
+        <button class="icon-btn has-badge has-label" id="btn-sniff" title="媒体嗅探" aria-expanded="false" aria-haspopup="dialog">
+          <svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4" /><path d="M5.5 8.5l2.4 1.5-2.4 1.5z" /><path d="M14 8a3.2 3.2 0 0 1 0 5" /><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4" /></svg>
+          <span class="ib-label">媒体嗅探</span>
+          <i class="badge" id="sniff-count">0</i>
+        </button>
+        <div class="dl-popover sniff-popover" id="sniff-pop" role="dialog" aria-label="媒体嗅探" hidden>
+          <div class="dl-pop-head">
+            <span>媒体嗅探</span>
+            <button class="dl-pop-x" id="sniff-pop-close" title="收起">×</button>
+          </div>
+          <div class="dl-pop-list" id="sniff-pop-body"></div>
+          <div class="dl-pop-foot">
+            <button class="btn btn-sm" id="sniff-pop-manage">在设置里管理</button>
+          </div>
+        </div>
+      </div>
       <!-- 扩展：点图标弹出一个**独立的启用窗口**，就地开关，不必跳进设置。
            它是「快速开关」而不是「管理」—— 详情、移除、安装仍在设置里，
            所以底部留一个入口过去。两件事分开是有意的：管扩展是低频动作，
