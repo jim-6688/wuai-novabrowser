@@ -46,12 +46,12 @@
       "修复 AI 面板在网页对话模式下出现两个输入框；修复打包命令被宿主进程占用导致失败"
     ],
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.24/nova-pc-1.0.23-win-x64-setup.zip",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.24/nova-pc-1.0.24-win-x64-setup.zip",
     "size": 89494545,
     "sha256": "6fd14a6da3f1e5a8720d833d9a126b0ce0e8aa930890cd14095d7ec63f5c1e19",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.24/nova-pc-1.0.23-win-x64-setup.exe",
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.24/nova-pc-1.0.24-win-x64-setup.exe",
       "size": 89495986,
       "sha256": "7386918a5f78e11b2d4406e335e5750ee76094e7e56869c3763112774dd63086"
     }
