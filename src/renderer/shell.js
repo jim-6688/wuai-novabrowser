@@ -690,7 +690,14 @@ function mountTab(tab) {
     try { wcId = wv.getWebContentsId(); } catch { /* 还没就绪 */ }
     try { bridge.webview.contextMenu({ params: ev.params, wcId }); } catch { /* 桥没起来 */ }
   });
-  wv.addEventListener('crashed', () => { tab.crashed = true; renderTabstrip(); });
+  // 渲染进程崩了：DOM 事件能立刻收到（但不带原因），主进程还会补一条带 reason 的。
+  // 不处理的话界面只会留一块灰色（guest 未绘制的占位面），用户完全不知道发生了什么。
+  wv.addEventListener('crashed', () => {
+    tab.crashed = true;
+    tab.loadError = { code: 'crash', desc: '', url: tab.url };
+    if (activeTab() && activeTab().id === tab.id) renderPageError();
+    renderTabstrip();
+  });
   // 网页加载失败 → 显示「无法打开此网页」提示页（此前是空白）。
   // errorCode -3 是 ERR_ABORTED（被新导航/主动中断取消），不算真的失败。
   wv.addEventListener('did-fail-load', (ev) => {
@@ -787,7 +794,8 @@ function pageErrorReason(err) {
     '-7': '连接超时',
     '-107': 'SSL 证书或协议错误',
     '-109': '服务器无法访问',
-    '-2': '加载失败'
+    '-2': '加载失败',
+    crash: '页面渲染进程崩溃，已中断渲染；点「重试」重新加载'
   };
   const m = map[String(err && err.code)];
   const d = err && err.desc ? '（' + err.desc + '）' : '';
@@ -6090,7 +6098,22 @@ function wireUi() {
   $('#pe-retry') && $('#pe-retry').addEventListener('click', () => {
     const t = activeTab();
     if (!t) return;
-    t.loadError = null; renderPageError();
+    const crashed = !!(t.loadError && t.loadError.code === 'crash');
+    t.loadError = null;
+    t.crashed = false;
+    renderPageError();
+    // 渲染进程已经没了，reload() 对它是无效的 —— 必须重建渲染载体
+    if (crashed) {
+      const url = t.url;
+      const engineId = t.engineId;
+      destroyTab(t);
+      t.wcId = null;
+      t.url = url;
+      t.engineId = engineId;
+      mountTab(t);
+      activateTab(t.id);
+      return;
+    }
     if (t.webview && typeof t.webview.reload === 'function') t.webview.reload();
     else navigate(t.id, t.url);
   });
@@ -6216,6 +6239,18 @@ function wireBridgeEvents() {
   });
 
   bridge.on('sniff:state', (s) => { state.sniffStats = s; });
+
+  // 渲染进程退出（主进程 render-process-gone）：带 reason，比 DOM 的 crashed 更具体。
+  // 主进程按 webContents.id 发过来，这里用 tab.wcId 反查是哪一页。
+  bridge.on('tab:crashed', (p) => {
+    if (!p || p.id == null) return;
+    const t = state.tabs.find((x) => x.wcId === p.id);
+    if (!t) return;
+    t.crashed = true;
+    t.loadError = { code: 'crash', desc: p.reason || '', url: t.url };
+    if (activeTab() && activeTab().id === t.id) renderPageError();
+    renderTabstrip();
+  });
 
   /* --- 无图模式 --- */
   bridge.on('mobile:stats', (s) => {
