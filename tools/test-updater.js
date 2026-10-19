@@ -79,9 +79,11 @@ function serveManifest(body) {
     const srv = await serveManifest({
       version: '1.6.2',
       versionCode: 15,
-      changelog: ['修了一处', '又修了一处'],
+      // 顶层是 Android 的日志：PC 更新窗口不该把这一整份读出来
+      changelog: ['安卓一', '安卓二', '安卓三', '安卓四'],
       pc: {
         version: '1.0.1',
+        changelog: ['修了一处', '又修了一处'],
         url: 'https://example.test/nova-pc-1.0.1-win-x64-setup.zip',
         size: 12345,
         sha256: 'abc123'
@@ -95,7 +97,9 @@ function serveManifest(body) {
     check('带出下载地址', /1\.0\.1.*\.zip$/.test(r.url || ''), r.url);
     check('带出 sha256 与 size（清单里那一份，不重新算）',
       r.sha256 === 'abc123' && r.size === 12345);
-    check('带出更新日志', Array.isArray(r.notes) && r.notes.length === 2);
+    check('更新日志只取 pc.changelog（不读顶层 Android 全量日志）',
+      Array.isArray(r.notes) && r.notes.length === 2 && r.notes[0] === '修了一处',
+      JSON.stringify(r.notes));
   }
 
   // 同版本 → 明确说已是最新，不该提示用户

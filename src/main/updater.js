@@ -165,7 +165,9 @@ async function check(localVersion, manifestUrl, httpGet) {
   return {
     updateAvailable: true,
     version: m.pc.version,
-    notes: Array.isArray(m.changelog) ? m.changelog : [],
+    // 只读 PC 自己这一版的更新日志。顶层 changelog 是 Android 的历史累加，
+    // 拿来当 PC 的更新说明会把整份日志都铺进更新窗口。
+    notes: Array.isArray(m.pc.changelog) ? m.pc.changelog : [],
     url: dl.url,
     sha256: dl.sha256 || '',
     size: dl.size || 0,
