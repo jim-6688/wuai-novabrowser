@@ -43,6 +43,7 @@ const EVENT_CHANNELS = [
   'tab:loading',
   'tab:dom-ready',
   'tab:crashed',
+  'app:toast',
   'tabs:open-request',
   'download:update',
   'download:taken-over',

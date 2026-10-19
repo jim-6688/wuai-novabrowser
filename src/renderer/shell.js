@@ -3090,6 +3090,10 @@ async function buildDownloads() {
       <input id="dl-url" placeholder="粘贴文件地址（http / https）" spellcheck="false" value="${esc(state.dlDraft)}" />
       <button class="btn btn-primary" data-act="dl-start">开始下载</button>
     </div>
+    <div class="muted" style="padding-top:var(--sp-2)">
+      ed2k / 磁力链接不用在这里粘 —— 网页里点一下就会交给系统里注册的下载客户端，
+      没装客户端时会提示复制链接。
+    </div>
 
     ${active.length ? `
       <div class="panel-label">进行中（${active.length}）</div>
@@ -6481,6 +6485,9 @@ function wireBridgeEvents() {
     if (!t) return;
     handleTabCrash(t, p.reason || '');
   });
+
+  // 主进程发来的轻提示（例如 ed2k 链接没有客户端可用、已复制到剪贴板）
+  bridge.on('app:toast', (m) => toast(String(m || '')));
 
   /* --- 无图模式 --- */
   bridge.on('mobile:stats', (s) => {

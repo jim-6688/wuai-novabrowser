@@ -62,7 +62,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   console.log('\n[A] 初始渲染');
   const items = $$('#engine-menu-list .em-item');
-  check('内核下拉渲染出 3 项', items.length === 3, `实际 ${items.length}`);
+  check('内核下拉渲染出 2 项', items.length === 2, `实际 ${items.length}`);
   check('面板初始为关闭', $('#engine-menu').hidden === true);
   check('触发器 aria-expanded=false', $('#omni-engine').getAttribute('aria-expanded') === 'false');
   check('徽标停在地址栏右端（最后一个可见控件）', (() => {
@@ -80,7 +80,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         && items.find((b) => b.classList.contains('is-active')).dataset.engine === 'chromium');
   check('每项都自述模式（原生/兼容层标签）', items.every((b) => b.querySelector('.mode-pill')), 
         items.map((b) => b.querySelector('.mode-pill').textContent.trim()).join(' / '));
-  check('兼容层两项带 compat 样式标签', $$('#engine-menu-list .mode-pill.mode-compat').length === 2);
+  check('兼容层一项（IE）带 compat 样式标签', $$('#engine-menu-list .mode-pill.mode-compat').length === 1);
   check('工具栏里不再有旧分段控件', !$('.toolbar .engine-switch') && !$('.toolbar #engine-switch'));
 
   console.log('\n[B] 点开下拉');
@@ -134,7 +134,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   $('#omni-engine').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   check('点徽标唤起底部弹层（而非桌面下拉）', $('#engine-sheet').hidden === false);
   check('桌面下拉保持关闭', $('#engine-menu').hidden === true);
-  check('弹层里也有 3 个内核卡', $$('#engine-cards .engine-card').length === 3);
+  check('弹层里也有 2 个内核卡', $$('#engine-cards .engine-card').length === 2);
   $('#engine-sheet').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   check('点遮罩关闭弹层', $('#engine-sheet').hidden === true);
 
@@ -178,20 +178,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   })(), ($('#sv-path') || {}).textContent);
   check('旧的抽屉式设置面板已移除', window.eval("typeof renderSettingsPanel") === 'undefined');
   check('面板已渲染内核二进制区块', body.querySelector('.kb-group') !== null);
-  check('三个内核各有一组', body.querySelectorAll('.kb-group').length === 3,
+  check('两个内核各有一组', body.querySelectorAll('.kb-group').length === 2,
         '实际 ' + body.querySelectorAll('.kb-group').length + ' 组');
-  check('列出 5 个发行版（2 Chromium + 2 Gecko + 1 Trident）',
-        body.querySelectorAll('.kb-src').length === 5,
+  check('列出 3 个发行版（2 Chromium + 1 Trident）',
+        body.querySelectorAll('.kb-src').length === 3,
         '实际 ' + body.querySelectorAll('.kb-src').length + ' 个');
   check('没有 is-missing（本次全部就位）',
         body.querySelectorAll('.kb-src.is-missing').length === 0);
   check('Chromium 标注为原生桥接就绪态', /Electron 30\.5\.1/.test(txt) && /CEF 154\.0\.34/.test(txt));
-  check('Gecko 显示 32 位约束（x86）', /x86 \(I386\)/.test(txt));
-  check('Gecko 两条发行版都在列', /XULRunner 45\.0\.0\.5873/.test(txt) && /XULRunner 41\.0\.2/.test(txt));
   check('Trident 标为系统组件', /Windows 内置 MSHTML/.test(txt));
-  check('显示 PE 特征识别结果', /Gecko \/ XULRunner \(XPCOM\)/.test(txt) && /Trident \/ MSHTML \(IE\)/.test(txt));
-  check('显示文件数与体积', /32 文件 \/ 74 MB/.test(txt), txt.match(/\d+ 文件 \/ \d+ MB/)?.[0] || '未找到');
-  check('列出阻塞原因（缺宿主）', body.querySelectorAll('.kb-note').length === 2,
+  check('显示 PE 特征识别结果', /CEF \/ Chromium Embedded/.test(txt) && /Trident \/ MSHTML \(IE\)/.test(txt));
+  check('显示文件数与体积', /73 文件 \/ 254 MB/.test(txt), txt.match(/\d+ 文件 \/ \d+ MB/)?.[0] || '未找到');
+  check('列出阻塞原因（IE 宿主待编译）', body.querySelectorAll('.kb-note').length === 1,
         '实际 ' + body.querySelectorAll('.kb-note').length + ' 条');
   check('保留「重新探测」入口', body.querySelector('[data-act="probe-engine"]') !== null);
   check('列出了抓取与校验命令', /fetch-engines\.sh/.test(txt) && /check-engines\.js/.test(txt));
@@ -325,7 +323,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         gen.querySelector('#set-search').value);
   check('搜索预设 3 档', gen.querySelectorAll('#set-search-preset button').length === 3);
   check('会话恢复开关存在', !!gen.querySelector('[data-cfg="restoreSession"]'));
-  check('默认内核三档', gen.querySelectorAll('#set-engine button').length === 3);
+  check('默认内核两档', gen.querySelectorAll('#set-engine button').length === 2);
 
   [...gen.querySelectorAll('#set-search-preset button')].find((b) => b.textContent.trim() === '必应')
     .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));

@@ -18,6 +18,7 @@ const { pathToFileURL } = require('url');
 const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard, safeStorage, Menu, webContents } = require('electron');
 const QRCode = require('qrcode'); // 本地生成二维码（分享用），不把网址丢第三方二维码接口
 const creds = require('./credentials'); // 从 Edge 导入已存密码（本地解密）
+const protocolLinks = require('./protocol-links'); // ed2k / magnet 交给本地客户端
 
 const settings = require('./settings');
 // 新标签页的宿主侧逻辑。它是 src/renderer 下的双导出模块（既被外壳页面当
@@ -735,11 +736,33 @@ function logRendererGone(contents, details) {
   } catch { /* 写日志失败不该影响运行 */ }
 }
 
+/**
+ * 交给系统里注册的 eD2k / 磁力客户端。
+ *
+ * <p>只在这里做「弹确认 + 拉起」的编排，协议解析与文案都在 protocol-links.js，
+ * 那部分是纯函数，能在 Node 里直接测。
+ */
+function handleExternalDownloadLink(url) {
+  protocolLinks.handleExternalLink({
+    url,
+    dialog,
+    shell,
+    clipboard,
+    parent: mainWindow,
+    toast: (msg) => send('app:toast', String(msg || ''))
+  }).catch(() => { /* 拉起外部程序失败不该影响浏览 */ });
+}
+
 function wireContents(contents) {
   const engineId = sessionEngineMap.get(contents.session) || 'chromium';
   const engine = registry.get(engineId);
 
   contents.setWindowOpenHandler(({ url, disposition }) => {
+    // ed2k / magnet 不该开成一个标签页 —— 浏览器本身下不了，交给外部客户端
+    if (protocolLinks.isExternalDownloadLink(url)) {
+      handleExternalDownloadLink(url);
+      return { action: 'deny' };
+    }
     send('tabs:open-request', { url, disposition, background: disposition === 'background-tab' });
     return { action: 'deny' };
   });
@@ -755,6 +778,14 @@ function wireContents(contents) {
   // 解析规则只有 src/renderer/ntp.js 一份，不在这里再写一遍。
   contents.on('will-navigate', (event, url) => {
     if (typeof url !== 'string') return;
+
+    // 同标签点 ed2k: / magnet: 会走到这里（实测确实会触发 will-navigate）。
+    // 不拦的话 Electron 会当成一次导航，最后以 ERR_UNKNOWN_URL_SCHEME 失败。
+    if (protocolLinks.isExternalDownloadLink(url)) {
+      event.preventDefault();
+      handleExternalDownloadLink(url);
+      return;
+    }
 
     /* 拖入扩展**落在网页区域**时走的是这一条，不是外壳的 document.drop。
      *
