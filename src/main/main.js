@@ -188,6 +188,23 @@ async function bootstrap() {
   wireDownloads(session.defaultSession, 'chromium');
   wireSniffer(session.defaultSession);
 
+  // 6.5) 内核桥接：原生宿主（trident/gecko host）跑起来后，把它的事件转发给渲染进程。
+  // 只有 resolve 到 bridge 的内核才有运行中的宿主进程；compat 内核不在此列。
+  // host 通过 NDJSON 发出的 frame/title/url/cursor/log/error 都原样转出去（附上 engineId），
+  // 供渲染进程把帧画到标签页、同步地址/标题。
+  const HOST_FWD_EVENTS = ['frame', 'title', 'url', 'cursor', 'log', 'error'];
+  for (const engine of registry.engines) {
+    if (!engine.host) continue;
+    for (const ev of HOST_FWD_EVENTS) {
+      engine.host.on(ev, (msg) => {
+        if (msg && typeof msg === 'object') send('host:event', Object.assign({ engineId: engine.id }, msg));
+      });
+    }
+    engine.host.on('exit', (code) => {
+      console.warn(`[bridge] ${engine.id}-host 退出，code=${code}`);
+    });
+  }
+
   // 7) 扩展：统一装到 chromium 内核 session（Chromium 扩展实现的宿主）
   // 解包缓存目录。单独提一个变量：从别的浏览器导入扩展时也要往这里复制
   extWorkDir = path.join(app.getPath('userData'), 'extensions');
@@ -1038,6 +1055,17 @@ function registerIpc() {
   handle('engine:re-resolve', async (forceCompat) => {
     await registry.resolveAll({ forceCompat: !!forceCompat });
     return registry.list();
+  });
+  // 渲染进程 → 原生宿主的指令通道（create/navigate/resize/input/eval/destroy/activate/stop）。
+  // 按 engineId 路由到对应内核的 NativeKernelHost；宿主未运行（compat 模式）时优雅返回错误。
+  handle('host:cmd', async ({ engineId, t, payload, expectReply } = {}) => {
+    const engine = registry.get(engineId);
+    if (!engine || !engine.host) return { ok: false, message: `未知内核：${engineId}` };
+    try {
+      return await engine.host.send(t, payload || {}, { expectReply: expectReply !== false, timeout: 8000 });
+    } catch (err) {
+      return { ok: false, message: err.message };
+    }
   });
 
   handle('adblock:stats', () => adblock.statsSnapshot());

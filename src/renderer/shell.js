@@ -13,6 +13,13 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 const bridge = window.nova;
 
 /**
+ * 内核桥接视图登记：viewId（= 标签页 id）→ { wrap, canvas, engineId }。
+ * 主进程转发来的 host:event（frame/title/url/cursor）按 viewId 找到对应画布并绘制。
+ * 只有 resolve 到 bridge 的内核（真·trident/gecko 宿主）才会进这里；compat 内核不在此列。
+ */
+const bridgeViews = new Map();
+
+/**
  * 地址栏空着时那句提示，**开脚本时从 HTML 里抄一次**。
  *
  * 不在 JS 里再写一份字符串：写两份就等于两处都得记得改。也不能等第一次
@@ -436,6 +443,163 @@ function createTab(url, engineId, { activate = true } = {}) {
   return tab;
 }
 
+/* ------------------------------------------------------------------ *
+ * 内核桥接（bridge 模式）：真·trident/gecko 宿主渲染，画面以帧的形式推过来
+ * ------------------------------------------------------------------ */
+
+/** 宿主推来的事件：按 viewId 找到画布并画帧 / 同步地址标题 / 光标 */
+function onHostEvent(msg) {
+  if (!msg || typeof msg.viewId === 'undefined') return;
+  const v = bridgeViews.get(msg.viewId);
+  if (!v) return;
+  const tab = state.tabs.find((t) => t.id === msg.viewId);
+  switch (msg.t) {
+    case 'frame':
+      paintBridgeFrame(v.canvas, msg);
+      break;
+    case 'url':
+      if (tab) { tab.url = msg.url; tab.loading = false; if (tab.id === state.activeId) syncOmnibox(); }
+      renderTabstrip(); renderTabGrid();
+      break;
+    case 'title':
+      if (tab) tab.title = msg.title || tab.title;
+      renderTabstrip(); renderTabGrid();
+      break;
+    case 'cursor':
+      v.canvas.style.cursor = (msg.cursor === 'pointer') ? 'pointer' : 'default';
+      break;
+    case 'error':
+      console.warn('[bridge] 宿主报错：', msg.message);
+      break;
+    default:
+      break;
+  }
+}
+
+/** base64（无 Buffer 依赖）→ Uint8Array */
+function base64ToBytes(b64) {
+  const bin = atob(b64);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+/** 把宿主推来的 BGRA 原始像素画到 canvas（BGRA → RGBA 后 putImageData，比经 PNG 更快） */
+function paintBridgeFrame(canvas, msg) {
+  const w = msg.w | 0;
+  const h = msg.h | 0;
+  if (w <= 0 || h <= 0) return;
+  let bytes;
+  try { bytes = base64ToBytes(msg.data); } catch { return; }
+  if (bytes.length < w * h * 4) return;
+  const rgba = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < rgba.length; i += 4) {
+    rgba[i] = bytes[i + 2];     // R
+    rgba[i + 1] = bytes[i + 1]; // G
+    rgba[i + 2] = bytes[i];     // B
+    rgba[i + 3] = bytes[i + 3]; // A
+  }
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (ctx) ctx.putImageData(new ImageData(rgba, w, h), 0, 0);
+}
+
+/** 把 canvas 上的鼠标 / 键盘 / 滚轮事件转成宿主 input 指令 */
+function wireBridgeInput(canvas, engineId, viewId) {
+  const pos = (ev) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: Math.round(ev.clientX - r.left), y: Math.round(ev.clientY - r.top) };
+  };
+  canvas.tabIndex = 0; // 让 canvas 能收键盘焦点
+  canvas.addEventListener('mousedown', (ev) => {
+    const p = pos(ev);
+    canvas.focus();
+    bridge.host.cmd({ engineId, t: 'input', payload: { viewId, kind: 'mouse', type: 'down', button: ev.button === 2 ? 'right' : 'left', x: p.x, y: p.y } }).catch(() => {});
+  });
+  canvas.addEventListener('mouseup', (ev) => {
+    const p = pos(ev);
+    bridge.host.cmd({ engineId, t: 'input', payload: { viewId, kind: 'mouse', type: 'up', button: ev.button === 2 ? 'right' : 'left', x: p.x, y: p.y } }).catch(() => {});
+  });
+  canvas.addEventListener('mousemove', (ev) => {
+    const p = pos(ev);
+    bridge.host.cmd({ engineId, t: 'input', payload: { viewId, kind: 'mouse', type: 'move', x: p.x, y: p.y } }).catch(() => {});
+  });
+  canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
+  canvas.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    const p = pos(ev);
+    bridge.host.cmd({ engineId, t: 'input', payload: { viewId, kind: 'wheel', deltaX: ev.deltaX, deltaY: ev.deltaY, x: p.x, y: p.y } }).catch(() => {});
+  }, { passive: false });
+  canvas.addEventListener('keydown', (ev) => {
+    const key = ev.key;
+    if (key && key.length === 1) {
+      bridge.host.cmd({ engineId, t: 'input', payload: { viewId, kind: 'text', text: key } }).catch(() => {});
+    } else {
+      bridge.host.cmd({ engineId, t: 'input', payload: { viewId, kind: 'key', type: 'down', key } }).catch(() => {});
+    }
+    if (key === 'Tab' || key === ' ') ev.preventDefault();
+  });
+}
+
+/** bridge 模式挂载：用 canvas 承接宿主帧，而不是 <webview> */
+function mountBridgeTab(tab, e) {
+  const host = $('#viewport');
+  const wrap = document.createElement('div');
+  wrap.className = 'bridge-view';
+  wrap.dataset.tabId = String(tab.id);
+  wrap.__bridge = true;
+  wrap.hidden = true;
+
+  const canvas = document.createElement('canvas');
+  canvas.className = 'bridge-canvas';
+  wrap.appendChild(canvas);
+
+  // 让外壳其余代码把 wrap 当成 webview 来操作：隐藏 / 移除 / 读 getWebContentsId 都不崩
+  wrap.loadURL = (url) => {
+    tab.loading = true; renderTabstrip();
+    bridge.host.cmd({ engineId: e.id, t: 'navigate', payload: { viewId: tab.id, url } }).catch(() => {});
+  };
+  wrap.getWebContentsId = () => null; // 桥接视图没有真实 webContents（嗅探/广告拦截按内核 session 不覆盖宿主）
+  wrap.setAttribute = () => {};       // useragent / partition 等属性对桥接无意义
+  wrap.dispatchEvent = wrap.dispatchEvent.bind(wrap);
+
+  bridgeViews.set(tab.id, { wrap, canvas, engineId: e.id });
+  wireBridgeInput(canvas, e.id, tab.id);
+
+  // 尺寸变化时（含切到可见）通知宿主；隐藏态尺寸为 0 不发送
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => {
+      const r = canvas.getBoundingClientRect();
+      const w = Math.round(r.width), h = Math.round(r.height);
+      if (w > 0 && h > 0) bridge.host.cmd({ engineId: e.id, t: 'resize', payload: { viewId: tab.id, w, h } }).catch(() => {});
+    });
+    ro.observe(canvas);
+  }
+
+  host.appendChild(wrap);
+  tab.webview = wrap;
+  tab.wcId = null;
+
+  // 创建视图（默认尺寸；激活后再 resize 成真实尺寸），并首屏导航
+  bridge.host.cmd({ engineId: e.id, t: 'create', payload: { viewId: tab.id, w: 1024, h: 768 } }).catch(() => {});
+  if (tab.url) wrap.loadURL(tab.url);
+
+  renderTabstrip();
+  renderTabGrid();
+}
+
+/** 切到某个 bridge 标签页时，让宿主把对应视图提到前台（不重新导航）并校准尺寸 */
+function activateBridgeView(tab) {
+  const v = bridgeViews.get(tab.id);
+  if (!v) return;
+  const r = v.canvas.getBoundingClientRect();
+  const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+  bridge.host.cmd({ engineId: tab.engineId, t: 'activate', payload: { viewId: tab.id } }).catch(() => {});
+  bridge.host.cmd({ engineId: tab.engineId, t: 'resize', payload: { viewId: tab.id, w, h } }).catch(() => {});
+}
+
 /** 按标签页当前内核属性创建渲染载体 */
 function mountTab(tab) {
   const host = $('#viewport');
@@ -469,6 +633,12 @@ function mountTab(tab) {
     tab.wcId = tab.id;
     renderTabstrip();
     renderTabGrid();
+    return;
+  }
+
+  // bridge 模式（真·原生宿主）：用 canvas 承接宿主帧，不走 <webview>
+  if (e.mode === 'bridge') {
+    mountBridgeTab(tab, e);
     return;
   }
 
@@ -547,6 +717,11 @@ function mountTab(tab) {
 }
 
 function destroyTab(tab) {
+  // 桥接视图：先通知宿主销毁对应视图，再从登记里移除
+  if (bridgeViews.has(tab.id)) {
+    bridge.host.cmd({ engineId: tab.engineId, t: 'destroy', payload: { viewId: tab.id } }).catch(() => {});
+    bridgeViews.delete(tab.id);
+  }
   if (tab.webview && tab.webview.parentNode) tab.webview.parentNode.removeChild(tab.webview);
   tab.webview = null;
   // 标签页没了，它嗅到的资源也一并释放（主进程侧销毁 webContents 时同样会清）
@@ -579,6 +754,9 @@ function activateTab(id) {
   for (const t of state.tabs) {
     if (t.webview) t.webview.hidden = t.id !== id;
   }
+  // 切到 bridge 标签页：让宿主把对应视图提到前台并校准尺寸（不重新导航）
+  const at = activeTab();
+  if (at && at.webview && at.webview.__bridge) activateBridgeView(at);
   renderTabstrip();
   renderTabGrid();
   syncOmnibox();
@@ -6016,6 +6194,8 @@ function wireBridgeEvents() {
     if (url) createTab(url, activeTab() ? activeTab().engineId : state.settings.defaultEngine);
   });
   bridge.on('shell:viewport', applyLayout);
+  // 内核桥接：原生宿主推来的事件（frame/title/url/cursor）。compat 内核不会发。
+  bridge.on('host:event', onHostEvent);
 
   // 主进程抓到一份新图标。重读一次那张表（同名主机也要重读 —— 内容变了）。
   // 这条推送是必须的：图标是异步到的，不推的话书签格会一直停在首字母上，

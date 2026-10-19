@@ -708,6 +708,11 @@ svg {
 }
 .viewport webview[hidden] { display: none; }
 
+/* 内核桥接（真·trident/gecko 宿主）：canvas 承接宿主帧，同样铺满视口 */
+.bridge-view { position: absolute; inset: 0; background: #fff; }
+.bridge-view[hidden] { display: none; }
+.bridge-canvas { width: 100%; height: 100%; display: block; outline: none; }
+
 .empty-state:not([hidden]) {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;

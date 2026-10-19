@@ -535,8 +535,8 @@
                 <div class="cmp-col">
                     <div class="cmp-hd">
                         <span class="cmp-os">Windows</span>
-                        <strong>电脑版 · v1.0.22</strong>
-                        <span class="cmp-size">约 74 MB</span>
+                        <strong>电脑版 · v1.0.23</strong>
+                        <span class="cmp-size">约 85 MB</span>
                     </div>
                     <ul class="cmp-list">
                         <li><b>扩展</b><span>拖入 .crx 即自动安装</span></li>
@@ -637,7 +637,7 @@
                     <h3><span class="tag b">取舍</span>为什么不内置内核</h3>
                     <p>Android 版安装包不足 400 KB，是因为 APK 中<b>零个 .so</b>——渲染交由系统 WebView（Chromium）完成。
                        换来的是极小的体积与更低的内存占用；代价是内核版本跟随系统，无法独立升级。
-                       桌面版同理不内置内核，但体积极大（约 74 MB），因为三档运行时各自携带了一份。
+                       桌面版同理不内置内核，但体积极大（约 85 MB），因为三档运行时各自携带了一份。
                        我们认为对多数用户这是值得的取舍，但你应当了解这笔账。</p>
                 </div>
                 <div class="card">
@@ -671,65 +671,58 @@
                 <p>两端分别提供安装包，官网直链与 Gitee Releases 内容一致、互为备份，任选其一即可。</p>
             </div>
 
-            <!-- 手机版（Android）。下列版本号与下载链接由 assets/js/app.js
-                 在页面加载时从 version.json 写入（它认的 id 只有这几个：
-                 verLatest / dlVer / dlStamp / dlBtns）。
+            <!-- 两个平台各包一层 .dl-plat：app.js 会按访问设备把对应平台排到前面
+                 （手机访问 → 手机版靠前；电脑访问 → PC 版靠前）。
 
-                 **其余全是硬编码的，改版本时得手动跟着改** —— 已经漏过两次
-                 （漏一次官网就一直显示旧版本号与旧下载链接，而页面看起来
-                 完全正常，没人会去查）。要手动改的一共这几处：
-                   · 页首的「最新版本」（含版本码括号）
-                   · 手机版 facts 里的 <li>版本码</li>
-                   · PC 版 facts 里的 <li>版本</li>
-                   · 任何形如 v旧版本号 / nova-旧版本号 的静态链接 -->
-                 
-            <h3 class="dl-os">Android 手机版</h3>
-            <div class="dl-box">
-                <div class="dl-version">
-                    <strong id="dlVer">v1.6.5</strong>
-                    <span id="dlStamp">更新于 2026-10-16</span>
+                 版本号 / 下载按钮由 assets/js/app.js 从 version.json 写入，它认的 id 只有
+                 verLatest / dlVer / dlStamp / dlBtns。**其余静态文案是硬编码的**，改版本时
+                 要手动跟随：页首「最新版本」、手机版 facts 的版本码、PC 版 facts 的版本、
+                 以及任何形如 v旧版本号 / nova-旧版本号 的静态链接。 -->
+
+            <div class="dl-plat" data-plat="android">
+                <h3 class="dl-os">Android 手机版</h3>
+                <div class="dl-box">
+                    <div class="dl-version">
+                        <strong id="dlVer">v1.6.5</strong>
+                        <span id="dlStamp">更新于 2026-10-16</span>
+                        <span class="dl-count" id="dlCountAndroid" hidden></span>
+                    </div>
+                    <p class="dl-note" id="dlNote">安装包大小约 476 KB。安装前请在系统设置中允许来自此来源的应用。</p>
+                    <div class="dl-list" id="dlBtns">
+                        <a class="btn btn-primary btn-lg" href="download/nova-1.6.5.apk" data-dl="android" download>官网直链 · v1.6.5</a>
+                        <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.5/nova-1.6.5.apk" data-dl="android" download>Gitee Releases · v1.6.5</a>
+                    </div>
+                    <ul class="dl-facts" id="dlFacts">
+                        <li><span>版本</span><span>1.6.5</span></li>
+                        <li><span>版本码</span><span>18</span></li>
+                        <li><span>更新日期</span><span>2026-10-15</span></li>
+                    </ul>
                 </div>
-                <p class="dl-note" id="dlNote">安装包大小约 476 KB。安装前请在系统设置中允许来自此来源的应用。</p>
-                <div class="dl-list" id="dlBtns">
-                    <a class="btn btn-primary btn-lg" href="download/nova-1.6.5.apk" download>官网直链 · v1.6.5</a>
-                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.5/nova-1.6.5.apk" download>Gitee Releases · v1.6.5</a>
-                </div>
-                <ul class="dl-facts" id="dlFacts">
-                    <li><span>版本</span><span>1.6.5</span></li>
-                    <li><span>版本码</span><span>18</span></li>
-                    <li><span>更新日期</span><span>2026-10-15</span></li>
-                </ul>
             </div>
 
-            <!-- PC 版（Windows）。安装包走 Gitee Release 附件（78MB 不进 git 仓库），
-     官网这里只放指向 Gitee 的下载按钮。
-
-     ZIP 与 EXE 两种形式都给：ZIP 为主推（浏览器对「直接下载 .exe」会弹
-     「不常下载的文件」风险提示，套一层压缩包之后下载这一步就干净了），
-     EXE 作为不便解压时的直选项。两者内容一致，同一个安装程序。
-
-     边界要说清楚：这只解决「下载」这一步。EXE 未做代码签名，
-     首次运行 Windows 可能提示「未知发布者」；用 Windows 自带解压器解压时，
-     「来自网络」标记还会传给解压产物 —— 根治要么买代码签名证书，
-     要么用 7-Zip 之类不传播该标记的工具解压。 -->
-            <h3 class="dl-os">Windows 电脑版</h3>
-            <div class="dl-box">
-                <div class="dl-version">
-                    <strong id="dlPcVer">v1.0.22</strong>
-                    <span>Windows x64</span>
+            <!-- PC 版：安装包走 Gitee Release 附件（约 85 MB，不进 git 仓库），官网只放外链。
+                 ZIP 为主推——直接下 .exe 会被部分浏览器提示「不常下载的文件」。 -->
+            <div class="dl-plat" data-plat="pc">
+                <h3 class="dl-os">Windows 电脑版</h3>
+                <div class="dl-box">
+                    <div class="dl-version">
+                        <strong id="dlPcVer">v1.0.23</strong>
+                        <span>Windows x64</span>
+                        <span class="dl-count" id="dlCountPc" hidden></span>
+                    </div>
+                    <p class="dl-note">桌面版约 85 MB，提供 <b>ZIP 压缩包</b>与 <b>EXE 安装程序</b>两种形式，内容完全一致，解压或直接运行均可。
+                       <b>建议优先选 ZIP</b>：部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示，套一层压缩包后下载这一步更干净。
+                       安装程序未做代码签名，首次运行时 Windows 可能提示「未知发布者」——这是自签包的固有现象，不是文件损坏。</p>
+                    <div class="dl-list">
+                        <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.23/nova-pc-1.0.23-win-x64-setup.zip" data-dl="pc" download>Gitee Releases · ZIP 压缩包（推荐）</a>
+                        <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.23/nova-pc-1.0.23-win-x64-setup.exe" data-dl="pc" download>Gitee Releases · EXE 安装程序</a>
+                    </div>
+                    <ul class="dl-facts">
+                        <li><span>版本</span><span>1.0.23</span></li>
+                        <li><span>平台</span><span>Windows x64</span></li>
+                        <li><span>大小</span><span>约 85 MB</span></li>
+                    </ul>
                 </div>
-                <p class="dl-note">桌面版约 74 MB，提供 <b>ZIP 压缩包</b>与 <b>EXE 安装程序</b>两种形式，内容完全一致，解压或直接运行均可。
-                   <b>建议优先选 ZIP</b>：部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示，套一层压缩包后下载这一步更干净。
-                   安装程序未做代码签名，首次运行时 Windows 可能提示「未知发布者」——这是自签包的固有现象，不是文件损坏。</p>
-                <div class="dl-list">
-                    <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.22/nova-pc-1.0.22-win-x64-setup.zip" download>Gitee Releases · ZIP 压缩包（推荐）</a>
-                    <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.22/nova-pc-1.0.22-win-x64-setup.exe" download>Gitee Releases · EXE 安装程序</a>
-                </div>
-                <ul class="dl-facts">
-                    <li><span>版本</span><span>1.0.22</span></li>
-                    <li><span>平台</span><span>Windows x64</span></li>
-                    <li><span>大小</span><span>约 74 MB</span></li>
-                </ul>
             </div>
         </div>
     </section>

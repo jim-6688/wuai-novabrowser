@@ -1,7 +1,7 @@
 {
   "name": "nova-browser",
   "productName": "吾爱Nova浏览器",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "private": true,
   "description": "多内核浏览器原型：Chromium / Gecko / IE(Trident) 内核切换，PC 与移动双端，内置广告拦截，支持 Chromium 插件与火狐扩展",
   "author": "WuAi",
@@ -44,8 +44,9 @@
     "mobile:check": "node tools/check-mobile-sync.js",
     "mobile:test": "cd android-app && gradlew.bat testDebugUnitTest",
     "mobile:build": "npm run mobile:check && cd android-app && gradlew.bat assembleDebug",
-    "pc:dir": "electron-builder --win --x64 --dir",
-    "pc:build": "electron-builder --win --x64",
+    "host:build": "cmd /c native\\host\\build-trident.bat",
+    "pc:dir": "npm run host:build && electron-builder --win --x64 --dir",
+    "pc:build": "npm run host:build && electron-builder --win --x64",
     "pc:zip": "node tools/make-zip.js",
     "publish:gitee": "node tools/publish-gitee.js",
     "test:favicon": "node tools/test-favicon-cache.js",
@@ -61,9 +62,13 @@
     "files": [
       "src/**/*",
       "assets/**/*",
+      "native/bin/**/*",
       "package.json"
     ],
     "asar": true,
+    "asarUnpack": [
+      "native/bin/**/*"
+    ],
     "compression": "maximum",
     "win": {
       "icon": "assets/icon/nova.ico",

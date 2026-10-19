@@ -19,7 +19,18 @@ const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 
 const ROOT = path.join(__dirname, '..', '..');
-const HOST_BIN_DIR = path.join(ROOT, 'native', 'bin');
+
+/**
+ * 打包后 __dirname 落在 resources/app.asar 内部，而 asar 里的 .exe 无法被 spawn
+ * （asar 是归档文件，不是真实目录）。electron-builder 通过 build.asarUnpack
+ * 把 native/bin 解到 resources/app.asar.unpacked，因此这里要把根路径改写成
+ * unpacked 版本；开发态（不含 app.asar）保持原样。
+ */
+const ROOT_FOR_BIN = /app\.asar(?![.\w])/.test(ROOT)
+  ? ROOT.replace(/app\.asar(?![.\w])/, 'app.asar.unpacked')
+  : ROOT;
+const HOST_BIN_DIR = path.join(ROOT_FOR_BIN, 'native', 'bin');
+// 清单是普通 JSON，从 asar 内读取即可，不需要 unpack。
 const ENGINE_MANIFEST = path.join(ROOT, 'native', 'engines', 'manifest.json');
 
 const CHROME_MAJOR = (process.versions.chrome || '126.0.0.0').split('.')[0];

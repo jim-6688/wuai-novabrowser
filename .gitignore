@@ -9,7 +9,10 @@ native/engines/**
 !native/engines/manifest.json
 
 # 原生宿主二进制（需自行编译，见 native/README.md）
-native/bin/
+# 但 trident-host.exe 要随版本一起发布：它只有 20 多 KB，且只能在 Windows + csc 下编译，
+# 入库后干净克隆也能直接打包，不必每个构建机都装 .NET Framework 工具链。
+native/bin/*
+!native/bin/trident-host.exe
 
 # 过滤规则：约 5MB，且上游每周更新
 # 用 `npm run filters` 重新抓取，不要提交

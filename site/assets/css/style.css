@@ -1198,6 +1198,23 @@ img { max-width: 100%; display: block; }
 
 .dl-facts li span:last-child { color: var(--text); font-weight: 600; }
 
+/* 两个平台各包一层 .dl-plat；顺序由 app.js 按访问设备调整（手机版 / PC 版谁靠前） */
+.dl-plat + .dl-plat { margin-top: 34px; }
+
+/* 下载次数：由 /api/dl-stats 提供；拿不到就保持 hidden，不占位也不显示 0 */
+.dl-count {
+  margin-left: auto;
+  font-size: 13.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.dl-count::before {
+  content: "↓";
+  margin-right: 5px;
+  color: var(--text-4);
+}
+
 /* ---------- 页脚 ---------- */
 
 footer {

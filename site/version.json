@@ -52,16 +52,16 @@
     }
   ],
   "pc": {
-    "version": "1.0.22",
+    "version": "1.0.23",
     "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.22/nova-pc-1.0.22-win-x64-setup.zip",
-    "size": 89470133,
-    "sha256": "79dd1f4d1703c7eddf8b1284d97acc4a3ce67fc062bee3af3670bf9b5196a0d1",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.23/nova-pc-1.0.23-win-x64-setup.zip",
+    "size": 89483305,
+    "sha256": "51f4a6df0635648f373c63082f8506ccf38311c36e49c25902cf4c80ef6e51ec",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.22/nova-pc-1.0.22-win-x64-setup.exe",
-      "size": 89471932,
-      "sha256": "85211cae13d18d480c360c0bc0be5954f4604612da6cf5526ffd0976ea0f61ce"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.23/nova-pc-1.0.23-win-x64-setup.exe",
+      "size": 89484604,
+      "sha256": "0d552e251d03b8a9f04ab733b7b412e5f7dc23d4c5ca0af0ddd261495b5a907f"
     }
   }
 }

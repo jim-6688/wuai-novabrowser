@@ -13,6 +13,11 @@
 
     var VERSION_URL = 'version.json';
 
+    // 下载次数接口（Edge Function + KV）。未部署 / KV 未绑定时请求会失败，
+    // 这里静默隐藏数字 —— 下载链接本身永远不受影响。
+    var STATS_URL = '/api/dl-stats';
+    var statCounts = null;
+
     function $(id) {
         return document.getElementById(id);
     }
@@ -66,6 +71,7 @@
                 a.href = absolute(d.url);
                 a.textContent = d.label + ' · ' + human(d.size);
                 a.setAttribute('download', '');
+                a.setAttribute('data-dl', 'android');
                 box.appendChild(a);
             });
         }
@@ -109,10 +115,121 @@
             a.target = '_blank';
             a.rel = 'noopener';
             a.textContent = '前往 Gitee Releases';
+            a.setAttribute('data-dl', 'android');
             box.appendChild(a);
         }
         if (window.console) console.warn('[Nova] version.json 读取失败：', err);
     }
+
+    /* ---------- 下载次数（/api/dl-stats） ---------- */
+
+    function fmtCount(n) {
+        return '已下载 ' + Number(n).toLocaleString('zh-CN') + ' 次';
+    }
+
+    function showCounts(counts) {
+        if (!counts) return;
+        if (typeof counts.android === 'number') {
+            var a = $('dlCountAndroid');
+            if (a) { a.textContent = fmtCount(counts.android); a.hidden = false; }
+        }
+        if (typeof counts.pc === 'number') {
+            var p = $('dlCountPc');
+            if (p) { p.textContent = fmtCount(counts.pc); p.hidden = false; }
+        }
+    }
+
+    /*
+     * KV 是最终一致（全球同步最长 60 秒）：刚 +1 再读可能还是旧值。
+     * 这里只取较大者，避免数字往回跳。
+     */
+    function mergeCounts(incoming) {
+        if (!incoming) return statCounts;
+        if (!statCounts) statCounts = { android: 0, pc: 0 };
+        ['android', 'pc'].forEach(function (k) {
+            if (typeof incoming[k] === 'number') {
+                statCounts[k] = Math.max(statCounts[k] || 0, incoming[k]);
+            }
+        });
+        return statCounts;
+    }
+
+    function loadStats() {
+        if (!window.fetch) return;
+        fetch(STATS_URL, { cache: 'no-store' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) { if (j && j.counts) showCounts(mergeCounts(j.counts)); })
+            .catch(function () { /* 后端未启用：不显示即可 */ });
+    }
+
+    function bump(channel) {
+        if (!window.fetch || !channel) return;
+        // 只有确认后端可用（GET 成功过）才做本地 +1，否则会凭空显示一个假数字
+        if (statCounts && typeof statCounts[channel] === 'number') {
+            var optimistic = { android: statCounts.android, pc: statCounts.pc };
+            optimistic[channel] = statCounts[channel] + 1;
+            statCounts[channel] = optimistic[channel];
+            showCounts(optimistic);
+        }
+        try {
+            fetch(STATS_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channel: channel }),
+                keepalive: true
+            }).then(function (r) { return r.ok ? r.json() : null; })
+              .then(function (j) { if (j && j.counts) showCounts(mergeCounts(j.counts)); })
+              .catch(function () {});
+        } catch (e) { /* 忽略 */ }
+    }
+
+    /* ---------- 下载区排序：手机访问手机版靠前，电脑访问 PC 版靠前 ---------- */
+
+    function isMobileVisit() {
+        var ua = navigator.userAgent || '';
+        if (/Android|iPhone|iPad|iPod|HarmonyOS|Mobile/i.test(ua)) return true;
+        if (window.matchMedia) return window.matchMedia('(max-width: 820px)').matches;
+        return (window.innerWidth || 0) <= 820;
+    }
+
+    function orderPlatforms() {
+        var sec = $('download');
+        if (!sec) return;
+        var wrap = sec.querySelector('.wrap');
+        var a = sec.querySelector('.dl-plat[data-plat="android"]');
+        var p = sec.querySelector('.dl-plat[data-plat="pc"]');
+        if (!wrap || !a || !p) return;
+
+        var kids = Array.prototype.slice.call(wrap.children);
+        var ia = kids.indexOf(a);
+        var ip = kids.indexOf(p);
+        if (ia < 0 || ip < 0) return;
+
+        var mobileFirst = isMobileVisit();
+        if (mobileFirst && ia > ip) wrap.insertBefore(a, p);
+        if (!mobileFirst && ip > ia) wrap.insertBefore(p, a);
+    }
+
+    /* ---------- 初始化 ---------- */
+
+    orderPlatforms();
+    window.addEventListener('resize', orderPlatforms, false);
+    if (window.matchMedia) {
+        var mq = window.matchMedia('(max-width: 820px)');
+        if (mq.addEventListener) mq.addEventListener('change', orderPlatforms);
+        else if (mq.addListener) mq.addListener(orderPlatforms);
+    }
+
+    // 下载点击 → 计数。用事件委托：按钮是动态渲染的，直接绑定会漏。
+    document.addEventListener('click', function (ev) {
+        var el = ev.target;
+        while (el && el.getAttribute) {
+            if (el.getAttribute('data-dl')) { bump(el.getAttribute('data-dl')); return; }
+            el = el.parentNode;
+        }
+    }, false);
+
+    loadStats();
 
     fetch(VERSION_URL, { cache: 'no-store' })
         .then(function (r) {
