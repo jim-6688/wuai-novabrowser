@@ -504,32 +504,51 @@ svg {
   border-top: 1px solid var(--border);
   font-size: 10.5px; color: var(--text-4); line-height: 1.6;
 }
-/* 点地址栏网址弹出的分享面板：贴在地址栏下方 */
+/* 点地址栏网址弹出的分享面板：贴在地址栏下方，紧凑版（不铺满地址栏宽度） */
 .omni-share {
-  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60;
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  width: 236px; max-width: calc(100vw - 24px);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-3);
-  padding: var(--sp-3);
-  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: 10px;
+  display: flex; flex-direction: column; gap: 8px;
 }
-.os-page { display: flex; flex-direction: column; gap: 2px; padding-bottom: var(--sp-2); border-bottom: 1px solid var(--border); }
+/* 二维码内联在面板里；生成失败时整块 hidden，不留白框 */
+.os-qrwrap { display: grid; place-items: center; background: #fff; border-radius: 8px; padding: 6px; }
+.os-qrwrap img { width: 108px; height: 108px; display: block; }
+.os-qrwrap.is-pulse { animation: osPulse .6s ease; }
+@keyframes osPulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+.os-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .os-title { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .os-url { font-size: 11px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.os-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-1); }
-.os-grid-4 { grid-template-columns: repeat(4, 1fr); }
-.os-btn {
-  display: flex; flex-direction: column; align-items: center; gap: 5px;
-  padding: var(--sp-2) 4px; border: 0; border-radius: var(--r-sm);
-  background: transparent; color: var(--text-2); cursor: pointer;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+/* 一键复制：链接 + 标题 + 简介 */
+.os-copy {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; border: 0; border-radius: 8px;
+  background: var(--text); color: var(--surface);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
-.os-btn:hover { background: var(--surface-2); color: var(--text); }
-.os-btn:active { transform: scale(0.96); }
-.os-btn svg { width: 19px; height: 19px; }
-.os-btn span { font-size: 10.5px; line-height: 1; white-space: nowrap; }
-.os-sep { font-size: 10px; color: var(--text-4); padding: 0 2px; }
+.os-copy svg { width: 15px; height: 15px; }
+.os-copy:hover { opacity: .88; }
+.os-copy:active { transform: scale(.98); }
+.os-sep { font-size: 10px; color: var(--text-4); text-align: center; }
+/* 分享到：只留图标，靠 title 提示 */
+.os-icons { display: flex; justify-content: space-between; gap: 4px; }
+.os-icon {
+  width: 36px; height: 34px; display: grid; place-items: center;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text-2);
+  cursor: pointer; transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.os-icon:hover { background: var(--surface-2); color: var(--text); }
+.os-icon:active { transform: scale(.94); }
+.os-icon svg { width: 19px; height: 19px; }
 /* 打字时的自动补齐下拉（收藏 + 历史）。压在地址栏下方，键盘上下选、回车进。 */
 .omni-suggest {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 61;
@@ -553,17 +572,6 @@ svg {
 .osug-title { font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .osug-url { font-size: 11px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .osug-tag { flex: 0 0 auto; font-size: 10px; color: var(--text-4); padding: 1px 6px; border-radius: var(--r-pill); background: var(--surface-2); }
-/* 二维码弹层：居中卡片，扫码在手机上打开 */
-.qr-modal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(0,0,0,0.45); }
-.qr-card { width: 300px; max-width: 92vw; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-3); padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
-.qr-head { display: flex; align-items: center; justify-content: space-between; }
-.qr-head span { font-size: 13px; font-weight: 600; }
-.qr-x { border: 0; background: transparent; color: var(--text-3); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: var(--r-sm); }
-.qr-x:hover { background: var(--surface-2); color: var(--text); }
-.qr-imgwrap { display: grid; place-items: center; background: #fff; border-radius: var(--r-md); padding: var(--sp-3); }
-.qr-imgwrap img { width: 220px; height: 220px; display: block; }
-.qr-url { font-size: 11px; color: var(--text-4); text-align: center; word-break: break-all; max-height: 32px; overflow: hidden; }
-.qr-actions { display: flex; justify-content: center; }
 .ow-lock { flex: 0 0 auto; display: grid; place-items: center; color: var(--ok); }
 .ow-lock svg { width: 13px; height: 13px; }
 .ow-lock.is-insecure { color: var(--warn); }

@@ -650,6 +650,8 @@ function mountTab(tab) {
   wv.setAttribute('webpreferences', 'contextIsolation=yes, nodeIntegration=no, sandbox=yes');
   wv.dataset.tabId = String(tab.id);
   wv.hidden = true;
+  // 点进网页时焦点落到 webview：Share 面板要跟着收起（网页内的点击不会冒泡到外壳文档）
+  wv.addEventListener('focus', closeOmniShare);
 
   wv.addEventListener('did-start-loading', () => {
     // 新一轮加载开始 → 清掉上次的失败状态（重试/换网址时错误页要收起来）
@@ -751,6 +753,7 @@ function closeTab(id) {
 
 function activateTab(id) {
   state.activeId = id;
+  closeOmniShare(); // 切标签页时分享面板不该还挂在那儿
   for (const t of state.tabs) {
     if (t.webview) t.webview.hidden = t.id !== id;
   }
@@ -1010,16 +1013,31 @@ function openOmniShare() {
   pop.dataset.url = url;
   pop.dataset.title = title;
   pop.hidden = false;
+  loadShareQr(url);
+}
+
+/**
+ * 面板里的二维码：本地生成。生成失败（或没有这项能力）就把整块收起，
+ * 不留一个空白方框。异步回来时面板可能已经关了或换了网址，用 url 兜一下。
+ */
+async function loadShareQr(url) {
+  const pop = $('#omni-share'), wrap = $('#os-qrwrap'), img = $('#os-qr');
+  if (!pop || !wrap || !img) return;
+  wrap.hidden = true;
+  img.removeAttribute('src');
+  try {
+    const r = await bridge.system.qrcode(url);
+    if (pop.hidden || pop.dataset.url !== url) return;
+    if (r && r.ok && r.dataUrl) {
+      img.src = r.dataUrl;
+      wrap.hidden = false;
+    }
+  } catch { /* 没有这项能力就安静地不显示 */ }
 }
 
 function closeOmniShare() {
   const pop = $('#omni-share');
   if (pop) pop.hidden = true;
-}
-
-function closeQrModal() {
-  const m = $('#qr-modal');
-  if (m) m.hidden = true;
 }
 
 /** 「复制简介」：标题 + 页面 description（尽力取，取不到就只标题）+ 链接。 */
@@ -1037,40 +1055,26 @@ async function shareSummaryText() {
   return [t.title || '', d, t.url].filter(Boolean).join('\n');
 }
 
-/** 本地生成二维码并弹层（微信/朋友圈等桌面无 API 的 App 用扫码桥接）。 */
-async function showQr(title) {
-  const pop = $('#omni-share');
-  const url = pop && pop.dataset.url;
-  if (!url) return;
-  const modal = $('#qr-modal'), img = $('#qr-img'), urlEl = $('#qr-url'), titleEl = $('#qr-title');
-  if (titleEl) titleEl.textContent = title || '用手机扫码';
-  if (urlEl) urlEl.textContent = url;
-  if (img) img.removeAttribute('src');
-  if (modal) modal.hidden = false;
-  const r = await bridge.system.qrcode(url);
-  if (r && r.ok && img) { img.src = r.dataUrl; }
-  else { toast((r && r.error) || '生成二维码失败'); }
-}
-
 async function handleShareAction(act) {
   const pop = $('#omni-share');
   const url = pop && pop.dataset.url;
   const title = (pop && pop.dataset.title) || '';
   if (!url) return;
-  if (act === 'copy-link') {
-    await bridge.system.copy(url);
-    toast('链接已复制');
-    closeOmniShare();
-  } else if (act === 'copy-summary') {
+
+  if (act === 'copy') {
+    // 一次复制「标题 + 简介 + 链接」，不再拆成两个按钮
     await bridge.system.copy(await shareSummaryText());
-    toast('已复制简介（标题 + 链接）');
+    toast('已复制链接和简介');
     closeOmniShare();
-  } else if (act === 'qr') {
-    showQr('扫码在手机上打开');
-  } else if (act === 'wechat') {
-    showQr('用微信扫码打开 / 转发');
-  } else if (act === 'moments') {
-    showQr('扫码后在朋友圈分享');
+  } else if (act === 'wechat' || act === 'moments') {
+    // 桌面没有分享 API：高亮面板里的二维码，让用户扫码桥接
+    const wrap = $('#os-qrwrap');
+    if (wrap && !wrap.hidden) {
+      wrap.classList.remove('is-pulse');
+      void wrap.offsetWidth; // 强制重排，连点也能再播一次动画
+      wrap.classList.add('is-pulse');
+    }
+    toast(act === 'wechat' ? '用上方二维码在微信里打开 / 转发' : '用上方二维码发到朋友圈');
   } else if (act === 'weibo') {
     // 微博有网页分享接口
     const u = 'https://service.weibo.com/share/share.php?url='
@@ -5545,20 +5549,14 @@ function wireUi() {
     const b = ev.target.closest('[data-share]');
     if (b) handleShareAction(b.dataset.share);
   });
-  // 点外面收起分享面板（落点在地址栏或面板内则不收）
-  document.addEventListener('click', (ev) => {
+  // 点外面收起分享面板：用 mousedown 捕获阶段，点网页区域也能抢到；
+  // 落点在地址栏 / 面板内则不收（点地址栏本身是「打开面板」）。
+  document.addEventListener('mousedown', (ev) => {
     const t = ev.target;
     if (t && typeof t.closest === 'function'
-        && (t.closest('#omni-share') || t.closest('#omni-input'))) return;
+        && (t.closest('#omnibox') || t.closest('#omni-share'))) return;
     closeOmniShare();
-  });
-  // 二维码弹层
-  $('#qr-close') && $('#qr-close').addEventListener('click', closeQrModal);
-  $('#qr-modal') && $('#qr-modal').addEventListener('click', (ev) => { if (ev.target.id === 'qr-modal') closeQrModal(); });
-  $('#qr-copy') && $('#qr-copy').addEventListener('click', async () => {
-    const pop = $('#omni-share');
-    if (pop && pop.dataset.url) { await bridge.system.copy(pop.dataset.url); toast('链接已复制'); }
-  });
+  }, true);
 
   // 地址栏
   const input = $('#omni-input');
@@ -6060,7 +6058,7 @@ function wireUi() {
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeQrModal(); closeOmniShare(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
