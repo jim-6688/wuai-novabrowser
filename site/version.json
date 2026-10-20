@@ -32,16 +32,14 @@
     }
   ],
   "pc": {
-    "version": "1.0.26",
+    "version": "1.0.27",
     "changelog": [
-      "打印设置窗口改成「左侧配置、右侧预览」：右边是按当前纸张 / 方向 / 边距排出来的真实 PDF，改一项立刻重排，所见即所得",
-      "修复「保存为 PDF」填了页码范围就报错（printToPDF 的页码范围类型与打印不同，这次一并理清）",
-      "新增登录后提示保存密码：网页提交登录表单后右下角问一次，密码用系统加密只存本机；密码没变就不再重复问",
-      "「设置 → 密码」新增「登录后提示保存密码」总开关，也可以让某个站点不再提示"
+      "修复：点网页自己的「打印」按钮弹出的是 Windows 系统打印对话框、Nova 的打印设置窗口没出现（Ctrl+P 一直是好的，所以这个洞藏了很久）",
+      "打印预览与「保存为 PDF」的单位、页码范围类型都对了一遍，纸张 / 边距 / 方向三处设置现在和真正出纸完全一致"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.26/nova-pc-1.0.26-win-x64-setup.exe",
-    "size": 89516833,
-    "sha256": "53e29134e7d8b063e978b182104a7da4b28102860c90afa090b62e7b8e045851"
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.27/nova-pc-1.0.27-win-x64-setup.exe",
+    "size": 89517308,
+    "sha256": "3d3eb31ff64c9f217b4f36137fc217070beaf55035e3e84c70dad8d6ee3bb1b1"
   }
 }
