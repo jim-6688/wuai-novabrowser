@@ -239,6 +239,36 @@ svg {
 .qk-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 .qk-label { font-size: 11px; line-height: 1; white-space: nowrap; }
 
+/* 工具菜单（顶栏「关于」左面的下拉）。
+   .qk-tools-wrap 作下拉的定位锚点 —— 标题栏整条是拖拽区，这一格要 no-drag，
+   下拉菜单本体绝对定位在按钮正下方，浮在工具栏/网页之上（z-index 高）。 */
+.qk-tools-wrap {
+  position: relative;
+  display: inline-flex;
+  -webkit-app-region: no-drag;
+}
+.tools-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 280px;
+  max-width: calc(100vw - 20px);
+  padding: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  z-index: 55;
+  animation: menuIn 140ms var(--ease);
+}
+.tools-menu .em-item { cursor: pointer; }
+.em-ico {
+  flex: 0 0 18px;
+  width: 18px; height: 18px;
+  color: var(--brand);
+}
+.em-ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
 /* 主题格一格里放两个图标，露哪个由当前主题决定：看到太阳就是浅色。
    不做成「图标写死、状态靠颜色」—— 那两种主题下看着一样，指示就没了。 */
 .qk-moon { display: none; }
@@ -2252,6 +2282,152 @@ svg {
 .cmd-row .cmd-hint { flex: 0 0 auto; font-size: 10px; color: var(--text-4); }
 .cmd-empty { padding: var(--sp-6); text-align: center; color: var(--text-4); font-size: 12px; }
 .cmd-foot { font-size: 10.5px; color: var(--text-4); padding: 6px var(--sp-4); border-top: 1px solid var(--border); text-align: right; }
+
+/* ------------------------------------------------------------------ *
+ * 打印设置
+ * ------------------------------------------------------------------ *
+ * 这一层不是「设置页的一个分区」，而是一扇独立的小窗口：它要在网页按
+ * Ctrl+P 的那一刻盖在网页上，用完就关。所以定位/暗底与 .settings-view
+ * 同一套值，尺寸收窄 —— 打印选项就那么几项，铺满 940px 只会让人多扫视。
+ */
+.print-view:not([hidden]) {
+  position: fixed; inset: 0;
+  z-index: 46;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-6);
+  background: rgba(10, 13, 22, 0.48);
+  backdrop-filter: blur(3px);
+  animation: svFade var(--dur) var(--ease);
+}
+.print-window {
+  display: flex; flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(720px, 100%);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  animation: svPop var(--dur) var(--ease);
+}
+.print-head {
+  display: flex; align-items: center; gap: var(--sp-2);
+  height: 48px; min-height: 48px;
+  padding: 0 var(--sp-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.print-title { margin: 0 0 0 var(--sp-1); font-size: 14px; font-weight: 600; flex: 0 0 auto; }
+.print-target {
+  min-width: 0; max-width: 260px;
+  font-size: 11px; color: var(--text-4);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.print-fill { flex: 1; }
+.print-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: var(--sp-3); }
+
+/* 顶部那张「要打的是什么」：用户同时开着一堆标签页时，这里是最后一道确认 */
+.print-page-card {
+  margin: var(--sp-4) var(--sp-4) var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.print-doc-title {
+  font-size: 12.5px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.print-doc-url {
+  margin-top: 2px;
+  font-size: 10.5px; color: var(--text-4);
+  font-family: var(--font-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 分区标题与设置页的 .panel-label 同款，但这里没有 .sv-main 的缩进上下文 */
+.print-label {
+  margin: var(--sp-3) 0 var(--sp-2);
+  padding: 0 var(--sp-4);
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px;
+  color: var(--text-4); text-transform: uppercase;
+}
+.print-row { display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-4); }
+.print-select {
+  flex: 1; min-width: 0; height: 32px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text); font-size: 12px;
+}
+.print-select:focus-visible { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+
+/* 两列并排：纸张 / 方向、缩放 / 份数。字段一多就竖着排会拉得很长，
+   而这几项本来就是「同一批要一起看」的。 */
+.print-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4);
+}
+.print-cell { min-width: 0; }
+.print-cell > .print-label { margin: var(--sp-3) 0 var(--sp-2); padding: 0; }
+.print-cell .segmented { width: 100%; }
+.print-cell .segmented button { flex: 1 1 0; }
+
+/* 自定义尺寸 / 自定义边距：选到「自定义」才展开，避免四个空框常年占位 */
+.print-custom {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4) 0;
+}
+.print-num {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-size: 11px; color: var(--text-4);
+}
+.print-num input {
+  width: 58px; border: 0; outline: 0; background: transparent;
+  color: var(--text); font-family: var(--font-mono); font-size: 12px;
+  text-align: right;
+}
+.print-num-wide { width: 100%; }
+.print-num-wide input { flex: 1; width: auto; text-align: left; }
+.print-unit { font-style: normal; color: var(--text-4); }
+.print-seg-wide { margin: 0 var(--sp-4); }
+.print-seg-wide button { flex: 1 1 0; }
+.print-field { margin: 0 var(--sp-4); }
+
+/* 两个开关收进一张卡：与设置页 .sv-card 里的 list-row 同一形态 */
+.print-toggles {
+  margin: var(--sp-3) var(--sp-4) 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+.print-toggles .list-row { padding-left: var(--sp-3); padding-right: var(--sp-3); }
+.print-toggles .list-row + .list-row { border-top: 1px solid var(--border); }
+.print-note {
+  margin: var(--sp-3) var(--sp-4) 0;
+  font-size: 10.5px; line-height: 1.65; color: var(--text-4);
+}
+.print-foot {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.print-foot .btn { white-space: nowrap; }
+
+/* 窄屏：与设置窗口同一条规矩 —— 手机上没有「窗口那圈边距」的余地 */
+[data-layout="mobile"] .print-view:not([hidden]) { padding: 0; }
+[data-layout="mobile"] .print-window {
+  width: 100%; height: 100%; max-height: 100%;
+  border-radius: 0; border: 0;
+}
 
 /* 底部弹层 */
 .sheet:not([hidden]) {

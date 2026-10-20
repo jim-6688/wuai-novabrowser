@@ -88,10 +88,13 @@ function pcVersion() {
   return pkg.version || '0.1.0';
 }
 
-function changelog() {
+function changelog(tag) {
   const v = JSON.parse(fs.readFileSync(path.join(ROOT, 'site/version.json'), 'utf8'));
-  const lines = (v.changelog || []).map((s) => '- ' + s);
-  return lines.join('\n');
+  // PC 版（v1.0.x）的更新日志在 pc.changelog 里，和安卓那份是两套。
+  // 早先一律取顶层，结果 PC Release 的正文写着安卓的更新内容 —— 看的人
+  // 会以为这一版也发了安卓包。
+  const list = /^v1\.0\./.test(tag || '') ? ((v.pc && v.pc.changelog) || []) : (v.changelog || []);
+  return list.map((s) => '- ' + s).join('\n');
 }
 
 // ---------------- HTTP ----------------
@@ -140,7 +143,7 @@ async function main() {
   // 只发 PC 那一版时，报出来的版本要用 PC 自己的号 ——
   // 否则 Release 标题写着 1.6.4 而附件是 1.0.4，看的人会以为安卓也发了。
   const shownVer = /^v1\.0\./.test(tag) ? 'PC ' + tag.slice(1) : ver;
-  const body = changelog() + '\n\n（由 tools/publish-gitee.js 自动发布）';
+  const body = changelog(tag) + '\n\n（由 tools/publish-gitee.js 自动发布）';
 
   console.log('== 吾爱Nova浏览器 · 自动发布 Gitee Release ==');
   console.log('版本: ' + shownVer + '  tag: ' + tag);
@@ -149,7 +152,9 @@ async function main() {
   const createUrl = `${API}/repos/${OWNER}/${REPO}/releases?${qs({ access_token: token })}`;
   const createBody = JSON.stringify({
     tag_name: tag,
-    name: 'v' + ver,
+    // 标题跟 tag 走：只发 PC 那一版时 appVersion() 还是安卓的号，
+    // 用它会写出一版标题叫 v1.6.5、附件却是 1.0.25 的 Release。
+    name: tag,
     body,
     target_commitish: 'main',
     prerelease: false,
@@ -213,8 +218,15 @@ async function main() {
     // 套一层压缩包就干净了），但偶尔也会直接传 .exe 做备份。写死的话
     // 会把 zip 传成 exe 名字 —— 用户下到的文件后缀和实际格式对不上，
     // 反而更容易被浏览器拦，解压时也会报「不是有效的压缩包」。
+    //
+    // 已经是 nova-pc-* 这种成品名的（比如 -green.zip）就原样用：
+    // 官网 version.json 里写的下载地址正是这个文件名，改名会让链接 404。
     const ext = path.extname(args.pc) || '.exe';
-    files.push({ path: args.pc, name: 'nova-pc-' + pcVersion() + '-win-x64-setup' + ext });
+    const base = path.basename(args.pc);
+    const name = /^nova-pc-.*\.(zip|exe)$/i.test(base)
+      ? base
+      : 'nova-pc-' + pcVersion() + '-win-x64-setup' + ext;
+    files.push({ path: args.pc, name });
   }
 
   if (files.length === 0) {

@@ -661,9 +661,11 @@ function mountTab(tab) {
   wv.hidden = true;
   // 点进网页时焦点落到 webview：Share 面板要跟着收起（网页内的点击不会冒泡到外壳文档）
   wv.addEventListener('focus', () => { closeOmniShare(); closeSniffPopover(); });
-  // 页面里的缩放操作（preload 转来的）：Ctrl+滚轮 / Ctrl+±0
+  // 页面里的缩放 / 打印操作（preload 转来的）：Ctrl+滚轮、Ctrl+±0、Ctrl+P、window.print()
   wv.addEventListener('ipc-message', (ev) => {
-    if (!ev || ev.channel !== 'nova-zoom') return;
+    if (!ev) return;
+    if (ev.channel === 'nova-print') { openPrintDialog(tab); return; }
+    if (ev.channel !== 'nova-zoom') return;
     const dir = ev.args && ev.args[0];
     if (dir === 'reset') setTabZoom(tab, 1);
     else stepZoom(tab, dir === 'in' ? 1 : -1);
@@ -1751,6 +1753,85 @@ function wireQuickBar() {
   }
 }
 
+/* --- 工具菜单（顶栏「关于」左面的下拉） ---
+ * 把新增的功能收在一个下拉里速达，免得它们散在设置各处要点三层才找得到。
+ * 每一项直接调既有的入口（openCmdPalette / openPanel / openOmniShare / openAiPanel），
+ * 不重写一遍逻辑。顺序把最新加入的（命令面板 / 站点权限）排最前。 */
+const TOOLS_ITEMS = [
+  { id: 'cmd', label: '命令面板', sub: 'Ctrl+K · 命令 / 网址 / 搜索',
+    icon: '<circle cx="9" cy="9" r="6"/><path d="M14 14l3.5 3.5" stroke-linecap="round"/>',
+    run: () => openCmdPalette() },
+  { id: 'perm', label: '站点权限', sub: '按域名管位置 / 通知 / 摄像头…',
+    icon: '<path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z"/><path d="M7.6 10l1.8 1.8 3.2-3.2"/>',
+    run: () => openPanel('permissions') },
+  { id: 'share', label: '网址分享', sub: '复制 / 二维码 / 分享当前页',
+    icon: '<circle cx="6" cy="10" r="2"/><circle cx="14" cy="5.5" r="2"/><circle cx="14" cy="14.5" r="2"/><path d="M7.8 9l4.4-2.4M7.8 11l4.4 2.4"/>',
+    run: () => openOmniShare() },
+  { id: 'pass', label: '密码管理', sub: '本机加密保存的登录凭证',
+    icon: '<circle cx="7" cy="13" r="3"/><path d="M9.1 11.1L16 4.2M13.9 4.2h2.4v2.4"/>',
+    run: () => openPanel('passwords') },
+  { id: 'ext', label: '插件商店', sub: '扩展管理 / 从浏览器导入',
+    icon: '<path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z"/>',
+    run: () => openPanel('extensions') },
+  { id: 'ai', label: 'AI 助手', sub: 'API 对话 · 免网页环境异常',
+    icon: '<path d="M10 3l1.3 3.2L14.5 7.5 11.3 8.8 10 12 8.7 8.8 5.5 7.5 8.7 6.2z"/><path d="M15 12l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+    run: () => openAiPanel() },
+  { id: 'sniff', label: '媒体嗅探', sub: '页面音视频资源',
+    icon: '<rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/>',
+    run: () => openPanel('sniffer') }
+];
+
+function renderToolsMenu() {
+  const list = $('#tools-menu-list');
+  if (!list) return;
+  list.innerHTML = TOOLS_ITEMS.map((it, i) => `
+    <button class="em-item" role="menuitem" data-tool="${i}">
+      <span class="em-ico"><svg viewBox="0 0 20 20" aria-hidden="true">${it.icon}</svg></span>
+      <span class="em-main">
+        <span class="em-name">${esc(it.label)}</span>
+        <span class="em-sub">${esc(it.sub)}</span>
+      </span>
+    </button>`).join('');
+}
+
+function closeToolsMenu() {
+  const m = $('#tools-menu'), b = $('#qk-tools');
+  if (!m || m.hidden) return;
+  m.hidden = true;
+  if (b) b.setAttribute('aria-expanded', 'false');
+}
+
+function toggleToolsMenu() {
+  const m = $('#tools-menu'), b = $('#qk-tools');
+  if (!m) return;
+  const open = m.hidden;
+  m.hidden = !open;
+  if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+/** 工具菜单的开合与点击执行。只在启动时绑定一次（document 级委托，菜单会重绘）。 */
+function wireToolsMenu() {
+  const btn = $('#qk-tools'), menu = $('#tools-menu');
+  if (!btn || !menu) return;
+  renderToolsMenu();
+  btn.addEventListener('click', (ev) => { ev.stopPropagation(); toggleToolsMenu(); });
+  menu.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-tool]');
+    if (!b) return;
+    const it = TOOLS_ITEMS[+b.dataset.tool];
+    closeToolsMenu();
+    if (it && it.run) it.run();
+  });
+  // 点外面收起。菜单里点的是 [data-tool]，那条在冒泡路上已自行关闭并 stop。
+  document.addEventListener('click', (ev) => {
+    if (menu.hidden) return;
+    if (ev.target.closest('#tools-menu') || ev.target.closest('#qk-tools')) return;
+    closeToolsMenu();
+  });
+  // Esc 收起交给全局 Escape 链（window 上那条），这里不重复绑 ——
+  // 事件从 window 派发时不会走到 document 的监听器，绑 document 等于没绑。
+}
+
 /** 命令面板：输入框实时过滤 + 键盘导航 + 背景关闭。只在启动时绑定一次。 */
 function wireCmdPalette() {
   const inp = $('#cmd-input');
@@ -1881,6 +1962,11 @@ function renderMenuPanel() {
     <div class="list-row is-click" data-act="capture-page">
       <span class="lr-icon"><svg viewBox="0 0 20 20"><rect x="2.5" y="4.5" width="15" height="11" rx="1.6"/><circle cx="10" cy="10" r="2.6"/><path d="M6.5 4.5l1-2h5l1 2"/></svg></span>
       <span class="lr-main"><span class="lr-title">整页截图</span><span class="lr-sub">保存为 PNG，含滚动出屏幕的部分</span></span>
+    </div>
+    <div class="list-row is-click" data-act="print-page">
+      <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M5.5 7.5v-4h9v4"/><rect x="3.5" y="7.5" width="13" height="6" rx="1.2"/><path d="M6.5 12h7v4.5h-7z"/></svg></span>
+      <span class="lr-main"><span class="lr-title">打印</span><span class="lr-sub">纸张、方向、边距等设置</span></span>
+      <span class="lr-tail">Ctrl+P</span>
     </div>
     <div class="list-row is-click" data-act="save-pdf">
       <span class="lr-icon"><svg viewBox="0 0 20 20"><path d="M5 2.5h7l3 3v12H5z"/><path d="M12 2.5v3h3"/><path d="M7.5 12h5M7.5 15h3"/></svg></span>
@@ -4432,6 +4518,8 @@ const PANEL_ALIAS = {
   bookmarks: 'bookmarks',
   history: 'history',
   downloads: 'downloads',
+  passwords: 'passwords',
+  permissions: 'permissions',
   privacy: 'privacy',
   about: 'about'
 };
@@ -5101,6 +5189,7 @@ function wireActions(root) {
         if (r && r.ok) { closeDrawer(); toast('截图已保存'); }
         else if (r && r.error) toast(r.error);
       }
+      else if (act === 'print-page') { closeDrawer(); openPrintDialog(activeTab()); }
       else if (act === 'save-pdf') {
         const t = activeTab();
         if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持另存为 PDF'); return; }
@@ -5482,6 +5571,241 @@ async function cmdCapturePage() {
   else if (r && r.error) toast(r.error);
 }
 
+/* ------------------------------------------------------------------ *
+ * 打印
+ * ------------------------------------------------------------------ *
+ * 网页里的 window.print() 与 Ctrl+P 都被 webview preload 转成 nova-print
+ * 事件送到这里（见 src/preload/webview-preload.js）—— 因为 Electron 没实现
+ * Chromium 的打印预览，网页自己调 print() 是静默失败的。外壳这一层负责把
+ * 纸张 / 方向 / 边距这些设置摆出来，再交给主进程的 webContents.print()。
+ */
+
+/** 纸张档位。尺寸表在主进程（毫米），这里只保证选项值一致。 */
+const PRINT_PAPER_KEYS = ['A4', 'A3', 'A5', 'B5', 'Letter', 'Legal', 'Tabloid', '16K', 'custom'];
+
+/** 上次用过的打印设置，存在 settings.print 里。 */
+function printPrefs() {
+  const p = (state.settings && state.settings.print) || {};
+  const num = (v, def) => (Number.isFinite(Number(v)) ? Number(v) : def);
+  return {
+    pageSize: PRINT_PAPER_KEYS.includes(p.pageSize) ? p.pageSize : 'A4',
+    customWidth: num(p.customWidth, 210),
+    customHeight: num(p.customHeight, 297),
+    landscape: !!p.landscape,
+    marginType: ['default', 'printableArea', 'none', 'custom'].includes(p.marginType) ? p.marginType : 'default',
+    marginTop: num(p.marginTop, 10),
+    marginBottom: num(p.marginBottom, 10),
+    marginLeft: num(p.marginLeft, 10),
+    marginRight: num(p.marginRight, 10),
+    scale: num(p.scale, 100),
+    copies: num(p.copies, 1),
+    printBackground: p.printBackground !== false,
+    headerFooter: !!p.headerFooter,
+    deviceName: typeof p.deviceName === 'string' ? p.deviceName : ''
+  };
+}
+
+/** 当前正在打印的 webContents；关闭面板后置空，避免把任务发到已经关掉的标签页 */
+let printWcId = null;
+let printBusy = false;
+
+function printSegValue(sel, key) {
+  const b = document.querySelector(sel + ' .is-active');
+  return b ? (b.dataset[key] || '') : '';
+}
+
+function setPrintSeg(sel, key, value) {
+  $$(sel + ' button').forEach((b) => b.classList.toggle('is-active', b.dataset[key] === value));
+}
+
+function setPrintNum(sel, value) {
+  const el = $(sel);
+  if (el) el.value = String(value);
+}
+
+function readPrintNum(sel, def) {
+  const el = $(sel);
+  const n = el ? Number(el.value) : NaN;
+  return Number.isFinite(n) ? n : def;
+}
+
+/** 自定义尺寸 / 自定义边距只在选中「自定义」时展开 */
+function syncPrintCustom() {
+  $('#print-paper-custom').hidden = $('#print-paper').value !== 'custom';
+  $('#print-margin-custom').hidden = printSegValue('#print-margins', 'margin') !== 'custom';
+}
+
+function fillPrintForm(p) {
+  $('#print-paper').value = p.pageSize;
+  setPrintNum('#print-paper-w', p.customWidth);
+  setPrintNum('#print-paper-h', p.customHeight);
+  setPrintSeg('#print-orient', 'orient', p.landscape ? 'landscape' : 'portrait');
+  setPrintSeg('#print-margins', 'margin', p.marginType);
+  setPrintNum('#print-mt', p.marginTop);
+  setPrintNum('#print-mb', p.marginBottom);
+  setPrintNum('#print-ml', p.marginLeft);
+  setPrintNum('#print-mr', p.marginRight);
+  setPrintNum('#print-scale', p.scale);
+  setPrintNum('#print-copies', p.copies);
+  $('#print-range').value = '';
+  $('#print-bg').classList.toggle('is-on', p.printBackground);
+  $('#print-hf').classList.toggle('is-on', p.headerFooter);
+  syncPrintCustom();
+}
+
+function setPrintBusy(busy) {
+  ['#print-go', '#print-direct', '#print-pdf', '#print-cancel', '#print-close', '#print-refresh'].forEach((sel) => {
+    const b = $(sel);
+    if (b) b.disabled = busy;
+  });
+  const go = $('#print-go');
+  if (go) go.textContent = busy ? '正在打印…' : '打印…';
+}
+
+function closePrintDialog() {
+  const v = $('#print-view');
+  if (!v || v.hidden) return;
+  v.hidden = true;
+  printWcId = null;
+}
+
+/**
+ * 打开打印设置。
+ * 入口有四个：Ctrl+P、菜单「打印」、命令面板、网页里的 window.print()。
+ * 统一从这里进，避免四条路各写一套「取 wcId」的逻辑 —— 那正是漏改的来源。
+ */
+function openPrintDialog(tab) {
+  const t = tab || activeTab();
+  if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持打印'); return; }
+  let id = t.wcId;
+  if (id == null && typeof t.webview.getWebContentsId === 'function') {
+    try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+  }
+  if (id == null) { toast('页面还没准备好，稍后再试'); return; }
+
+  closeDrawer();
+  closeCmdPalette();
+  printWcId = id;
+
+  const p = printPrefs();
+  $('#print-doc-title').textContent = t.title || '当前页面';
+  $('#print-doc-url').textContent = prettyUrl(t.url || '');
+  $('#print-target').textContent = t.title || '';
+  $('#print-note').textContent = '「打印…」会弹出系统打印窗口，可在那边再选打印机；「直接打印」按上面的设置立刻出纸。';
+  fillPrintForm(p);
+  $('#print-view').hidden = false;
+  refreshPrinters(p.deviceName);
+  setTimeout(() => { const b = $('#print-go'); if (b) b.focus(); }, 30);
+}
+
+/**
+ * 读系统打印机列表。
+ * 读不到也不挡住打印：下拉里留「使用系统默认打印机」，用户仍可以点「打印…」
+ * 在系统窗口里选 —— 把「列不出打印机」升级成「不能打印」是没必要的。
+ */
+async function refreshPrinters(preferred) {
+  const sel = $('#print-printer');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">（使用系统默认打印机）</option>';
+  let r = null;
+  try { r = await bridge.page.printers(printWcId); } catch { r = null; }
+
+  const list = (r && r.ok && Array.isArray(r.printers)) ? r.printers : [];
+  for (const p of list) {
+    const o = document.createElement('option');
+    o.value = p.name;
+    o.textContent = p.displayName + (p.isDefault ? '（默认）' : '');
+    sel.appendChild(o);
+  }
+  const want = preferred || ((list.find((p) => p.isDefault) || {}).name || '');
+  if (want && list.some((p) => p.name === want)) sel.value = want;
+
+  if (!r || !r.ok) {
+    $('#print-note').textContent = (r && r.error ? r.error + '；' : '')
+      + '仍可点「打印…」在系统窗口里选择打印机。';
+  } else if (!list.length) {
+    $('#print-note').textContent = '没有检测到打印机；可点「打印…」在系统窗口里再选，或先「保存为 PDF」。';
+  }
+}
+
+function collectPrintOptions() {
+  return {
+    deviceName: $('#print-printer').value || '',
+    pageSize: $('#print-paper').value,
+    customWidth: readPrintNum('#print-paper-w', 210),
+    customHeight: readPrintNum('#print-paper-h', 297),
+    landscape: printSegValue('#print-orient', 'orient') === 'landscape',
+    marginType: printSegValue('#print-margins', 'margin') || 'default',
+    marginTop: readPrintNum('#print-mt', 10),
+    marginBottom: readPrintNum('#print-mb', 10),
+    marginLeft: readPrintNum('#print-ml', 10),
+    marginRight: readPrintNum('#print-mr', 10),
+    scale: readPrintNum('#print-scale', 100),
+    copies: readPrintNum('#print-copies', 1),
+    pageRanges: ($('#print-range').value || '').trim(),
+    printBackground: $('#print-bg').classList.contains('is-on'),
+    headerFooter: $('#print-hf').classList.contains('is-on')
+  };
+}
+
+/** 记住这套设置（不含页码范围：那是「这一次」的选择，不是长期偏好） */
+function savePrintPrefs(o) {
+  const pref = {
+    pageSize: o.pageSize, customWidth: o.customWidth, customHeight: o.customHeight,
+    landscape: o.landscape, marginType: o.marginType,
+    marginTop: o.marginTop, marginBottom: o.marginBottom,
+    marginLeft: o.marginLeft, marginRight: o.marginRight,
+    scale: o.scale, copies: o.copies,
+    printBackground: o.printBackground, headerFooter: o.headerFooter,
+    deviceName: o.deviceName
+  };
+  try {
+    Promise.resolve(bridge.settings.patch({ print: pref }))
+      .then((s) => { if (s) state.settings = s; })
+      .catch(() => { /* 预览模式：桥是空壳 */ });
+  } catch { /* 同上 */ }
+}
+
+async function runPrint(silent) {
+  if (printBusy || printWcId == null) return;
+  const opts = collectPrintOptions();
+  savePrintPrefs(opts);
+  printBusy = true;
+  setPrintBusy(true);
+  let r = null;
+  try {
+    r = await bridge.page.print(printWcId, Object.assign({}, opts, { silent }));
+  } catch (e) {
+    r = { ok: false, error: String((e && e.message) || e) };
+  } finally {
+    printBusy = false;
+    setPrintBusy(false);
+  }
+  if (r && r.ok) { closePrintDialog(); toast(silent ? '已发送到打印机' : '已发送打印任务'); return; }
+  // 用户在系统窗口点了取消：不是错误，设置面板留着，改完可以直接再试
+  if (r && r.canceled) return;
+  toast((r && r.error) || '打印失败');
+}
+
+async function runPrintPdf() {
+  if (printBusy || printWcId == null) return;
+  const opts = collectPrintOptions();
+  savePrintPrefs(opts);
+  printBusy = true;
+  setPrintBusy(true);
+  let r = null;
+  try {
+    r = await bridge.page.savePdf(printWcId, opts);
+  } catch (e) {
+    r = { ok: false, error: String((e && e.message) || e) };
+  } finally {
+    printBusy = false;
+    setPrintBusy(false);
+  }
+  if (r && r.ok) { closePrintDialog(); toast('已保存 PDF'); }
+  else if (r && r.error) toast(r.error);
+}
+
 async function cmdSavePdfPage() {
   const t = activeTab();
   if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持另存为 PDF'); return; }
@@ -5511,6 +5835,7 @@ function cmdBaseActions() {
     { id: 'toggle-bookmark', label: bookmarkToggleLabel(), icon: 'star', run: () => toggleBookmarkCurrent() },
     { id: 'find', label: '页内查找', hint: 'Ctrl+F', icon: 'search', run: () => openFindBar() },
     { id: 'capture', label: '整页截图', icon: 'camera', run: () => cmdCapturePage() },
+    { id: 'print', label: '打印当前页', hint: 'Ctrl+P', icon: 'pdf', run: () => openPrintDialog(activeTab()) },
     { id: 'pdf', label: '另存为 PDF', icon: 'pdf', run: () => cmdSavePdfPage() },
     { id: 'read', label: '阅读增强（无图 / 拼页）', icon: 'book', run: () => openReadSheet() },
     { id: 'mute', label: '静音 / 取消静音当前标签页', icon: 'mute', run: () => { const t = activeTab(); if (t) toggleTabMute(t.id); } },
@@ -5554,7 +5879,7 @@ async function getCmdItems(query) {
 
   const groups = [];
   if (!q) {
-    const common = ['new-tab', 'settings', 'home', 'find', 'capture', 'pdf', 'toggle-bookmark', 'no-image'];
+    const common = ['new-tab', 'settings', 'home', 'find', 'print', 'capture', 'pdf', 'toggle-bookmark', 'no-image'];
     groups.push({ group: '常用', items: actions.filter((a) => common.includes(a.id)) });
     groups.push({ group: '已打开的标签页', items: tabItems.slice(0, 8) });
     return groups;
@@ -7019,6 +7344,25 @@ function wireUi() {
   $('#engine-sheet').addEventListener('click', (ev) => { if (ev.target.id === 'engine-sheet') closeSheet(); });
   $('#read-sheet').addEventListener('click', (ev) => { if (ev.target.id === 'read-sheet') closeReadSheet(); });
 
+  // 打印设置：分段控件与开关走委托，避免给每个按钮各挂一条
+  const printView = $('#print-view');
+  printView.addEventListener('click', (ev) => {
+    if (ev.target === printView) { closePrintDialog(); return; }
+    const orient = ev.target.closest('[data-orient]');
+    if (orient) { setPrintSeg('#print-orient', 'orient', orient.dataset.orient); return; }
+    const margin = ev.target.closest('[data-margin]');
+    if (margin) { setPrintSeg('#print-margins', 'margin', margin.dataset.margin); syncPrintCustom(); return; }
+    if (ev.target.closest('#print-bg')) { $('#print-bg').classList.toggle('is-on'); return; }
+    if (ev.target.closest('#print-hf')) { $('#print-hf').classList.toggle('is-on'); return; }
+  });
+  $('#print-paper').addEventListener('change', syncPrintCustom);
+  $('#print-close').addEventListener('click', closePrintDialog);
+  $('#print-cancel').addEventListener('click', closePrintDialog);
+  $('#print-go').addEventListener('click', () => runPrint(false));
+  $('#print-direct').addEventListener('click', () => runPrint(true));
+  $('#print-pdf').addEventListener('click', runPrintPdf);
+  $('#print-refresh').addEventListener('click', () => refreshPrinters($('#print-printer').value));
+
   // 快捷键
   window.addEventListener('keydown', (ev) => {
     const mod = ev.ctrlKey || ev.metaKey;
@@ -7026,6 +7370,7 @@ function wireUi() {
     else if (mod && ev.key.toLowerCase() === 'w') { ev.preventDefault(); if (state.activeId) closeTab(state.activeId); }
     else if (mod && ev.key.toLowerCase() === 'l') { ev.preventDefault(); $('#omni-input').focus(); }
     else if (mod && ev.key.toLowerCase() === 'f') { ev.preventDefault(); openFindBar(); }
+    else if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'p') { ev.preventDefault(); openPrintDialog(activeTab()); }
     else if (mod && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); stepZoom(activeTab(), 1); }
     else if (mod && ev.key === '-') { ev.preventDefault(); stepZoom(activeTab(), -1); }
     else if (mod && ev.key === '0') { ev.preventDefault(); setTabZoom(activeTab(), 1); }
@@ -7035,7 +7380,7 @@ function wireUi() {
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closeSettings(); closeCmdPalette(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); closeSettings(); closeCmdPalette(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -7047,6 +7392,7 @@ function wireUi() {
 
   wireQuickBar();
   wireCmdPalette();
+  wireToolsMenu();
   window.addEventListener('resize', applyLayout);
 }
 

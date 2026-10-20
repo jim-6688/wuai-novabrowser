@@ -793,6 +793,12 @@ const MOCK_UPDATE = {
     page: {
       /* 预览模式下没有主进程，保存框与写盘都不存在 —— 只回一个成功占位 */
       savePdf: async () => ({ ok: true, path: '(预览模式未写盘)' }),
+      /* 预览里没有真打印机：给一条占位项，让打印设置面板仍能完整画出来 */
+      printers: async () => ({
+        ok: true,
+        printers: [{ name: 'preview', displayName: '预览模式（无打印机）', description: '', isDefault: true, status: 0 }]
+      }),
+      print: async () => ({ ok: true }),
       capture: async () => ({ ok: true, path: '(预览模式未写盘)' })
     },
     system: {

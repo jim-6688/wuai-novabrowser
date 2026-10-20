@@ -137,6 +137,29 @@ const DEFAULTS = {
   },
   extensions: [],
   /**
+   * 打印偏好：上次在打印设置窗口里选的那一套。
+   *
+   * 只存「长期有效」的东西（纸张 / 方向 / 边距 / 缩放 / 背景 / 页眉页脚 /
+   * 打印机）。页码范围不存 —— 那是「这一次」的选择，留到下次会让人莫名其妙
+   * 只打出两页。数值单位统一是毫米 / 百分比，换算成各 API 要的单位由主进程做。
+   */
+  print: {
+    pageSize: 'A4',
+    customWidth: 210,
+    customHeight: 297,
+    landscape: false,
+    marginType: 'default',
+    marginTop: 10,
+    marginBottom: 10,
+    marginLeft: 10,
+    marginRight: 10,
+    scale: 100,
+    copies: 1,
+    printBackground: true,
+    headerFooter: false,
+    deviceName: ''
+  },
+  /**
    * 站点权限：按域名的权限覆盖。数组便于整体替换，结构与 siteEngines 同口径。
    *   [{ host: 'example.com',
    *      rules: { geolocation:'block', notifications:'ask', camera:'allow', … } }]

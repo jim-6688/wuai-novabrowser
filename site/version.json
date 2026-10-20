@@ -32,28 +32,24 @@
     }
   ],
   "pc": {
-    "version": "1.0.24",
+    "version": "1.0.25",
     "changelog": [
-      "收藏夹栏：条目之间加分隔线；书签放不下时右侧出现「更多」菜单，列出全部书签",
-      "地址栏右侧新增分享小窗（可生成二维码），工具栏的媒体嗅探也改成小窗，不再跳整页设置",
-      "内核调整为双内核（Chromium + IE/Trident），去掉 Gecko；新增按站点自动切换内核的规则",
-      "修复 IE 模式部分网站白屏：宿主窗口改为屏幕内绘制，并去掉「窗口离屏」导致的抓空",
-      "标签页渲染进程崩溃不再留一块灰：首次自动重建，反复崩溃才提示，并记录崩溃原因便于排查",
-      "新增页内查找（Ctrl+F）、另存为 PDF、整页截图、标签页静音与音频指示",
-      "新增 Ctrl+滚轮 / Ctrl+±0 页面缩放，并按站点记住比例；新增标签页搜索（Alt+Q）",
-      "新增下载全局限速（不限速 / 256K / 512K / 1M / 2M 每秒），对所有任务合计生效",
-      "支持 ed2k / magnet 链接：识别后交给本地下载客户端，没有客户端时复制链接并提示",
-      "修复 AI 面板在网页对话模式下出现两个输入框；修复打包命令被宿主进程占用导致失败"
+      "新增打印功能（Ctrl+P）：纸张类型、方向、页边距、缩放、份数、页码范围都能设置，支持自定义纸张尺寸与四边边距；网页里的「打印」按钮与 window.print() 现在也能正常唤起",
+      "打印设置窗口支持「打印…」（弹系统打印窗口）、「直接打印」与「保存为 PDF」，三者共用同一套纸张与边距；上次的设置会记住",
+      "新增命令面板（Ctrl+K）：输入命令、网址或搜索词直达，覆盖开关设置、切换内核、打开面板、截图另存等常用动作",
+      "新增站点权限管理：按域名设定位置 / 通知 / 摄像头 / 麦克风 / 弹窗 的允许、禁止或询问，规则按「精确主机 → 逐级父域」匹配",
+      "顶栏「关于」左面新增「工具」菜单：把命令面板、站点权限、网址分享、密码管理、插件商店、AI 助手、媒体嗅探等新功能收在一个下拉里速达",
+      "下载的 ZIP 压缩包改为绿色免安装版：解压后双击即可使用，无需安装（EXE 安装程序仍单独提供）"
     ],
-    "label": "PC 版（Windows 安装包 · ZIP 压缩包）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.24/nova-pc-1.0.24-win-x64-setup.zip",
-    "size": 89494545,
-    "sha256": "6fd14a6da3f1e5a8720d833d9a126b0ce0e8aa930890cd14095d7ec63f5c1e19",
+    "label": "PC 版（Windows · ZIP 绿色免安装 / EXE 安装）",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.25/nova-pc-1.0.25-win-x64-green.zip",
+    "size": 125667984,
+    "sha256": "e2d01ce45553a32a8e5ef2f8689f8b66d22ea00879fdccd7938c2d16c8fc5cef",
     "exe": {
       "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.24/nova-pc-1.0.24-win-x64-setup.exe",
-      "size": 89495986,
-      "sha256": "7386918a5f78e11b2d4406e335e5750ee76094e7e56869c3763112774dd63086"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.25/nova-pc-1.0.25-win-x64-setup.exe",
+      "size": 89511115,
+      "sha256": "45cea74d324e50b48cdc4f601c14324759ed68c3fc3d2b22489c553c25f6a177"
     }
   }
 }

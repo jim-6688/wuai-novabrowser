@@ -1762,10 +1762,208 @@ function registerIpc() {
     }
   });
 
-  // 把当前页另存为 PDF。渲染层只给 webContents id，磁盘读写与保存框都在主进程做。
-  handle('page:save-pdf', async (wcId) => {
+  /* --- 打印 ---
+   * 为什么必须由主进程接这一层：Electron 里网页自己调 `window.print()` 不会
+   * 弹出系统打印窗口（Chromium 的打印预览在 Electron 里没有实现），`<webview>`
+   * 更是连浏览器外壳都没有。于是用户按 Ctrl+P 只会得到「什么都没发生」——
+   * 看起来就是打印坏了。这里把打印收成一条 IPC：外壳先给出纸张 / 边距 /
+   * 方向这些设置，再交给 `webContents.print()` 弹系统窗口或直接出纸。
+   *
+   * 单位坑（两套 API 不一样，别混）：
+   *   print()       pageSize 用微米，margins 用 96dpi 像素
+   *   printToPDF()  pageSize 用英寸，margins 也用英寸
+   * 所以下面同一份用户设置要分两个构造函数。
+   */
+  const PRINT_PAPER_MM = {
+    A3: [297, 420], A4: [210, 297], A5: [148, 210], A6: [105, 148],
+    B5: [176, 250], Letter: [215.9, 279.4], Legal: [215.9, 355.6],
+    Tabloid: [279.4, 431.8], '16K': [184, 260]
+  };
+  // Chromium 认这些具名纸张；B5 / 16K 不在表里，只能按尺寸传
+  const PRINT_STD_NAMES = new Set(['A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Tabloid']);
+  const clampNum = (v, min, max, def) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return def;
+    return Math.min(max, Math.max(min, n));
+  };
+  const mmToMicron = (mm) => Math.round(mm * 1000);
+  const mmToPx = (mm) => Math.round((mm / 25.4) * 96);
+  const mmToInch = (mm) => mm / 25.4;
+
+  const printPageSize = (opts) => {
+    const o = opts || {};
+    if (o.pageSize === 'custom') {
+      return {
+        width: mmToMicron(clampNum(o.customWidth, 50, 2000, 210)),
+        height: mmToMicron(clampNum(o.customHeight, 50, 2000, 297))
+      };
+    }
+    const name = String(o.pageSize || 'A4');
+    if (PRINT_STD_NAMES.has(name)) return name;
+    const mm = PRINT_PAPER_MM[name] || PRINT_PAPER_MM.A4;
+    return { width: mmToMicron(mm[0]), height: mmToMicron(mm[1]) };
+  };
+
+  const printMargins = (opts) => {
+    const o = opts || {};
+    const type = String(o.marginType || 'default');
+    if (type === 'none') return { marginType: 'none' };
+    if (type === 'printableArea') return { marginType: 'printableArea' };
+    if (type !== 'custom') return { marginType: 'default' };
+    return {
+      marginType: 'custom',
+      top: mmToPx(clampNum(o.marginTop, 0, 100, 10)),
+      bottom: mmToPx(clampNum(o.marginBottom, 0, 100, 10)),
+      left: mmToPx(clampNum(o.marginLeft, 0, 100, 10)),
+      right: mmToPx(clampNum(o.marginRight, 0, 100, 10))
+    };
+  };
+
+  const pdfPageSize = (opts) => {
+    const o = opts || {};
+    if (o.pageSize === 'custom') {
+      return {
+        width: mmToInch(clampNum(o.customWidth, 50, 2000, 210)),
+        height: mmToInch(clampNum(o.customHeight, 50, 2000, 297))
+      };
+    }
+    const name = String(o.pageSize || 'A4');
+    if (PRINT_STD_NAMES.has(name)) return name;
+    const mm = PRINT_PAPER_MM[name] || PRINT_PAPER_MM.A4;
+    return { width: mmToInch(mm[0]), height: mmToInch(mm[1]) };
+  };
+
+  // 「默认」在 printToPDF 里没有对应枚举，按 Chromium 自己的默认 1cm 显式写出来
+  const pdfMargins = (opts) => {
+    const o = opts || {};
+    const type = String(o.marginType || 'default');
+    if (type === 'none') return { top: 0, bottom: 0, left: 0, right: 0 };
+    const pick = (v, def) => mmToInch(clampNum(v, 0, 100, def));
+    if (type === 'custom') {
+      return {
+        top: pick(o.marginTop, 10), bottom: pick(o.marginBottom, 10),
+        left: pick(o.marginLeft, 10), right: pick(o.marginRight, 10)
+      };
+    }
+    // default / printableArea 都按 1cm 走；可打印区域由打印机决定，PDF 没有这个概念
+    return { top: mmToInch(10), bottom: mmToInch(10), left: mmToInch(10), right: mmToInch(10) };
+  };
+
+  /**
+   * "1-3,5" → [{from:0,to:2},{from:4,to:4}]（0 基、闭区间，与 Electron 一致）。
+   * 返回 null 表示「没填 / 全部」；返回 false 表示格式不对（调用方要报错，
+   * 不能静默当成全部 —— 用户明明填了范围，结果打了一整本，纸是真的会浪费的）。
+   */
+  const parsePageRanges = (input) => {
+    const raw = String(input == null ? '' : input).trim();
+    if (!raw) return null;
+    const out = [];
+    for (const part of raw.split(/[,，;；]/)) {
+      const s = part.trim();
+      if (!s) continue;
+      const m = /^(\d+)\s*(?:[-–—~]\s*(\d*))?$/.exec(s);
+      if (!m) return false;
+      const from = parseInt(m[1], 10);
+      if (!from) return false; // 页码从 1 开始，0 是无效输入
+      const hasDash = /[-–—~]/.test(s);
+      const to = m[2] ? parseInt(m[2], 10) : (hasDash ? 10000 : from);
+      if (!to || to < from) return false;
+      out.push({ from: from - 1, to: to - 1 });
+      if (out.length > 40) return false;
+    }
+    return out.length ? out : null;
+  };
+
+  const resolveWc = (wcId) => {
     const wc = webContents.fromId(Number(wcId));
+    if (!wc || wc.isDestroyed()) return null;
+    return wc;
+  };
+
+  /** 系统打印机列表。deviceName 要用 name（系统名），displayName 只给界面看。 */
+  handle('page:printers', async (wcId) => {
+    const wc = resolveWc(wcId);
+    if (!wc) return { ok: false, error: '页面已关闭', printers: [] };
+    try {
+      const list = await wc.getPrintersAsync();
+      return {
+        ok: true,
+        printers: (list || []).map((p) => ({
+          name: p.name,
+          displayName: p.displayName || p.name,
+          description: p.description || '',
+          isDefault: !!p.isDefault,
+          status: p.status || 0
+        }))
+      };
+    } catch (e) {
+      return { ok: false, error: '读取打印机列表失败：' + String((e && e.message) || e), printers: [] };
+    }
+  });
+
+  /**
+   * 打印当前页。
+   *   silent=false（默认）→ 弹系统打印窗口，上面这些设置作为窗口里的初始值；
+   *   silent=true          → 直接按设置出纸，不再问。
+   * 返回 { ok } / { ok:false, canceled:true } / { ok:false, error }。
+   */
+  handle('page:print', async (wcId, opts = {}) => {
+    const wc = resolveWc(wcId);
+    if (!wc) return { ok: false, error: '页面已关闭' };
+    const o = opts || {};
+    const silent = !!o.silent;
+
+    const ranges = parsePageRanges(o.pageRanges);
+    if (ranges === false) return { ok: false, error: '页面范围格式不对，示例：1-3,5' };
+
+    const options = {
+      silent,
+      printBackground: o.printBackground !== false,
+      color: o.color !== false,
+      landscape: !!o.landscape,
+      scaleFactor: clampNum(o.scale, 10, 200, 100) / 100,
+      copies: Math.round(clampNum(o.copies, 1, 99, 1)),
+      collate: true,
+      pageSize: printPageSize(o),
+      margins: printMargins(o)
+    };
+    // 打印机名两种模式都带上：非静默时它只是系统窗口里的预选项（用户仍可改），
+    // 不传的话用户在上面选了 A 打印机、弹出来的窗口却停在系统默认 B，很像 bug。
+    if (o.deviceName) options.deviceName = String(o.deviceName);
+    // 页码范围交给系统窗口自己管；静默时才由我们传（那边没有输入框）
+    if (silent && ranges) options.pageRanges = ranges;
+    if (o.headerFooter) {
+      try { options.header = wc.getTitle() || ''; } catch { options.header = ''; }
+      try { options.footer = wc.getURL() || ''; } catch { options.footer = ''; }
+    }
+
+    return await new Promise((resolve) => {
+      let settled = false;
+      const done = (success, reason) => {
+        if (settled) return;
+        settled = true;
+        if (success) { resolve({ ok: true }); return; }
+        const why = String(reason || '');
+        // 用户在系统窗口点了取消：不是错误，界面上不该弹红字
+        if (/cancel/i.test(why)) resolve({ ok: false, canceled: true });
+        else resolve({ ok: false, error: '打印失败：' + (why || '未知原因') });
+      };
+      try {
+        wc.print(options, done);
+      } catch (e) {
+        done(false, (e && e.message) || e);
+      }
+    });
+  });
+
+  // 把当前页另存为 PDF。渲染层只给 webContents id，磁盘读写与保存框都在主进程做。
+  // opts 与打印共用一份（纸张 / 边距 / 方向 / 缩放），不带时按默认值导出。
+  handle('page:save-pdf', async (wcId, opts = {}) => {
+    const wc = resolveWc(wcId);
     if (!wc || wc.isDestroyed()) return { ok: false, error: '页面已关闭' };
+    const o = opts || {};
+    const ranges = parsePageRanges(o.pageRanges);
+    if (ranges === false) return { ok: false, error: '页面范围格式不对，示例：1-3,5' };
     let name = '页面';
     try { name = wc.getTitle() || name; } catch { /* 拿不到标题就用默认名 */ }
     name = String(name).replace(/[\\/:*?"<>|]+/g, '_').trim().slice(0, 80) || '页面';
@@ -1776,7 +1974,15 @@ function registerIpc() {
     });
     if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
     try {
-      const data = await wc.printToPDF({ printBackground: true });
+      const pdfOpts = {
+        printBackground: o.printBackground !== false,
+        landscape: !!o.landscape,
+        scale: clampNum(o.scale, 10, 200, 100) / 100,
+        pageSize: pdfPageSize(o),
+        margins: pdfMargins(o)
+      };
+      if (ranges) pdfOpts.pageRanges = ranges;
+      const data = await wc.printToPDF(pdfOpts);
       fs.writeFileSync(picked.filePath, data);
       return { ok: true, path: picked.filePath };
     } catch (e) {

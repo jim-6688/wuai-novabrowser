@@ -224,8 +224,12 @@ contextBridge.exposeInMainWorld('nova', {
 
   /* --- 系统 --- */
   page: {
-    /** 当前页另存为 PDF：主进程弹保存框并写盘 */
-    savePdf: (wcId) => ipcRenderer.invoke('page:save-pdf', wcId),
+    /** 当前页另存为 PDF：主进程弹保存框并写盘（opts 与打印共用：纸张/边距/方向/缩放） */
+    savePdf: (wcId, opts) => ipcRenderer.invoke('page:save-pdf', wcId, opts),
+    /** 系统打印机列表（name 是系统名，displayName 才是给人看的） */
+    printers: (wcId) => ipcRenderer.invoke('page:printers', wcId),
+    /** 打印：opts.silent=false 弹系统打印窗口，true 直接出纸 */
+    print: (wcId, opts) => ipcRenderer.invoke('page:print', wcId, opts),
     /** 网页截图：mode = 'full'（整页）| 'view'（可见区域） */
     capture: (wcId, mode) => ipcRenderer.invoke('page:capture', wcId, mode)
   },

@@ -63,3 +63,6 @@ dist/
 site/.edgeone/assets/
 # 部署工具每次都会把函数打包成镜像放在这里，属于构建产物
 site/.edgeone/edge-functions/
+
+# 本地智能体工作目录（会话记忆、临时产物），不属于代码
+.workbuddy-ai/
