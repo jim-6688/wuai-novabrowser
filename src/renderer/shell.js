@@ -173,6 +173,15 @@ function hostOf(url) {
   try { return new URL(url).hostname; } catch { return ''; }
 }
 
+/** 凭证按 origin 归档（与主进程 cred:save-from-page 的口径一致），不是按主机名 */
+function originOf(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    return u.origin;
+  } catch { return ''; }
+}
+
 function prettyUrl(url) {
   if (!url) return '';
   try {
@@ -608,6 +617,23 @@ function activateBridgeView(tab) {
   bridge.host.cmd({ engineId: tab.engineId, t: 'resize', payload: { viewId: tab.id, w, h } }).catch(() => {});
 }
 
+/**
+ * 网页 preload 送来的消息（`ipcRenderer.sendToHost`）。
+ *
+ * 这些是网页自己发起的动作，外壳只是接手：网页里调 window.print() 在 Electron
+ * 下是空操作、Ctrl+滚轮要缩放整页、登录表单提交后要问一句存不存密码 ——
+ * 三件事都只能由外壳做（见 src/preload/webview-preload.js）。
+ */
+function handleWebviewIpc(tab, ev) {
+  if (!tab || !ev) return;
+  if (ev.channel === 'nova-print') { openPrintDialog(tab); return; }
+  if (ev.channel === 'nova-login') { onLoginSubmitted(tab, ev.args && ev.args[0]); return; }
+  if (ev.channel !== 'nova-zoom') return;
+  const dir = ev.args && ev.args[0];
+  if (dir === 'reset') setTabZoom(tab, 1);
+  else stepZoom(tab, dir === 'in' ? 1 : -1);
+}
+
 /** 按标签页当前内核属性创建渲染载体 */
 function mountTab(tab) {
   const host = $('#viewport');
@@ -661,15 +687,10 @@ function mountTab(tab) {
   wv.hidden = true;
   // 点进网页时焦点落到 webview：Share 面板要跟着收起（网页内的点击不会冒泡到外壳文档）
   wv.addEventListener('focus', () => { closeOmniShare(); closeSniffPopover(); });
-  // 页面里的缩放 / 打印操作（preload 转来的）：Ctrl+滚轮、Ctrl+±0、Ctrl+P、window.print()
-  wv.addEventListener('ipc-message', (ev) => {
-    if (!ev) return;
-    if (ev.channel === 'nova-print') { openPrintDialog(tab); return; }
-    if (ev.channel !== 'nova-zoom') return;
-    const dir = ev.args && ev.args[0];
-    if (dir === 'reset') setTabZoom(tab, 1);
-    else stepZoom(tab, dir === 'in' ? 1 : -1);
-  });
+  // 页面里的缩放 / 打印 / 登录操作（preload 转来的）：Ctrl+滚轮、Ctrl+±0、
+  // Ctrl+P、window.print()、提交登录表单。抽成具名函数是为了让测试能直接调
+  // —— jsdom 里没有真 webview，只能验这段逻辑，验不了 DOM 事件那一步。
+  wv.addEventListener('ipc-message', (ev) => handleWebviewIpc(tab, ev));
   wv.addEventListener('found-in-page', (ev) => {
     if (!activeTab() || activeTab().id !== tab.id) return;
     const r = (ev && ev.result) || {};
@@ -2909,9 +2930,20 @@ async function buildHistory() {
 async function buildPasswords() {
   try { state.credentials = await bridge.credentials.list(); } catch { state.credentials = state.credentials || []; }
   const list = state.credentials || [];
+  // 缺省视为开启：老配置里没有这个键，不该因为升级就少了提示
+  const pwdPromptOn = !(state.settings.passwords && state.settings.passwords.promptSave === false);
   return `
     <h2 class="sv-h2">密码 / 登录凭证</h2>
     <div class="sv-lead">Nova 自己保存账号密码：<b>只存本机、系统加密、不上传</b>。到网站后可点「填充到当前页」自动填入登录框。</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">登录后提示保存密码</span>
+          <span class="lr-sub">提交登录表单时询问一次；关掉后不再打扰</span>
+        </span>
+        <button class="switch ${pwdPromptOn ? 'is-on' : ''}" data-act="pwd-toggle" title="登录后提示保存密码"></button>
+      </div>
+    </div>
     <div class="btn-row" style="padding-top:0">
       <button class="btn btn-primary" data-act="cred-fill" ${list.length ? '' : 'disabled'}>填充到当前页</button>
       <button class="btn" data-act="cred-import" ${state.isPreview ? 'disabled title="UI 预览模式"' : ''}>从 Edge 导入</button>
@@ -2969,6 +3001,114 @@ async function fillLoginIntoActiveTab() {
     else if (res === 'no-pw') toast('当前页没找到密码输入框');
     else toast('填充失败');
   } catch { toast('填充失败'); }
+}
+
+/* ------------------------------------------------------------------ *
+ * 保存密码提示
+ * ------------------------------------------------------------------ *
+ * 网页提交登录表单后，webview preload 把「用户名 + 密码」送到外壳
+ * （nova-login，见 src/preload/webview-preload.js）。这里决定要不要问，
+ * 并把用户的选择交给主进程 —— origin 由主进程从 wc.getURL() 反查，
+ * 渲染层传进去的地址不作数（否则一个 iframe 就能把密码存到别人名下）。
+ *
+ * 三条不问的理由：
+ *   设置里关了提示 / 这个站点点过「不再提示」/ 这个账号的密码跟已存的一模一样。
+ * 最后一条是关键：登录页「记住我」之后每次进来都会自动提交一次表单，
+ * 每次都弹「要保存密码吗」等于把这个功能做成骚扰。
+ */
+let pwdTimer = null;
+/** 气泡里待确认的那一条：{ wcId, origin, username, password } */
+let pwdPending = null;
+
+function hidePwdPrompt() {
+  if (pwdTimer) { clearTimeout(pwdTimer); pwdTimer = null; }
+  pwdPending = null;
+  const el = $('#pwd-prompt');
+  if (el) el.hidden = true;
+}
+
+/** 这个站点 + 账号已经存过的记录（没有就返回 null） */
+async function findSavedCredential(origin, username) {
+  let list = null;
+  try { list = await bridge.credentials.list(); } catch { list = null; }
+  if (!Array.isArray(list)) list = state.credentials || [];
+  state.credentials = list;
+  const o = origin.toLowerCase();
+  return list.find((c) => String(c.origin).toLowerCase() === o && (c.username || '') === (username || '')) || null;
+}
+
+async function onLoginSubmitted(tab, payload) {
+  if (!tab || !payload || !payload.password) return;
+  const cfg = (state.settings && state.settings.passwords) || {};
+  // 缺省视为开启：老配置里没有这个键，不该因为升级就少了提示
+  if (cfg.promptSave === false) return;
+
+  const origin = originOf(tab.url);
+  if (!origin) return;   // about:blank / file: 之类没有可归档的站点
+
+  const never = Array.isArray(cfg.neverFor) ? cfg.neverFor : [];
+  if (never.some((x) => String(x).toLowerCase() === origin.toLowerCase())) return;
+
+  const username = String(payload.username || '');
+  const saved = await findSavedCredential(origin, username);
+  if (saved) {
+    // 密码没变就别问 —— 这是「记住我」自动登录的常态，不是新登录
+    let same = false;
+    try {
+      const r = await bridge.credentials.reveal(saved.id);
+      same = !!(r && r.ok && r.password === payload.password);
+    } catch { same = false; }
+    if (same) return;
+  }
+
+  let wcId = tab.wcId;
+  if (wcId == null && tab.webview && typeof tab.webview.getWebContentsId === 'function') {
+    try { wcId = tab.webview.getWebContentsId(); } catch { wcId = null; }
+  }
+  if (wcId == null) return;
+
+  pwdPending = { wcId, origin, username, password: payload.password };
+  const site = $('#pwd-site');
+  const user = $('#pwd-user');
+  const save = $('#pwd-save');
+  if (site) site.textContent = hostOf(origin) || origin;
+  if (user) user.textContent = username || '（无用户名）';
+  if (save) save.textContent = saved ? '更新' : '保存';
+  $('#pwd-prompt').hidden = false;
+
+  // 30 秒没人理就收起：这是顺手问一句，不是必须回答的对话框
+  if (pwdTimer) clearTimeout(pwdTimer);
+  pwdTimer = setTimeout(hidePwdPrompt, 30000);
+}
+
+/** 保存当前这条（密码改过时就是更新） */
+async function commitPwdPrompt() {
+  const p = pwdPending;
+  if (!p) return;
+  hidePwdPrompt();   // 先收起，免得连点两下存两遍
+  let r = null;
+  try { r = await bridge.credentials.saveFromPage(p.wcId, p.username, p.password); }
+  catch { r = null; }
+  if (r && r.ok) {
+    toast(r.updated ? '密码已更新（设置 → 密码 可查看）' : '密码已保存（设置 → 密码 可查看）');
+    try { state.credentials = await bridge.credentials.list(); } catch { /* 列表刷新失败不影响已保存 */ }
+    return;
+  }
+  toast((r && r.error) || '保存失败');
+}
+
+/** 这个站点不再提示；只记 origin，别处照旧 */
+async function mutePwdPromptForSite() {
+  const p = pwdPending;
+  hidePwdPrompt();
+  if (!p) return;
+  const cfg = (state.settings && state.settings.passwords) || {};
+  const never = (Array.isArray(cfg.neverFor) ? cfg.neverFor : []).slice();
+  if (!never.some((x) => String(x).toLowerCase() === p.origin.toLowerCase())) never.push(p.origin);
+  try {
+    state.settings = await bridge.settings.patch({ passwords: { neverFor: never } });
+    toast('这个网站不再提示保存密码');
+  } catch { toast('设置没能保存（预览模式）'); }
 }
 
 function buildBookmarks() {
@@ -5291,6 +5431,11 @@ function wireActions(root) {
         if (r.dup) bits.push('已存在 ' + r.dup);
         if (r.skipped) bits.push('跳过 ' + r.skipped);
         toast('导入完成：' + bits.join('，'));
+      } else if (act === 'pwd-toggle') {
+        const cur = !(state.settings.passwords && state.settings.passwords.promptSave === false);
+        state.settings = await bridge.settings.patch({ passwords: { promptSave: !cur } });
+        renderSettingsSection('passwords');
+        toast(!cur ? '登录后不再提示保存密码' : '登录后会提示保存密码');
       } else if (act === 'cred-add') {
         const g = (id) => { const el = root.querySelector('#' + id); return el ? el.value : ''; };
         const r = await bridge.credentials.add({
@@ -5667,6 +5812,7 @@ function closePrintDialog() {
   if (!v || v.hidden) return;
   v.hidden = true;
   printWcId = null;
+  resetPrintPreview();
 }
 
 /**
@@ -5685,6 +5831,7 @@ function openPrintDialog(tab) {
 
   closeDrawer();
   closeCmdPalette();
+  closeSettings();   // 打印是模态：别让它压在设置窗上面叠成两层
   printWcId = id;
 
   const p = printPrefs();
@@ -5695,6 +5842,11 @@ function openPrintDialog(tab) {
   fillPrintForm(p);
   $('#print-view').hidden = false;
   refreshPrinters(p.deviceName);
+  // 先摆出预览的骨架（遮罩 + 纸张信息），再去排 PDF：printToPDF 要几百毫秒，
+  // 空着的右半屏会让人以为这栏坏了
+  resetPrintPreview();
+  if ($('#print-preview-info')) $('#print-preview-info').textContent = previewInfoText();
+  schedulePrintPreview(0);
   setTimeout(() => { const b = $('#print-go'); if (b) b.focus(); }, 30);
 }
 
@@ -5728,8 +5880,8 @@ async function refreshPrinters(preferred) {
   }
 }
 
-function collectPrintOptions() {
-  return {
+function collectPrintOptions(opt) {
+  const o = {
     deviceName: $('#print-printer').value || '',
     pageSize: $('#print-paper').value,
     customWidth: readPrintNum('#print-paper-w', 210),
@@ -5746,6 +5898,98 @@ function collectPrintOptions() {
     printBackground: $('#print-bg').classList.contains('is-on'),
     headerFooter: $('#print-hf').classList.contains('is-on')
   };
+  // 预览走 printToPDF，没有「打印机」这个概念；把 deviceName 传过去只会让人
+  // 以为预览是发到那台机器上排的
+  if (opt && opt.withDevice === false) delete o.deviceName;
+  return o;
+}
+
+/** 预览区右上角那行小字：改任何一项都要立刻跟着变，所以按当前表单现算 */
+function previewInfoText() {
+  const o = collectPrintOptions({ withDevice: false });
+  const size = o.pageSize === 'custom' ? `${o.customWidth}×${o.customHeight}mm` : o.pageSize;
+  const dir = o.landscape ? '横向' : '纵向';
+  const mg = o.marginType === 'none' ? '无边距'
+    : o.marginType === 'custom' ? `边距 ${o.marginTop}/${o.marginBottom}/${o.marginLeft}/${o.marginRight}mm`
+      : '边距 10mm';
+  return `${size} · ${dir} · ${mg} · ${o.scale}%`;
+}
+
+/* 预览：每改一项设置就重排一次 PDF。
+ * printToPDF 的代价是整页排版 + 写盘，所以在数字框里敲键不能每敲一下就排一次，
+ * 250ms 内的连续改动只跑最后一次。 */
+const PRINT_PREVIEW_DELAY = 250;
+let previewTimer = null;
+/** 只认最后一次请求的结果：改得快时前几次的响应会晚到，不能拿它盖掉新的 */
+let previewSeq = 0;
+
+function schedulePrintPreview(delay) {
+  if (printWcId == null) return;
+  if (previewTimer) clearTimeout(previewTimer);
+  previewTimer = setTimeout(refreshPrintPreview, delay == null ? PRINT_PREVIEW_DELAY : delay);
+}
+
+/**
+ * 预览的载体。
+ *
+ * 真实运行时是 `<webview plugins>` —— Electron 自带的 PDF 阅读器本身是个插件，
+ * 少了 plugins 属性 Chromium 只会把 PDF 当下载，预览区就永远白着。
+ * UI 预览模式（普通浏览器里打开外壳）没有 `<webview>` 这个东西，换成 iframe：
+ * 那种模式下装的是同构的占位纸（见 bridge-mock 的 page.printPreview），iframe
+ * 够用，而且它与外壳同进程合成，隐藏窗口截图也能拍到。
+ */
+function previewHost() {
+  let el = $('#print-preview');
+  if (!el || !state.isPreview || el.tagName === 'IFRAME') return el;
+  const f = document.createElement('iframe');
+  f.id = 'print-preview';
+  f.className = 'print-preview';
+  f.setAttribute('title', '打印预览');
+  if (el.parentNode) el.parentNode.replaceChild(f, el);
+  return f;
+}
+
+async function refreshPrintPreview() {
+  previewTimer = null;
+  const wcId = printWcId;
+  const mask = $('#print-preview-mask');
+  const info = $('#print-preview-info');
+  if (wcId == null || !mask) return;
+  // 正在出纸 / 导 PDF 时让一让：别把预览的排版任务排到真正的打印任务前面
+  if (printBusy) { schedulePrintPreview(400); return; }
+
+  const seq = ++previewSeq;
+  mask.textContent = '正在生成预览…';
+  mask.hidden = false;
+  if (info) info.textContent = previewInfoText();
+
+  let r = null;
+  try { r = await bridge.page.printPreview(wcId, collectPrintOptions({ withDevice: false })); }
+  catch (e) { r = { ok: false, error: String((e && e.message) || e) }; }
+
+  // 期间又改了设置、或者面板已经关掉：这次结果作废
+  if (seq !== previewSeq || printWcId !== wcId) return;
+
+  if (r && r.ok && r.url) {
+    const pv = previewHost();
+    if (pv) pv.setAttribute('src', r.url);
+    mask.hidden = true;
+  } else {
+    mask.textContent = (r && r.error) || '预览生成失败';
+    mask.hidden = false;
+  }
+}
+
+/** 清掉预览：关面板时调用，别让上一份 PDF 留在那儿占着文件 */
+function resetPrintPreview() {
+  if (previewTimer) { clearTimeout(previewTimer); previewTimer = null; }
+  previewSeq++;  // 让在飞的请求作废
+  const pv = previewHost();
+  if (pv) pv.removeAttribute('src');
+  const mask = $('#print-preview-mask');
+  if (mask) { mask.textContent = '正在生成预览…'; mask.hidden = false; }
+  const info = $('#print-preview-info');
+  if (info) info.textContent = '';
 }
 
 /** 记住这套设置（不含页码范围：那是「这一次」的选择，不是长期偏好） */
@@ -7344,24 +7588,37 @@ function wireUi() {
   $('#engine-sheet').addEventListener('click', (ev) => { if (ev.target.id === 'engine-sheet') closeSheet(); });
   $('#read-sheet').addEventListener('click', (ev) => { if (ev.target.id === 'read-sheet') closeReadSheet(); });
 
-  // 打印设置：分段控件与开关走委托，避免给每个按钮各挂一条
+  // 打印设置：分段控件与开关走委托，避免给每个按钮各挂一条。
+  // 每一条都要顺手排一次预览 —— 「改一项，右边立刻变」是这一屏的全部意义。
   const printView = $('#print-view');
   printView.addEventListener('click', (ev) => {
     if (ev.target === printView) { closePrintDialog(); return; }
     const orient = ev.target.closest('[data-orient]');
-    if (orient) { setPrintSeg('#print-orient', 'orient', orient.dataset.orient); return; }
+    if (orient) { setPrintSeg('#print-orient', 'orient', orient.dataset.orient); schedulePrintPreview(); return; }
     const margin = ev.target.closest('[data-margin]');
-    if (margin) { setPrintSeg('#print-margins', 'margin', margin.dataset.margin); syncPrintCustom(); return; }
-    if (ev.target.closest('#print-bg')) { $('#print-bg').classList.toggle('is-on'); return; }
-    if (ev.target.closest('#print-hf')) { $('#print-hf').classList.toggle('is-on'); return; }
+    if (margin) { setPrintSeg('#print-margins', 'margin', margin.dataset.margin); syncPrintCustom(); schedulePrintPreview(); return; }
+    if (ev.target.closest('#print-bg')) { $('#print-bg').classList.toggle('is-on'); schedulePrintPreview(); return; }
+    if (ev.target.closest('#print-hf')) { $('#print-hf').classList.toggle('is-on'); schedulePrintPreview(); return; }
   });
-  $('#print-paper').addEventListener('change', syncPrintCustom);
+  $('#print-paper').addEventListener('change', () => { syncPrintCustom(); schedulePrintPreview(); });
+  // 数字框：input 在打字与点微调箭头时都会来，节流交给 schedulePrintPreview。
+  // 份数不列进来 —— 它只影响出纸张数，跟排版一点关系都没有。
+  ['#print-paper-w', '#print-paper-h', '#print-mt', '#print-mb', '#print-ml', '#print-mr', '#print-scale', '#print-range']
+    .forEach((sel) => { const el = $(sel); if (el) el.addEventListener('input', () => schedulePrintPreview()); });
   $('#print-close').addEventListener('click', closePrintDialog);
   $('#print-cancel').addEventListener('click', closePrintDialog);
   $('#print-go').addEventListener('click', () => runPrint(false));
   $('#print-direct').addEventListener('click', () => runPrint(true));
   $('#print-pdf').addEventListener('click', runPrintPdf);
   $('#print-refresh').addEventListener('click', () => refreshPrinters($('#print-printer').value));
+
+  // 保存密码气泡
+  const pwdSave = $('#pwd-save');
+  if (pwdSave) pwdSave.addEventListener('click', commitPwdPrompt);
+  const pwdNever = $('#pwd-never');
+  if (pwdNever) pwdNever.addEventListener('click', hidePwdPrompt);
+  const pwdNeverSite = $('#pwd-never-site');
+  if (pwdNeverSite) pwdNeverSite.addEventListener('click', mutePwdPromptForSite);
 
   // 快捷键
   window.addEventListener('keydown', (ev) => {
@@ -7380,7 +7637,7 @@ function wireUi() {
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); closeSettings(); closeCmdPalette(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;

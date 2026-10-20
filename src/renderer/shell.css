@@ -2301,8 +2301,8 @@ svg {
 }
 .print-window {
   display: flex; flex-direction: column;
-  width: min(560px, 100%);
-  max-height: min(720px, 100%);
+  width: min(1080px, 100%);
+  height: min(720px, 100%);
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -2324,7 +2324,44 @@ svg {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .print-fill { flex: 1; }
-.print-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: var(--sp-3); }
+/* 左设置 / 右预览。左栏固定 360px：纸张、方向、边距这些控件刚好一列放得下；
+   再宽就只是把预览挤小。预览区用 printToPDF 生成的真实 PDF —— 分页、比例、
+   边距都能看出来，不是拿当前视口截一张图糊弄。 */
+.print-body {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+}
+.print-pane {
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: var(--sp-3);
+  border-right: 1px solid var(--border);
+}
+.print-preview-pane {
+  display: flex; flex-direction: column;
+  min-width: 0; min-height: 0;
+  background: var(--surface-2);
+}
+.print-preview-head {
+  display: flex; align-items: center; gap: var(--sp-2);
+  height: 34px; min-height: 34px;
+  padding: 0 var(--sp-3);
+  font-size: 11px; color: var(--text-4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.print-preview-info { margin-left: auto; font-family: var(--font-mono); }
+.print-preview-stage { position: relative; flex: 1; min-height: 0; }
+.print-preview { width: 100%; height: 100%; background: #fff; border: 0; display: block; }
+/* 预览是异步生成的（大页面要一两秒）。遮罩挡在 PDF 上，避免看到上一版设置的结果 */
+.print-preview-mask {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-size: 12px; color: var(--text-3);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+.print-preview-mask[hidden] { display: none; }
 
 /* 顶部那张「要打的是什么」：用户同时开着一堆标签页时，这里是最后一道确认 */
 .print-page-card {
@@ -2427,6 +2464,49 @@ svg {
 [data-layout="mobile"] .print-window {
   width: 100%; height: 100%; max-height: 100%;
   border-radius: 0; border: 0;
+}
+/* 手机上放不下两栏：预览藏掉，设置占满。真要预览就横屏或换电脑。 */
+[data-layout="mobile"] .print-body { grid-template-columns: 1fr; }
+[data-layout="mobile"] .print-preview-pane { display: none; }
+[data-layout="mobile"] .print-pane { border-right: 0; }
+
+/* ------------------------------------------------------------------ *
+ * 保存密码提示（右下角气泡）
+ * ------------------------------------------------------------------ *
+ * 登录提交后出现，不打断当前操作；30 秒没人理就自己收起（密码只在内存里
+ * 待这 30 秒，不落任何临时文件）。窄屏改成贴底，避开底部工具栏。
+ */
+.pwd-prompt {
+  position: fixed; right: var(--sp-4); bottom: var(--sp-4);
+  z-index: 60;
+  display: flex; align-items: center; gap: var(--sp-3);
+  max-width: min(460px, calc(100vw - 32px));
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  animation: svPop var(--dur) var(--ease);
+}
+.pwd-prompt[hidden] { display: none; }
+.pwd-main { flex: 1; min-width: 0; }
+.pwd-title { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.pwd-sub {
+  margin-top: 2px; font-size: 11px; color: var(--text-4);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pwd-dot { margin: 0 6px; }
+.pwd-acts { display: flex; gap: 6px; flex: 0 0 auto; align-items: center; }
+/* 「此站不再提示」是三级动作：做成文字按钮，别和「保存 / 不保存」抢视线 */
+.pwd-link {
+  border: 0; background: none; padding: 0 2px;
+  font: inherit; font-size: 11px; color: var(--text-4);
+  cursor: pointer; white-space: nowrap;
+}
+.pwd-link:hover { color: var(--text-2); text-decoration: underline; }
+[data-layout="mobile"] .pwd-prompt {
+  left: var(--sp-3); right: var(--sp-3); bottom: 76px;
+  max-width: none;
 }
 
 /* 底部弹层 */

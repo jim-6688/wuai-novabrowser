@@ -230,6 +230,8 @@ contextBridge.exposeInMainWorld('nova', {
     printers: (wcId) => ipcRenderer.invoke('page:printers', wcId),
     /** 打印：opts.silent=false 弹系统打印窗口，true 直接出纸 */
     print: (wcId, opts) => ipcRenderer.invoke('page:print', wcId, opts),
+    /** 打印预览：按同一套设置生成 PDF，返回 file:// 地址给 <webview> 显示 */
+    printPreview: (wcId, opts) => ipcRenderer.invoke('page:print-preview', wcId, opts),
     /** 网页截图：mode = 'full'（整页）| 'view'（可见区域） */
     capture: (wcId, mode) => ipcRenderer.invoke('page:capture', wcId, mode)
   },
@@ -255,6 +257,8 @@ contextBridge.exposeInMainWorld('nova', {
   credentials: {
     importEdge: () => ipcRenderer.invoke('cred:import-edge'),
     add: (c) => ipcRenderer.invoke('cred:add', c),
+    /** 登录表单提交后由外壳调用；origin 由主进程从 wcId 反查，渲染层传不了 */
+    saveFromPage: (wcId, username, password) => ipcRenderer.invoke('cred:save-from-page', wcId, username, password),
     list: () => ipcRenderer.invoke('cred:list'),
     reveal: (id) => ipcRenderer.invoke('cred:reveal', id),
     remove: (id) => ipcRenderer.invoke('cred:remove', id),

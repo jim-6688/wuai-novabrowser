@@ -328,6 +328,14 @@ if (typeof window !== 'undefined' && !window.nova) {
       download: { takeOver: true, threads: 8, maxConcurrent: 3, dir: '' },
       sniffer: { enabled: true, minSizeKB: 0, showSegments: false, autoProbe: true },
       mobile: { noImage: 'image', autoPage: true, autoPageMax: 10 },
+      // 与真实配置的初值对齐（见 src/main/settings.js 的 DEFAULTS）：
+      // 预览里的打印设置与保存密码开关要和装好第一次打开时是同一个样子
+      print: {
+        pageSize: 'A4', customWidth: 210, customHeight: 297, landscape: false,
+        marginType: 'default', marginTop: 10, marginBottom: 10, marginLeft: 10, marginRight: 10,
+        scale: 100, copies: 1, printBackground: true, headerFooter: false, deviceName: ''
+      },
+      passwords: { promptSave: true, neverFor: [] },
       adblock: {
         enabled: true, cosmetic: true, level: 'standard', allowlist: [], userLists: [],
         sources: { adtchrome: true, abp: true, builtin: true }
@@ -799,6 +807,10 @@ const MOCK_UPDATE = {
         printers: [{ name: 'preview', displayName: '预览模式（无打印机）', description: '', isDefault: true, status: 0 }]
       }),
       print: async () => ({ ok: true }),
+      /* 预览要真排版：那是主进程 printToPDF 出来的 PDF 文件，浏览器预览里没有。
+         指到一张同构的占位纸（print-preview-mock.html），让「左配置 / 右预览」
+         这个布局在 UI 预览与截图里是完整的，而不是一块白板。 */
+      printPreview: async () => ({ ok: true, url: 'print-preview-mock.html' }),
       capture: async () => ({ ok: true, path: '(预览模式未写盘)' })
     },
     system: {
@@ -833,6 +845,8 @@ const MOCK_UPDATE = {
        只把交互走通 —— 导入回一句「预览不支持」，列表为空。 */
     credentials: {
       importEdge: async () => ({ error: 'UI 预览模式不支持从 Edge 导入密码' }),
+      /* 预览模式不落盘，但要让「保存密码」气泡的交互能走通 */
+      saveFromPage: async () => ({ ok: true, updated: false, origin: '', username: '' }),
       list: async () => [],
       reveal: async () => ({ error: 'UI 预览模式' }),
       remove: async () => ({ ok: true }),

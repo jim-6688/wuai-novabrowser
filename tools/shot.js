@@ -77,6 +77,9 @@ function serve() {
 app.whenReady().then(async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const server = await serve();
+  // 刻意不开 webviewTag：预览模式下打印预览的载体是 iframe（见 shell.js 的
+  // ensurePreviewHost），开了反而会让 AI 面板那块 <webview> 真去联网，多出一条
+  // 与截图无关的 ERR_FAILED。
   const win = new BrowserWindow({ show: false, width: 1280, height: 820, backgroundColor: '#F6F7FB' });
   const js = (c) => win.webContents.executeJavaScript(c, true);
   await win.loadURL(`http://127.0.0.1:${PORT}/src/renderer/shell.html`);
@@ -126,6 +129,21 @@ app.whenReady().then(async () => {
 
   await js('closeSettings()');
   await shot('10-shell-back');
+
+  /* 打印设置：左栏配置、右栏预览。
+   * 预览在 UI 预览模式下是占位纸（见 bridge-mock 的 page.printPreview），
+   * 真实运行时那里是按左边这套设置 printToPDF 出来的 PDF —— 版面一样，
+   * 所以这一张能代表真机。
+   *
+   * 别为了拍预览去 win.show()：这台机器上把隐藏窗口 show 出来会让整轮截图
+   * 进程被 SIGTERM 掉（试过两次，连输出缓冲都来不及刷）。UI 预览模式里预览
+   * 的载体是 iframe 而不是 <webview>（见 shell.js 的 ensurePreviewHost），
+   * 正是为了让隐藏窗口也能拍到它。 */
+  await js('openPrintDialog(activeTab())');
+  await new Promise((r) => setTimeout(r, 700));
+  await shot('10b-print-dialog');
+  await js('closePrintDialog()');
+
 
   // 移动端：真的把窗口调到手机宽度，而不是只在 1280 下强行切档
   win.setContentSize(420, 820);

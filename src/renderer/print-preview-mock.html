@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>打印预览（UI 预览模式）</title>
+<style>
+  /* 这一页只在 UI 预览模式（没有 Electron 主进程）里出现，见 bridge-mock.js 的
+     page.printPreview。真实运行时右侧预览是主进程 printToPDF 出来的 PDF，
+     由 Electron 自带阅读器显示，跟这一页没有关系 —— 它只是让「左配置 / 右预览」
+     这个布局在预览与截图里也是完整的，而不是一块白板。 */
+  html, body { margin: 0; height: 100%; }
+  body {
+    display: grid; place-items: center;
+    background: #eef0f6;
+    font: 12px/1.7 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    color: #6a7288;
+  }
+  .sheet {
+    /* 按高度撑满：预览栏是横向的，按宽度算会把 A4 的纸压到上下都裁掉 */
+    height: 88%; width: auto; aspect-ratio: 210 / 297;
+    background: #fff;
+    box-shadow: 0 6px 22px rgba(20, 26, 46, .14), 0 1px 3px rgba(20, 26, 46, .1);
+    padding: 7% 6%;
+    box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 10px;
+    overflow: hidden;
+  }
+  .note {
+    font-size: 11px; color: #9ba3b7;
+    border-left: 3px solid #cfd5e6; padding-left: 8px;
+  }
+  .h { height: 10px; border-radius: 2px; background: #dfe3ee; }
+  .h.w1 { width: 52%; height: 14px; background: #ccd3e4; }
+  .l { height: 6px; border-radius: 3px; background: #eceff6; }
+  .l.s { width: 68%; }
+  .l.xs { width: 44%; }
+  .gap { height: 6px; }
+  .foot { margin-top: auto; font-size: 10px; color: #b6bccd; }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="note">UI 预览模式：真实运行时这里是按左侧设置排版后的 PDF 预览</div>
+    <div class="h w1"></div>
+    <div class="l"></div>
+    <div class="l"></div>
+    <div class="l s"></div>
+    <div class="gap"></div>
+    <div class="l"></div>
+    <div class="l"></div>
+    <div class="l xs"></div>
+    <div class="foot">1</div>
+  </div>
+</body>
+</html>

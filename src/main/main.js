@@ -1880,6 +1880,9 @@ function registerIpc() {
     return wc;
   };
 
+  /** 打印预览的文件序号：让每次预览都换一个地址，见 page:print-preview 的说明 */
+  let previewSeq = 0;
+
   /** 系统打印机列表。deviceName 要用 name（系统名），displayName 只给界面看。 */
   handle('page:printers', async (wcId) => {
     const wc = resolveWc(wcId);
@@ -1956,6 +1959,64 @@ function registerIpc() {
     });
   });
 
+  /**
+   * 打印设置 → printToPDF 选项。预览与「另存为 PDF」共用同一份，保证看到的就是导出的。
+   *
+   * 两处「同一个名字、不同规矩」的坑，别再踩：
+   *   - 单位：printToPDF 的 pageSize / margins 都是**英寸**，print() 是微米 + 96dpi 像素；
+   *   - 类型：printToPDF 的 pageRanges 是**字符串**（"1-3,5"），print() 要 [{from,to}]。
+   * 类型传错不是「没效果」，Electron 会直接抛 `pageRanges must be a string`。
+   */
+  const buildPdfOptions = (o) => {
+    const pdfOpts = {
+      printBackground: o.printBackground !== false,
+      landscape: !!o.landscape,
+      scale: clampNum(o.scale, 10, 200, 100) / 100,
+      pageSize: pdfPageSize(o),
+      margins: pdfMargins(o)
+    };
+    const ranges = String(o.pageRanges || '').trim();
+    if (ranges) pdfOpts.pageRanges = ranges;
+    return pdfOpts;
+  };
+
+  /**
+   * 打印预览：按当前设置渲染一份 PDF 到临时目录，返回 file:// 地址。
+   *
+   * 为什么走 printToPDF 而不是截图：预览要能看出分页、纸张比例与边距，
+   * 截图只能看到当前视口那一屏，跟真正打印出来的东西差得远。
+   * Electron 自带 PDF 阅读器（webview 加 plugins 属性即可），所以渲染层
+   * 直接把这个文件显示出来就行，不必再引 pdf.js 这类依赖。
+   */
+  handle('page:print-preview', async (wcId, opts = {}) => {
+    const wc = resolveWc(wcId);
+    if (!wc) return { ok: false, error: '页面已关闭' };
+    const o = opts || {};
+    const ranges = parsePageRanges(o.pageRanges);
+    if (ranges === false) return { ok: false, error: '页面范围格式不对，示例：1-3,5' };
+    try {
+      const data = await wc.printToPDF(buildPdfOptions(o));
+      const dir = path.join(app.getPath('temp'), 'nova-print-preview');
+      fs.mkdirSync(dir, { recursive: true });
+      // 文件名带序号：每改一次设置就要让 <webview> 重新读一次文件。地址不变时
+      // Chromium 会认成同一个资源（还可能是缓存的那份），预览就停在上一版了。
+      previewSeq = (previewSeq + 1) % 1000;
+      const prefix = 'preview-' + Number(wcId) + '-';
+      const file = path.join(dir, prefix + previewSeq + '.pdf');
+      fs.writeFileSync(file, data);
+      // 写完再清旧的那几版：一次预览最多几 MB，攒着没意义。
+      // 清不掉也不算失败 —— 正在被阅读器打开的文件在 Windows 上删不掉。
+      try {
+        for (const f of fs.readdirSync(dir)) {
+          if (f !== path.basename(file) && f.indexOf(prefix) === 0) fs.unlinkSync(path.join(dir, f));
+        }
+      } catch { /* 清不掉不影响这次预览 */ }
+      return { ok: true, url: pathToFileURL(file).href, bytes: data.length };
+    } catch (e) {
+      return { ok: false, error: '预览生成失败：' + String((e && e.message) || e) };
+    }
+  });
+
   // 把当前页另存为 PDF。渲染层只给 webContents id，磁盘读写与保存框都在主进程做。
   // opts 与打印共用一份（纸张 / 边距 / 方向 / 缩放），不带时按默认值导出。
   handle('page:save-pdf', async (wcId, opts = {}) => {
@@ -1974,15 +2035,7 @@ function registerIpc() {
     });
     if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
     try {
-      const pdfOpts = {
-        printBackground: o.printBackground !== false,
-        landscape: !!o.landscape,
-        scale: clampNum(o.scale, 10, 200, 100) / 100,
-        pageSize: pdfPageSize(o),
-        margins: pdfMargins(o)
-      };
-      if (ranges) pdfOpts.pageRanges = ranges;
-      const data = await wc.printToPDF(pdfOpts);
+      const data = await wc.printToPDF(buildPdfOptions(o));
       fs.writeFileSync(picked.filePath, data);
       return { ok: true, path: picked.filePath };
     } catch (e) {
@@ -2072,6 +2125,40 @@ function registerIpc() {
     });
     credWrite(items);
     return { ok: true };
+  });
+  /**
+   * 网页里提交了登录表单 → 外壳弹「保存密码？」。
+   *
+   * origin 由主进程从 `wc.getURL()` 取，**不接受渲染层传进来的地址**：
+   * 那等于让页面自己声明自己是谁，一个 iframe 就能把密码存到别人名下。
+   * 同一站点 + 同一账号再次登录时更新密码（用户改过密码后不该存着旧的）。
+   */
+  handle('cred:save-from-page', (wcId, username, password) => {
+    if (!safeStorage.isEncryptionAvailable()) return { error: '系统加密不可用，无法安全保存密码' };
+    const wc = resolveWc(wcId);
+    if (!wc) return { error: '页面已关闭' };
+    let origin = '';
+    try {
+      const u = new URL(wc.getURL());
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return { error: '这个页面不支持保存密码' };
+      origin = u.origin;
+    } catch { return { error: '读不到页面地址' }; }
+    const user = String(username || '').trim().slice(0, 200);
+    const pass = String(password || '');
+    if (!pass) return { error: '没有密码可保存' };
+
+    const items = credLoad();
+    const at = items.findIndex((x) => String(x.origin).toLowerCase() === origin.toLowerCase() && x.username === user);
+    const rec = {
+      id: at >= 0 ? items[at].id : crypto.randomUUID(),
+      origin,
+      username: user,
+      enc: safeStorage.encryptString(pass).toString('base64'),
+      ts: Date.now()
+    };
+    if (at >= 0) items[at] = rec; else items.push(rec);
+    credWrite(items);
+    return { ok: true, updated: at >= 0, origin, username: user };
   });
 
   /* --- 网页区右键菜单（系统原生 Menu）---

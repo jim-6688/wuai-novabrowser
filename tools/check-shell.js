@@ -735,6 +735,28 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /id: 'passwords'/.test(js) && /function buildPasswords/.test(js)
       && /'cred-import'/.test(js) && /'cred-add'/.test(js) && /'cred-fill'/.test(js)
       && /function fillLoginIntoActiveTab/.test(js)],
+  ['登录提交后问「要不要保存密码」（气泡 + 三条不问的理由）',
+    /id="pwd-prompt"/.test(html) && /function onLoginSubmitted/.test(js)
+      && /channel === 'nova-login'/.test(js)
+      && /promptSave === false/.test(js) && /neverFor/.test(js)],
+  ['已存过的密码不再重复问（记住我自动提交表单的常态）',
+    /function findSavedCredential/.test(js) && /r\.password === payload\.password/.test(js)],
+  ['保存密码时 origin 由主进程反查，渲染层传不进去',
+    /handle\('cred:save-from-page', \(wcId, username, password\)/.test(mainMod)
+      && /new URL\(wc\.getURL\(\)\)/.test(mainMod)],
+
+  /* --- 打印设置（左侧配置 / 右侧真实预览）--- */
+  ['打印设置窗口是左栏配置 + 右栏预览',
+    /id="print-pane"/.test(html) && /id="print-preview"/.test(html)
+      && /grid-template-columns: 360px 1fr/.test(css)],
+  ['预览走 printToPDF（不是截图），并用 Electron 自带 PDF 阅读器显示',
+    /handle\('page:print-preview'/.test(mainMod) && /printToPDF/.test(mainMod)
+      && /id="print-preview" class="print-preview" plugins/.test(html)],
+  ['改一项设置就重排一次预览（节流，且不把打印机名传给 printToPDF）',
+    /function schedulePrintPreview/.test(js) && /withDevice === false/.test(js)
+      && /PRINT_PREVIEW_DELAY/.test(js)],
+  ['预览文件每次换名（同名会被 Chromium 当成同一份缓存）',
+    /previewSeq = \(previewSeq \+ 1\)/.test(mainMod)],
 
   /* --- 网页右键菜单 + 选中文字迷你条 --- */
   ['有网页右键菜单与选区迷你条',

@@ -165,11 +165,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const tab = window.eval('activeTab()');
   check('有活动标签页可打', !!tab);
   if (tab) {
-    // 模拟 webview preload 的 sendToHost：外壳监听的就是这条 ipc-message
-    const ev = new window.Event('ipc-message');
-    ev.channel = 'nova-print';
-    ev.args = [];
-    tab.webview.dispatchEvent(ev);
+    // 模拟 webview preload 的 sendToHost：外壳监听的就是这条 ipc-message。
+    // jsdom 里没有真 webview，直接调那条消息处理器（转接见 mountTab）。
+    window.eval('handleWebviewIpc')(tab, { channel: 'nova-print', args: [] });
     await waitFor(() => $('#print-view').hidden === false);
     check('收到 nova-print 后弹出设置窗口', $('#print-view').hidden === false);
   }
@@ -181,6 +179,70 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await waitFor(() => $('#print-view').hidden === false);
   key('Escape');
   check('Esc 也能关掉面板', $('#print-view').hidden === true);
+
+  /* ================================================================ *
+   * [E] 右侧预览：改一项就重排一次
+   * ================================================================ */
+  console.log('\n[E] 右侧真实预览（printToPDF）');
+
+  const pv = { calls: [], n: 0 };
+  const realPreview = window.nova.page.printPreview;
+  window.nova.page.printPreview = async (wcId, opts) => {
+    pv.n++;
+    pv.calls.push({ wcId, opts });
+    return { ok: true, url: `file:///tmp/nova-preview-${pv.n}.pdf` };
+  };
+
+  key('p', { ctrlKey: true });
+  await waitFor(() => $('#print-view').hidden === false);
+  const firstPreview = await waitFor(() => pv.calls.length >= 1);
+  check('打开面板就会生成一次预览', firstPreview, String(pv.calls.length));
+  const c0 = pv.calls[0] || { opts: {} };
+  check('预览打的是当前标签页', c0.wcId != null);
+  check('预览带上了纸张设置', !!c0.opts.pageSize, String(c0.opts.pageSize));
+  check('预览不传打印机（printToPDF 没有这个概念）', !('deviceName' in (c0.opts || {})));
+
+  const pvEl = $('#print-preview');
+  check('预览地址交给了 PDF 阅读器', pvEl.getAttribute('src') === 'file:///tmp/nova-preview-1.pdf',
+    String(pvEl.getAttribute('src')));
+  check('预览出来以后遮罩收起', $('#print-preview-mask').hidden === true);
+  check('预览区标了纸张/方向/边距', /B5/.test($('#print-preview-info').textContent)
+    && /横向/.test($('#print-preview-info').textContent), $('#print-preview-info').textContent);
+
+  // 改方向 → 节流后重排一次，并且换一个地址（同一个地址 Chromium 会认成旧的那份）
+  const before = pv.calls.length;
+  click($('#print-orient [data-orient="landscape"]'));
+  const repainted = await waitFor(() => pv.calls.length > before);
+  check('改设置后重新排版', repainted, `${before} → ${pv.calls.length}`);
+  const c1 = pv.calls[pv.calls.length - 1] || { opts: {} };
+  check('重排带上了新方向', c1.opts.landscape === true);
+  await waitFor(() => $('#print-preview').getAttribute('src') !== 'file:///tmp/nova-preview-1.pdf');
+  check('预览换了一个新地址', $('#print-preview').getAttribute('src') !== 'file:///tmp/nova-preview-1.pdf',
+    String($('#print-preview').getAttribute('src')));
+
+  // 换纸张 → 那行小字也要跟着变（它是按当前表单现算的，不读回上次的结果）
+  $('#print-paper').value = 'A3';
+  $('#print-paper').dispatchEvent(new window.Event('change', { bubbles: true }));
+  const infoA3 = await waitFor(() => /A3/.test($('#print-preview-info').textContent));
+  check('换纸张后预览区那行小字跟着变', infoA3, $('#print-preview-info').textContent);
+
+  // 连改三次只该排最后一次（250ms 节流）
+  const b2 = pv.calls.length;
+  $('#print-scale').value = '80';
+  $('#print-scale').dispatchEvent(new window.Event('input', { bubbles: true }));
+  $('#print-scale').value = '70';
+  $('#print-scale').dispatchEvent(new window.Event('input', { bubbles: true }));
+  $('#print-scale').value = '60';
+  $('#print-scale').dispatchEvent(new window.Event('input', { bubbles: true }));
+  await waitFor(() => pv.calls.length > b2, 2000);
+  await sleep(400);
+  check('连续改动只排最后一次（节流生效）', pv.calls.length - b2 === 1, `多跑了 ${pv.calls.length - b2} 次`);
+  check('排的是最后那个值', pv.calls[pv.calls.length - 1].opts.scale === 60,
+    String(pv.calls[pv.calls.length - 1].opts.scale));
+
+  click($('#print-cancel'));
+  check('关面板时清掉预览地址', !$('#print-preview').getAttribute('src'));
+  window.nova.page.printPreview = realPreview;
 
   /* 还原桥，避免影响后续断言 */
   window.nova.page.print = realPrint;

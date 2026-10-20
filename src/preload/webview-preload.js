@@ -26,6 +26,41 @@ function askPrint() {
   try { ipcRenderer.sendToHost('nova-print'); } catch { /* 宿主已销毁 */ }
 }
 
+/**
+ * 登录表单提交 → 把「用户名 + 密码」交给外壳问是否保存。
+ *
+ * <p>只在表单里**恰好有一个**密码框时上报：两个及以上通常是注册 / 改密码 /
+ * 二次确认，那种场景下弹「保存密码」会让人莫名其妙。
+ * <p>这里只读当前表单这两个值，不碰页面其它内容，也不发任何网络请求；
+ * 密码只在内存里经过一次 IPC，落盘由主进程用系统 safeStorage 加密。
+ */
+document.addEventListener('submit', (event) => {
+  const form = event.target;
+  if (!form || form.tagName !== 'FORM') return;
+
+  let pws;
+  try { pws = form.querySelectorAll('input[type="password"]'); } catch { return; }
+  if (!pws || pws.length !== 1) return;
+  const pw = pws[0];
+  if (!pw.value) return;
+
+  const q = (sel) => { try { return form.querySelector(sel); } catch { return null; } };
+  const ue = q('input[autocomplete="username"]')
+    || q('input[type="email"]')
+    || q('input[name*="user" i]')
+    || q('input[id*="user" i]')
+    || q('input[type="tel"]')
+    || q('input[type="text"]')
+    || q('input:not([type])');
+
+  try {
+    ipcRenderer.sendToHost('nova-login', {
+      username: ue ? String(ue.value || '').slice(0, 200) : '',
+      password: String(pw.value)
+    });
+  } catch { /* 宿主已销毁 */ }
+}, true);
+
 /* 网页里调 window.print() —— 原生的那个在 Electron 下是空操作，必须接管。
    定义成自有属性而不是改原型：有些页面会自己包一层 print 做埋点/排版切换，
    只覆盖当前 window 这一层，页面自己的逻辑仍然保留在它自己的作用域里。 */

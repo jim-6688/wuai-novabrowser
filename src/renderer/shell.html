@@ -404,6 +404,10 @@
       </header>
 
       <div class="print-body" id="print-body">
+        <!-- 左：设置。右：真实排版预览（printToPDF 生成，PDF 阅读器显示）。
+             分两栏是因为「改一项 → 立刻看到纸张/边距变了」是这一屏的全部意义；
+             上下堆叠的话，预览会被挤到滚动区外面，等于没有。 -->
+        <div class="print-pane" id="print-pane">
         <div class="print-page-card">
           <div class="print-doc-title" id="print-doc-title">当前页面</div>
           <div class="print-doc-url" id="print-doc-url"></div>
@@ -494,6 +498,18 @@
         </div>
 
         <div class="print-note" id="print-note">「打印…」会弹出系统打印窗口，可在那边再选打印机；「直接打印」按上面的设置立刻出纸。</div>
+        </div>
+
+        <div class="print-preview-pane">
+          <div class="print-preview-head">
+            <span>预览</span>
+            <span class="print-preview-info" id="print-preview-info"></span>
+          </div>
+          <div class="print-preview-stage">
+            <webview id="print-preview" class="print-preview" plugins></webview>
+            <div class="print-preview-mask" id="print-preview-mask">正在生成预览…</div>
+          </div>
+        </div>
       </div>
 
       <footer class="print-foot">
@@ -505,6 +521,22 @@
       </footer>
     </div>
   </section>
+
+  <!-- ============ 保存密码提示 ============
+       网页提交登录表单后由 webview preload 送到外壳（nova-login）。
+       只在「表单里恰好有一个密码框」时出现，且可在 设置 → 密码 里关掉。
+       放右下角而不是弹模态：登录完人正要开始用页面，挡在中间会打断。 -->
+  <div class="pwd-prompt" id="pwd-prompt" hidden role="dialog" aria-live="polite" aria-label="保存密码">
+    <div class="pwd-main">
+      <div class="pwd-title">要保存这个网站的密码吗？</div>
+      <div class="pwd-sub"><span id="pwd-site"></span><span class="pwd-dot">·</span><span id="pwd-user"></span></div>
+    </div>
+    <div class="pwd-acts">
+      <button class="pwd-link" id="pwd-never-site">此站不再提示</button>
+      <button class="btn btn-sm" id="pwd-never">不保存</button>
+      <button class="btn btn-sm btn-primary" id="pwd-save">保存</button>
+    </div>
+  </div>
 
   <!-- ============ 侧边抽屉（仅菜单） ============ -->
   <aside class="drawer" id="drawer" aria-hidden="true">
