@@ -144,6 +144,14 @@ app.whenReady().then(async () => {
   await shot('10b-print-dialog');
   await js('closePrintDialog()');
 
+  /* 密码分区：两个开关都在这一页上。「登录后提示保存密码」与「打开网站时
+     自动填入」—— 后者是「保存了密码下次还要输」那个问题的对应设置。 */
+  await js("state.credentials = [{ id: 'd1', origin: 'https://example.com', username: 'me', ts: 1 }];"
+    + "openSettings('passwords')");
+  await new Promise((r) => setTimeout(r, 300));
+  await shot('09d-set-passwords');
+  await js('closeSettings()');
+
 
   // 移动端：真的把窗口调到手机宽度，而不是只在 1280 下强行切档
   win.setContentSize(420, 820);
