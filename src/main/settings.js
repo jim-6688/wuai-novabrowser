@@ -144,9 +144,13 @@ const DEFAULTS = {
    *   neverFor   —— 点过「不再提示」的站点（存 origin，如 https://example.com）。
    *                 存在这里而不是塞进 credentials：那是一条「没有密码的记录」，
    *                 会污染密码列表的语义（列表里的每一条都该能解密出密码）。
+   *   autofill   —— 打开已保存密码的网站时，是否直接把账号密码填进登录框。
+   *                 缺省视为开：这是「保存密码」这件事在用户眼里的本义。
+   *                 关掉后仍可从设置里手动「填充到当前页」。
    */
   passwords: {
     promptSave: true,
+    autofill: true,
     neverFor: []
   },
   /**
@@ -413,6 +417,29 @@ function pushHistory(entry) {
   scheduleFlush();
 }
 
+/**
+ * 给历史里这个地址补上标题。
+ *
+ * <p>为什么需要：记录发生在 `did-navigate`，那一刻页面的标题还没解析出来
+ * （`getTitle()` 要么是空的，要么就是地址本身）。于是地址栏自动匹配里
+ * 每一行只剩一串 URL —— 用户说的「缺少网址名称」就是这件事。
+ * 标题随后由 `page-title-updated` 送到，这里按地址把它补回去。
+ *
+ * <p>同一地址可能有多条（访问历史里重复的旧记录），一起补：只补最新那条的话，
+ * 用户从更早的记录里匹配到同一个站点，看到的还是没有名字。
+ */
+function retitleHistory(url, title) {
+  const u = String(url || '');
+  const t = String(title || '').trim();
+  if (!u || !t) return false;
+  let changed = false;
+  for (const h of cache.history) {
+    if (h && h.url === u && h.title !== t) { h.title = t; changed = true; }
+  }
+  if (changed) scheduleFlush();
+  return changed;
+}
+
 function clearHistory() {
   cache.history = [];
   scheduleFlush();
@@ -437,6 +464,7 @@ module.exports = {
   get,
   patch,
   pushHistory,
+  retitleHistory,
   historyRecordable,
   clearHistory,
   addBookmark,

@@ -628,10 +628,50 @@ function handleWebviewIpc(tab, ev) {
   if (!tab || !ev) return;
   if (ev.channel === 'nova-print') { openPrintDialog(tab); return; }
   if (ev.channel === 'nova-login') { onLoginSubmitted(tab, ev.args && ev.args[0]); return; }
+  if (ev.channel === 'nova-cred-ask') { autofillLogin(tab, ev.args && ev.args[0]); return; }
   if (ev.channel !== 'nova-zoom') return;
   const dir = ev.args && ev.args[0];
   if (dir === 'reset') setTabZoom(tab, 1);
   else stepZoom(tab, dir === 'in' ? 1 : -1);
+}
+
+/**
+ * 网页里出现了登录表单 → 本站有存的密码就填回去。
+ *
+ * <p>「保存密码」在用户眼里的本义是下次别让我再输一遍。只弹提示不做带入，
+ * 保存这件事就只完成了一半。
+ *
+ * <p>三条边界：
+ *  1. origin 必须是**这个标签页当前地址**的 origin。页面里读到的 origin 只当
+ *     线索，宿主拿真实地址核一遍 —— 否则跨站 iframe 一句 ask 就能拿去别人的记录。
+ *  2. 只填一条。同一站点存了多个账号时不猜：把口令乱填进别人的账号上，比不填更糟。
+ *     选最近保存的那条（settings 里也能手动「填充到当前页」逐个填）。
+ *  3. 解密失败（换过 Windows 账户）就安静放过，不打扰用户。
+ */
+async function autofillLogin(tab, payload) {
+  if (!tab || !payload) return;
+  const cfg = (state.settings && state.settings.passwords) || {};
+  if (cfg.autofill === false) return;
+  const origin = originOf(tab.url);
+  const asked = String(payload.origin || '');
+  if (!origin || !asked || origin.toLowerCase() !== asked.toLowerCase()) return;
+
+  const wv = tab.webview;
+  if (!wv || typeof wv.send !== 'function') return;   // UI 预览模式没有真 webview
+
+  try {
+    if (!state.credentials) {
+      const list = await bridge.credentials.list();
+      state.credentials = Array.isArray(list) ? list : [];
+    }
+    const mine = state.credentials.filter((c) => String(c.origin).toLowerCase() === origin.toLowerCase());
+    if (!mine.length) return;
+    // 最近保存的那条在前（cred:list 按保存顺序倒序，这里再排一次以防万一）
+    mine.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    const r = await bridge.credentials.reveal(mine[0].id);
+    if (!r || !r.ok) return;
+    wv.send('nova-cred-fill', { username: mine[0].username || '', password: r.password });
+  } catch { /* 填不进去不影响浏览 */ }
 }
 
 /** 按标签页当前内核属性创建渲染载体 */
@@ -704,7 +744,13 @@ function mountTab(tab) {
     if (activeTab() && activeTab().id === tab.id) renderPageError();
     tab.loading = true; renderTabstrip(); syncNavButtons();
   });
-  wv.addEventListener('did-stop-loading', () => { tab.loading = false; renderTabstrip(); syncNavButtons(); });
+  wv.addEventListener('did-stop-loading', () => {
+    tab.loading = false; renderTabstrip(); syncNavButtons();
+    // 页面自己可能从头到尾都没发 page-favicon-updated（图标只在 <link> 里声明、
+    // 或者放在 /favicon.ico 而这一步被 CSP 拦了）。这时问主进程缓存要一份，
+    // 顺带踢一次盲探 —— 抓到之后 onFetched 会推 favicon:updated 再回来补。
+    resolveTabFavicon(tab);
+  });
   wv.addEventListener('did-navigate', (ev) => {
     tab.url = ev.url;
     // 换了站点：套用该域名记住的缩放（不落盘，只是应用）
@@ -734,8 +780,12 @@ function mountTab(tab) {
     renderTabGrid();
   });
   wv.addEventListener('page-favicon-updated', (ev) => {
+    // 先用页面声明的地址顶上：能立刻显示，等主进程抓完缓存再换成 data: URI
+    // （外壳 CSP 只放行 https 的图片，http 图标那一步会被挡掉 —— 那正是
+    // 「有的网站有图标、有的只有一个方框」的一半原因）。
     tab.favicon = (ev.favicons && ev.favicons[0]) || null;
     renderTabstrip();
+    resolveTabFavicon(tab);
   });
   wv.addEventListener('new-window', (ev) => {
     createTab(ev.url, tab.engineId, { activate: !ev.disposition || ev.disposition === 'foreground-tab' });
@@ -1099,17 +1149,43 @@ function toggleTabMute(id) {
   toast(next ? '已静音此标签页' : '已取消静音');
 }
 
+/**
+ * 从主进程的图标缓存里给这个标签页要一份图标。
+ *
+ * 为什么要绕这一圈：外壳页面的 CSP 是 `img-src 'self' data: https:`，
+ * 站点声明成 `http://…` 的图标（还有一部分 https 之外的协议、链接失效的地址）
+ * 一律被拦，表现就是「一个空方框」。缓存里存的是主进程抓下来的字节、以
+ * data: URI 返回，不受这条限制，页面关了也还在。
+ *
+ * 只覆盖「还没有图标」或「远程地址」两种情况 —— 已经是 data: URI 的说明
+ * 上一次已经换过了，别每导航一次就再换一次（同一个地址也换不出新东西）。
+ */
+async function resolveTabFavicon(tab) {
+  if (!tab || state.isPreview) return;
+  const host = hostOf(tab.url);
+  if (!host) return;
+  const cur = tab.favicon || '';
+  if (cur.indexOf('data:') === 0) return;
+  let map = null;
+  try { map = await bridge.favicons.json([host]); } catch { map = null; }
+  const uri = map && map[host];
+  if (!uri) return;
+  if (tab.favicon !== uri) { tab.favicon = uri; renderTabstrip(); }
+}
+
 function renderTabstrip() {
   const box = $('#tabs');
   box.innerHTML = state.tabs.map((t) => {
     const e = engine(t.engineId);
-    const fav = t.favicon
-      ? `<img src="${esc(t.favicon)}" alt="" onerror="this.remove()" />`
-      : (hostOf(t.url) || 'N').slice(0, 1).toUpperCase();
+    const letter = (hostOf(t.url) || 'N').slice(0, 1).toUpperCase();
+    // 图标画不出来时不要留个空框：CSP 会把内联 onerror 也一并挡掉
+    // （script-src 'self'），原来那句 this.remove() 从来就没执行过。
+    // 改成渲染后给 img 挂事件监听兜底，见下面的 forEach。
+    const fav = t.favicon ? `<img src="${esc(t.favicon)}" alt="" />` : letter;
     return `
       <div class="tab ${t.id === state.activeId ? 'is-active' : ''}" data-tab="${t.id}"
            style="--tab-accent:${e.accent}" title="${esc(t.title)}&#10;${esc(t.url)}">
-        ${t.loading ? '<span class="tab-spinner"></span>' : `<span class="tab-favicon">${fav}</span>`}
+        ${t.loading ? '<span class="tab-spinner"></span>' : `<span class="tab-favicon" data-fb="${esc(letter)}">${fav}</span>`}
         <span class="tab-title">${esc(t.title)}</span>
         ${(t.audible || t.muted) ? `<button class="tab-audio ${t.muted ? 'is-muted' : ''}" data-mute="${t.id}" title="${t.muted ? '取消静音' : '静音此标签页'}">` +
           `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8h3l4-3v10l-4-3H4z"/>` +
@@ -1121,6 +1197,16 @@ function renderTabstrip() {
         </button>
       </div>`;
   }).join('');
+
+  // 图标加载失败（http 被 CSP 拦、链接失效、站点下线）→ 换回落地的首字母。
+  // 内联 onerror 被 CSP 挡掉，只能这样挂。
+  box.querySelectorAll('.tab-favicon img').forEach((img) => {
+    img.addEventListener('error', () => {
+      const s = img.parentNode;
+      if (!s) return;
+      s.textContent = s.dataset.fb || '';
+    });
+  });
 
   box.querySelectorAll('.tab').forEach((el) => {
     el.addEventListener('mousedown', (ev) => {
@@ -1410,6 +1496,20 @@ function pickOmniSuggest(idx) {
   input.blur();
 }
 
+/**
+ * 一条记录在匹配列表里的「网站名称」。
+ *
+ * 历史条目里 title 可能是空的（记录发生在标题解析出来之前），也可能是地址本身
+ * （旧版本就是这么存的）。两种都回落成主机名 —— 一行里同时出现「bilibili.com」
+ * 和「bilibili.com/xxx」看着重复，但至少能一眼认出是哪个站；直接空着才是真的
+ * 「缺少网址名称」。
+ */
+function siteNameOf(title, url) {
+  const t = String(title || '').trim();
+  if (t && t !== url) return t;
+  return hostOf(url) || String(url || '');
+}
+
 /** 按输入串从收藏 + 历史里挑匹配项（收藏优先、按 URL 去重，最多 8 条）。 */
 function omniSugMatches(query) {
   const q = String(query || '').trim().toLowerCase();
@@ -1426,7 +1526,7 @@ function omniSugMatches(query) {
     const url = item && item.url;
     if (!url || seen.has(url)) return;
     seen.add(url);
-    out.push({ url, title: (item && item.title) || url, type });
+    out.push({ url, title: siteNameOf(item && item.title, url), type });
   };
   for (const b of (state.bookmarks || [])) if (hit(b.url, b.title)) push(b, 'bm');
   for (const h of (state.historyCache || [])) if (hit(h.url, h.title)) push(h, 'hist');
@@ -2923,7 +3023,7 @@ async function buildHistory() {
     ${items.length ? `<div class="sv-card">${items.map((h) => `
       <div class="hist-row" data-url="${esc(h.url)}">
         <div class="hist-main">
-          <div class="hist-title">${esc(h.title || h.url)}</div>
+          <div class="hist-title">${esc(siteNameOf(h.title, h.url))}</div>
           <div class="hist-url">${esc(prettyUrl(h.url))}</div>
         </div>
         <div class="hist-time">${esc(timeAgo(h.ts))}</div>
@@ -2936,6 +3036,8 @@ async function buildPasswords() {
   const list = state.credentials || [];
   // 缺省视为开启：老配置里没有这个键，不该因为升级就少了提示
   const pwdPromptOn = !(state.settings.passwords && state.settings.passwords.promptSave === false);
+  // 自动带入：保存过的密码，下次打开这个站点直接填进登录框
+  const autofillOn = !(state.settings.passwords && state.settings.passwords.autofill === false);
   return `
     <h2 class="sv-h2">密码 / 登录凭证</h2>
     <div class="sv-lead">Nova 自己保存账号密码：<b>只存本机、系统加密、不上传</b>。到网站后可点「填充到当前页」自动填入登录框。</div>
@@ -2946,6 +3048,13 @@ async function buildPasswords() {
           <span class="lr-sub">提交登录表单时询问一次；关掉后不再打扰</span>
         </span>
         <button class="switch ${pwdPromptOn ? 'is-on' : ''}" data-act="pwd-toggle" title="登录后提示保存密码"></button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">打开网站时自动填入账号密码</span>
+          <span class="lr-sub">只填本站已保存的那一条，且不覆盖已经在输入的内容</span>
+        </span>
+        <button class="switch ${autofillOn ? 'is-on' : ''}" data-act="autofill-toggle" title="自动填入账号密码"></button>
       </div>
     </div>
     <div class="btn-row" style="padding-top:0">
@@ -5440,6 +5549,11 @@ function wireActions(root) {
         state.settings = await bridge.settings.patch({ passwords: { promptSave: !cur } });
         renderSettingsSection('passwords');
         toast(!cur ? '登录后不再提示保存密码' : '登录后会提示保存密码');
+      } else if (act === 'autofill-toggle') {
+        const cur = !(state.settings.passwords && state.settings.passwords.autofill === false);
+        state.settings = await bridge.settings.patch({ passwords: { autofill: !cur } });
+        renderSettingsSection('passwords');
+        toast(!cur ? '已关闭自动填入，仍可手动点「填充到当前页」' : '已开启自动填入');
       } else if (act === 'cred-add') {
         const g = (id) => { const el = root.querySelector('#' + id); return el ? el.value : ''; };
         const r = await bridge.credentials.add({
@@ -5866,7 +5980,7 @@ function openPrintDialog(tab) {
   // 先摆出预览的骨架（遮罩 + 纸张信息），再去排 PDF：printToPDF 要几百毫秒，
   // 空着的右半屏会让人以为这栏坏了
   resetPrintPreview();
-  if ($('#print-preview-info')) $('#print-preview-info').textContent = previewInfoText();
+  renderPreviewMeta();
   schedulePrintPreview(0);
   setTimeout(() => { const b = $('#print-go'); if (b) b.focus(); }, 30);
 }
@@ -5936,6 +6050,26 @@ function previewInfoText() {
   return `${size} · ${dir} · ${mg} · ${o.scale}%`;
 }
 
+/**
+ * 预览区顶部那两处文字：纸张信息 + 页数。
+ * 页数单独做成一个胶囊而不是拼进那行小字里 —— 用户改纸张高度时最想知道的就是
+ * 「会不会溢到第二页」，这是这一屏的结论，不该混在一串参数里。
+ * 0 表示还不知道（正在排 / 数不出来），这时候不显示，免得写个「共 0 页」吓人。
+ */
+function renderPreviewMeta() {
+  const info = $('#print-preview-info');
+  if (info) info.textContent = previewInfoText();
+  const pill = $('#print-preview-pages');
+  if (!pill) return;
+  if (previewPages > 0) {
+    pill.textContent = previewPages === 1 ? '共 1 页' : `共 ${previewPages} 页`;
+    pill.classList.toggle('is-multi', previewPages > 1);
+    pill.hidden = false;
+  } else {
+    pill.hidden = true;
+  }
+}
+
 /* 预览：每改一项设置就重排一次 PDF。
  * printToPDF 的代价是整页排版 + 写盘，所以在数字框里敲键不能每敲一下就排一次，
  * 250ms 内的连续改动只跑最后一次。 */
@@ -5943,9 +6077,13 @@ const PRINT_PREVIEW_DELAY = 250;
 let previewTimer = null;
 /** 只认最后一次请求的结果：改得快时前几次的响应会晚到，不能拿它盖掉新的 */
 let previewSeq = 0;
+/** 上一次预览排出来几页（0 = 还不知道）。改设置时先清零，等新结果回来再填 */
+let previewPages = 0;
 
 function schedulePrintPreview(delay) {
   if (printWcId == null) return;
+  previewPages = 0;   // 设置变了，旧页数立刻作废，别让它挂在信息栏上误导
+  renderPreviewMeta();
   if (previewTimer) clearTimeout(previewTimer);
   previewTimer = setTimeout(refreshPrintPreview, delay == null ? PRINT_PREVIEW_DELAY : delay);
 }
@@ -5974,7 +6112,6 @@ async function refreshPrintPreview() {
   previewTimer = null;
   const wcId = printWcId;
   const mask = $('#print-preview-mask');
-  const info = $('#print-preview-info');
   if (wcId == null || !mask) return;
   // 正在出纸 / 导 PDF 时让一让：别把预览的排版任务排到真正的打印任务前面
   if (printBusy) { schedulePrintPreview(400); return; }
@@ -5982,7 +6119,7 @@ async function refreshPrintPreview() {
   const seq = ++previewSeq;
   mask.textContent = '正在生成预览…';
   mask.hidden = false;
-  if (info) info.textContent = previewInfoText();
+  renderPreviewMeta();
 
   let r = null;
   try { r = await bridge.page.printPreview(wcId, collectPrintOptions({ withDevice: false })); }
@@ -5992,10 +6129,17 @@ async function refreshPrintPreview() {
   if (seq !== previewSeq || printWcId !== wcId) return;
 
   if (r && r.ok && r.url) {
+    previewPages = Number(r.pages) || 0;
+    renderPreviewMeta();
     const pv = previewHost();
-    if (pv) pv.setAttribute('src', r.url);
+    // 按宽度铺满：#zoom=page-width 是 PDFium 阅读器认的地址参数。默认 100%
+    // 时一张 210×9mm 的小票只占中间一小条，用户得眯着眼看；铺满宽度后
+    // 「一页还是两页」一眼就能看出来。toolbar/navpanes 关掉，把地方留给纸。
+    if (pv) pv.setAttribute('src', r.url + '#zoom=page-width&toolbar=0&navpanes=0');
     mask.hidden = true;
   } else {
+    previewPages = 0;
+    renderPreviewMeta();
     mask.textContent = (r && r.error) || '预览生成失败';
     mask.hidden = false;
   }
@@ -6009,8 +6153,8 @@ function resetPrintPreview() {
   if (pv) pv.removeAttribute('src');
   const mask = $('#print-preview-mask');
   if (mask) { mask.textContent = '正在生成预览…'; mask.hidden = false; }
-  const info = $('#print-preview-info');
-  if (info) info.textContent = '';
+  previewPages = 0;
+  renderPreviewMeta();
 }
 
 /** 记住这套设置（不含页码范围：那是「这一次」的选择，不是长期偏好） */
@@ -7826,7 +7970,15 @@ function wireBridgeEvents() {
   // 主进程抓到一份新图标。重读一次那张表（同名主机也要重读 —— 内容变了）。
   // 这条推送是必须的：图标是异步到的，不推的话书签格会一直停在首字母上，
   // 直到用户下一次动书签才碰巧重画一次。
-  bridge.on('favicon:updated', () => refreshHostIcons(true));
+  bridge.on('favicon:updated', () => {
+    refreshHostIcons(true);
+    // 标签页同理：刚打开一个没有图标的站点时，图标要等这次推送才到
+    for (const t of state.tabs) {
+      const cur = t.favicon || '';
+      if (cur.indexOf('data:') === 0) continue;
+      resolveTabFavicon(t);
+    }
+  });
 
   // 内置新标签页发来的动作（加 / 删快捷方式）。
   //

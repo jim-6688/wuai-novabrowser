@@ -88,6 +88,18 @@ async function openPage(html) {
 const PAGE = (extra) => '<!doctype html><meta charset="utf-8"><body>'
   + '<div id="box">page</div>' + (extra || '') + '</body>';
 
+/** 等子框架 commit。iframe 是异步加载的，固定 sleep 在慢机器上会偶发数不到 ——
+ *  这里改成轮询，超时了也照原样返回，让断言自己报错而不是靠运气。 */
+async function waitFrames(guest, n, ms) {
+  const t0 = Date.now();
+  let frames = guest.mainFrame.framesInSubtree;
+  while (frames.length < n && Date.now() - t0 < ms) {
+    await new Promise((r) => setTimeout(r, 100));
+    frames = guest.mainFrame.framesInSubtree;
+  }
+  return frames;
+}
+
 app.whenReady().then(async () => {
   console.log('\n[1] 主世界的 window.print 被换掉了');
 
@@ -124,12 +136,13 @@ app.whenReady().then(async () => {
     const outer = PAGE('<iframe id="f" src="' + pathToFileURL(innerFile).href + '" style="width:600px;height:300px"></iframe>');
     const { win, guest, messages } = await openPage(outer);
     installPrintHook(guest);
-    await new Promise((r) => setTimeout(r, 500));
     // 从子框架里调 print（等价于页面在 iframe 内部点「打印」）
-    const frames = guest.mainFrame.framesInSubtree;
+    const frames = await waitFrames(guest, 2, 5000);
     check('子框架被找到', frames.length >= 2, String(frames.length));
     const sub = frames.find((f) => f !== guest.mainFrame);
     if (sub) {
+      // 钩子是在 did-frame-navigate 里补装的，子框架刚 commit 时可能还没轮到
+      await new Promise((r) => setTimeout(r, 400));
       await sub.executeJavaScript('window.print(); true');
       await new Promise((r) => setTimeout(r, 400));
     }

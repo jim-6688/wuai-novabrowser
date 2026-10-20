@@ -180,11 +180,31 @@ const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'nova-fav-'));
     const log = [];
     const cache = new FaviconCache(dir, { fetchImpl: fakeFetch({}, log) });
     await cache.refreshOne('c.test');
-    check('三处都没有 → 一个文件也不落，也不抛',
-      fs.readdirSync(dir).length === 0 && log.length === 3);
+    // 每个 https 位置都探完，再补两个 http 位置（见 refreshOne 的注释：
+    // 有一批站点压根没开 TLS）。一个都没有也不抛。
+    check('三处 https + 两处 http 都没有 → 一个文件也不落，也不抛',
+      fs.readdirSync(dir).length === 0 && log.length === 5, log.join(' '));
+    check('补探的确实是 http 的那两个常见位置',
+      log[3] === 'http://c.test/favicon.ico' && log[4] === 'http://c.test/favicon.png',
+      log.join(' '));
     check('没缓存时 dataUri 给 null、jsonFor 里干脆不出现'
       + '（调用方据此回落到首字母兜底，不需要区分「没抓过」与「抓失败」）',
       cache.dataUri('c.test') === null && Object.keys(cache.jsonFor(['c.test'])).length === 0);
+  }
+
+  {
+    const dir = tmpDir();
+    const log = [];
+    // 只有 http 上有图：没开 TLS 的站点（内网、老的政府/学校站）
+    const cache = new FaviconCache(dir, {
+      fetchImpl: fakeFetch({ 'http://f.test/favicon.ico': PNG }, log)
+    });
+    const got = await cache.refreshOne('f.test');
+    check('https 全没有时补探 http，能救回一批没有 TLS 的站点',
+      got === true && fs.readdirSync(dir).length === 1, log.join(' '));
+    check('http 命中的那条排在全部 https 尝试之后（不为了省一次请求把 http 提前）',
+      log.slice(0, 3).every((u) => u.indexOf('https://') === 0) && log[3].indexOf('http://') === 0,
+      log.join(' '));
   }
 
   {

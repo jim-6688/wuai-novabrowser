@@ -203,7 +203,12 @@ const toJava = (rel) => P('android-app/app/src/main/' + rel);
   ['抓到图标会推 favicon:updated 给外壳（否则书签格停在首字母，直到下次动书签）',
     /send\('favicon:updated'/.test(mainJs) && /on\('favicon:updated'/.test(js)],
   ['外壳收到推送后走的是强制重读（主机名没变，但表的内容变了）',
-    /on\('favicon:updated',\s*\(\)\s*=>\s*refreshHostIcons\(true\)\)/.test(js)],
+    /on\('favicon:updated',[\s\S]{0,200}?refreshHostIcons\(true\)/.test(js)],
+  /* 标签页也要吃这份推送：刚打开的站点可能连 page-favicon-updated 都没发，
+     图标只能等主进程抓完缓存推过来这一次。 */
+  ['收到推送时还顺手补一遍标签页图标',
+    /on\('favicon:updated',[\s\S]{0,600}?resolveTabFavicon\(t\)/.test(js)
+      && /data-fb=/.test(js)],
   ['preload 把 favicons.json 挂到桥上', /favicons:\s*\{/.test(preload)
     && /favicon:json/.test(preload)],
   ['外壳有查表与取表两个函数', /function hostIcon\(/.test(js) && /async function refreshHostIcons\(/.test(js)],
@@ -729,6 +734,15 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
       && /state\.bookmarks/.test(js) && /state\.historyCache/.test(js)],
   ['方向键选、回车进建议',
     /ev\.key === 'ArrowDown'/.test(js) && /function pickOmniSuggest/.test(js)],
+  /* 用户报过「地址栏匹配缺少网址名称」：历史记录发生在 did-navigate，
+     那时页面标题还没解析出来，所以每行只剩一串 URL。 */
+  ['历史标题由 page-title-updated 回填（否则匹配行里没有网站名）',
+    /function retitleHistory/.test(fs.readFileSync(P('src/main/settings.js'), 'utf8'))
+      && /settings\.retitleHistory\(cur, title\)/.test(mainMod)
+      && /function siteNameOf/.test(js)
+      && /siteNameOf\(h\.title, h\.url\)/.test(js)],
+  ['did-navigate 记历史时不把地址当标题存',
+    /title: t && t !== url \? t : ''/.test(mainMod)],
 
   /* --- 登录凭证（Nova 自己保存密码 + 填充）--- */
   ['有密码分区与导入/添加/填充动作',
@@ -739,6 +753,28 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /id="pwd-prompt"/.test(html) && /function onLoginSubmitted/.test(js)
       && /channel === 'nova-login'/.test(js)
       && /promptSave === false/.test(js) && /neverFor/.test(js)],
+  ['已存过的密码不再重复问（记住我自动提交表单的常态）',
+    /function findSavedCredential/.test(js) && /r\.password === payload\.password/.test(js)],
+  ['保存密码时 origin 由主进程反查，渲染层传不进去',
+    /handle\('cred:save-from-page', \(wcId, username, password\)/.test(mainMod)
+      && /new URL\(wc\.getURL\(\)\)/.test(mainMod)],
+  /* 用户报过「保存了密码，再次打开还要输」：preload 问 → 宿主按 origin 核 →
+     回填。三个断言各钉住一段接线。 */
+  ['再次打开站点时自动带入已保存的账号密码',
+    /nova-cred-ask/.test(fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8'))
+      && /channel === 'nova-cred-ask'/.test(js)
+      && /wv\.send\('nova-cred-fill'/.test(js)
+      && /data-act="autofill-toggle"/.test(js) && /autofill === false/.test(js)],
+  ['自动带入前用标签页真实地址核对 origin（跨站 iframe 拿不到别人的记录）',
+    /function autofillLogin/.test(js)
+      && /originOf\(tab\.url\)/.test(js)
+      && /origin\.toLowerCase\(\) !== asked\.toLowerCase\(\)/.test(js)],
+  ['页面里只问一次、密码框非空不问（不覆盖用户正在输入的内容）',
+    /let asked = false/.test(fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8'))
+      && /if \(pw\.value \|\| filled\.has\(pw\)\) return null/.test(
+        fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8'))],
+  ['cred:list 带上 ts（同一站点多个账号要能取最近保存的那条）',
+    /cred:list'[\s\S]{0,200}?ts: x\.ts/.test(mainMod)],
   ['已存过的密码不再重复问（记住我自动提交表单的常态）',
     /function findSavedCredential/.test(js) && /r\.password === payload\.password/.test(js)],
   ['保存密码时 origin 由主进程反查，渲染层传不进去',
@@ -757,6 +793,15 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
       && /PRINT_PREVIEW_DELAY/.test(js)],
   ['预览文件每次换名（同名会被 Chromium 当成同一份缓存）',
     /previewSeq = \(previewSeq \+ 1\)/.test(mainMod)],
+  /* 「纸选小了会不会溢到第二页」是这一屏的结论，得单独看得见：
+     主进程数 PDF 的页数回传 → 渲染层做成胶囊，>1 页换警示色。 */
+  ['预览区显示共几页（主进程数 PDF 页数 → 右上角胶囊）',
+    /countPdfPages/.test(mainMod) && /pages: countPdfPages\(/.test(mainMod)
+      && /id="print-preview-pages"/.test(html)
+      && /function renderPreviewMeta/.test(js) && /共 \$\{previewPages\} 页/.test(js)
+      && /\.print-preview-pages\.is-multi/.test(css)],
+  ['预览按宽度铺满，不让人眯着眼看一张小票',
+    /#zoom=page-width/.test(js)],
   /* 这条是「点了页面上的打印按钮却弹系统对话框」那个问题的回归钉子：
      钩子必须装在**页面主世界**（主进程注入），preload 只负责接事件。 */
   ['window.print 的钩子装在页面主世界，preload 只接 nova:print 事件',

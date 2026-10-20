@@ -61,6 +61,93 @@ document.addEventListener('submit', (event) => {
   } catch { /* 宿主已销毁 */ }
 }, true);
 
+/* ------------------------------------------------------------------ *
+ * 自动带入已保存的账号密码
+ * ------------------------------------------------------------------ *
+ * 用户存的并非只有「提示保存」这一半：保存了却还要每次都手输，等于没保存。
+ *
+ * 流程（三段都在**页面侧**发起，宿主只负责解密与比对）：
+ *   1) 页面里出现「登录表单」→ sendToHost('nova-cred-ask', {origin})
+ *   2) 外壳按 origin 精确匹配一条已存记录、解密，webview.send('nova-cred-fill')
+ *   3) 这里把值写进输入框并派发 input/change（框架要监听这个才知道值变了）
+ *
+ * 安全边界：
+ *   - 只问、不存。这个文件碰不到密码库，也发不出任何请求。
+ *   - 表单里**恰好一个**密码框且它是空的才问：两个以上是注册/改密码；非空
+ *     说明页面自己带了值或用户已经在打，覆盖用户的输入是最讨厌的事。
+ *   - origin 由页面自己读 location.origin（这里是 guest 自己的 origin，
+ *     不是宿主的地址），宿主那侧还会再拿标签页真实地址核一遍。
+ */
+(function () {
+  /** 已经填过的框：别填第二遍（页面重绘、用户改主意都算） */
+  const filled = new WeakSet();
+  /** 这一份文档只问一次；表单晚到时靠 focusin 兜底 */
+  let asked = false;
+
+  /** 当前文档里那个「能填」的登录表单；没有返回 null */
+  function findLoginForm() {
+    let pws;
+    try { pws = document.querySelectorAll('input[type="password"]'); } catch { return null; }
+    if (!pws || pws.length !== 1) return null;
+    const pw = pws[0];
+    // DOM 是共享的：主世界（或页面脚本）已经填过就别插手
+    if (pw.value || filled.has(pw)) return null;
+    const form = pw.form || document;
+    const q = (sel) => { try { return form.querySelector(sel); } catch { return null; } };
+    const ue = q('input[autocomplete="username"]')
+      || q('input[type="email"]')
+      || q('input[name*="user" i]')
+      || q('input[id*="user" i]')
+      || q('input[type="tel"]')
+      || q('input[type="text"]')
+      || q('input:not([type])');
+    return { ue: ue || null, pw };
+  }
+
+  function askHost() {
+    if (asked) return;
+    if (!findLoginForm()) return;
+    asked = true;
+    try { ipcRenderer.sendToHost('nova-cred-ask', { origin: location.origin }); }
+    catch { /* 宿主已销毁 */ }
+  }
+
+  function setValue(el, v) {
+    if (!el || !v) return;
+    try {
+      el.focus();
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.blur();
+    } catch { /* 控件没了就算了 */
+    }
+  }
+
+  /** 宿主回一条账号密码。已经要过才填，防止页面脚本伪造这条消息乱填。 */
+  ipcRenderer.on('nova-cred-fill', (_e, payload) => {
+    if (!asked || !payload || !payload.password) return;
+    const f = findLoginForm();
+    if (!f) return;
+    setValue(f.ue, String(payload.username || ''));
+    setValue(f.pw, String(payload.password));
+    if (f.ue) filled.add(f.ue);
+    filled.add(f.pw);
+  });
+
+  // 时机：DOM 就绪立刻问一次；登录表单常见于接口渲染，晚到的那几次补问。
+  // 用户第一次点进密码框也问（这时表单一定在），比多等两秒更贴手。
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { askHost(); setTimeout(askHost, 800); setTimeout(askHost, 2000); }, { once: true });
+  } else {
+    askHost(); setTimeout(askHost, 800); setTimeout(askHost, 2000);
+  }
+  document.addEventListener('focusin', (e) => {
+    const t = e.target;
+    if (t && t.tagName === 'INPUT' && t.type === 'password') askHost();
+  }, true);
+})();
+
 /* 网页里调 window.print() —— 必须接管，否则页面自己的「打印」按钮会直接弹系统
    打印对话框，绕过 Nova 的纸张/边距设置。
  *

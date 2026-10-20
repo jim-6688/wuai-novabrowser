@@ -2301,8 +2301,10 @@ svg {
 }
 .print-window {
   display: flex; flex-direction: column;
-  width: min(1080px, 100%);
-  height: min(720px, 100%);
+  /* 预览是这一屏的主角：窗口给到 1240×840，右栏才有地方把纸铺开。
+     以前 1080×720 时，一张小票在右栏里只占中间一小条，等于白给。 */
+  width: min(1240px, 100%);
+  height: min(840px, 100%);
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -2352,6 +2354,23 @@ svg {
   border-bottom: 1px solid var(--border);
 }
 .print-preview-info { margin-left: auto; font-family: var(--font-mono); }
+/* 页数胶囊：这一屏最想知道的结论就是「一页还是两页」，所以给它单独的色块，
+   不跟右边那串纸张参数混在一起。>1 页时转成警示色 —— 多半是纸选小了。 */
+.print-preview-pages {
+  display: inline-flex; align-items: center;
+  height: 18px; padding: 0 7px;
+  border-radius: 999px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2); background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.print-preview-pages[hidden] { display: none; }
+.print-preview-pages.is-multi {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
 .print-preview-stage { position: relative; flex: 1; min-height: 0; }
 .print-preview { width: 100%; height: 100%; background: #fff; border: 0; display: block; }
 /* 预览是异步生成的（大页面要一两秒）。遮罩挡在 PDF 上，避免看到上一版设置的结果 */

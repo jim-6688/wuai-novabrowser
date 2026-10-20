@@ -187,8 +187,14 @@ class FaviconCache {
     if (!host || this.isFresh(host) || this.inflight.has(host)) return false;
     this.inflight.add(host);
     try {
-      for (const p of PATHS) {
-        const res = await this.fetchImpl('https://' + host + p);
+      // 先走 https。全都没命中的话再补 http —— 还有一批站点（内网、
+      // 老的政府/学校站点）压根没开 TLS，只在 http 上有图标。
+      // 只补 .ico / .png 两个常见位置，不把六次请求全打一遍。
+      const tries = [];
+      for (const p of PATHS) tries.push('https://' + host + p);
+      for (const p of ['/favicon.ico', '/favicon.png']) tries.push('http://' + host + p);
+      for (const url of tries) {
+        const res = await this.fetchImpl(url);
         if (!res || !res.ok || !res.bytes) continue;
         const mime = sniffMime(res.bytes);
         if (!mime) continue;

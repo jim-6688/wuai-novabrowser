@@ -119,6 +119,15 @@ app.whenReady().then(async () => {
   const nA5 = pageCount(pdfA5);
   check('换成 A5 后页数变多（纸张尺寸真的传到了排版）', nA5 > nA4, `A4 ${nA4} 页 → A5 ${nA5} 页`);
 
+  // 界面上的「共 N 页」是主进程用 pdf-pages.js 数出来的，不是猜的。
+  // 这里拿真 Chromium 产出的 PDF 跟它对齐 —— 数错就会把两页说成一页。
+  const { countPdfPages } = require('../src/main/pdf-pages');
+  check('主进程自己的数页函数与探针结果一致',
+    countPdfPages(pdfA4) === nA4 && countPdfPages(pdfA5) === nA5,
+    `A4 ${countPdfPages(pdfA4)}/${nA4}，A5 ${countPdfPages(pdfA5)}/${nA5}`);
+  check('两页的 PDF 会被如实数成 2 页（胶囊才会转警示色）', countPdfPages(pdfA5) > 1,
+    String(countPdfPages(pdfA5)));
+
   // 具名纸张走字符串，自定义走 {width,height}，两条路都得通
   const pdfNamed = await win.webContents.printToPDF(pdfOpts({ pageSize: 'A4', margins: zero }));
   check('具名纸张（字符串 "A4"）也能用', pageCount(pdfNamed) === 1, `${pageCount(pdfNamed)} 页`);

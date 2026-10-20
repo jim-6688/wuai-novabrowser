@@ -19,6 +19,7 @@ const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipbo
 const QRCode = require('qrcode'); // 本地生成二维码（分享用），不把网址丢第三方二维码接口
 const creds = require('./credentials'); // 从 Edge 导入已存密码（本地解密）
 const { installPrintHook } = require('./print-hook'); // 网页里 window.print() 的接管（主世界注入）
+const { countPdfPages } = require('./pdf-pages'); // 预览里「共 N 页」靠数 PDF 页对象
 const protocolLinks = require('./protocol-links'); // ed2k / magnet 交给本地客户端
 
 const settings = require('./settings');
@@ -859,6 +860,11 @@ function wireContents(contents) {
     send('tab:title', { id: contents.id, title });
     // 标题是判断「这条媒体属于哪个页面」最直观的线索，记下来给嗅探清单用
     if (sniffer) sniffer.setPage(contents.id, contents.getURL(), title);
+    // 历史是 did-navigate 那一刻记的，那时标题还没解析出来 —— 这里补回去，
+    // 否则地址栏自动匹配里每一行都只有一串 URL，没有网站名。
+    let cur = '';
+    try { cur = contents.getURL(); } catch { /* 页面已经没了 */ }
+    if (cur && title) settings.retitleHistory(cur, title);
   });
 
   // 标签页关掉后把它的媒体记录一并释放，长时间开开关关不会越攒越多
@@ -891,8 +897,12 @@ function wireContents(contents) {
   contents.on('did-finish-load', () => injectFavicons(contents));
 
   contents.on('did-navigate', (_e, url, httpStatus) => {
+    // 这一刻标题还没解析出来，getTitle() 常常返回地址本身。存空串，等
+    // page-title-updated 那条把它补上 —— 存地址会让地址栏匹配里「网站名称」
+    // 永远显示成一串 URL。
+    const t = contents.getTitle();
     settings.pushHistory({
-      title: contents.getTitle(),
+      title: t && t !== url ? t : '',
       url,
       engine: engineId
     });
@@ -2024,7 +2034,9 @@ function registerIpc() {
           if (f !== path.basename(file) && f.indexOf(prefix) === 0) fs.unlinkSync(path.join(dir, f));
         }
       } catch { /* 清不掉不影响这次预览 */ }
-      return { ok: true, url: pathToFileURL(file).href, bytes: data.length };
+      // 页数一并回给界面：改纸张高度时用户最想知道的就是「会不会溢到第二页」，
+      // 光看预览图得自己数，不如直接把「共 N 页」写在预览区顶上。
+      return { ok: true, url: pathToFileURL(file).href, bytes: data.length, pages: countPdfPages(data) };
     } catch (e) {
       return { ok: false, error: '预览生成失败：' + String((e && e.message) || e) };
     }
@@ -2111,7 +2123,7 @@ function registerIpc() {
     credWrite(items);
     return { ok: true, added, dup, skipped: r.skipped || 0, total: items.length };
   });
-  handle('cred:list', () => credLoad().map((x) => ({ id: x.id, origin: x.origin, username: x.username })));
+  handle('cred:list', () => credLoad().map((x) => ({ id: x.id, origin: x.origin, username: x.username, ts: x.ts || 0 })));
   handle('cred:reveal', (id) => {
     const it = credLoad().find((x) => x.id === id);
     if (!it) return { error: '没有这条记录' };

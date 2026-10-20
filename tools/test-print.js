@@ -185,12 +185,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
    * ================================================================ */
   console.log('\n[E] 右侧真实预览（printToPDF）');
 
-  const pv = { calls: [], n: 0 };
+  const pv = { calls: [], n: 0, pages: 1 };
   const realPreview = window.nova.page.printPreview;
   window.nova.page.printPreview = async (wcId, opts) => {
     pv.n++;
     pv.calls.push({ wcId, opts });
-    return { ok: true, url: `file:///tmp/nova-preview-${pv.n}.pdf` };
+    return { ok: true, url: `file:///tmp/nova-preview-${pv.n}.pdf`, pages: pv.pages };
   };
 
   key('p', { ctrlKey: true });
@@ -203,22 +203,49 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('预览不传打印机（printToPDF 没有这个概念）', !('deviceName' in (c0.opts || {})));
 
   const pvEl = $('#print-preview');
-  check('预览地址交给了 PDF 阅读器', pvEl.getAttribute('src') === 'file:///tmp/nova-preview-1.pdf',
-    String(pvEl.getAttribute('src')));
+  const pvSrc = String(pvEl.getAttribute('src'));
+  check('预览地址交给了 PDF 阅读器', pvSrc.startsWith('file:///tmp/nova-preview-1.pdf'), pvSrc);
+  // 铺满宽度：一张小票按 100% 显示只占中间一小条，「一页还是两页」就看不出来了
+  check('预览地址带上了按宽缩放、隐藏工具栏', /#zoom=page-width/.test(pvSrc) && /toolbar=0/.test(pvSrc), pvSrc);
   check('预览出来以后遮罩收起', $('#print-preview-mask').hidden === true);
   check('预览区标了纸张/方向/边距', /B5/.test($('#print-preview-info').textContent)
     && /横向/.test($('#print-preview-info').textContent), $('#print-preview-info').textContent);
 
+  // 页数：主进程数完 PDF 的 /Type /Page 回传 pages，这里只验「回什么就显示什么」
+  const pill = $('#print-preview-pages');
+  check('一页时显示「共 1 页」', pill.hidden === false && pill.textContent.trim() === '共 1 页',
+    `hidden=${pill.hidden} text=${pill.textContent}`);
+  check('一页时不用警示色', !pill.classList.contains('is-multi'));
+
+  // 改成两页：胶囊要跟着变，并且换成警示色（纸选小了这件事得看得见）
+  pv.pages = 2;
+  $('#print-paper').value = 'A4';
+  $('#print-paper').dispatchEvent(new window.Event('change', { bubbles: true }));
+  // 设置一变，旧页数立刻作废：不能拿上一版纸型的「共 1 页」继续骗人
+  check('改设置后旧页数立刻收起', pill.hidden === true, `hidden=${pill.hidden}`);
+  await waitFor(() => pv.calls.length > 0 && pill.hidden === false);
+  check('两页时显示「共 2 页」', pill.textContent.trim() === '共 2 页', pill.textContent);
+  check('两页时打警示色', pill.classList.contains('is-multi'));
+
+  // 数不出页数（老 PDF / 解析失败）时干脆不显示，别写「共 0 页」
+  pv.pages = 0;
+  $('#print-paper').value = 'A3';
+  $('#print-paper').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(500);
+  check('数不出页数时不显示胶囊', pill.hidden === true, `hidden=${pill.hidden}`);
+  pv.pages = 1;
+
   // 改方向 → 节流后重排一次，并且换一个地址（同一个地址 Chromium 会认成旧的那份）
   const before = pv.calls.length;
+  const srcBefore = String($('#print-preview').getAttribute('src'));
   click($('#print-orient [data-orient="landscape"]'));
   const repainted = await waitFor(() => pv.calls.length > before);
   check('改设置后重新排版', repainted, `${before} → ${pv.calls.length}`);
   const c1 = pv.calls[pv.calls.length - 1] || { opts: {} };
   check('重排带上了新方向', c1.opts.landscape === true);
-  await waitFor(() => $('#print-preview').getAttribute('src') !== 'file:///tmp/nova-preview-1.pdf');
-  check('预览换了一个新地址', $('#print-preview').getAttribute('src') !== 'file:///tmp/nova-preview-1.pdf',
-    String($('#print-preview').getAttribute('src')));
+  await waitFor(() => String($('#print-preview').getAttribute('src')) !== srcBefore);
+  const srcAfter = String($('#print-preview').getAttribute('src'));
+  check('预览换了一个新地址', srcAfter !== srcBefore, `${srcBefore} → ${srcAfter}`);
 
   // 换纸张 → 那行小字也要跟着变（它是按当前表单现算的，不读回上次的结果）
   $('#print-paper').value = 'A3';

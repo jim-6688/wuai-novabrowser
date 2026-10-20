@@ -465,6 +465,29 @@ const MOCK_UPDATE = {
     ]
   };
 
+  /* 预览模式下没有真 PDF 可数页，按「纸高 − 上下边距」粗算一个页数，
+     让「共 N 页」胶囊在 UI 预览与截图里也能跟着纸张设置变化。
+     内容高度取 250mm：默认 A4 正好一页，换成 A5 就变两页，正是要演示的两种状态。 */
+  const MOCK_PAPER_MM = {
+    A3: [297, 420], A4: [210, 297], A5: [148, 210], A6: [105, 148],
+    B5: [176, 250], Letter: [215.9, 279.4], Legal: [215.9, 355.6],
+    Tabloid: [279.4, 431.8], '16K': [184, 260]
+  };
+  const mockPages = (o) => {
+    const opt = o || {};
+    const num = (v, def) => (Number.isFinite(Number(v)) ? Number(v) : def);
+    const paper = opt.pageSize === 'custom'
+      ? [num(opt.customWidth, 210), num(opt.customHeight, 297)]
+      : (MOCK_PAPER_MM[opt.pageSize] || MOCK_PAPER_MM.A4);
+    const h = opt.landscape ? paper[0] : paper[1];
+    const margin = opt.marginType === 'none' ? 0
+      : opt.marginType === 'custom' ? num(opt.marginTop, 10) + num(opt.marginBottom, 10)
+        : 20;
+    const usable = Math.max(20, h - margin);
+    const content = 250 * (num(opt.scale, 100) / 100);
+    return Math.max(1, Math.ceil(content / usable));
+  };
+
   const mockStats = () => {
     const list = state.downloads;
     return {
@@ -811,8 +834,10 @@ const MOCK_UPDATE = {
       installPrintHook: async () => ({ ok: false, frames: 0 }),
       /* 预览要真排版：那是主进程 printToPDF 出来的 PDF 文件，浏览器预览里没有。
          指到一张同构的占位纸（print-preview-mock.html），让「左配置 / 右预览」
-         这个布局在 UI 预览与截图里是完整的，而不是一块白板。 */
-      printPreview: async () => ({ ok: true, url: 'print-preview-mock.html' }),
+         这个布局在 UI 预览与截图里是完整的，而不是一块白板。
+         页数也得给：真机是数 PDF 的 /Type /Page，这里按纸高粗算一个，
+         否则预览模式下那颗「共 N 页」胶囊永远不出现，等于没做。 */
+      printPreview: async (wcId, o) => ({ ok: true, url: 'print-preview-mock.html', pages: mockPages(o) }),
       capture: async () => ({ ok: true, path: '(预览模式未写盘)' })
     },
     system: {
