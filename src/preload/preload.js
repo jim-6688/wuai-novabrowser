@@ -228,6 +228,8 @@ contextBridge.exposeInMainWorld('nova', {
     savePdf: (wcId, opts) => ipcRenderer.invoke('page:save-pdf', wcId, opts),
     /** 系统打印机列表（name 是系统名，displayName 才是给人看的） */
     printers: (wcId) => ipcRenderer.invoke('page:printers', wcId),
+    /** 把页面主世界的 window.print 接到外壳（主进程注入，见 src/main/print-hook.js） */
+    installPrintHook: (wcId) => ipcRenderer.invoke('page:print-hook', wcId),
     /** 打印：opts.silent=false 弹系统打印窗口，true 直接出纸 */
     print: (wcId, opts) => ipcRenderer.invoke('page:print', wcId, opts),
     /** 打印预览：按同一套设置生成 PDF，返回 file:// 地址给 <webview> 显示 */

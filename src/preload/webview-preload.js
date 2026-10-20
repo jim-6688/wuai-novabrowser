@@ -61,16 +61,28 @@ document.addEventListener('submit', (event) => {
   } catch { /* 宿主已销毁 */ }
 }, true);
 
-/* 网页里调 window.print() —— 原生的那个在 Electron 下是空操作，必须接管。
-   定义成自有属性而不是改原型：有些页面会自己包一层 print 做埋点/排版切换，
-   只覆盖当前 window 这一层，页面自己的逻辑仍然保留在它自己的作用域里。 */
+/* 网页里调 window.print() —— 必须接管，否则页面自己的「打印」按钮会直接弹系统
+   打印对话框，绕过 Nova 的纸张/边距设置。
+ *
+ * 真正的接管装在**页面主世界**（src/main/print-hook.js，由主进程注入）：这个
+ * preload 跑在隔离世界，在这里改 window.print 页面根本看不见 —— 以前正是这么
+ * 写的，所以「Ctrl+P 能弹窗」看着正常（键盘事件跨世界），页面里的打印按钮却
+ * 一直弹系统对话框。主世界的钩子改的是页面自己那份 print，然后 dispatch 一个
+ * `nova:print` 事件，这里接着往下送。
+ */
+window.addEventListener('nova:print', askPrint);
+
+/* 兜底：万一钩子没装上（老版本宿主、或页面把 print 锁死了），至少隔离世界这份
+   是可用的；另外没有 contextIsolation 的宿主里，这一行就是真正生效的那份。 */
 try {
-  Object.defineProperty(window, 'print', {
-    configurable: true,
-    writable: true,
-    value: function print() { askPrint(); }
-  });
-} catch { /* 极少数页面把 print 锁死了，那就只能靠 Ctrl+P */ }
+  if (!(window.print && window.print.__nova)) {
+    Object.defineProperty(window, 'print', {
+      configurable: true,
+      writable: true,
+      value: function print() { askPrint(); }
+    });
+  }
+} catch { /* ignore */ }
 
 window.addEventListener('wheel', (event) => {
   if (!event.ctrlKey || event.metaKey) return;

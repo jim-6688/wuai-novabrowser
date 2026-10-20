@@ -807,6 +807,8 @@ const MOCK_UPDATE = {
         printers: [{ name: 'preview', displayName: '预览模式（无打印机）', description: '', isDefault: true, status: 0 }]
       }),
       print: async () => ({ ok: true }),
+      /* 预览模式没有主进程可注入，页面里的 window.print 也就没有可接管的对象 */
+      installPrintHook: async () => ({ ok: false, frames: 0 }),
       /* 预览要真排版：那是主进程 printToPDF 出来的 PDF 文件，浏览器预览里没有。
          指到一张同构的占位纸（print-preview-mock.html），让「左配置 / 右预览」
          这个布局在 UI 预览与截图里是完整的，而不是一块白板。 */

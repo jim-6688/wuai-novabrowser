@@ -757,6 +757,14 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
       && /PRINT_PREVIEW_DELAY/.test(js)],
   ['预览文件每次换名（同名会被 Chromium 当成同一份缓存）',
     /previewSeq = \(previewSeq \+ 1\)/.test(mainMod)],
+  /* 这条是「点了页面上的打印按钮却弹系统对话框」那个问题的回归钉子：
+     钩子必须装在**页面主世界**（主进程注入），preload 只负责接事件。 */
+  ['window.print 的钩子装在页面主世界，preload 只接 nova:print 事件',
+    /const \{ installPrintHook \} = require\('\.\/print-hook'\)/.test(mainMod)
+      && /handle\('page:print-hook'/.test(mainMod)
+      && /addEventListener\('nova:print', askPrint\)/.test(
+        fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8'))
+      && /installPrintHook\(tab\)/.test(js)],
 
   /* --- 网页右键菜单 + 选中文字迷你条 --- */
   ['有网页右键菜单与选区迷你条',

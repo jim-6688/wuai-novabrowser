@@ -18,6 +18,7 @@ const { pathToFileURL } = require('url');
 const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard, safeStorage, Menu, webContents } = require('electron');
 const QRCode = require('qrcode'); // 本地生成二维码（分享用），不把网址丢第三方二维码接口
 const creds = require('./credentials'); // 从 Edge 导入已存密码（本地解密）
+const { installPrintHook } = require('./print-hook'); // 网页里 window.print() 的接管（主世界注入）
 const protocolLinks = require('./protocol-links'); // ed2k / magnet 交给本地客户端
 
 const settings = require('./settings');
@@ -1882,6 +1883,18 @@ function registerIpc() {
 
   /** 打印预览的文件序号：让每次预览都换一个地址，见 page:print-preview 的说明 */
   let previewSeq = 0;
+
+  /**
+   * 给这个页面的所有框架装上「window.print → 外壳」的钩子。
+   * 渲染层在 dom-ready / 每次导航后调一次（见 src/renderer/shell.js 的 wv 事件）。
+   * 必须由主进程做：钩子要跑在页面主世界，preload 在隔离世界改不到它。
+   */
+  handle('page:print-hook', (wcId) => {
+    const wc = resolveWc(wcId);
+    if (!wc) return { ok: false, error: '页面已关闭' };
+    const n = installPrintHook(wc);
+    return { ok: n > 0, frames: n };
+  });
 
   /** 系统打印机列表。deviceName 要用 name（系统名），displayName 只给界面看。 */
   handle('page:printers', async (wcId) => {

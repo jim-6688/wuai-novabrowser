@@ -766,6 +766,10 @@ function mountTab(tab) {
     // 建立「标签页 ↔ webContents」的映射：主进程的嗅探结果按 webContents id 分组，
     // 而 state.tabs 里那个 id 是自增序号，两者没有任何对应关系，只能这里问出来。
     try { tab.wcId = wv.getWebContentsId(); } catch { /* 拿不到就留空，界面上会提示等待就绪 */ }
+    // 把页面主世界的 window.print 接到外壳。preload 在隔离世界改不到页面的 print，
+    // 只能由主进程注入（见 src/main/print-hook.js）—— 不做这一步，页面自己的
+    // 「打印」按钮会直接弹系统打印对话框，绕过纸张/边距设置。
+    installPrintHook(tab);
     // 自动拼页要等页面 DOM 就位才能找正文容器和下一页，所以挂在这一步
     injectAutoPage(tab);
     // 选中文字后弹「搜索/复制」迷你条（注入到页面里，避免被 webview 盖住）
@@ -5727,6 +5731,23 @@ async function cmdCapturePage() {
 
 /** 纸张档位。尺寸表在主进程（毫米），这里只保证选项值一致。 */
 const PRINT_PAPER_KEYS = ['A4', 'A3', 'A5', 'B5', 'Letter', 'Legal', 'Tabloid', '16K', 'custom'];
+
+/**
+ * 让页面里的 window.print() 落到 Nova 的打印窗口。
+ *
+ * 钩子本身在主进程装（src/main/print-hook.js）：webview 开着 contextIsolation，
+ * preload 在隔离世界改不到页面的 print。这里只负责在 dom-ready 时喊一声，
+ * 之后每次框架导航由主进程自己补装。
+ */
+function installPrintHook(tab) {
+  if (!tab || (tab.webview && tab.webview.__bridge)) return;
+  if (tab.wcId == null) return;
+  if (!bridge.page || typeof bridge.page.installPrintHook !== 'function') return;
+  try {
+    const r = bridge.page.installPrintHook(tab.wcId);
+    if (r && typeof r.catch === 'function') r.catch(() => { /* 页面已关闭 */ });
+  } catch { /* 同上 */ }
+}
 
 /** 上次用过的打印设置，存在 settings.print 里。 */
 function printPrefs() {
