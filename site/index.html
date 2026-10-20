@@ -536,7 +536,7 @@
                     <div class="cmp-hd">
                         <span class="cmp-os">Windows</span>
                         <strong>电脑版 · v1.0.25</strong>
-                        <span class="cmp-size">约 120 MB</span>
+                        <span class="cmp-size">约 85 MB</span>
                     </div>
                     <ul class="cmp-list">
                         <li><b>扩展</b><span>拖入 .crx 即自动安装</span></li>
@@ -701,7 +701,8 @@
             </div>
 
             <!-- PC 版：安装包走 Gitee Release 附件（约 85 MB，不进 git 仓库），官网只放外链。
-                 ZIP 为主推——直接下 .exe 会被部分浏览器提示「不常下载的文件」。 -->
+                 只发 EXE 安装程序：Gitee 单附件上限 100 MB，绿色 ZIP 压到 125 MB 传不上去，
+                 与其让用户下分卷，不如老实给一个安装包。 -->
             <div class="dl-plat" data-plat="pc">
                 <h3 class="dl-os">Windows 电脑版</h3>
                 <div class="dl-box">
@@ -710,17 +711,16 @@
                         <span>Windows x64</span>
                         <span class="dl-count" id="dlCountPc" hidden></span>
                     </div>
-                    <p class="dl-note">桌面版提供两种形式：<b>ZIP 绿色免安装版</b>（约 120 MB）——解压后双击「吾爱Nova浏览器.exe」即可使用，不写安装项；<b>EXE 安装程序</b>（约 85 MB）——标准安装向导，含开始菜单与卸载项。
-                       <b>建议优先选 ZIP 绿色版</b>：免安装更省事，且部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示。
+                    <p class="dl-note">桌面版以 <b>EXE 安装程序</b>发布（约 85 MB）：标准安装向导，可选安装目录，含开始菜单与卸载项。
+                       部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示，选择「保留」即可。
                        安装程序未做代码签名，首次运行时 Windows 可能提示「未知发布者」——这是自签包的固有现象，不是文件损坏。</p>
                     <div class="dl-list">
-                        <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.25/nova-pc-1.0.25-win-x64-green.zip" data-dl="pc" download>Gitee Releases · ZIP 绿色版（免安装 · 推荐）</a>
-                        <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.25/nova-pc-1.0.25-win-x64-setup.exe" data-dl="pc" download>Gitee Releases · EXE 安装程序</a>
+                        <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.25/nova-pc-1.0.25-win-x64-setup.exe" data-dl="pc" download>Gitee Releases · EXE 安装程序</a>
                     </div>
                     <ul class="dl-facts">
                         <li><span>版本</span><span>1.0.25</span></li>
                         <li><span>平台</span><span>Windows x64</span></li>
-                        <li><span>大小</span><span>绿色版约 120 MB</span></li>
+                        <li><span>大小</span><span>约 85 MB</span></li>
                     </ul>
                 </div>
             </div>

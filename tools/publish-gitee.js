@@ -36,7 +36,7 @@ const API = 'https://gitee.com/api/v5';
 
 // ---------------- 参数解析 ----------------
 function parseArgs(argv) {
-  const out = { apk: null, pc: null, dry: false, tag: null };
+  const out = { apk: null, pc: null, dry: false, tag: null, refreshBody: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--apk') out.apk = argv[++i];
@@ -45,6 +45,9 @@ function parseArgs(argv) {
     // strings.xml 的 app_version 走，不给的话会去复用上一版的 Release，
     // 表现为「文件传到旧版本下面去了」，而且配额算在旧版本头上。
     else if (a === '--tag') out.tag = argv[++i];
+    // 只刷新 Release 正文（更新日志改了、附件不动），不重传附件 ——
+    // 重跑一次带 --pc 的上传会多出一条同名附件。
+    else if (a === '--refresh-body') out.refreshBody = true;
     else if (a === '--dry' || a === '--dry-run') out.dry = true;
   }
   return out;
@@ -197,6 +200,22 @@ async function main() {
   if (args.dry) {
     console.log('（--dry-run，到此为止，未真正上传附件）');
     return;
+  }
+
+  // 只刷新正文：更新日志改过之后不必再传一遍几百兆的附件
+  if (args.refreshBody) {
+    const patchUrl = `${API}/repos/${OWNER}/${REPO}/releases/${releaseId}?${qs({ access_token: token })}`;
+    const patched = await request('PATCH', patchUrl, {
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tag_name: tag, name: tag, body }),
+    });
+    if (patched.status === 200) {
+      console.log('✓ Release 说明已更新');
+      return;
+    }
+    console.error('✗ 更新说明失败: HTTP ' + patched.status);
+    console.error(JSON.stringify(patched.body).slice(0, 500));
+    process.exit(1);
   }
 
   // 2. 上传附件

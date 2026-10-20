@@ -38,18 +38,11 @@
       "打印设置窗口支持「打印…」（弹系统打印窗口）、「直接打印」与「保存为 PDF」，三者共用同一套纸张与边距；上次的设置会记住",
       "新增命令面板（Ctrl+K）：输入命令、网址或搜索词直达，覆盖开关设置、切换内核、打开面板、截图另存等常用动作",
       "新增站点权限管理：按域名设定位置 / 通知 / 摄像头 / 麦克风 / 弹窗 的允许、禁止或询问，规则按「精确主机 → 逐级父域」匹配",
-      "顶栏「关于」左面新增「工具」菜单：把命令面板、站点权限、网址分享、密码管理、插件商店、AI 助手、媒体嗅探等新功能收在一个下拉里速达",
-      "下载的 ZIP 压缩包改为绿色免安装版：解压后双击即可使用，无需安装（EXE 安装程序仍单独提供）"
+      "顶栏「关于」左面新增「工具」菜单：把命令面板、站点权限、网址分享、密码管理、插件商店、AI 助手、媒体嗅探等新功能收在一个下拉里速达"
     ],
-    "label": "PC 版（Windows · ZIP 绿色免安装 / EXE 安装）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.25/nova-pc-1.0.25-win-x64-green.zip",
-    "size": 125667984,
-    "sha256": "e2d01ce45553a32a8e5ef2f8689f8b66d22ea00879fdccd7938c2d16c8fc5cef",
-    "exe": {
-      "label": "EXE 安装程序",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.25/nova-pc-1.0.25-win-x64-setup.exe",
-      "size": 89511115,
-      "sha256": "45cea74d324e50b48cdc4f601c14324759ed68c3fc3d2b22489c553c25f6a177"
-    }
+    "label": "PC 版（Windows x64 · EXE 安装程序）",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.25/nova-pc-1.0.25-win-x64-setup.exe",
+    "size": 89511115,
+    "sha256": "45cea74d324e50b48cdc4f601c14324759ed68c3fc3d2b22489c553c25f6a177"
   }
 }
