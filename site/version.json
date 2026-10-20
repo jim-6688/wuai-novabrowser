@@ -32,14 +32,16 @@
     }
   ],
   "pc": {
-    "version": "1.0.27",
+    "version": "1.0.28",
     "changelog": [
-      "修复：点网页自己的「打印」按钮弹出的是 Windows 系统打印对话框、Nova 的打印设置窗口没出现（Ctrl+P 一直是好的，所以这个洞藏了很久）",
-      "打印预览与「保存为 PDF」的单位、页码范围类型都对了一遍，纸张 / 边距 / 方向三处设置现在和真正出纸完全一致"
+      "地址栏匹配与历史记录补上网站名称（原来只显示一长串网址）",
+      "保存过的密码，再次打开该网站自动带入，不用再手输；可在设置里关闭",
+      "标签页图标补齐：取不到图标的网站改为显示站点首字母标识，不再空白",
+      "打印窗口新增「共 N 页」提示，随纸张设置实时变化"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.27/nova-pc-1.0.27-win-x64-setup.exe",
-    "size": 89517308,
-    "sha256": "3d3eb31ff64c9f217b4f36137fc217070beaf55035e3e84c70dad8d6ee3bb1b1"
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.28/nova-pc-1.0.28-win-x64-setup.exe",
+    "size": 89523525,
+    "sha256": "dee3afc865f887f90f3243200d19c9539ba15b5bac8640ca915128d322c96634"
   }
 }
