@@ -2564,6 +2564,59 @@ svg {
 }
 
 /* ==========================================================================
+   站点权限（设置分区 + 询问条）
+   ========================================================================== */
+.perm-stack {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  pointer-events: none; /* 容器不挡点击，只有 bar 本身接收 */
+}
+.perm-req {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  padding: var(--sp-3) var(--sp-4);
+  margin: 0 auto;
+  max-width: 720px;
+  width: 100%;
+}
+.perm-req-ico { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--brand); stroke-width: 1.6; }
+.perm-req-text { flex: 1; min-width: 0; font-size: 13px; color: var(--text); }
+.perm-req-text b { font-weight: 600; }
+.perm-req-actions { flex: none; display: flex; gap: var(--sp-2); }
+
+/* 设置 · 站点权限 */
+.perm-card-list { display: flex; flex-direction: column; gap: var(--sp-3); }
+.perm-rule { display: flex; flex-direction: column; gap: var(--sp-2); }
+.perm-rule + .perm-rule { border-top: 1px dashed var(--border); padding-top: var(--sp-3); }
+.perm-rule-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.perm-host { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text); }
+.perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--sp-2) var(--sp-4); }
+.perm-cat { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.perm-cat-label { font-size: 13px; color: var(--text-2); }
+.perm-cat-sel {
+  flex: none;
+  min-width: 84px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+/* ==========================================================================
    hidden 属性的兜底 —— 放在文件最后
    ---------------------------------------------------------------------------
    UA 样式表里的 [hidden] 只是一条普通声明，作者样式表里的任何 display 都会盖掉它。

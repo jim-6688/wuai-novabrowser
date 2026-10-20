@@ -137,6 +137,14 @@ const DEFAULTS = {
   },
   extensions: [],
   /**
+   * 站点权限：按域名的权限覆盖。数组便于整体替换，结构与 siteEngines 同口径。
+   *   [{ host: 'example.com',
+   *      rules: { geolocation:'block', notifications:'ask', camera:'allow', … } }]
+   * 取值：'allow' 允许 / 'block' 禁止 / 'ask'（或缺失）询问。
+   * 会话内对「询问」的选择会记住一次（不落盘），要持久化就在这里显式写规则。
+   */
+  permissions: [],
+  /**
    * 收藏夹栏（桌面端）。三种取值：
    *   always  —— 常驻在地址栏下方（默认）
    *   ntp     —— 只在新标签页露出来，浏览网页时把这一行高度还给页面

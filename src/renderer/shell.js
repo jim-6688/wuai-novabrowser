@@ -3926,6 +3926,102 @@ function buildEngines() {
   `;
 }
 
+/* --- 站点权限（设置分区） ---
+ * 按域名的权限覆盖，与按站点切内核（siteEngines）同口径：数组整体替换，
+ * 规则按「精确主机 → 逐级父域」匹配（见主进程 permissions.matchHostRule）。
+ * 这里只暴露最常管的几类；其余分类（全屏 / 指针锁定 / MIDI / 打开外部程序）
+ * 引擎同样认，只是界面上不一一列出。 */
+const PERM_CATS = [
+  { key: 'geolocation', label: '位置信息' },
+  { key: 'notifications', label: '通知' },
+  { key: 'camera', label: '摄像头' },
+  { key: 'microphone', label: '麦克风' },
+  { key: 'popups', label: '弹出窗口' }
+];
+
+function buildPermissions() {
+  const rules = (state.settings && state.settings.permissions) || [];
+  return `
+    <h2 class="sv-h2">站点权限</h2>
+    <div class="sv-lead">
+      给特定域名单独设定权限，覆盖全局默认。规则按「精确主机 → 逐级父域」匹配：
+      写 <code>example.com</code> 也会命中 <code>www.example.com</code>。
+      没列出的站点走浏览器默认（通常是「访问时询问」）。
+    </div>
+
+    ${rules.length
+      ? `<div class="sv-card perm-card-list">${rules.map((r) => `
+          <div class="perm-rule">
+            <div class="perm-rule-head">
+              <span class="perm-host">${esc(r.host)}</span>
+              <button class="btn btn-sm" data-act="perm-del" data-host="${esc(r.host)}">移除</button>
+            </div>
+            <div class="perm-grid">
+              ${PERM_CATS.map((c) => {
+                const cur = (r.rules && r.rules[c.key]) || 'ask';
+                return `<div class="perm-cat">
+                  <span class="perm-cat-label">${esc(c.label)}</span>
+                  <select class="perm-cat-sel" data-host="${esc(r.host)}" data-cat="${esc(c.key)}">
+                    <option value="ask" ${cur === 'ask' ? 'selected' : ''}>询问</option>
+                    <option value="allow" ${cur === 'allow' ? 'selected' : ''}>允许</option>
+                    <option value="block" ${cur === 'block' ? 'selected' : ''}>禁止</option>
+                  </select>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`).join('')}</div>`
+      : '<div class="sv-empty">还没有站点权限规则。下面的输入框加一个域名即可开始设定。</div>'}
+
+    <div class="dl-new" style="padding-top:var(--sp-2)">
+      <input id="perm-host" placeholder="example.com" spellcheck="false" />
+      <button class="btn btn-primary" data-act="perm-add">添加站点</button>
+    </div>
+    <div class="muted" style="padding:var(--sp-2) 0 0">
+      选「询问」= 该站点下次访问若用到此权限会再弹条问你；选「允许 / 禁止」则不再问。
+      仅当前会话内的选择（不写到这里）刷新页面后失效，要长期生效请在此显式设定。
+    </div>
+  `;
+}
+
+/* --- 站点权限询问条 ---
+ * 主进程把一次权限询问推过来（bridge 'permission:request'）时，这里叠出一条
+ * 带「允许 / 禁止」的提示条。一次可能叠多条（不同站点 / 不同权限），所以
+ * #perm-stack 是容器，每条 bar 带自己的 requestId。用户点了就回主进程
+ * （bridge.permissions.resolve(requestId, allow)），解除挂起的回调。 */
+function showPermissionRequest(p) {
+  if (!p || !p.requestId) return;
+  const stack = $('#perm-stack');
+  if (!stack) return;
+  if (stack.querySelector(`.perm-req[data-request="${p.requestId}"]`)) return; // 同一次不重画
+  const bar = document.createElement('div');
+  bar.className = 'perm-req';
+  bar.dataset.request = String(p.requestId);
+  bar.innerHTML = `
+    <svg class="perm-req-ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/></svg>
+    <span class="perm-req-text"><b>${esc(p.host)}</b> 想要使用 <b>${esc(p.label || p.category)}</b></span>
+    <span class="perm-req-actions">
+      <button class="btn btn-sm" data-perm-allow="0">禁止</button>
+      <button class="btn btn-sm btn-primary" data-perm-allow="1">允许</button>
+    </span>`;
+  bar.querySelectorAll('[data-perm-allow]').forEach((btn) => {
+    btn.addEventListener('click', () => resolvePermissionRequest(p.requestId, btn.dataset.permAllow === '1'));
+  });
+  stack.appendChild(bar);
+  stack.hidden = false;
+}
+
+function resolvePermissionRequest(requestId, allow) {
+  const stack = $('#perm-stack');
+  if (stack) {
+    const bar = stack.querySelector(`.perm-req[data-request="${requestId}"]`);
+    if (bar) bar.remove();
+    if (!stack.querySelector('.perm-req')) stack.hidden = true;
+  }
+  // 未捕获异常兜底：桥在 UI 预览模式下是空壳，resolve 不存在就静默放过
+  try { if (bridge && bridge.permissions && bridge.permissions.resolve) bridge.permissions.resolve(requestId, allow); }
+  catch { /* 预览模式：忽略 */ }
+}
+
 /**
  * 更新状态 → 那一块 HTML。
  *
@@ -4090,6 +4186,7 @@ const SETTINGS_NAV = [
   ] },
   { group: '系统', items: [
     { id: 'passwords', label: '密码', icon: 'key', count: () => (state.credentials || []).length },
+    { id: 'permissions', label: '站点权限', icon: 'globe' },
     { id: 'privacy', label: '隐私与数据', icon: 'lock' },
     { id: 'about', label: '关于吾爱Nova', icon: 'info' }
   ] }
@@ -4108,7 +4205,8 @@ const NAV_ICONS = {
   down: '<path d="M10 3.5v9M6.5 9.5L10 13l3.5-3.5M4 16h12"/>',
   lock: '<path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/>',
   key: '<circle cx="7" cy="13" r="3"/><path d="M9.1 11.1L16 4.2M13.9 4.2h2.4v2.4"/>',
-  info: '<circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/>'
+  info: '<circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/>',
+  globe: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.4 2 2.4 12 0 14M10 3c-2.4 2-2.4 12 0 14"/>'
 };
 
 /** 分区 id → 构建函数。构建函数可以返回字符串，也可以返回 Promise<string>。 */
@@ -4125,6 +4223,7 @@ const SECTION_BUILDERS = {
   downloads: buildDownloads,
   privacy: buildPrivacy,
   passwords: buildPasswords,
+  permissions: buildPermissions,
   about: buildAbout
 };
 
@@ -5186,6 +5285,23 @@ function wireActions(root) {
         applyLayout();
         refreshCurrent();
         toast('已恢复默认设置');
+      } else if (act === 'perm-del') {
+        const host = b.dataset.host;
+        const list = (state.settings.permissions || []).filter((x) => x.host !== host);
+        state.settings.permissions = list;
+        await bridge.settings.patch({ permissions: list });
+        refreshCurrent();
+        toast('已移除该站点的权限规则');
+      } else if (act === 'perm-add') {
+        const input = root.querySelector('#perm-host');
+        const host = normalizeSiteHost(input && input.value);
+        if (!host) { toast('请输入域名，例如 example.com'); return; }
+        const list = (state.settings.permissions || []).slice();
+        if (!list.some((x) => x.host === host)) list.push({ host, rules: {} });
+        state.settings.permissions = list;
+        await bridge.settings.patch({ permissions: list });
+        refreshCurrent();
+        toast(`已添加 ${host}`);
       } else if (act === 'open-user-data') {
         await bridge.system.openUserData();
       } else if (act === 'probe-engine') {
@@ -5266,6 +5382,23 @@ function wireActions(root) {
       row.style.opacity = '';
       row.style.pointerEvents = '';
     }
+  });
+
+  /* 站点权限：每个分类一个下拉（允许 / 禁止 / 询问）。用 change 委托挂在 root 上，
+   * 因为 select 不是 click 型的 data-act，且每次重画都要能继续响应。
+   * 改完直接 patch，不必整页重绘 —— select 自己已经反映了新值，重绘反而闪。 */
+  root.addEventListener('change', async (ev) => {
+    const sel = ev.target.closest('.perm-cat-sel');
+    if (!sel) return;
+    const host = sel.dataset.host;
+    const cat = sel.dataset.cat;
+    const val = sel.value;
+    const list = (state.settings.permissions || []).slice();
+    const rule = list.find((x) => x.host === host);
+    if (!rule) return;
+    rule.rules = Object.assign({}, rule.rules, { [cat]: val });
+    state.settings.permissions = list;
+    await bridge.settings.patch({ permissions: list });
   });
 }
 
@@ -7060,6 +7193,11 @@ function wireBridgeEvents() {
   bridge.on('shell:viewport', applyLayout);
   // 内核桥接：原生宿主推来的事件（frame/title/url/cursor）。compat 内核不会发。
   bridge.on('host:event', onHostEvent);
+
+  // 站点权限询问：主进程 setPermissionRequestHandler 遇到「询问」规则（或没有规则）时，
+  // 把请求推过来，这里弹一条带「允许 / 禁止」的提示条等用户点（见 showPermissionRequest）。
+  // 用户点了就回主进程（bridge.permissions.resolve），解除挂起的回调。
+  bridge.on('permission:request', (p) => showPermissionRequest(p));
 
   // 主进程抓到一份新图标。重读一次那张表（同名主机也要重读 —— 内容变了）。
   // 这条推送是必须的：图标是异步到的，不推的话书签格会一直停在首字母上，

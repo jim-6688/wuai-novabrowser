@@ -538,6 +538,12 @@
     <button class="un-btn un-btn-go" id="update-now-go">立即重启</button>
   </div>
 
+  <!-- ============ 站点权限询问条 ============ -->
+  <!-- 主进程把权限询问推过来时，这里叠出一条带「允许/禁止」的提示条（见 shell.js
+       的 showPermissionRequest）。一次可能叠多条（不同站点 / 不同权限），所以是容器。
+       默认 hidden，由 JS 在收到请求时填入；解析见权限类别（位置/通知/摄像头…）。 -->
+  <div class="perm-stack" id="perm-stack" hidden></div>
+
   <div class="toast" id="toast" hidden></div>
 </div>
 

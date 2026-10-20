@@ -76,7 +76,10 @@ const EVENT_CHANNELS = [
   'webview:open-url',
   /* 内核桥接：原生宿主（trident host）发来的事件（frame/title/url/cursor/…）。
      渲染进程据此把帧画到标签页、同步地址与标题。 */
-  'host:event'
+  'host:event',
+  /* 主进程把一次「权限询问」推给渲染层，由它弹出权限条等用户点允许/禁止。
+     见 permissions.askPermission 与渲染层的 bridge.on('permission:request')。 */
+  'permission:request'
 ];
 
 const listeners = new Map();
@@ -252,6 +255,13 @@ contextBridge.exposeInMainWorld('nova', {
     reveal: (id) => ipcRenderer.invoke('cred:reveal', id),
     remove: (id) => ipcRenderer.invoke('cred:remove', id),
     clear: () => ipcRenderer.invoke('cred:clear')
+  },
+
+  /* --- 站点权限 --- */
+  // 渲染层对一次「权限询问」的最终答复：点了允许/禁止就回给主进程，
+  // 解除 setPermissionRequestHandler 里挂起的回调（见 permissions.resolvePending）。
+  permissions: {
+    resolve: (requestId, allow) => ipcRenderer.invoke('permissions:resolve', requestId, allow)
   },
 
   /* --- 网页区交互（右键菜单等）--- */

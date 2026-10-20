@@ -41,6 +41,7 @@ const bookmarksIo = require('./bookmarks-io');
 const browsersDetect = require('./browsers-detect');
 const browserExtensions = require('./browser-extensions');
 const desktopShortcut = require('./desktop-shortcut');
+const permissions = require('./permissions');
 
 const IS_DEV = process.argv.includes('--dev');
 const ROOT = path.join(__dirname, '..', '..');
@@ -127,6 +128,12 @@ if (!gotLock) {
 async function bootstrap() {
   settings.init(app.getPath('userData'));
 
+  // 站点权限：让主进程随时能读到最新规则（含用户刚改的），并知道往哪个窗口弹询问条
+  permissions.configure({
+    getPermissions: () => settings.get('permissions', []),
+    getMainWindow: () => mainWindow
+  });
+
   // 0) 桌面快捷方式：免安装（绿色版）第一次跑起来时补一个。
   // 走安装包进来的用户这里什么也不会发生 —— 桌面那个图标是 NSIS 安装器放的，
   // 我们只会读到一句「已有」。放在最前面是因为它跟应用状态无关，
@@ -180,6 +187,7 @@ async function bootstrap() {
     wireRequestGate(ses);
     wireDownloads(ses, engine.id);
     wireSniffer(ses);
+    permissions.installPermissionHandlers(ses);
   }
   // 默认 session 也接一份，避免无分区页面漏网
   sessionEngineMap.set(session.defaultSession, 'chromium');
@@ -188,6 +196,7 @@ async function bootstrap() {
   wireRequestGate(session.defaultSession);
   wireDownloads(session.defaultSession, 'chromium');
   wireSniffer(session.defaultSession);
+  permissions.installPermissionHandlers(session.defaultSession);
 
   // 6.5) 内核桥接：原生宿主（trident host）跑起来后，把它的事件转发给渲染进程。
   // 只有 resolve 到 bridge 的内核才有运行中的宿主进程；compat 内核不在此列。
@@ -768,6 +777,10 @@ function wireContents(contents) {
       handleExternalDownloadLink(url);
       return { action: 'deny' };
     }
+    // 站点权限：被显式禁止弹窗的主机，连同背景标签一起拦下（见 permissions.decidePopup）
+    if (permissions.decidePopupOnOpen(settings.get('permissions', []), permissions.hostOf(url)) === 'block') {
+      return { action: 'deny' };
+    }
     send('tabs:open-request', { url, disposition, background: disposition === 'background-tab' });
     return { action: 'deny' };
   });
@@ -1029,6 +1042,19 @@ function registerIpc() {
     settings.patch({ ntpShortcuts: next });
     send('settings:changed', settings.all());
     return next;
+  });
+
+  /**
+   * 渲染层对一次「权限询问」的最终答复。
+   *
+   * 权限条（渲染层）上用户点了允许/禁止，结果从这里回给主进程，
+   * 解除 setPermissionRequestHandler 里挂起的回调（见 permissions.resolvePending）。
+   * 会话内对「询问」的选择会记住一次，刷新页面不用再问；要长期生效
+   * 得去「设置 → 站点权限」显式写规则（那里走 settings:patch 落盘）。
+   */
+  handle('permissions:resolve', (requestId, allow) => {
+    permissions.resolvePending(requestId, allow);
+    return { ok: true };
   });
 
   /* ----------------------- 自动更新（PC） -----------------------
