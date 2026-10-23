@@ -6611,11 +6611,36 @@ function positionAiPanel() {
   const panel = $('#ai-panel');
   const btn = $('#btn-ai');
   if (!panel || !btn) return;
+  // 最大化时不动定位（那套几何由 .ai-panel.is-max 接管），否则 resize 会把最大态冲掉
+  if (panel.classList.contains('is-max')) return;
   const r = btn.getBoundingClientRect();
   const top = Math.round(r.bottom + 8);
   panel.style.top = top + 'px';
   panel.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
   panel.style.maxHeight = Math.max(240, Math.min(520, window.innerHeight - top - 12)) + 'px';
+}
+
+/**
+ * 最大化 / 还原 AI 窗口。
+ *
+ * **只改尺寸，不重建 webview / 不重载当前页** —— 这正是「当前画面不丢失」的关键：
+ * 用一个 class 切换几何布局，内部那个正在看的 AI 对话页、聊到一半的内容都原样留着。
+ * 最大化时把 positionAiPanel 写下的内联 top/right/maxHeight 清掉，好让 .is-max 的
+ * inset 布局生效；还原时再按 AI 按钮重新定位一次。
+ */
+function toggleAiMax() {
+  const panel = $('#ai-panel');
+  const btn = $('#ai-max');
+  if (!panel) return;
+  const max = panel.classList.toggle('is-max');
+  if (max) {
+    panel.style.top = '';
+    panel.style.right = '';
+    panel.style.maxHeight = '';
+  } else {
+    positionAiPanel();
+  }
+  if (btn) btn.title = max ? '还原' : '最大化';
 }
 
 function closeAiPanel() {
@@ -7386,6 +7411,7 @@ function wireUi() {
 
   // AI 助手面板：下拉切换 / 带入当前页 / 发送 / 清空 / 关闭
   $('#ai-close').addEventListener('click', closeAiPanel);
+  $('#ai-max').addEventListener('click', toggleAiMax);
   $('#ext-ui-close').addEventListener('click', closeExtUiPanel);
   wireExtUiWebview();
   $('#ai-grab').addEventListener('click', aiGrab);

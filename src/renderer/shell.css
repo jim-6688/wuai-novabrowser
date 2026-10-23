@@ -1021,6 +1021,19 @@ svg {
   z-index: 45;
 }
 .ai-panel.is-open { transform: none; opacity: 1; pointer-events: auto; }
+/* 最大化：占满窗口（留一圈边距）。只改几何尺寸，内部 webview / 对话不动，
+   所以「正在看的那一页/那场对话」原样保留。top/right/maxHeight 的内联定位
+   由 JS 在最大化时清掉，让这里的 inset 布局生效（见 toggleAiMax）。 */
+.ai-panel.is-max {
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
+}
 .ext-ui-panel {
   position: fixed;
   top: 0; right: 0; bottom: 0;
@@ -1069,13 +1082,26 @@ svg {
   border-bottom: 1px solid var(--border);
 }
 .ai-head h2 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.ai-head-btns { display: flex; align-items: center; gap: 2px; }
 .ai-x {
   border: 0; background: transparent; color: var(--text-3);
   font-size: 18px; line-height: 1; cursor: pointer;
   padding: 2px 6px; border-radius: var(--r-sm);
 }
 .ai-x:hover { background: var(--surface-2); color: var(--text); }
+/* 最大化/还原按钮：用 SVG 图标（不像关闭那样用字形）。两个图标各占一位，
+   靠 .ai-panel.is-max 切换显隐 —— 不在 JS 里换 innerHTML，免得多余 DOM 变动。 */
+.ai-max {
+  width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.ai-max svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ai-ico-restore { display: none; }
+.ai-panel.is-max .ai-ico-max { display: none; }
+.ai-panel.is-max .ai-ico-restore { display: block; }
 .ai-body { flex: 0 1 auto; height: min(42vh, 340px); min-height: 140px; position: relative; background: var(--bg); overflow: hidden; }
+/* 最大化时把 body 撑满面板剩余高度，webview / API 对话随之铺开 */
+.ai-panel.is-max .ai-body { flex: 1 1 auto; height: auto; min-height: 0; }
 .ai-webview { width: 100%; height: 100%; border: 0; background: var(--bg); }
 /* API 模式：配置区 + 消息列表，铺满 ai-body（webview 此时 display:none） */
 .ai-api { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }

@@ -560,7 +560,14 @@
   <aside class="ai-panel" id="ai-panel" aria-hidden="true">
     <header class="ai-head">
       <h2>AI 助手</h2>
-      <button class="ai-x" id="ai-close" title="关闭">×</button>
+      <div class="ai-head-btns">
+        <!-- 最大化/还原：只改尺寸、不重建 webview，正在看的对话/画面不丢 -->
+        <button class="ai-x ai-max" id="ai-max" title="最大化">
+          <svg class="ai-ico-max" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8V4h4M12 4h4v4M16 12v4h-4M8 16H4v-4"/></svg>
+          <svg class="ai-ico-restore" viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="6.5" width="10" height="10" rx="1.5"/><path d="M7 3.5h8a1 1 0 0 1 1 1v8"/></svg>
+        </button>
+        <button class="ai-x" id="ai-close" title="关闭">×</button>
+      </div>
     </header>
     <div class="ai-body">
       <webview id="ai-webview" class="ai-webview" allowpopups partition="persist:nova-chromium"></webview>
