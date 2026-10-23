@@ -216,6 +216,11 @@ const DEFAULTS = {
    * 补过就打标，是因为「补种」必须是一次性的：否则用户删掉某个内置书签，
    * 下次启动又照 DEFAULTS 补回来 —— 那个删除动作就是假的。
    * 同一个道理，新标签页那边用户点掉的站点记在 ntpShortcuts.removed 里。
+   *
+   * 标记是**版本号**而不是布尔：内置入口后来又加过一条（2026-10 的
+   * 「吾爱装机助手」），老用户的收藏夹里没有它 —— 那一份是上一个版本种下去的，
+   * 光改常量他看不到。把号提到 2 让他也补一次，而补种只补「缺的那几条」
+   * （判重按完整 URL），已经种过的、用户自己删掉的都不会回来。
    */
   bookmarkSeed: 0,
   /**
@@ -269,8 +274,22 @@ function deepMerge(base, patch) {
   return out;
 }
 
+/** 收藏夹补种的版本号。内置入口每加一条就 +1，让老用户也补上（只补新增的）。 */
+const SEED_VERSION = 2;
+
 /**
- * 把内置那六个站点补进收藏夹。只做一次（见 DEFAULTS.bookmarkSeed 的说明）。
+ * 每一版比上一版**新增**了哪几条。
+ *
+ * 升级补种只补这几条，不重跑整份内置清单 —— 重跑的话用户删掉过的内置书签
+ * 会跟着一起回来，那个删除动作就成了假的，与「补过就打标」是同一条道理。
+ * 首次补种（从第 0 版升上来）没有「上一版」，因此补整份。
+ */
+const SEED_ADDED = {
+  2: ['https://assistant.52ta.top/']
+};
+
+/**
+ * 把内置那七个站点补进收藏夹。每个版本只做一次（见 DEFAULTS.bookmarkSeed 的说明）。
  *
  * 判重按**完整 URL**，不按主机名 —— 与宫格补位同一条口径。内置那几条本来
  * 就是同一家的不同入口（「主页」是 www 那条、「导航」是裸域那条），按主机名
@@ -279,15 +298,20 @@ function deepMerge(base, patch) {
  * 顺序上把补进来的接在用户已有书签**后面**：他原来的东西不该被挤位。
  */
 function seedBookmarks() {
-  if (!cache || (cache.bookmarkSeed | 0) >= 1) return;
+  // 2 = 补过 2026-10 那一批（内置入口从六条加到七条，老用户要补那一条新的）
+  if (!cache || (cache.bookmarkSeed | 0) >= SEED_VERSION) return;
   if (!Array.isArray(cache.bookmarks)) cache.bookmarks = [];
   const have = new Set(cache.bookmarks.map((b) => (b && b.url) || ''));
-  for (const s of ntp.BUILTIN_SITES) {
+  const from = cache.bookmarkSeed | 0;
+  // 首次补种（from=0）补整份；之后每一版只补那一版新增的，避免把用户删过的带回来
+  const only = from >= 1 ? (SEED_ADDED[from + 1] || []) : null;
+  const want = only ? ntp.BUILTIN_SITES.filter((s) => only.includes(s.url)) : ntp.BUILTIN_SITES;
+  for (const s of want) {
     if (!s.url || have.has(s.url)) continue;
     have.add(s.url);
     cache.bookmarks.push({ title: s.label, url: s.url });
   }
-  cache.bookmarkSeed = 1;
+  cache.bookmarkSeed = SEED_VERSION;
   scheduleFlush();
 }
 

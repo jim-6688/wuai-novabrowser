@@ -233,7 +233,7 @@ body {
 /* 有站点图标的那一格：磁贴自己不再画底色和描边，图标直接落在页面底色上。
    图标是站点自己画的，尺寸千差万别（16px 的 ico 与 180px 的 touch icon 都有），
    统一按 60% 居中缩放 —— 60% 正是设计板上「30dp 图标落在 56dp 磁贴里」的比例。
-   差一两个像素没人看得出，但七格里「六格大小不一」是看得出来的。 */
+   差一两个像素没人看得出，但八格里「七格大小不一」是看得出来的。 */
 .qk .thumb i.ico {
     background: none;
     border: 0;
@@ -292,6 +292,40 @@ body.editing .qk:active .thumb i { transform: none; }
     color: var(--text-4);
     font-size: 11px;
     min-height: 17px;
+}
+
+/* ================================================ 宽屏：跟着窗口自适应
+ * 手机版式是一条 420px 的竖列、宫格钉死 4 列 —— 那在手机上是刚好，
+ * 搬到 PC 上就成了中间一条窄栏、两边各空一大片，看着像把手机界面贴在了
+ * 窗口正中。所以宽屏下整块跟着窗口放宽：
+ *   · 容器宽度按窗口走（上限 1040px，再宽就只是两边留白多一点）；
+ *   · 宫格列数交给 auto-fill 自己算 —— 磁贴仍是 56px（手指点得到的尺寸，
+ *     放大没有意义），窗口越宽一行排得越多，排完就收，不写死列数；
+ *   · 搜索框限 560px 居中：让它跟着容器拉到上千像素宽的话，输入框会比
+ *     地址栏长出一大截，而这两处本是同一件事的两个入口。
+ * 窗口拖窄到 700px 以下自动落回手机版式，拖宽再回来，不用改任何参数。
+ * 断点取 700 而不是 1024：PC 上一个分屏/半屏窗口常年在 700～900 之间，
+ * 按 1024 断的话那种尺寸反而落在最不该落的那档。 */
+@media (min-width: 700px) {
+    .ntp { max-width: min(1040px, 90vw); padding: 0 32px; }
+    .brand svg { width: 104px; height: 104px; margin-bottom: 18px; }
+    .search { max-width: 560px; margin: 0 auto 26px; height: 46px; }
+    .quicks {
+        grid-template-columns: repeat(auto-fill, 96px);
+        justify-content: center;
+        gap: 22px 12px;
+        padding: 14px 0 20px;
+    }
+    .qk span { font-size: 12px; }
+    .hint { font-size: 12px; }
+}
+/* 只有真有指针的设备才给 hover 反馈 —— 触屏上 hover 会「粘住」，
+   点完一格它还亮着，看着像被选中了。磁贴抬一点、商店入口变个色，
+   桌面上一眼能看出这些格子是可以点的。 */
+@media (min-width: 700px) and (hover: hover) {
+    .qk .thumb i { transition: transform .12s ease, box-shadow .12s ease; }
+    .qk:hover .thumb i { box-shadow: 0 4px 12px rgba(16, 23, 40, .18); }
+    .store-link:hover { color: var(--brand); border-color: var(--brand); }
 }
 
 /* ----------------------------------------------------- 插件商店入口 */
@@ -470,7 +504,11 @@ var NovaNtp = (function () {
     /** 快捷方式上限。**刻意是 7 而不是 8**：第 8 格永远留给「＋添加」，
         两行四列正好填满。设成 8 的话 8 个磁贴加「＋」共 9 格，第三行只落一个，
         看着像坏了。 */
-    var MAX_SHORTCUTS = 7;
+    /* 版面容量：内置那七条占满之后，至少还得留一格给用户自己加的 ——
+       内置涨到七条时这一位不放开的话，用户点「＋添加」加进来的站点会被
+       整条截掉（截断发生在最后，而内置是先占位的）。8 = 7 内置 + 1 自加，
+       再后面那格是「＋添加」，它不占这个数。 */
+    var MAX_SHORTCUTS = 8;
 
     var SCHEME = 'nova://shortcut/';
 
@@ -607,7 +645,7 @@ var NovaNtp = (function () {
      * 排序：**内置推荐位先占位**，用户自己加的填剩下的格子，
      * 同 host 只留第一个，最后截到上限。
      *
-     * 只有两档了：builtin（内置那六条，flags 里的 f）与 pinned（用户自己加的）。
+     * 只有两档了：builtin（内置那七条，flags 里的 f）与 pinned（用户自己加的）。
      * 排在最前的 builtin 因此是**固定**的 —— 刷新页面、自己加了多少条，
      * 都不会让它们挪位或消失。
      * 「固定」是这个产品的承诺之一，放在后面就废了（截断会把它们整条截掉）。
@@ -639,14 +677,14 @@ var NovaNtp = (function () {
         }
         /* 内置推荐位（flags 里的 f）**先占位**，用户自己加的填剩下的格子。
            刻意放在 pinned 前面而不是后面：截断（slice）发生在最后，
-           垫底的话候选一多，这六条就被整条截掉 —— 而「固定」的意思正是
-           它们不该随用户加了多少条而增减。取用时从这六条里往后挑，
+           垫底的话候选一多，这七条就被整条截掉 —— 而「固定」的意思正是
+           它们不该随用户加了多少条而增减。取用时从这七条里往后挑，
            挑到把版面填满为止，多的那几条本轮不显示、下一轮还在原地。 */
         var slots = builtin.concat(pinned);
         return slots.slice(0, cap);
     }
 
-    /** 候选为空时的兜底：官网宣传图里那六个，顺序也一样。
+    /** 候选为空时的兜底：官网宣传图里那七个，顺序也一样。
         收不到原生数据时（同步出错、注入失败）也得有一屏能看的东西，不能白屏。
         与 ntp.js 的 BUILTIN_SITES 是同一份数据 —— 那边是宿主在候选不够时
         补到版面末尾用的（flags 为 f），这里是页面在一条数据都没收到时的
@@ -659,7 +697,8 @@ var NovaNtp = (function () {
         + '播放器\thttps://music.52ta.top/\t0\tp\n'
         + '浏览器\thttps://nova.52ta.top/\t0\tp\n'
         + '百度\thttps://www.baidu.com/\t0\tp\n'
-        + 'DeepSeek\thttps://chat.deepseek.com/\t0\tp';
+        + 'DeepSeek\thttps://chat.deepseek.com/\t0\tp\n'
+        + '吾爱装机助手\thttps://assistant.52ta.top/\t0\tp';
 
     /** 拼一条回传原生的命令。参数一律 encodeURIComponent，
         否则名称里的空格和中文会把命令拆坏。 */
@@ -770,7 +809,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
         }
         /* 删除角标只给**用户自己加的**那些。
          *
-         * 内置那六条是这一页的**版式本身**（用户指定的固定入口），
+         * 内置那七条是这一页的**版式本身**（用户指定的固定入口），
          * 不该被删掉 —— 删掉之后版面就变了，而「顺序不能变」正是要求之一。
          * 之前给它们也挂了角标，删一个还会让其余的往前补位，一屏网址变样两次。 */
         if (!item.builtin) {
@@ -789,7 +828,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
         // 编辑态下点磁贴 = 删除，而不是跳转；角标只是把这条规则画出来
         a.addEventListener('click', function (ev) {
             if (!document.body.classList.contains('editing')) return;
-            // 内置那六条在编辑态下也不删（它们是版式，不是用户加的收藏）
+            // 内置那七条在编辑态下也不删（它们是版式，不是用户加的收藏）
             if (item.builtin) return;
             ev.preventDefault();
             location.href = NovaNtp.cmdUrl('remove', { url: item.url });
@@ -925,7 +964,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
      * （要等下一次打开才碰上缓存），用户会以为这个功能没生效。
      *
      * 重建放在下一帧，而不是同步做：宿主是在 onPageFinished 里注入的，
-     * 那时页面可能还有几帧没画完，同步把七格拆了重建，用户会看到一次闪动。
+     * 那时页面可能还有几帧没画完，同步把八格拆了重建，用户会看到一次闪动。
      * 反正磁贴重建本来就要等一次样式计算，等一帧再动不会更慢。
      *
      * 直接复用 paint()：重建磁贴本来就是它在做的事。另写一段「只换图标」的

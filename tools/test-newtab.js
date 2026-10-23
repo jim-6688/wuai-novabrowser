@@ -163,7 +163,7 @@ function manyHosts(n) {
     return r.length === 0;
   })(), JSON.stringify(Page.rank([zhihu, bili, tieba], 7).map((x) => x.label)));
 
-  check('用户自己加的与内置的那六条都保留，且同主机去重', (() => {
+  check('用户自己加的与内置的那七条都保留，且同主机去重', (() => {
     const pinned = { label: '我的博客', url: 'https://blog.example.com/', visits: 0, pinned: true };
     const pinnedSub = { label: '博客第二篇', url: 'https://blog.example.com/post/2', visits: 0, pinned: true };
     const b = { label: '导航', url: 'https://52ta.top/', visits: 0, builtin: true };
@@ -180,13 +180,13 @@ function manyHosts(n) {
     return r.length === 2 && r[0].url === pinned.url;
   })());
 
-  check('超过 7 格就截断（第 8 格永远留给「＋添加」）', (() => {
+  check('超过 8 格就截断（再后面那格永远留给「＋添加」）', (() => {
     // 用 pinned 造 12 条：history 项会被 rank 丢掉，拿它们测截断会得到 0 条。
     const many = manyHosts(12).map((h) => ({ url: h.url, label: h.title, pinned: true }));
-    return Page.MAX_SHORTCUTS === 7 && Page.rank(many, Page.MAX_SHORTCUTS).length === 7;
+    return Page.MAX_SHORTCUTS === 8 && Page.rank(many, Page.MAX_SHORTCUTS).length === 8;
   })());
 
-  // 钉住这次的承诺：新标签页上只有内置那六条与用户自己加的，浏览历史一律不上版。
+  // 钉住这次的承诺：新标签页上只有内置那七条与用户自己加的，浏览历史一律不上版。
   // 「历史」这个来源一旦被谁加回来（多半是为了「智能推荐」），这条会立刻红。
   check('浏览历史完全不进候选（buildData 只认 added）', (() => {
     const withHistory = Ntp.buildData({
@@ -219,8 +219,8 @@ function manyHosts(n) {
 
   check('收不到数据时退回内置兜底（不能白屏）', (() => {
     const list = Page.rank(Page.parseData(Page.FALLBACK), Page.MAX_SHORTCUTS);
-    // 兜底是 6 条（书签/导航/播放器/浏览器/百度/DeepSeek），第 8 格留给「＋添加」。
-    return list.length === 6;
+    // 兜底是 7 条（主页/导航/播放器/浏览器/百度/DeepSeek/吾爱装机助手）
+    return list.length === 7;
   })());
 
   check('内置位在版面上永远占前排（候选再多也不被截掉）', (() => {
@@ -613,9 +613,9 @@ function manyHosts(n) {
 
   check('候选够填满版面时内置位依然在（固定入口不随候选增减）', (() => {
     const d = Ntp.buildData({ added: manyHosts(9).map((h) => ({ url: h.url, label: h.title })) });
-    // 真实候选照原样送出去，内置那六条**照样追加**。
+    // 真实候选照原样送出去，内置那七条**照样追加**。
     // 这条断言钉的是「固定」二字：老实现是「候选够 7 条就一条都不补」，
-    // 于是用户多访问几个站点，这六条整体消失、清次历史又回来 —— 网址来回改。
+    // 于是用户多访问几个站点，这七条整体消失、清次历史又回来 —— 网址来回改。
     return padRows(d).length === Ntp.BUILTIN_SITES.length && realRows(d).length === 9;
   })());
 
@@ -628,10 +628,10 @@ function manyHosts(n) {
       && few.every((u, i) => u === many[i]);
   })());
 
-  /* ── 2026-10：内置那六条是**版式**，不参与增删，顺序也不随任何东西变 ──
+  /* ── 2026-10：内置那七条是**版式**，不参与增删，顺序也不随任何东西变 ──
    *
    * 这里原来钉的是「点掉一条 → 其余的往前补位（不留空格）」。用户后来的
-   * 要求是「这六条我指定的，**顺序不能变**」—— 而补位就是变序。
+   * 要求是「这七条我指定的，**顺序不能变**」—— 而补位就是变序。
    * 所以那两条断言随实现一起改了；改动的理由写在 ntp.js 的 buildData 里。
    *
    * 顺带留一个历史坑（现在踩不到了，但值得记着）：
@@ -639,7 +639,7 @@ function manyHosts(n) {
    * 而「主页」(www.52ta.top) 与「导航」(52ta.top) 归一化之后是**同一个键** ——
    * 当年删一个会连带去掉两格，六宫格一次少两格、剩下的再整体上移，
    * 一屏网址变样两次。现在内置项根本不看 removed，这个坑也就消失了。 */
-  check('removed 里点名了内置项，六条照样全在（内置不再参与增删）', (() => {
+  check('removed 里点名了内置项，七条照样全在（内置不再参与增删）', (() => {
     const rows = Page.parseData(Ntp.buildData({ removed: ['music.52ta.top', 'chat.deepseek.com'] }))
       .filter((r) => r.builtin);
     return rows.length === Ntp.BUILTIN_SITES.length;
@@ -652,7 +652,7 @@ function manyHosts(n) {
       && labels.indexOf('主页') >= 0 && labels.indexOf('导航') >= 0;
   })());
 
-  check('内置六条的**顺序**永远照 BUILTIN_SITES，不随 removed 变（顺序不能变）', (() => {
+  check('内置七条的**顺序**永远照 BUILTIN_SITES，不随 removed 变（顺序不能变）', (() => {
     const want = Ntp.BUILTIN_SITES.map((x) => x.label).join();
     const of = (src) => Page.parseData(Ntp.buildData(src))
       .filter((r) => r.builtin).map((r) => r.label).join();
@@ -663,14 +663,15 @@ function manyHosts(n) {
   })(), Page.parseData(Ntp.buildData({ removed: ['music.52ta.top'] }))
     .filter((r) => r.builtin).map((r) => r.label).join(' '));
 
-  check('这六条固定入口不许被改动（地址逐字钉死）', (() => {
+  check('这七条固定入口不许被改动（地址逐字钉死）', (() => {
     const PINNED = [
       ['主页', 'https://www.52ta.top/'],
       ['导航', 'https://52ta.top/'],
       ['播放器', 'https://music.52ta.top/'],
       ['浏览器', 'https://nova.52ta.top/'],
       ['百度', 'https://www.baidu.com/'],
-      ['DeepSeek', 'https://chat.deepseek.com/']
+      ['DeepSeek', 'https://chat.deepseek.com/'],
+      ['吾爱装机助手', 'https://assistant.52ta.top/']
     ];
     return Ntp.BUILTIN_SITES.length === PINNED.length
       && PINNED.every((p, i) =>
@@ -679,11 +680,12 @@ function manyHosts(n) {
 
   // 页面侧那份兜底清单也是同一批地址（FALLBACK 给 flags 'p'，位置不同），
   // 同样钉死 —— 否则数据一旦不同步，用户看到的是「有时候六个有时候五个」。
-  check('页面兜底清单与这六条同一批地址', (() => {
+  check('页面兜底清单与这七条同一批地址', (() => {
     const fb = Page.parseData(Page.FALLBACK);
     const pinnedUrls = [
       'https://www.52ta.top/', 'https://52ta.top/', 'https://music.52ta.top/',
-      'https://nova.52ta.top/', 'https://www.baidu.com/', 'https://chat.deepseek.com/'
+      'https://nova.52ta.top/', 'https://www.baidu.com/', 'https://chat.deepseek.com/',
+      'https://assistant.52ta.top/'
     ];
     return fb.length === pinnedUrls.length && pinnedUrls.every((u, i) => fb[i].url === u);
   })(), Page.parseData(Page.FALLBACK).map((r) => r.url).join(' '));
@@ -696,12 +698,12 @@ function manyHosts(n) {
   check('「固定入口无条件补齐」在安卓端同样成立（withBuiltins 不看格数提前退）',
     // 反向断言：安卓端**不能**再有 out.size() >= MAX_TILES 的提前退出。
     // 那是「候选够 7 条就不补」的根因，两端必须一起去掉，否则手机上
-    // 这六条仍会随候选多少而增减 —— 正是用户说的「网址来回改」。
+    // 这七条仍会随候选多少而增减 —— 正是用户说的「网址来回改」。
     !/out\.size\(\)\s*>=\s*MAX_TILES/.test(java));
 
   /* ---- 收藏夹：同一份数据开张 ---- */
   const settings = require(P('src/main/settings.js'));
-  check('收藏夹初值就是这六个内置入口（与宫格同源）', (() => {
+  check('收藏夹初值就是这七个内置入口（与宫格同源）', (() => {
     const bm = settings.DEFAULTS.bookmarks || [];
     return bm.length === Ntp.BUILTIN_SITES.length
       && bm.every((b, i) => b.title === Ntp.BUILTIN_SITES[i].label && b.url === Ntp.BUILTIN_SITES[i].url);
@@ -716,7 +718,7 @@ function manyHosts(n) {
     }));
     const first = settings.init(dir);
     const urls = first.bookmarks.map((b) => b.url);
-    const okFirst = first.bookmarkSeed === 1
+    const okFirst = first.bookmarkSeed === 2          // 当前补种版本号
       && urls.length === Ntp.BUILTIN_SITES.length
       && urls[0] === 'https://52ta.top/';          // 用户原来那条没被挤位
     // 再来一次：这次用户已经删掉过某个内置书签，不该被补回来
@@ -724,6 +726,26 @@ function manyHosts(n) {
     fs.writeFileSync(file, JSON.stringify(first));
     const second = settings.init(dir);
     return okFirst && !second.bookmarks.some((b) => b.url === 'https://chat.deepseek.com/');
+  })());
+
+  /* ---- 内置入口加了新的一条：老用户那份也要补上 ---- */
+  // 收藏夹是整条存下来的，不是存「内置第 N 条」的引用 —— 光往 BUILTIN_SITES 里
+  // 加一条，老用户文件里躺着的仍是上一版种下去的那六条，他永远看不到新入口。
+  // 补种因此是**带版本号**的（见 settings.js 的 SEED_VERSION）。
+  check('内置入口新增后，老用户的收藏夹补上那一条（且只补缺的）', (() => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-seed2-'));
+    fs.writeFileSync(path.join(dir, 'nova-settings.json'), JSON.stringify({
+      // 老配置：上一版种下的六条，其中「百度」被用户删过（这就是他自己的选择）
+      bookmarks: Ntp.BUILTIN_SITES.slice(0, 6).map((s) => ({ title: s.label, url: s.url }))
+        .filter((b) => b.url !== 'https://www.baidu.com/'),
+      bookmarkSeed: 1
+    }));
+    const s = settings.init(dir);
+    const urls = s.bookmarks.map((b) => b.url);
+    return s.bookmarkSeed === 2
+      && urls.includes('https://assistant.52ta.top/')      // 新那条补上了
+      && !urls.includes('https://www.baidu.com/')          // 他删掉的没回来
+      && urls.length === Ntp.BUILTIN_SITES.length - 1;     // 也没顺手补别的
   })());
 
   /* ---- 内置地址改错过之后的修订 ---- */
@@ -737,7 +759,7 @@ function manyHosts(n) {
         { title: '52ta', url: 'https://52ta.top/' },
         { title: '播放器', url: 'https://misuc.52ta.top/' }
       ],
-      bookmarkSeed: 1,
+      bookmarkSeed: 2,   // 种子已是当前版本：这一条测的是「修订」，不是「补种」
       ntpShortcuts: { added: [], removed: ['misuc.52ta.top'] }
     }));
     const s = settings.init(dir);
@@ -754,7 +776,7 @@ function manyHosts(n) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-fix2-'));
     fs.writeFileSync(path.join(dir, 'nova-settings.json'), JSON.stringify({
       bookmarks: [{ title: '播放器', url: 'https://misuc.52ta.top/' }],
-      bookmarkSeed: 1,
+      bookmarkSeed: 2,
       bookmarkFix: 1
     }));
     return settings.init(dir).bookmarks.some((b) => b.url === 'https://misuc.52ta.top/');
@@ -776,7 +798,7 @@ function manyHosts(n) {
     check('搜索提交走 nova:// 命令（这一页是本地文件、没有桥，自己不能导航）',
       /cmdUrl\('search'/.test(page));
 
-    // 内置那六条不给删除角标：它们是版式，不是用户加的收藏
+    // 内置那七条不给删除角标：它们是版式，不是用户加的收藏
     check('内置磁贴不挂删除角标', /if \(!item\.builtin\)[\s\S]{0,200}?del\.className = 'del'/.test(page));
     check('编辑态下点内置磁贴也不会删（只跳过）',
       /if \(item\.builtin\) return;/.test(page));

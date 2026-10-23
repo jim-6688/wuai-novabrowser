@@ -49,14 +49,15 @@ public final class NewTab {
     public static final int MAX_CANDIDATES = 30;
 
     /** 页面上真正摆得下的格数。补位（见 {@link #BUILTIN_SITES}）以它为目标：
-        「别让这一屏空着」。与页面侧的 MAX_SHORTCUTS、桌面端 ntp.js 的 MAX_TILES 同值。 */
-    public static final int MAX_TILES = 7;
+        「别让这一屏空着」。与页面侧的 MAX_SHORTCUTS、桌面端 ntp.js 的 MAX_TILES 同值。
+        7 → 8：内置入口加到七条之后，得给用户自己加的那条留一格。 */
+    public static final int MAX_TILES = 8;
 
     /**
      * 官方推荐位：候选不够填满版面时，用它们把后面的格子补齐（见 {@link #withBuiltins}）。
      *
      * <p>为什么要补：候选一旦非空，「候选为空才兜底」这条规则就再也不会生效 ——
-     * 一个只访问过两三个站点的用户，新标签页上就只剩两三个磁贴，内置的六个入口
+     * 一个只访问过两三个站点的用户，新标签页上就只剩两三个磁贴，内置的七个入口
      * 整体退场。用户的感受是「宫格被删了」，而不是「我还没访问过几个站」。
      *
      * <p>与桌面端 {@code ntp.js} 的 {@code BUILTIN_SITES}、以及页面里的 {@code FALLBACK}
@@ -68,7 +69,8 @@ public final class NewTab {
         new Row("播放器", "https://music.52ta.top/", 0, false, true),
         new Row("浏览器", "https://nova.52ta.top/", 0, false, true),
         new Row("百度", "https://www.baidu.com/", 0, false, true),
-        new Row("DeepSeek", "https://chat.deepseek.com/", 0, false, true)
+        new Row("DeepSeek", "https://chat.deepseek.com/", 0, false, true),
+        new Row("吾爱装机助手", "https://assistant.52ta.top/", 0, false, true)
     };
 
     /** 一行候选，对应页面上一个磁贴。 */
@@ -251,7 +253,7 @@ public final class NewTab {
             public int compare(Row a, Row b) {
                 if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
                 // 推荐位排在所有真实候选之后，且内部保持给定顺序（不比 visits / label）——
-                // 掺进次数排序里的话，内置那六条的给定顺序每次都会被重排成另一个样子。
+                // 掺进次数排序里的话，内置那七条的给定顺序每次都会被重排成另一个样子。
                 if (a.builtin != b.builtin) return a.builtin ? 1 : -1;
                 if (a.visits != b.visits) return b.visits - a.visits;
                 return a.label.compareTo(b.label);
@@ -276,7 +278,7 @@ public final class NewTab {
      * 把内置推荐位 {@link #BUILTIN_SITES} 无条件追加到候选末尾。
      *
      * <p><b>为什么无条件</b>：原来这一段是「候选不足 {@link #MAX_TILES} 才补齐」，
-     * 于是用户多访问几个站点、候选一超过七条，那六条固定入口就整体消失，
+     * 于是用户多访问几个站点、候选一超过八条，那七条固定入口就整体消失，
      * 清一次历史又回来 —— 同一屏内容在「随时会变的规则」里，用户看到的就是
      * 「网址来回改」。固定入口的意义正在于它固定。
      *
