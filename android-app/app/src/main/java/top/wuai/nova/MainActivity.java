@@ -4923,14 +4923,14 @@ public final class MainActivity extends Activity {
      *
      * <p>与桌面端同一套语义 —— 底部滑出一块面板，里面是一块 WebView 载着所选 AI 的
      * 网页版对话；下拉选 AI、输入框写好内容点「发送」，best-effort 把文本注入到
-     * 对话输入框里。免登录的排最前。
+     * 对话输入框里。网页对话那几家排最前。
      *
      * <p>不接任何 API、不经手密钥：纯 web，跨域注入由宿主 {@code evaluateJavascript}
      * 执行，不受目标页 CSP 限制。某家网页改版导致注入失效时，回落成「只打开对话页、
      * 让用户自己贴」。
      *
      * <p>服务商清单与桌面端 {@code shell.js} 的 {@code AI_PROVIDERS} 同词同源；
-     * 顺序即展示顺序，免登录的在前。
+     * 顺序即展示顺序，网页对话的在前。
      */
     private void showAiSheet() {
         View sheet = openSheet(getString(R.string.sheet_ai), R.layout.sheet_ai);
@@ -4938,7 +4938,7 @@ public final class MainActivity extends Activity {
         // 服务商清单。名字数组交 ArrayAdapter；地址数组里 custom 那一格是 null，
         // 由用户在 aiCustomUrl 里填。与桌面端 AI_PROVIDERS 一一对应。
         final String[] aiNames = {
-            "DeepSeek（免登录）", "Kimi（免登录）", "通义千问（免登录）", "豆包（免登录）", "自定义…"
+            "DeepSeek", "Kimi", "通义千问", "豆包", "自定义…"
         };
         final String[] aiUrls = {
             "https://chat.deepseek.com/",

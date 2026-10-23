@@ -64,7 +64,7 @@
     <string name="ai_clear">清空</string>
     <string name="ai_text_hint">输入内容，选好 AI 后点「发送」</string>
     <string name="ai_custom_url_hint">自定义 AI 对话地址（https://…）</string>
-    <string name="ai_note">内嵌网页对话 · 免登录优先 · 不收集密钥</string>
+    <string name="ai_note">内嵌网页对话 · 不收集密钥</string>
     <string name="ai_empty">先写点内容</string>
     <string name="ai_custom_hint">请填写自定义 AI 对话地址（https://…）</string>
     <string name="ai_opening">正在打开对话…</string>
