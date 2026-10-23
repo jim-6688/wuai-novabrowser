@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>AI 助手 · 吾爱Nova浏览器</title>
+<!-- 独立窗口也走 contextIsolation + preload：页面里没有任何 Node，
+     脚本只用本地文件，样式同理。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:" />
+<!-- 复用外壳那份样式表：设计令牌（:root / [data-theme="dark"]）与 .btn 等
+     基础控件都从那里来，本页只补自己的布局（ai-window.css），
+     这样独立窗口和主界面是同一套语言。 -->
+<link rel="stylesheet" href="shell.css" />
+<link rel="stylesheet" href="ai-window.css" />
+</head>
+<body>
+<div class="aw-app" id="aw-app">
+  <header class="aw-head">
+    <span class="brand-mark" aria-hidden="true">N</span>
+    <strong class="aw-title">AI 助手</strong>
+    <span class="aw-src" id="aw-src">独立窗口</span>
+    <div class="aw-head-btns">
+      <button class="btn btn-sm" id="aw-toggle-cfg" title="API 设置">API 设置</button>
+      <button class="btn btn-sm" id="aw-back" title="关掉这个窗口，回到侧边栏">回到侧边栏</button>
+    </div>
+  </header>
+
+  <!-- API 配置：默认收起。配置是侧栏带过来的，这里只是让你能临时改。 -->
+  <div class="aw-cfg" id="aw-cfg" hidden>
+    <input id="aw-base" class="aw-field" placeholder="API 地址，如 https://api.deepseek.com" spellcheck="false" />
+    <input id="aw-key" class="aw-field" type="password" placeholder="API Key（sk-…）" spellcheck="false" />
+    <input id="aw-model" class="aw-field" placeholder="模型，如 deepseek-chat" spellcheck="false" />
+  </div>
+
+  <!-- 网页模式：与浏览器主窗口共用 persist:nova-chromium 分区 ——
+       cookie / localStorage 都在磁盘上，AI 站点认得出你，历史会话也在。
+       这是「搬到新窗口却不丢画面」的第一半。 -->
+  <webview id="aw-webview" class="aw-webview" allowpopups partition="persist:nova-chromium"></webview>
+
+  <!-- API 模式：对话是自己的，整份消息由侧栏传过来，一条不丢 -->
+  <div class="aw-api" id="aw-api" hidden>
+    <div class="aw-chat" id="aw-chat"></div>
+    <div class="aw-note" id="aw-hint"></div>
+    <div class="aw-foot">
+      <textarea id="aw-text" class="aw-input" placeholder="输入内容，回车发送（Shift + 回车换行）"></textarea>
+      <div class="aw-actions">
+        <button class="btn btn-primary" id="aw-send">发送</button>
+        <button class="btn" id="aw-clear">清空</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="ai-window.js"></script>
+</body>
+</html>

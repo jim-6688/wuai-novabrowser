@@ -6610,9 +6610,6 @@ function openAiPanel() {
 function positionAiPanel() {
   const panel = $('#ai-panel');
   const btn = $('#btn-ai');
-  if (!panel || !btn) return;
-  // 最大化时不动定位（那套几何由 .ai-panel.is-max 接管），否则 resize 会把最大态冲掉
-  if (panel.classList.contains('is-max')) return;
   const r = btn.getBoundingClientRect();
   const top = Math.round(r.bottom + 8);
   panel.style.top = top + 'px';
@@ -6621,26 +6618,98 @@ function positionAiPanel() {
 }
 
 /**
- * 最大化 / 还原 AI 窗口。
+ * 读出 AI 网页对话输入框里**还没发出去**的内容。
  *
- * **只改尺寸，不重建 webview / 不重载当前页** —— 这正是「当前画面不丢失」的关键：
- * 用一个 class 切换几何布局，内部那个正在看的 AI 对话页、聊到一半的内容都原样留着。
- * 最大化时把 positionAiPanel 写下的内联 top/right/maxHeight 清掉，好让 .is-max 的
- * inset 布局生效；还原时再按 AI 按钮重新定位一次。
+ * 网页模式下底栏那套 textarea 是收起的（对话页自带输入框），草稿只存在于
+ * 页面里。搬到独立窗口时要把它一起带走，不然「聊到一半那半句话」就没了。
+ * best-effort：读不到就返回空串，不该因此拦住开窗。
  */
-function toggleAiMax() {
-  const panel = $('#ai-panel');
-  const btn = $('#ai-max');
-  if (!panel) return;
-  const max = panel.classList.toggle('is-max');
-  if (max) {
-    panel.style.top = '';
-    panel.style.right = '';
-    panel.style.maxHeight = '';
+async function aiReadDraft() {
+  const wv = $('#ai-webview');
+  const ai = currentAi();
+  if (!wv || !ai.sel) return '';
+  if (!(await whenAiWebViewReady(3000))) return '';
+  const code = '(function(){'
+    + 'try{var el=document.querySelector(' + JSON.stringify(ai.sel) + ');'
+    + 'if(!el)return "";'
+    + 'return el.value!==undefined ? (el.value||"") : (el.textContent||"");'
+    + '}catch(e){return "";}})()';
+  try {
+    const v = await wv.executeJavaScript(code);
+    return typeof v === 'string' ? v : '';
+  } catch { return ''; }
+}
+
+/**
+ * 把 AI 助手搬到**独立窗口**（打开即最大化），并且不丢当前画面。
+ *
+ * 「不丢」分两条路：
+ * - 网页模式：带上当前对话页地址 + 从页面输入框里读出来的草稿；新窗口里的
+ *   webview 用的是同一个持久化分区 {@code persist:nova-chromium}，cookie 与
+ *   localStorage 都在，AI 站点认得出你、历史会话也在。
+ * - API 模式：整份 {@code state.aiApiMessages} 直接带过去，一条不差。
+ *
+ * 窗口开起来后侧栏这一份收起 —— 同一个 AI 会话不该在两个地方同时跑。
+ */
+async function openAiWindow() {
+  const api = aiIsApiMode();
+  const wv = $('#ai-webview');
+  const payload = {
+    mode: api ? 'api' : 'web',
+    theme: (state.settings && state.settings.theme) || 'light'
+  };
+  if (api) {
+    payload.messages = (state.aiApiMessages || []).slice();
+    payload.apiCfg = aiApiCfg();
   } else {
-    positionAiPanel();
+    const ai = currentAi();
+    payload.name = ai.name;
+    payload.sel = ai.sel;
+    payload.url = (wv && (wv.getAttribute('src') || '')) || ai.url || '';
+    payload.draft = (await aiReadDraft()) || '';
   }
-  if (btn) btn.title = max ? '还原' : '最大化';
+
+  let r = null;
+  try { r = await bridge.ai.openWindow(payload); } catch { r = null; }
+  if (!r || r.ok === false) { toast('没能打开独立窗口'); return; }
+  closeAiPanel();
+  toast('已在独立窗口打开 AI 助手（内容一并带过来了）');
+}
+
+/** 按 state.aiApiMessages 重画侧栏的 API 对话列表（独立窗口关回来时用）。 */
+function renderAiApiMessages() {
+  const box = $('#ai-chat');
+  if (!box) return;
+  box.textContent = '';
+  for (const m of (state.aiApiMessages || [])) {
+    aiChatAppend(m.role === 'user' ? 'me' : 'ai', m.content || '');
+  }
+  box.scrollTop = box.scrollHeight;
+}
+
+/** 独立 AI 窗口关了：把最后状态接回侧栏，不至于白聊一场。 */
+function onAiWindowClosed(payload) {
+  if (!payload || typeof payload !== 'object') return;
+  if (payload.mode === 'api') {
+    if (Array.isArray(payload.messages)) {
+      state.aiApiMessages = payload.messages.slice();
+      renderAiApiMessages();
+    }
+    if (payload.apiCfg) {
+      state.settings = Object.assign({}, state.settings, { aiApi: payload.apiCfg });
+      bridge.settings.patch({ aiApi: payload.apiCfg }).catch(() => {});
+      aiApiLoadCfg();
+    }
+  } else if (payload.url) {
+    const wv = $('#ai-webview');
+    // 只在地址真的变了才写：重写 src 会重新加载，白跳一次没意义。
+    // 用 setAttribute 而不是 wv.src = …：后者只是给元素挂了个 JS 属性，
+    // 在 webview 这种非标准标签上并不落到属性上（jsdom 里尤其明显）。
+    if (wv && wv.getAttribute('src') !== payload.url) wv.setAttribute('src', payload.url);
+    // 没发出去的草稿：交给 openAiPanel 那条既有的「待注入」通道
+    if (payload.draft) state.aiPending = payload.draft;
+  }
+  toast('AI 窗口已关闭，内容已回到侧边栏');
 }
 
 function closeAiPanel() {
@@ -7411,7 +7480,7 @@ function wireUi() {
 
   // AI 助手面板：下拉切换 / 带入当前页 / 发送 / 清空 / 关闭
   $('#ai-close').addEventListener('click', closeAiPanel);
-  $('#ai-max').addEventListener('click', toggleAiMax);
+  $('#ai-pop').addEventListener('click', openAiWindow);
   $('#ext-ui-close').addEventListener('click', closeExtUiPanel);
   wireExtUiWebview();
   $('#ai-grab').addEventListener('click', aiGrab);
@@ -7992,6 +8061,9 @@ function wireBridgeEvents() {
   // 把请求推过来，这里弹一条带「允许 / 禁止」的提示条等用户点（见 showPermissionRequest）。
   // 用户点了就回主进程（bridge.permissions.resolve），解除挂起的回调。
   bridge.on('permission:request', (p) => showPermissionRequest(p));
+
+  // 独立 AI 窗口关了：主进程把它最后一份状态推回来，侧栏据此接上对话 / 草稿。
+  bridge.on('ai:closed', (p) => onAiWindowClosed(p));
 
   // 主进程抓到一份新图标。重读一次那张表（同名主机也要重读 —— 内容变了）。
   // 这条推送是必须的：图标是异步到的，不推的话书签格会一直停在首字母上，

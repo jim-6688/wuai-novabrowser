@@ -561,10 +561,10 @@
     <header class="ai-head">
       <h2>AI 助手</h2>
       <div class="ai-head-btns">
-        <!-- 最大化/还原：只改尺寸、不重建 webview，正在看的对话/画面不丢 -->
-        <button class="ai-x ai-max" id="ai-max" title="最大化">
-          <svg class="ai-ico-max" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8V4h4M12 4h4v4M16 12v4h-4M8 16H4v-4"/></svg>
-          <svg class="ai-ico-restore" viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="6.5" width="10" height="10" rx="1.5"/><path d="M7 3.5h8a1 1 0 0 1 1 1v8"/></svg>
+        <!-- 用新窗口打开：把这一份 AI 助手搬到独立窗口（打开即最大化）。
+             地址、输入框草稿 / 整份对话都随窗口带过去，画面不丢。 -->
+        <button class="ai-x ai-pop" id="ai-pop" title="用新窗口打开（最大化）">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 3H16a1 1 0 0 1 1 1v4.5"/><path d="M17 3l-6.5 6.5"/><path d="M15 12.5V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h3.5"/></svg>
         </button>
         <button class="ai-x" id="ai-close" title="关闭">×</button>
       </div>

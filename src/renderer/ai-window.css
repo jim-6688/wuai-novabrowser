@@ -1,0 +1,142 @@
+/* ==========================================================================
+   AI 助手 · 独立窗口
+   只写这一页自己的布局；设计令牌、按钮、滚动条都从 shell.css 继承。
+   ========================================================================== */
+
+html, body { height: 100%; margin: 0; }
+
+.aw-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13.5px;
+}
+
+/* ---------- 标题条 ---------- */
+.aw-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 0 auto;
+  padding: 10px var(--sp-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.aw-title { font-size: 13.5px; font-weight: 600; }
+.aw-src {
+  font-size: 12px;
+  color: var(--text-3);
+  max-width: 46vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aw-head-btns { margin-left: auto; display: flex; gap: var(--sp-2); }
+
+/* ---------- API 配置行（默认收起） ---------- */
+.aw-cfg {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.aw-field {
+  flex: 1 1 180px;
+  min-width: 140px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: var(--font);
+}
+.aw-field:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
+
+/* ---------- 网页模式 ----------
+   webview 要显式给尺寸才画得出来。flex:1 + min-height:0 是让它吃掉
+   标题条以下的全部空间，而不是撑破窗口。 */
+.aw-webview {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+/* ---------- API 模式 ---------- */
+.aw-api {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.aw-chat {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+.aw-msg {
+  max-width: 78%;
+  padding: 10px 13px;
+  border-radius: var(--r-md);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.aw-msg.user {
+  align-self: flex-end;
+  background: var(--brand);
+  color: #fff;
+}
+.aw-msg.assistant {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.aw-msg.thinking { align-self: flex-start; color: var(--text-3); font-size: 12.5px; }
+.aw-msg.err { align-self: flex-start; color: var(--danger); background: var(--surface); border: 1px solid var(--danger); }
+
+.aw-note {
+  flex: 0 0 auto;
+  padding: 0 var(--sp-4);
+  font-size: 12px;
+  color: var(--text-3);
+}
+.aw-note:empty { display: none; }
+
+.aw-foot {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.aw-input {
+  width: 100%;
+  min-height: 78px;
+  max-height: 30vh;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.aw-input:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
+.aw-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }

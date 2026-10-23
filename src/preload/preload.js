@@ -79,7 +79,13 @@ const EVENT_CHANNELS = [
   'host:event',
   /* 主进程把一次「权限询问」推给渲染层，由它弹出权限条等用户点允许/禁止。
      见 permissions.askPermission 与渲染层的 bridge.on('permission:request')。 */
-  'permission:request'
+  'permission:request',
+  /* AI 助手独立窗口两条通道：
+     ai:init   —— 主进程把「当前在看什么」推给新开的 AI 窗口（也用于再次点
+                  开已存在的窗口时刷新内容）；只有 ai-window 在听。
+     ai:closed —— AI 窗口关了，把最后状态还给主窗口的侧栏，让它接着用。 */
+  'ai:init',
+  'ai:closed'
 ];
 
 const listeners = new Map();
@@ -286,7 +292,15 @@ contextBridge.exposeInMainWorld('nova', {
   // 渲染层只收集 base/key/model 与对话，真正的 HTTP 请求在主进程发（避开 CORS，
   // 也不把密钥暴露给页面上下文）。cfg = { base, key, model, messages:[{role,content}] }
   ai: {
-    chat: (cfg) => ipcRenderer.invoke('ai:chat', cfg)
+    chat: (cfg) => ipcRenderer.invoke('ai:chat', cfg),
+    /* 独立窗口：侧栏把「现在在看什么」（地址 / 草稿 / 对话）打包送过来，
+       主进程据此开一个独立窗口（已开则提到前面并刷新内容）。 */
+    openWindow: (payload) => ipcRenderer.invoke('ai:open-window', payload),
+    /* AI 窗口侧：init 取初始状态，sync 把后来的变化（导航、新消息）回写，
+       这样关窗口时主进程手里的那份是最新的、能原样还给侧栏。 */
+    init: () => ipcRenderer.invoke('ai:init'),
+    // 单向：不等回执。这样关窗口那一刻（beforeunload）也来得及把最后状态发出去。
+    sync: (payload) => ipcRenderer.send('ai:sync', payload)
   },
 
   window: {

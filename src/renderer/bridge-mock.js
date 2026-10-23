@@ -865,6 +865,19 @@ const MOCK_UPDATE = {
           ? cfg.messages[cfg.messages.length - 1].content : '';
         await new Promise((r) => setTimeout(r, 500));
         return { ok: true, content: '（UI 预览模式）这是模拟回复。\n你刚才说：' + String(last).slice(0, 80) };
+      },
+
+      /* 独立 AI 窗口：预览里开不了真窗口，把「要送过去的内容」记在
+         state.aiWindow 上 —— 真机由主进程建窗口，这里只让交互走通、
+         也让测试能断言「送过去的东西没丢」。 */
+      openWindow: async (payload) => {
+        state.aiWindow = payload || {};
+        return { ok: true, reused: false };
+      },
+      init: async () => state.aiWindow || {},
+      sync: async (payload) => {
+        state.aiWindow = Object.assign({}, state.aiWindow || {}, payload || {});
+        return { ok: true };
       }
     },
 

@@ -396,6 +396,79 @@ function send(channel, payload) {
 }
 
 /* ------------------------------------------------------------------ *
+ * AI 助手 · 独立窗口
+ * ------------------------------------------------------------------ */
+
+let aiWindow = null;
+/** 新窗口的初始状态 / 最新一次同步上来的状态。窗口关闭前都留着，好还给侧栏。 */
+let aiWindowPayload = null;
+
+/**
+ * 把 AI 助手从侧栏小窗搬到**独立窗口**（打开即最大化）。
+ *
+ * <b>「当前画面不丢失」靠两件事</b>：
+ * <ol>
+ *   <li>新窗口里的 webview 用的是**同一个持久化分区** {@code persist:nova-chromium} ——
+ *       cookie / localStorage 都落在磁盘上，AI 站点认得出你、历史会话也还在；
+ *       相当于把同一个对话页搬到另一个窗口，而不是「重新打开一个陌生的页面」。</li>
+ *   <li>打开前把地址、输入框里还没发出去的草稿（网页模式）或整份对话
+ *       （API 模式）作为初始状态带过去，新窗口按它原样重建。</li>
+ * </ol>
+ * 之后在窗口里的变化（导航到别的 AI 页、新增对话）由 {@code ai:sync} 回写，
+ * 关闭时把最后一次已知状态推回主窗口，侧栏再打开时接着用。
+ *
+ * <p>窗口用系统标题栏而不是主界面那套无边框：它是「另一个窗口」，
+ * 没有标题栏会让人找不到怎么关、怎么还原。
+ *
+ * @param {object} payload { mode:'web'|'api', url, sel, name, draft, messages, apiCfg, theme }
+ */
+function openAiWindow(payload) {
+  aiWindowPayload = Object.assign({}, aiWindowPayload, payload || {});
+
+  // 已经开着：不再开第二个（两个窗口跑同一个 AI 会话会互相打架），
+  // 而是把它提到前面、并把这份新状态推过去。
+  if (aiWindow && !aiWindow.isDestroyed()) {
+    aiWindow.focus();
+    aiWindow.webContents.send('ai:init', aiWindowPayload);
+    return { ok: true, reused: true };
+  }
+
+  aiWindow = new BrowserWindow({
+    width: 1120,
+    height: 780,
+    minWidth: 420,
+    minHeight: 360,
+    title: 'AI 助手 · 吾爱Nova浏览器',
+    icon: path.join(ROOT, 'assets', 'icon', 'nova.ico'),
+    backgroundColor: settings.get('theme') === 'dark' ? '#0E1016' : '#F6F7FB',
+    show: false,
+    webPreferences: {
+      preload: path.join(ROOT, 'src', 'preload', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      webviewTag: true,
+      spellcheck: false
+    }
+  });
+
+  aiWindow.loadFile(path.join(ROOT, 'src', 'renderer', 'ai-window.html'));
+  aiWindow.once('ready-to-show', () => {
+    aiWindow.show();
+    // 点「最大化」进来就是要大：直接铺满，想变回普通窗口点还原即可
+    aiWindow.maximize();
+  });
+  aiWindow.on('closed', () => {
+    const last = aiWindowPayload;
+    aiWindow = null;
+    aiWindowPayload = null;
+    // 把最后状态还给侧栏：侧栏据此恢复对话 / 草稿，不至于白聊一场
+    send('ai:closed', last || {});
+  });
+
+  return { ok: true, reused: false };
+}
+
+/* ------------------------------------------------------------------ *
  * 请求闸门（广告拦截 + 无图模式）
  * ------------------------------------------------------------------ */
 
@@ -1246,6 +1319,20 @@ function registerIpc() {
    *   key   Bearer 令牌
    *   model 例：deepseek-chat
    * 返回 { ok:true, content } 或 { error }。 */
+  /* --- AI 助手独立窗口 --- */
+  // 侧栏把「现在在看什么」打包发过来，主进程开一个独立窗口并转交这份状态。
+  handle('ai:open-window', (payload) => openAiWindow(payload));
+
+  // 新窗口起来后取初始状态（地址 / 草稿 / 对话）。
+  handle('ai:init', () => aiWindowPayload || {});
+
+  // 窗口里的变化回写（导航到别的 AI 页、新增了对话），关闭时才能原样还给侧栏。
+  // 用 on 而不是 handle：渲染层发的是单向 send（关窗口那一刻也来得及发出去），
+  // 不需要、也等不到回执。
+  ipcMain.on('ai:sync', (_e, payload) => {
+    aiWindowPayload = Object.assign({}, aiWindowPayload, payload || {});
+  });
+
   handle('ai:chat', async (cfg) => {
     const base = String((cfg && cfg.base) || 'https://api.deepseek.com').replace(/\/+$/, '');
     const key = String((cfg && cfg.key) || '').trim();
