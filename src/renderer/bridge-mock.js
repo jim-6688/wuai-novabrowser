@@ -15,6 +15,10 @@ if (typeof window !== 'undefined' && !window.nova) {
   const now = Date.now();
   const listeners = new Map();
 
+  /* 预览模式下的「剪贴板」：真实运行时由主进程接管，这里存一份在内存里，
+     让「复制 → 粘贴」在预览里能真的走一个来回。 */
+  let mockClipboard = '';
+
   /* 内核清单的最小复刻 —— 与 native/engines/manifest.json 同形，
      数值取自真实下载结果，好让 UI 预览看到的就是真状态。 */
   const kernelOf = (id) => ({
@@ -850,7 +854,8 @@ const MOCK_UPDATE = {
       userDataPath: async () => '（UI 预览模式，真实运行时为本机用户目录）',
       openUserData: async () => {},
       clearSiteData: async () => ({ cleared: 0, total: 4, failed: [], note: 'UI 预览模式：不会真的清空站点数据' }),
-      copy: async () => true,
+      copy: async (text) => { mockClipboard = String(text == null ? '' : text); return true; },
+      paste: async () => mockClipboard,
       /* 预览是网页、加载不到 Node 的 qrcode 库，回一张占位图，
          让二维码弹层的交互能走一遍（真机上主进程会生成真二维码）。 */
       qrcode: async () => ({ ok: true, dataUrl: 'data:image/svg+xml;utf8,' + encodeURIComponent(

@@ -2210,6 +2210,10 @@ function registerIpc() {
     }
   });
   handle('shell:copy', (text) => { clipboard.writeText(String(text == null ? '' : text)); return true; });
+  /* 读剪贴板文本（地址栏右键「粘贴」用）。渲染层读不到系统剪贴板：
+   * 外壳是 file://，navigator.clipboard 在非安全上下文直接抛异常，
+   * 而 document.execCommand('paste') 在渲染进程里是无效的。 */
+  handle('shell:paste', () => clipboard.readText());
   /* 本地生成二维码（分享到微信/朋友圈等桌面无 API 的 App 时，用扫码桥接）。
    * 为什么放主进程：qrcode 是 Node 库，渲染层 contextIsolation 下 require 不到；
    * 而且本地生成不把网址泄露给第三方二维码服务。返回 PNG dataURL。 */

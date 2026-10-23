@@ -1493,6 +1493,146 @@ function closeOmniShare() {
   if (pop) pop.hidden = true;
 }
 
+/* --- 地址栏右键编辑菜单：撤销 / 剪切 / 复制 / 粘贴 / 全选 / 粘贴并打开 ---
+ *
+ * 为什么自己接：Electron 的渲染进程不给外壳自己的 <input> 弹原生编辑菜单
+ * （网页里那套是 Chromium 给 webview 的），所以地址栏右键默认什么都没有。
+ *
+ *   · 复制 / 粘贴都过主进程剪贴板：外壳跑在 file:// 下，navigator.clipboard
+ *     在非安全上下文直接抛异常；而「读」系统剪贴板更是只有主进程做得到。
+ *   · 改文字不走 document.execCommand：它在渲染进程里对 paste 是无效的，
+ *     自己按 selectionStart/End 拼字符串，行为确定、也好测。
+ */
+const OMNI_MENU_ITEMS = [
+  { id: 'undo', label: '撤销', kbd: 'Ctrl+Z' },
+  { sep: true },
+  { id: 'cut', label: '剪切', kbd: 'Ctrl+X' },
+  { id: 'copy', label: '复制', kbd: 'Ctrl+C' },
+  { id: 'paste', label: '粘贴', kbd: 'Ctrl+V' },
+  { id: 'paste-go', label: '粘贴并打开' },
+  { id: 'delete', label: '删除', kbd: 'Del' },
+  { sep: true },
+  { id: 'select-all', label: '全选', kbd: 'Ctrl+A' },
+  { id: 'copy-url', label: '复制当前页网址' }
+];
+
+/** 地址栏当前的选区。没选中时 s === e，text 为空串。 */
+function omniSelRange() {
+  const input = $('#omni-input');
+  if (!input) return null;
+  const len = String(input.value || '').length;
+  const s = Math.max(0, Math.min(input.selectionStart == null ? len : input.selectionStart, len));
+  const e = Math.max(0, Math.min(input.selectionEnd == null ? len : input.selectionEnd, len));
+  return { input, s: Math.min(s, e), e: Math.max(s, e), text: input.value.slice(Math.min(s, e), Math.max(s, e)) };
+}
+
+/** 用 text 替换当前选区，光标停在替换串之后。返回替换后的整串。 */
+function omniReplaceRange(text) {
+  const r = omniSelRange();
+  if (!r) return '';
+  const { input, s, e } = r;
+  const str = String(text == null ? '' : text);
+  input.value = input.value.slice(0, s) + str + input.value.slice(e);
+  const caret = s + str.length;
+  if (typeof input.setSelectionRange === 'function') input.setSelectionRange(caret, caret);
+  return input.value;
+}
+
+/** 剪贴板里的多行文本进地址栏前压成一行（回车在地址栏里没有意义）。 */
+const omniOneLine = (t) => String(t == null ? '' : t).replace(/[\r\n\t]+/g, ' ').trim();
+
+function renderOmniMenu() {
+  const box = $('#omni-menu');
+  if (!box) return;
+  const r = omniSelRange();
+  const has = !!(r && r.text);
+  box.innerHTML = OMNI_MENU_ITEMS.map((it) => {
+    if (it.sep) return '<div class="om-sep"></div>';
+    // 剪切 / 删除必须有选区；其余项始终可点（复制在无选区时复制整条，
+    // 粘贴没读到内容时只是不动）
+    const off = (it.id === 'cut' || it.id === 'delete') && !has;
+    return `<button class="om-item${off ? ' is-disabled' : ''}" role="menuitem" data-om="${it.id}"${off ? ' aria-disabled="true"' : ''}>`
+      + `<span class="om-label">${esc(it.label)}</span>`
+      + (it.kbd ? `<i class="om-kbd">${esc(it.kbd)}</i>` : '')
+      + '</button>';
+  }).join('');
+}
+
+/** 打开菜单。传 clientX 就按右键落点横向定位，落在地址栏外也不至于跑出屏幕。 */
+function openOmniMenu(clientX) {
+  const box = $('#omnibox'), menu = $('#omni-menu');
+  if (!box || !menu) return;
+  closeOmniShare();      // 两者占同一块地方，别叠在一起
+  hideOmniSuggest();
+  renderOmniMenu();
+  menu.hidden = false;
+  const W = 208;
+  const rect = typeof box.getBoundingClientRect === 'function' ? box.getBoundingClientRect() : null;
+  const bw = rect && rect.width ? rect.width : W;
+  const x = typeof clientX === 'number'
+    ? Math.max(0, Math.min(clientX - (rect ? rect.left : 0), Math.max(0, bw - W)))
+    : 0;
+  menu.style.left = Math.round(x) + 'px';
+}
+
+function closeOmniMenu() {
+  const m = $('#omni-menu');
+  if (m) m.hidden = true;
+}
+
+/** 撤销交给 Chromium 自己的编辑栈（打字产生的历史也在里面）；
+ *  拿不到这项能力就安静地什么都不做 —— jsdom / 非 Chromium 环境没有 execCommand。 */
+function omniUndo() {
+  const input = $('#omni-input');
+  if (!input) return false;
+  if (typeof document.execCommand === 'function') {
+    try { return document.execCommand('undo'); } catch { /* 不支持 */ }
+  }
+  return false;
+}
+
+async function runOmniMenuAction(id) {
+  const r = omniSelRange();
+  if (!r) return;
+  const { input, text: sel } = r;
+
+  if (id === 'cut' || id === 'delete') {
+    if (!sel) return;
+    if (id === 'cut') await bridge.system.copy(sel);
+    omniReplaceRange('');
+    input.focus();
+  } else if (id === 'copy') {
+    const out = sel || input.value;
+    if (!out) return;
+    await bridge.system.copy(out);
+  } else if (id === 'paste' || id === 'paste-go') {
+    let t = '';
+    try { t = await bridge.system.paste(); } catch { t = ''; }
+    t = omniOneLine(t);
+    if (!t) { toast('剪贴板里没有文本'); return; }
+    omniReplaceRange(t);
+    input.focus();
+    if (id === 'paste-go') {
+      hideOmniSuggest();
+      const url = resolveInput(input.value);
+      const tab = activeTab();
+      if (url && tab) navigate(tab.id, url);
+      input.blur();
+    }
+  } else if (id === 'select-all') {
+    input.focus();
+    input.select();
+  } else if (id === 'copy-url') {
+    const tab = activeTab();
+    const url = tab ? tab.url : '';
+    if (!url) return;
+    await bridge.system.copy(url);
+  } else if (id === 'undo') {
+    input.focus();
+    omniUndo();
+  }
+}
+
 /* --- 页内查找 ---
  * 只对 Chromium 的 <webview> 有效：IE/Trident 走的是原生宿主，没有 findInPage。
  */
@@ -7471,7 +7611,33 @@ function wireUi() {
   });
   input.addEventListener('focus', () => { input.select(); ensureHistoryCache(true); });
   // 点网址（地址栏还没聚焦时的那次点击）→ 弹分享面板；已在编辑态不弹。
-  input.addEventListener('mousedown', () => { if (document.activeElement !== input) openOmniShare(); });
+  // 只看左键：右键要留给编辑菜单，不然会先弹一次分享面板再弹菜单。
+  input.addEventListener('mousedown', (ev) => { if (ev.button === 0 && document.activeElement !== input) openOmniShare(); });
+  // 右键 → 编辑菜单
+  input.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault();
+    openOmniMenu(typeof ev.clientX === 'number' ? ev.clientX : null);
+  });
+  const omMenu = $('#omni-menu');
+  if (omMenu) {
+    // mousedown 就吃掉默认行为：点菜单项不该把地址栏里的选区弄没
+    // （剪切 / 复制吃的就是那段选区）
+    omMenu.addEventListener('mousedown', (ev) => { if (ev.target.closest('[data-om]')) ev.preventDefault(); });
+    omMenu.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-om]');
+      if (!b || b.classList.contains('is-disabled')) return;
+      const id = b.dataset.om;
+      closeOmniMenu();
+      runOmniMenuAction(id);
+    });
+  }
+  // 点外面收起（捕获阶段，点网页区也收得到）
+  document.addEventListener('mousedown', (ev) => {
+    const m = $('#omni-menu');
+    if (!m || m.hidden) return;
+    if (ev.target && typeof ev.target.closest === 'function' && ev.target.closest('#omni-menu')) return;
+    closeOmniMenu();
+  }, true);
   // 打字 → 收起分享面板、显示自动补齐（收藏 + 历史）
   input.addEventListener('input', () => { closeOmniShare(); renderOmniSuggest(); });
   // 失焦收起建议；点建议行用的是 mousedown+preventDefault，不会先触发这里
@@ -8032,7 +8198,7 @@ function wireUi() {
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeOmniMenu(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;

@@ -258,6 +258,8 @@ contextBridge.exposeInMainWorld('nova', {
     /** 复制走主进程的剪贴板 —— 比渲染层的 navigator.clipboard 稳，
      *  后者在 file:// 下不算安全上下文，会直接抛异常 */
     copy: (text) => ipcRenderer.invoke('shell:copy', text),
+    /** 读系统剪贴板文本（地址栏右键「粘贴」）。返回空串表示剪贴板里没有文本。 */
+    paste: () => ipcRenderer.invoke('shell:paste'),
     /** 本地生成二维码 PNG（dataURL）—— 分享到桌面无 API 的 App 时扫码桥接 */
     qrcode: (text) => ipcRenderer.invoke('shell:qrcode', text)
   },

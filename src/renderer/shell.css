@@ -550,6 +550,36 @@ svg {
   border-top: 1px solid var(--border);
   font-size: 10.5px; color: var(--text-4); line-height: 1.6;
 }
+/* 右键地址栏弹出的编辑菜单：贴地址栏下沿、按右键落点横向定位。
+   与分享面板同层（z-index 更高一点，右键时先关分享面板，不会叠在一起）。 */
+.omni-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 70;
+  width: 208px; max-width: calc(100vw - 24px);
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+  display: flex; flex-direction: column;
+  animation: menuIn 140ms var(--ease);
+}
+.om-item {
+  display: flex; align-items: center; gap: var(--sp-2);
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  font-size: 12.5px; color: var(--text);
+  text-align: left;
+  transition: background var(--dur) var(--ease);
+}
+.om-item:hover { background: var(--surface-2); }
+/* 置灰但仍占位 —— 项时隐时现会让菜单高度乱跳，点上去也不知为何没反应 */
+.om-item.is-disabled { color: var(--text-4); opacity: 0.5; }
+.om-item.is-disabled:hover { background: transparent; }
+.om-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.om-kbd { flex: 0 0 auto; font-style: normal; font-size: 10.5px; color: var(--text-4); }
+.om-sep { flex: 0 0 1px; height: 1px; margin: 4px 6px; background: var(--border); }
+
 /* 点地址栏网址弹出的分享面板：贴在地址栏下方，紧凑版（不铺满地址栏宽度） */
 .omni-share {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;

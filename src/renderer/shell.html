@@ -186,6 +186,12 @@
         </div>
       </div>
 
+      <!-- 右键地址栏弹出的编辑菜单：撤销 / 剪切 / 复制 / 粘贴 / 全选 / 粘贴并打开。
+           Electron 的渲染进程不自带输入框右键菜单，复制粘贴在这里自己接：
+           复制走主进程剪贴板（file:// 下 navigator.clipboard 不可用），
+           粘贴要从主进程读回来，渲染层拿不到系统剪贴板。 -->
+      <div class="omni-menu" id="omni-menu" role="menu" aria-label="地址栏编辑" hidden></div>
+
       <!-- 打字时的自动匹配下拉：从收藏夹 + 历史记录里补齐网址（行由 JS 填） -->
       <div class="omni-suggest" id="omni-suggest" role="listbox" aria-label="网址建议" hidden></div>
     </div>
