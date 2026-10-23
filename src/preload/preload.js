@@ -80,6 +80,9 @@ const EVENT_CHANNELS = [
   /* 主进程把一次「权限询问」推给渲染层，由它弹出权限条等用户点允许/禁止。
      见 permissions.askPermission 与渲染层的 bridge.on('permission:request')。 */
   'permission:request',
+  /* 主进程里的普通窗口（非 <webview>）遇到 HTTP 认证，转发给主窗口弹同一个认证框。
+     见 main.js 的 app.on('login') 与渲染层的 onAuthRequest。 */
+  'auth:request',
   /* AI 助手独立窗口两条通道：
      ai:init   —— 主进程把「当前在看什么」推给新开的 AI 窗口（也用于再次点
                   开已存在的窗口时刷新内容）；只有 ai-window 在听。
@@ -278,6 +281,13 @@ contextBridge.exposeInMainWorld('nova', {
   // 解除 setPermissionRequestHandler 里挂起的回调（见 permissions.resolvePending）。
   permissions: {
     resolve: (requestId, allow) => ipcRenderer.invoke('permissions:resolve', requestId, allow)
+  },
+
+  /* --- HTTP 认证（Basic / Digest）--- */
+  // 主进程里非 webview 的窗口（AI 独立窗口等）要认证时，把请求转到主窗口弹框；
+  // 用户填完由这里把凭据回传，解除主进程挂起的 login 回调。
+  auth: {
+    resolve: (reqId, user, pass) => ipcRenderer.invoke('auth:resolve', { reqId, user, pass })
   },
 
   /* --- 网页区交互（右键菜单等）--- */

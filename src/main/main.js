@@ -69,6 +69,9 @@ const PKG = require('../../package.json');
 const NEWTAB_FILE_URL = pathToFileURL(path.join(__dirname, '..', 'renderer', 'newtab.html')).href;
 
 let mainWindow = null;
+/** 挂起的 HTTP 认证：reqId → Electron 给的 callback。渲染层弹框填完 → auth:resolve 回传 */
+const pendingAuth = new Map();
+let authSeq = 0;
 /** session → engineId，用于在 web-contents-created 时反查内核 */
 const sessionEngineMap = new Map();
 /** engineId → session，下载引擎取 Cookie / UA 时要用 */
@@ -123,6 +126,41 @@ if (!gotLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
+  });
+
+  /* HTTP 认证（Basic / Digest）：服务器在 HTTP 层就要账的那种登录框
+     —— 地址栏会先弹一个小窗让填用户名密码，填完才露出真正的登录页。
+
+     Electron 的默认行为是**取消所有这类认证**，页面就是白屏 / 打不开，且没有任何提示。
+     所以这里接管：把认证请求转给主窗口弹同一个框（和标签页共用一套 UI，
+     见渲染层的 showAuthDialog），用户填完由 auth:resolve 回传凭据。
+
+     **标签页（<webview>）也走这一条**：实测在本项目的 Electron 版本里，
+     webview 自己的 `login` DOM 事件压根不触发，认证请求一律汇总到 app 的
+     login —— 所以这里不能按 webContents 类型跳过，跳过了就等于没人接管，
+     标签页还是打不开。（渲染层那份 webview 监听留作兜底，见 onWebviewLogin。） */
+  const authKeyOf = (a) => (a && a.isProxy ? 'proxy' : 'host') + '|' + (a && a.host)
+    + '|' + (a && a.port) + '|' + ((a && a.realm) || '');
+  app.on('login', (event, _webContents, _details, authInfo, callback) => {
+    event.preventDefault();
+
+    // 同一个认证连着来了两次（重定向后换个端口/realm 又问一遍也算同一个）：
+    // 只弹一个框，填一次，两份回调一起兑现 —— 否则用户要对着两个框填两遍。
+    const key = authKeyOf(authInfo);
+    for (const rec of pendingAuth.values()) {
+      if (rec.key === key) { rec.cbs.push(callback); return; }
+    }
+
+    const reqId = ++authSeq;
+    pendingAuth.set(reqId, { key, cbs: [callback] });
+    send('auth:request', { reqId, authInfo: authInfo || {} });
+    // 兜底：主窗口不在（理论上不会）也别把请求一直吊着
+    setTimeout(() => {
+      const rec = pendingAuth.get(reqId);
+      if (!rec) return;
+      pendingAuth.delete(reqId);
+      for (const cb of rec.cbs) { try { cb(null, null); } catch { /* ignore */ } }
+    }, 120000);
   });
   app.whenReady().then(bootstrap);
 }
@@ -1139,6 +1177,23 @@ function registerIpc() {
   handle('permissions:resolve', (requestId, allow) => {
     permissions.resolvePending(requestId, allow);
     return { ok: true };
+  });
+
+  /**
+   * HTTP 认证：用户在主窗口那个认证框里填完（或取消）后回传。
+   * 凭据交给 app.on('login') 挂起的回调 —— 传 null 表示放弃这次认证。
+   * 凭据只在内存里过一趟，不落盘：Chromium 自己的 AuthCache 会在本次运行内
+   * 记住同站点的认证，不该我们再抄一份。
+   */
+  handle('auth:resolve', ({ reqId, user, pass }) => {
+    const rec = pendingAuth.get(reqId);
+    if (!rec) return { ok: false };
+    pendingAuth.delete(reqId);
+    for (const cb of rec.cbs) {
+      try { cb(user == null ? null : user, pass == null ? null : pass); }
+      catch { /* 窗口已销毁 */ }
+    }
+    return { ok: true, count: rec.cbs.length };
   });
 
   /* ----------------------- 自动更新（PC） -----------------------

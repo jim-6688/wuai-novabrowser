@@ -811,6 +811,10 @@ function mountTab(tab) {
     tab.loadError = { code: ev.errorCode, desc: ev.errorDescription || '', url: ev.validatedURL || tab.url };
     if (activeTab() && activeTab().id === tab.id) renderPageError();
   });
+  // HTTP 认证（Basic / Digest）：服务器在 HTTP 层就要账的那种登录框
+  //（地址栏里直接输用户名密码才进得去的站）。Electron 默认一律取消，
+  // 不接管就是白屏 —— 见 onWebviewLogin。
+  wv.addEventListener('login', onWebviewLogin);
   wv.addEventListener('dom-ready', () => {
     syncNavButtons();
     // 建立「标签页 ↔ webContents」的映射：主进程的嗅探结果按 webContents id 分组，
@@ -844,6 +848,137 @@ function destroyTab(tab) {
   tab.webview = null;
   // 标签页没了，它嗅到的资源也一并释放（主进程侧销毁 webContents 时同样会清）
   if (tab.wcId != null) state.sniffByWc.delete(tab.wcId);
+}
+
+/* ------------------------------------------------------------------ *
+ * HTTP 认证（Basic / Digest）
+ *
+ * 有些地址不是「网页里的登录表单」，而是服务器在 HTTP 层就要账：返回 401
+ * 并要求 Basic/Digest 认证 —— 就是你给的那个地址那种，Edge 会先弹个小窗
+ * 让你填用户名密码，填完才露出真正的登录框。
+ *
+ * Electron 的默认行为是**把所有这类认证一律取消**，界面上就是白屏 / 打不开，
+ * 连句提示都没有。所以这里自己弹一个框接管。
+ * ------------------------------------------------------------------ */
+// 当前待决的那次认证。同一时刻只可能有一个框：
+//  · 同一个认证又来一次（重定向后换个端口/realm 再问一遍）→ 共用这个框，只填一次；
+//  · 换了个认证（另一个地址）→ 先把旧的按取消收掉，免得两个框叠着、回调串台。
+let authResolve = null;
+let authWaiters = [];
+let authKey = '';
+
+/** 判断「是不是同一个认证」用的键：主机 + 端口 + realm（代理另算一类）。 */
+function authKeyOf(info) {
+  return (info.isProxy ? 'proxy' : 'host') + '|' + info.host + '|' + info.port + '|' + (info.realm || '');
+}
+
+/**
+ * <webview> 要 HTTP 认证了。
+ *
+ * 必须 preventDefault 再回调凭据，否则这次请求直接失败。拿不到 callback 就
+ * 没法接管，那就别弹一个填了也没用的框。
+ *
+ * 注：实测在本项目的 Electron 版本里，webview 的认证请求统一汇总到主进程的
+ * app.on('login') 再转发过来（onAuthRequest），这个 DOM 事件并不触发 —— 留着
+ * 是为了兜住「将来换版本行为变了」这种情况，两条路共用同一个框、不会弹两次。
+ */
+function onWebviewLogin(ev) {
+  const info = (ev && (ev.authInfo || (ev.request && ev.request.authInfo))) || {};
+  const cb = (ev && (ev.callback || (ev.request && ev.request.callback))) || null;
+  if (typeof cb !== 'function') return;
+  try { if (ev.preventDefault) ev.preventDefault(); } catch { /* 老版本没有 */ }
+  showAuthDialog(info).then((r) => {
+    // 取消 / 关掉：回 null，让 Chromium 放弃这次认证，而不是拿空账号去碰 401
+    try { cb(r ? r.user : null, r ? r.pass : null); } catch { /* webContents 已销毁 */ }
+  });
+}
+
+/** 弹认证框。兑现为 { user, pass }；用户取消则 null。 */
+function showAuthDialog(authInfo) {
+  const dlg = $('#auth-dlg');
+  const user = $('#auth-user');
+  const pass = $('#auth-pass');
+  if (!dlg || !user || !pass) return Promise.resolve(null);
+
+  const info = authInfo || {};
+  const key = authKeyOf(info);
+  // 已经在为同一个认证弹框了：这次搭同一班车（用户只需填一次）
+  if (authResolve && authKey === key) {
+    return new Promise((resolve) => { authWaiters.push(resolve); });
+  }
+  if (authResolve) closeAuthDialog(null);   // 换了个认证：旧的按取消收掉
+  const where = (info.host || '该地址') + (info.port ? ':' + info.port : '');
+  const title = $('#auth-title');
+  const sub = $('#auth-sub');
+  const tip = $('#auth-tip');
+  if (title) title.textContent = info.isProxy ? '代理服务器需要验证' : '需要登录';
+  if (sub) sub.textContent = where + (info.realm ? ' · ' + info.realm : '');
+  if (tip) {
+    tip.textContent = info.isProxy
+      ? '这个地址由网络里的代理服务保护，请填代理提供的账号。'
+      : '该地址要求 HTTP 身份验证（' + String(info.scheme || 'basic').toUpperCase() + '），填完才能继续打开。';
+  }
+  user.value = '';
+  pass.value = '';
+  dlg.hidden = false;
+  setTimeout(() => { try { user.focus(); } catch { /* 无焦点环境 */ } }, 0);
+  authKey = key;
+  authWaiters = [];
+  return new Promise((resolve) => { authResolve = resolve; });
+}
+
+/** 关框，并把结果交给所有在等这次认证的地方。result 为空 = 取消。 */
+function closeAuthDialog(result) {
+  const dlg = $('#auth-dlg');
+  if (dlg) dlg.hidden = true;
+  const resolve = authResolve;
+  const waiters = authWaiters;
+  authResolve = null;
+  authWaiters = [];
+  authKey = '';
+  if (resolve) resolve(result || null);
+  for (const w of waiters) w(result || null);
+}
+
+function submitAuthDialog() {
+  const user = $('#auth-user');
+  const pass = $('#auth-pass');
+  closeAuthDialog({ user: user ? user.value : '', pass: pass ? pass.value : '' });
+}
+
+/**
+ * 主进程转来的认证请求：标签页（<webview>）和 AI 独立窗口这些都走这条路
+ * —— Electron 把认证统一汇总到 app.on('login')，由主进程发过来弹框。
+ */
+function onAuthRequest(payload) {
+  showAuthDialog(payload && payload.authInfo).then((r) => {
+    try { bridge.auth.resolve(payload && payload.reqId, r ? r.user : null, r ? r.pass : null); }
+    catch { /* 桥没起来 */ }
+  });
+}
+
+function wireAuthDialog() {
+  const dlg = $('#auth-dlg');
+  const ok = $('#auth-ok');
+  const cancel = $('#auth-cancel');
+  const user = $('#auth-user');
+  const pass = $('#auth-pass');
+  if (ok) ok.addEventListener('click', submitAuthDialog);
+  if (cancel) cancel.addEventListener('click', () => closeAuthDialog(null));
+  if (user) user.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    try { $('#auth-pass').focus(); } catch { /* ignore */ }
+  });
+  if (pass) pass.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    submitAuthDialog();
+  });
+  // 点遮罩 = 取消（点框里不算）
+  if (dlg) dlg.addEventListener('mousedown', (ev) => {
+    if (ev.target && ev.target.classList && ev.target.classList.contains('auth-backdrop')) closeAuthDialog(null);
+  });
 }
 
 /**
@@ -7897,7 +8032,7 @@ function wireUi() {
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -7910,6 +8045,7 @@ function wireUi() {
   wireQuickBar();
   wireCmdPalette();
   wireToolsMenu();
+  wireAuthDialog();
   window.addEventListener('resize', applyLayout);
 }
 
@@ -8061,6 +8197,10 @@ function wireBridgeEvents() {
   // 把请求推过来，这里弹一条带「允许 / 禁止」的提示条等用户点（见 showPermissionRequest）。
   // 用户点了就回主进程（bridge.permissions.resolve），解除挂起的回调。
   bridge.on('permission:request', (p) => showPermissionRequest(p));
+
+  // HTTP 认证：主进程里那些普通窗口（AI 独立窗口等）遇到 401 要账，转发过来
+  // 弹同一个认证框（标签页走的是 <webview> 自己的 login 事件，见 onWebviewLogin）。
+  bridge.on('auth:request', (p) => onAuthRequest(p));
 
   // 独立 AI 窗口关了：主进程把它最后一份状态推回来，侧栏据此接上对话 / 草稿。
   bridge.on('ai:closed', (p) => onAiWindowClosed(p));

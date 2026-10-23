@@ -881,6 +881,15 @@ const MOCK_UPDATE = {
       }
     },
 
+    /* HTTP 认证（Basic / Digest）：预览模式里主进程不会真的来要账，
+       只把回传的凭据记在 state.lastAuth 上，让交互与测试能走通。 */
+    auth: {
+      resolve: async (reqId, user, pass) => {
+        state.lastAuth = { reqId, user, pass };
+        return { ok: true };
+      }
+    },
+
     /* 登录凭证：预览模式不真的读 Edge 密码（需要本机 DPAPI），
        只把交互走通 —— 导入回一句「预览不支持」，列表为空。 */
     credentials: {
