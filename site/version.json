@@ -32,21 +32,16 @@
     }
   ],
   "pc": {
-    "version": "1.0.29",
+    "version": "1.0.30",
     "changelog": [
-      "新增命令面板：Ctrl+K 唤起，搜功能、搜收藏、搜历史，回车直达",
-      "新增站点权限管理：定位、摄像头、麦克风、通知、弹窗按站点单独允许/拒绝",
-      "顶栏新增「工具」菜单：命令面板、站点权限、网址分享、密码管理、插件商店、AI 助手、媒体嗅探一处入口",
-      "AI 助手可独立窗口打开并最大化，当前对话不丢失",
-      "支持需要 HTTP 登录认证（Basic/Digest）的站点：弹框输账号密码后正常打开",
-      "地址栏支持复制粘贴：右键菜单含撤销、剪切、复制、粘贴、粘贴并打开、删除、全选、复制当前页网址",
-      "新标签页内置站点新增「吾爱装机助手」；电脑版新标签页随窗口大小自适应",
+      "修复 AI 助手独立窗口最大化后界面只显示一半（网页只画在顶部一条，下半部空白）",
+      "窗口还原、拖动改变大小后，窗口里的 AI 网页跟着重新排版，不再停在打开时的大小",
       "修复若干已知问题，提升稳定性"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.29/nova-pc-1.0.29-win-x64-setup.exe",
-    "size": 89534003,
-    "sha256": "8f09b8ebf8cba0214f68a1a11e09672a0876212b92c6e8f2a09eee4c4fd635a9",
+    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.0.30/nova-pc-1.0.30-win-x64-setup.exe",
+    "size": 89534335,
+    "sha256": "35b93cbdfd28eed8c5c4b1b156ea3d0920aaeb69332fe65e779bf49344f8d157",
     "updatedAt": "2026-10-24"
   }
 }

@@ -155,7 +155,30 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('承载页把草稿塞回页面输入框', /injectDraft/.test(winJs));
   check('承载页监听 ai:init（再次点开时刷新内容）', /bridge\.on\('ai:init'/.test(winJs));
 
-  console.log('\n[F] 桥接白名单');
+  console.log('\n[F] 带 <webview> 的页面必须允许内联样式（webview 的尺寸靠它下发）');
+  /* 为什么值得单独守一条：Chromium 给 <webview> 元素定尺寸走的是**内联样式**。
+     页面 CSP 的 style-src（或它回落的 default-src）里没有 'unsafe-inline' 时，
+     那条内联样式会被静默丢掉 —— 表现为 guest 永远停在默认的 300x150，
+     宿主元素再怎么拉伸，页面上也只画得出顶上那一条。
+     真实症状就是「AI 助手最大化后界面只显示一半」：元素 1536x724，
+     guest 视口却一直是 150。实测只把 'unsafe-inline' 补回去就全好了，
+     换成 flex / 绝对定位等任何布局写法都无法绕过。 */
+  const rendererDir = path.join(root, 'src/renderer');
+  const htmlFiles = fs.readdirSync(rendererDir).filter((f) => /\.html$/i.test(f));
+  const withWebview = htmlFiles.filter((f) => /<webview[\s>]/.test(fs.readFileSync(path.join(rendererDir, f), 'utf8')));
+  check('确实有页面在用 <webview>（否则这条守的是空集）', withWebview.length > 0, withWebview.join(', '));
+  for (const f of withWebview) {
+    const html = fs.readFileSync(path.join(rendererDir, f), 'utf8');
+    const meta = html.match(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/i);
+    if (!meta) { check(f + '：不设 CSP，不受这条影响', true); continue; }
+    // content 的值里本身带单引号（'self' 之类），所以按引号两侧成对取，别用 [^"']*
+    const cm = meta[0].match(/content=(?:"([^"]*)"|'([^']*)')/i);
+    const csp = (cm && (cm[1] || cm[2])) || '';
+    check(f + '：CSP 允许内联样式（否则 webview 尺寸不跟随）',
+      /'unsafe-inline'/.test(csp), csp || '(空)');
+  }
+
+  console.log('\n[G] 桥接白名单');
   const pre = read('src/preload/preload.js');
   check('preload 暴露 ai.openWindow / ai.init / ai.sync',
     /openWindow: \(payload\)/.test(pre) && /init: \(\) =>/.test(pre) && /sync: \(payload\)/.test(pre));
@@ -164,7 +187,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('外壳确实注册了 ai:closed 监听',
     /bridge\.on\('ai:closed'/.test(read('src/renderer/shell.js')));
 
-  console.log('\n[G] 运行时错误');
+  console.log('\n[H] 运行时错误');
   check('渲染层无未捕获异常', errors.length === 0, errors.join(' | ') || '无');
 
   console.log(`\n结果：${pass}/${pass + fail} 通过\n`);
