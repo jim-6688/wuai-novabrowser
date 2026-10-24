@@ -1,25 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  收藏（书签）。描边五角星，未收藏时显示。
+  收藏（书签）。实心五角星，未收藏时显示 —— 灰色（text_3）。
 
   放在工具栏地址栏左侧、首页按钮旁边：和首页键共用一段空间，
   两个都是「一抬拇指就够到」的位置，不占底栏六格的触控预算。
 
-  金色，写死在 strokeColor 上（不用 tint）。「已收藏 / 未收藏」两态靠
-  **填充与描边**区分，不靠颜色 —— 用颜色区分的话未收藏态就得是灰的，
-  而顶栏这一行要的就是彩色图标，一个灰按钮夹在四个彩色中间最扎眼。
+  2026-10-24 改：这一版原来是金色描边。按设计稿（design/mobile-spring-demo.html），
+  两态都改成实心，用颜色区分状态 —— 未收藏灰（本文件）、已收藏金
+  （ic_star_filled），两支除颜色外完全同款，切换只换 src、不跳大小。
+  早先定过「不靠颜色区分，否则未收藏是灰的、夹在彩色图标里扎眼」，
+  本次用户明确选了颜色区分那版，旧理由作废，以设计稿为准。
+  灰色走 @color/text_3 令牌，深色模式下跟着换成一档亮灰。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="22dp" android:height="22dp"
     android:viewportWidth="20" android:viewportHeight="20">
-    <!-- 统一到「视觉高（含描边）16.9 / 画布 20」≈ 22dp —— 这正是五角星改动前
-         自己的渲染大小，所以它基本不动，其余图标放大到与它看齐。 -->
-    <group
-        android:scaleX="0.99" android:scaleY="0.99"
-        android:pivotX="10" android:pivotY="9.2">
-        <path android:strokeColor="@color/star" android:strokeWidth="1.72"
-            android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:fillColor="@android:color/transparent"
-            android:pathData="M10,1.5 L12.0,7.25 L18.08,7.37 L13.23,11.05 L15.0,16.88 L6.6,10 L5.0,16.88 L6.77,11.05 L1.92,7.37 L8.0,7.25 Z" />
-    </group>
+    <path android:fillColor="@color/text_3"
+        android:pathData="M10,1.5 L12.0,7.25 L18.08,7.37 L13.23,11.05 L15.0,16.88 L6.6,10 L5.0,16.88 L6.77,11.05 L1.92,7.37 L8.0,7.25 Z" />
 </vector>

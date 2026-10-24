@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  底栏「标签」格的小圆角底：与官网展示的标签徽标同一套背景色 ——
-  linear-gradient(135deg, #5B84FF, #3D6BFF 46%, #00B8A2)。
+  底栏「标签」格的小圆角底：品牌色实底。
 
-  背景：移动端这一格早先撤掉了自己的底色（见 activity_main.xml 注释），只留一颗
-  品牌色计数徽标；如今按官网样式把渐变补回这一格的小圆角底，让「现在开着几个标签」
-  重新成为底栏上被强调的一粒彩色按钮，和官网的标签徽标视觉对齐。
+  2026-10-24 改：这里原来是官网徽标那套蓝入青绿出的渐变（#5B84FF → #3D6BFF →
+  #00B8A2，与顶栏 ic_brand 同源），按设计稿（design/mobile-spring-demo.html）
+  改成品牌纯色 —— 顶栏品牌钮是渐变，代表「这个应用」；底栏这一格是纯色，
+  代表「这个动作」。两个主色挨在一起，一渐变一纯色才分得开谁是谁；
+  都是渐变只会互相抢。
 
-  色值直接取官网原始值（不取移动端 brand 令牌）：用户明确要求「官网展示的背景色」，
-  且官网在深浅两套主题下品牌渐变都不变，所以这里写死、深浅两模共用一份。
+  色值走 @color/brand 令牌而不是写死：渐变那版写死是为了对齐官网徽标
+  （深浅两模同一份），现在它是 app 自己的动作色，跟着主题走 ——
+  深色模式下是 brand_dark，压在深色底栏上比一成不变的亮蓝更稳。
+
+  图标仍是白色、计数徽章仍是白底品牌字（bg_tab_count）：实底上同样读得清，
+  不用跟着换。
 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <gradient
-        android:type="linear"
-        android:angle="135"
-        android:startColor="#5B84FF"
-        android:centerColor="#3D6BFF"
-        android:endColor="#00B8A2" />
+    <solid android:color="@color/brand" />
     <corners android:radius="8dp" />
 </shape>

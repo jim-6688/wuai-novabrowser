@@ -55,6 +55,7 @@
     <string name="sheet_menu">菜单</string>
     <string name="sheet_tools">工具栏</string>
     <string name="sheet_settings">设置</string>
+    <string name="sheet_collapse_tools">收起工具</string>
     <string name="sheet_about">关于</string>
     <string name="sheet_search">搜索引擎</string>
     <string name="sheet_ai">AI 助手</string>

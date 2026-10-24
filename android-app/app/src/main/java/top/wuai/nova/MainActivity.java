@@ -1374,7 +1374,8 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 收藏（书签）按钮。点一下切换「当前页是否收藏」，图标在描边 / 实心之间换。
+     * 收藏（书签）按钮。点一下切换「当前页是否收藏」，图标在金 / 灰之间换
+     * （两态都是实心，2026-10-24 起用颜色区分状态，见 ic_star / ic_star_filled）。
      * 状态靠当前 url 判断，所以每次页面加载完都要重算一次（见 {@link #updateStarState()}）。
      * 位置从地址栏左侧挪到了右侧，动作不变。
      */
@@ -1401,7 +1402,7 @@ public final class MainActivity extends Activity {
         updateStarState();
     }
 
-    /** 按当前 url 刷新星标图标（已收藏=实心，否则=描边）。 */
+    /** 按当前 url 刷新星标图标（已收藏=金，否则=灰；两态都是实心）。 */
     private void updateStarState() {
         ImageButton star = findViewById(R.id.btnStar);
         if (star == null) return;
@@ -3042,26 +3043,23 @@ public final class MainActivity extends Activity {
         if (t != null) t.setText(title);
         View close = sheet.findViewById(R.id.sheetClose);
         if (close != null) {
-            // 工具栏那一格的右上角是**齿轮**（进设置），其余弹层仍是 ×（关闭）。
-            // 两者共用 sheet_head.xml，所以图标与行为都得在这里按布局分派 ——
-            // 换个图标却仍只管关闭，会让人以为齿轮是设置、结果面板关了。
+            // 工具栏那一格的右上角是**工具箱**（ic_tools，和底栏「工具」格同一支），
+            // 其余弹层仍是 ×。两者共用 sheet_head.xml，所以图标按布局分派；
+            // 行为一致 —— 点哪一格都是收起面板（下拉拖柄、点遮罩也能关）。
+            //
+            // 2026-10-24 改：这一格原来是齿轮、点它进设置。按设计稿
+            // （design/mobile-spring-demo.html）换成工具面板自己的图标 + 收起 ——
+            // 一个「工具」图标却通向设置是自相矛盾的；设置入口在菜单面板
+            // （menuSettings）还有一份，撤掉这处不撤出路。
             //
             // 声明成 ImageView：换图标要调 setImageResource，而那是 ImageView 的方法，
             // View 上没有（写成 View 会「找不到符号」）。
             boolean isTools = layoutRes == R.layout.sheet_tools;
             ImageView icon = (ImageView) close;
-            if (isTools) {
-                icon.setImageResource(R.drawable.ic_settings);
-                close.setContentDescription(getString(R.string.sheet_settings));
-                close.setOnClickListener(v -> {
-                    mountMain();          // 先把工具栏收掉，否则设置叠在它上面
-                    showSettings();
-                });
-            } else {
-                icon.setImageResource(R.drawable.ic_close);
-                close.setContentDescription(getString(R.string.action_close_tab));
-                close.setOnClickListener(v -> mountMain());
-            }
+            icon.setImageResource(isTools ? R.drawable.ic_tools : R.drawable.ic_close);
+            close.setContentDescription(getString(
+                isTools ? R.string.sheet_collapse_tools : R.string.action_close_tab));
+            close.setOnClickListener(v -> mountMain());
         }
 
         setContentView(root);
