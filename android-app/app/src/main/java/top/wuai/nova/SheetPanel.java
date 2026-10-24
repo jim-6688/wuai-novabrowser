@@ -38,6 +38,30 @@ public class SheetPanel extends LinearLayout {
      */
     private static final float MAX_RATIO = 0.82f;
 
+    /**
+     * AI 助手弹层的「全屏」开关。
+     *
+     * <p>普通弹层压在可用空间的 82%，留 18% 让用户看得见后面被压暗的网页。
+     * 但 AI 对话页现在各家都要求登录、一展开就要大块空间，82% 的常规模样不够用 ——
+     * 于是给 AI 弹层一个「拉满整屏」的出口：打开时把高度从「上限 82%」改成
+     * 「整屏精确值」，对话区（0dp + weight=1）随之吃满剩余高度。
+     *
+     * <p>用实例字段而不是静态量：弹层同一时刻只有一个，但字段挂在实例上更不容易
+     * 被别的弹层误读；每次 openSheet 都会 new 一个新的 SheetPanel，展开态天然归零。
+     */
+    private boolean expanded = false;
+
+    public boolean isExpanded() {
+        return expanded;
+    }
+
+    public void setExpanded(boolean e) {
+        if (expanded != e) {
+            expanded = e;
+            requestLayout();
+        }
+    }
+
     public SheetPanel(Context context) {
         super(context);
     }
@@ -56,9 +80,15 @@ public class SheetPanel extends LinearLayout {
         int size = MeasureSpec.getSize(heightMeasureSpec);
 
         if (mode == MeasureSpec.AT_MOST) {
-            int cap = (int) (size * MAX_RATIO);
-            heightMeasureSpec = MeasureSpec.makeMeasureSpec(Math.min(size, cap),
-                MeasureSpec.AT_MOST);
+            if (expanded) {
+                // 全屏态：直接要满整屏高度（EXACTLY），不再压在 82%。
+                heightMeasureSpec = MeasureSpec.makeMeasureSpec(size,
+                    MeasureSpec.EXACTLY);
+            } else {
+                int cap = (int) (size * MAX_RATIO);
+                heightMeasureSpec = MeasureSpec.makeMeasureSpec(Math.min(size, cap),
+                    MeasureSpec.AT_MOST);
+            }
         } else if (mode == MeasureSpec.UNSPECIFIED) {
             // 没人给上限时才去问屏幕。真正放在屏幕里的弹层走不到这里，
             // 但布局预览和某些自定义容器会给 UNSPECIFIED，这时 size 是 0，

@@ -9,6 +9,10 @@
   · 其余弹层 → ×，点它关闭
   刻意不放两个键：那一角只有一个位置，而多一个「×」在手机上会让弹层显得拥挤。
   工具栏仍可下拉关闭（拖柄还在），所以换成齿轮不把关掉的出路拿走。
+
+  例外是 AI 助手弹层：因为各家 AI 现已要求登录、对话页一展开就需要大空间，
+  它在 × 左边多了一枚「全屏」键（sheetExpand，默认 gone，由 showAiSheet 点亮），
+  点一下把对话区拉满整屏、再点收回 82% 的常规模样。其余弹层不显示这枚键。
 -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -47,4 +51,19 @@
         android:contentDescription="@string/action_close_tab"
         android:padding="7dp"
         android:src="@drawable/ic_close" />
+
+    <!-- 全屏键：默认隐藏，仅 AI 助手弹层在 openSheet 后点亮（见 MainActivity#showAiSheet）。
+         其余弹层仍保持「右上角只有一个键」的约定，不挤第二个图标。 -->
+    <ImageView
+        android:id="@+id/sheetExpand"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_alignTop="@id/sheetClose"
+        android:layout_toStartOf="@id/sheetClose"
+        android:layout_marginEnd="4dp"
+        android:visibility="gone"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/ai_expand"
+        android:padding="7dp"
+        android:src="@drawable/ic_expand" />
 </RelativeLayout>

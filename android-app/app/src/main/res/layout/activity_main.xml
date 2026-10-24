@@ -423,10 +423,18 @@
                 android:clickable="true"
                 android:focusable="true">
 
+                <!--
+                  这一格的底色按官网的标签徽标样式补回品牌渐变（bg_tab_brand）：
+                  原先撤掉底色后，白图标落在浅色底上等于看不见，于是图标改成了
+                  中性的 text_3、只留计数徽标做有色元素；现在有了渐变底，图标
+                  重新刷白（android:tint="#FFFFFF"），计数徽标也换成白底品牌字
+                  （bg_tab_count），在渐变上读得清。
+                -->
                 <FrameLayout
                     android:layout_width="@dimen/icon_action"
                     android:layout_height="@dimen/icon_action"
                     android:layout_gravity="center"
+                    android:background="@drawable/bg_tab_brand"
                     android:clipChildren="false">
 
                     <ImageView
@@ -434,6 +442,7 @@
                         android:layout_height="@dimen/icon_action"
                         android:layout_gravity="center"
                         android:src="@drawable/ic_tabs"
+                        android:tint="#FFFFFF"
                         android:contentDescription="@string/mb_tabs" />
 
                     <TextView
@@ -448,8 +457,8 @@
                         android:text="1"
                         android:textSize="10sp"
                         android:textStyle="bold"
-                        android:textColor="@color/badge_on_brand"
-                        android:background="@drawable/bg_count_badge"
+                        android:textColor="@color/brand"
+                        android:background="@drawable/bg_tab_count"
                         android:translationX="2dp"
                         android:translationY="-3dp" />
                 </FrameLayout>

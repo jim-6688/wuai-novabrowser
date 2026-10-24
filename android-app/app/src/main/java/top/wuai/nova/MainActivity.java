@@ -4956,6 +4956,20 @@ public final class MainActivity extends Activity {
         final View send = sheet.findViewById(R.id.aiSend);
         final View clear = sheet.findViewById(R.id.aiClear);
 
+        // 全屏键：AI 各家现已要求登录，对话页一展开就需要大空间，
+        // 常规的 82% 模样不够用 —— 给它在 × 左边点一下拉满整屏、再点收回。
+        final SheetPanel sp = (SheetPanel) sheet;
+        sp.setExpanded(false);
+        final ImageView expand = sheet.findViewById(R.id.sheetExpand);
+        expand.setVisibility(View.VISIBLE);
+        expand.setContentDescription(getString(R.string.ai_expand));
+        expand.setOnClickListener(v -> {
+            boolean next = !sp.isExpanded();
+            sp.setExpanded(next);
+            expand.setImageResource(next ? R.drawable.ic_collapse : R.drawable.ic_expand);
+            expand.setContentDescription(getString(next ? R.string.ai_collapse : R.string.ai_expand));
+        });
+
         ArrayAdapter<String> adp = new ArrayAdapter<>(this,
             android.R.layout.simple_spinner_item, aiNames);
         adp.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
