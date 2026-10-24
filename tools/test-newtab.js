@@ -690,10 +690,56 @@ function manyHosts(n) {
     return fb.length === pinnedUrls.length && pinnedUrls.every((u, i) => fb[i].url === u);
   })(), Page.parseData(Page.FALLBACK).map((r) => r.url).join(' '));
 
-  check('版面格数三处同值（页面 / 桌面宿主 / 安卓宿主）',
-    javaConst(java, 'int', 'MAX_TILES') === String(Ntp.MAX_TILES)
-      && Page.MAX_SHORTCUTS === Ntp.MAX_TILES,
+  check('版面格数：页面与桌面宿主同值，且放得下安卓那一屏',
+    Page.MAX_SHORTCUTS === Ntp.MAX_TILES
+      && Number(javaConst(java, 'int', 'MAX_TILES')) <= Page.MAX_SHORTCUTS,
     `页面 ${Page.MAX_SHORTCUTS} · 桌面 ${Ntp.MAX_TILES} · 安卓 ${javaConst(java, 'int', 'MAX_TILES')}`);
+
+  /* ── 手机端不摆「吾爱装机助手」 ──
+   * 装机助手是 PC 装机场景的入口，用户明确要求手机版不加。三处数据的关系被
+   * 钉成「安卓 = 桌面去掉装机助手」，而不是「三处逐字同值」—— 以后再加
+   * 别的平台专属入口，只要它是接在桌面那份的末尾，这里照样成立。 */
+  const javaBuiltinUrls = (() => {
+    const re = /new Row\("[^"]*",\s*"([^"]+)"/g;
+    const out = [];
+    let m;
+    while ((m = re.exec(java))) out.push(m[1]);
+    return out;
+  })();
+  const desktopUrls = Ntp.BUILTIN_SITES.map((s) => s.url);
+  check('安卓内置清单 = 桌面去掉「吾爱装机助手」（手机版不加这一条）', (() => {
+    const want = desktopUrls.filter((u) => u !== 'https://assistant.52ta.top/');
+    return javaBuiltinUrls.length === want.length
+      && want.every((u, i) => javaBuiltinUrls[i] === u)
+      && javaBuiltinUrls.indexOf('https://assistant.52ta.top/') < 0;
+  })(), javaBuiltinUrls.join(' '));
+
+  check('页面给手机的那份兜底同样不含装机助手', (() => {
+    const mob = Page.parseData(Page.FALLBACK_MOBILE).map((r) => r.url);
+    const desk = Page.parseData(Page.FALLBACK).map((r) => r.url);
+    return mob.indexOf('https://assistant.52ta.top/') < 0
+      && desk.indexOf('https://assistant.52ta.top/') === desk.length - 1
+      && mob.length === desk.length - 1
+      && mob.every((u, i) => u === desk[i]);
+  })(), Page.parseData(Page.FALLBACK_MOBILE).map((r) => r.url).join(' '));
+
+  check('安卓 WebView 上确实走手机那份（UA 带 Android 时不摆装机助手）', (() => {
+    // 页面是靠 UA 认宿主的：安卓 WebView 的 UA 带 Android，Electron/Node 的不带。
+    // 页面那段是 new Function 在**全局作用域**里跑的，读的是全局 navigator
+    // （不是 jsdom 那个 window），所以这里覆盖的是全局那个。
+    const setUa = (ua) => Object.defineProperty(navigator, 'userAgent',
+      { value: ua, configurable: true });
+    const real = navigator.userAgent;
+    try {
+      setUa('Mozilla/5.0 (Linux; Android 13; Pixel) AppleWebKit/537.36 Chrome/120 Mobile');
+      const onMobile = Page.isMobileHost();
+      setUa('Mozilla/5.0 (Windows NT 10.0) Chrome/120 Electron/30');
+      const onDesktop = Page.isMobileHost();
+      return onMobile === true && onDesktop === false;
+    } finally {
+      setUa(real);
+    }
+  })());
 
   check('「固定入口无条件补齐」在安卓端同样成立（withBuiltins 不看格数提前退）',
     // 反向断言：安卓端**不能**再有 out.size() >= MAX_TILES 的提前退出。

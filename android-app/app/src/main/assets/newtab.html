@@ -684,7 +684,7 @@ var NovaNtp = (function () {
         return slots.slice(0, cap);
     }
 
-    /** 候选为空时的兜底：官网宣传图里那七个，顺序也一样。
+    /** 候选为空时的兜底：官网宣传图里那几条，顺序也一样。
         收不到原生数据时（同步出错、注入失败）也得有一屏能看的东西，不能白屏。
         与 ntp.js 的 BUILTIN_SITES 是同一份数据 —— 那边是宿主在候选不够时
         补到版面末尾用的（flags 为 f），这里是页面在一条数据都没收到时的
@@ -692,13 +692,28 @@ var NovaNtp = (function () {
         逐条比对，改一份漏一份会被拦下。
         注意两边 flags 不同不代表数据不同：那一位说的是「这批项该怎么排序」，
         不是「这是哪几条站点」。 */
-    var FALLBACK = '主页\thttps://www.52ta.top/\t0\tp\n'
+    var FALLBACK_COMMON = '主页\thttps://www.52ta.top/\t0\tp\n'
         + '导航\thttps://52ta.top/\t0\tp\n'
         + '播放器\thttps://music.52ta.top/\t0\tp\n'
         + '浏览器\thttps://nova.52ta.top/\t0\tp\n'
         + '百度\thttps://www.baidu.com/\t0\tp\n'
-        + 'DeepSeek\thttps://chat.deepseek.com/\t0\tp\n'
+        + 'DeepSeek\thttps://chat.deepseek.com/\t0\tp';
+
+    /** 桌面端多一条「吾爱装机助手」（2026-10 新增，接在末尾，前面六条位置不动）。
+        **手机版不放**：装机助手是装机/装系统那一路的活，手机上用不上，
+        用户明确要求手机端不加 —— 这一页两端共用一份，所以按宿主分开给。 */
+    var FALLBACK = FALLBACK_COMMON + '\n'
         + '吾爱装机助手\thttps://assistant.52ta.top/\t0\tp';
+
+    /** 手机端（安卓 WebView）用的那一份：就是上面六条，没有装机助手。 */
+    var FALLBACK_MOBILE = FALLBACK_COMMON;
+
+    /** 这一页正跑在哪个宿主上。安卓是 WebView 加载的，UA 里带 Android；
+        桌面端 Electron 的 UA 不带。只在兜底清单上用得上 —— 正常路径下
+        两端的数据都是宿主通过 data 参数送进来的，各给各的。 */
+    function isMobileHost() {
+        return /Android/i.test((navigator.userAgent || ''));
+    }
 
     /** 拼一条回传原生的命令。参数一律 encodeURIComponent，
         否则名称里的空格和中文会把命令拆坏。 */
@@ -725,6 +740,8 @@ var NovaNtp = (function () {
     return {
         MAX_SHORTCUTS: MAX_SHORTCUTS,
         FALLBACK: FALLBACK,
+        FALLBACK_MOBILE: FALLBACK_MOBILE,
+        isMobileHost: isMobileHost,
         hostOf: hostOf,
         gradOf: gradOf,
         initialOf: initialOf,
@@ -768,10 +785,12 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
     document.documentElement.setAttribute('data-theme', theme);
 
     var raw = param('data');
-    var cands = NovaNtp.parseData(raw ? raw : NovaNtp.FALLBACK);
+    // 手机上不摆「吾爱装机助手」—— 连兜底这一层也一并分开（见 FALLBACK_MOBILE 的说明）
+    var fb = NovaNtp.isMobileHost() ? NovaNtp.FALLBACK_MOBILE : NovaNtp.FALLBACK;
+    var cands = NovaNtp.parseData(raw ? raw : fb);
     var list = NovaNtp.rank(cands, NovaNtp.MAX_SHORTCUTS);
-    // 兜底也可能被用户删空（数据里一个有效的都没有），那就退回内置那七个
-    if (!list.length) list = NovaNtp.rank(NovaNtp.parseData(NovaNtp.FALLBACK), NovaNtp.MAX_SHORTCUTS);
+    // 兜底也可能被用户删空（数据里一个有效的都没有），那就退回内置那几条
+    if (!list.length) list = NovaNtp.rank(NovaNtp.parseData(fb), NovaNtp.MAX_SHORTCUTS);
 
     var quicks = document.getElementById('quicks');
 
