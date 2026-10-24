@@ -63,7 +63,7 @@ android {
         targetSdk 35
         // 本轮：新标签页版式改回「上 logo、中搜索、下六宫格」，
         // 且那六格不再可删、顺序不随任何操作变化（两端共用同一份页面）
-        versionCode 18
+        versionCode 19
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用
