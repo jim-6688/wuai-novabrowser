@@ -1,25 +1,26 @@
 {
-  "version": "1.6.10",
-  "versionCode": 23,
+  "version": "1.6.11",
+  "versionCode": 24,
   "channel": "release",
   "updatedAt": "2026-10-25",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复 AI 助手里点输入框时，键盘弹起来把输入框遮住的问题"
+    "修复底栏标签格位置偏上的问题，现在居中",
+    "标签面板里内置主页不再显示一长串本地路径，改显示「主页」"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.10.apk",
-      "size": 496998,
-      "sha256": "b0bba534490db88e4637b4020184caccc4e7eae8617ef1329c216d1962b4ad72"
+      "url": "download/nova-1.6.11.apk",
+      "size": 497078,
+      "sha256": "06bbb78b1f692f124cf7b6ee7e455cfd481eada16bff1e0a25586f448c31c85f"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.10/nova-1.6.10.apk",
-      "size": 496998,
-      "sha256": "b0bba534490db88e4637b4020184caccc4e7eae8617ef1329c216d1962b4ad72"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.11/nova-1.6.11.apk",
+      "size": 497078,
+      "sha256": "06bbb78b1f692f124cf7b6ee7e455cfd481eada16bff1e0a25586f448c31c85f"
     }
   ],
   "pc": {
