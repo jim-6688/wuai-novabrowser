@@ -1,25 +1,25 @@
 {
-  "version": "1.6.7",
-  "versionCode": 20,
+  "version": "1.6.8",
+  "versionCode": 21,
   "channel": "release",
   "updatedAt": "2026-10-25",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "工具箱改成四列两行：八个工具平铺两排正好铺满，面板矮了一截，一眼看全"
+    "底栏换成浮在网页上的玻璃胶囊：圆角收边、不再通栏，网页从它旁边穿过去；中间的标签格跟着放大，开着几个标签一眼可见"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.7.apk",
-      "size": 492606,
-      "sha256": "99ed79780b376a6bce7fe876d7445a73caaca9e00de84f6bb84279d98882d6b0"
+      "url": "download/nova-1.6.8.apk",
+      "size": 493526,
+      "sha256": "e4f8443a54ce4e23053d772a307cae989d48ee514ebac29b73763868aefdbc18"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.7/nova-1.6.7.apk",
-      "size": 492606,
-      "sha256": "99ed79780b376a6bce7fe876d7445a73caaca9e00de84f6bb84279d98882d6b0"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.8/nova-1.6.8.apk",
+      "size": 493526,
+      "sha256": "e4f8443a54ce4e23053d772a307cae989d48ee514ebac29b73763868aefdbc18"
     }
   ],
   "pc": {
