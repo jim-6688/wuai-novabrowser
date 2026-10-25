@@ -92,6 +92,13 @@ public final class DownloadTask {
     public final String suggestedName;
     /** 服务器给出的最终文件名，可能与建议名不同（Content-Disposition 优先） */
     public volatile String fileName;
+    /**
+     * 发布到公共「下载/novabrowser」目录后可交给别人的 content Uri。
+     * null = 文件还在应用私有目录（没发布、或发布失败），打开时走路径兜底。
+     */
+    public volatile android.net.Uri publicUri;
+    /** 公共目录里的绝对路径。Uri 拿不到时（老设备扫描失败）至少告诉用户东西在哪。 */
+    public volatile String publicPath;
     public volatile long totalBytes = -1;
     public volatile State state = State.QUEUED;
     public volatile String error = "";

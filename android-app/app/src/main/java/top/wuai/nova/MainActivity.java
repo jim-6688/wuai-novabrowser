@@ -4095,8 +4095,10 @@ public final class MainActivity extends Activity {
 
                     @Override
                     public void onSettled(DownloadTask task) {
-                        if (task.state == DownloadTask.State.DONE && settings.downloadNotify) {
-                            notifyDownloaded(task);
+                        if (task.state == DownloadTask.State.DONE) {
+                            // 落到公共「下载/novabrowser」再通知、再唤起（安装包拉安装器、
+                            // 别的文件让本地程序看）。发布在后台线程做，回来才拉界面。
+                            publishDownload(task);
                         }
                         trimDownloadHistory();
                     }
@@ -4166,6 +4168,14 @@ public final class MainActivity extends Activity {
     private void enqueueDownload(String url, String name) {
         if (downloader == null) {
             showDownloadSheet();
+        }
+        // 公共下载目录在 Android 9 及以下要写权限。下载本身不等它 —— 拿不到就
+        // 退回私有目录（发布那步再判一次），不让一个权限把下载卡死。
+        if (Build.VERSION.SDK_INT < 29
+                && checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, 0);
         }
         List<String> urls = new ArrayList<>();
         urls.add(url);
@@ -4352,7 +4362,7 @@ public final class MainActivity extends Activity {
                 });
                 cancel.setText("删除");
                 cancel.setOnClickListener(v -> {
-                    deleteDownloaded(t.fileName);
+                    deleteDownloaded(t);
                     downloader.remove(t);
                     refreshDownloadList(openSheetView);
                 });
@@ -4397,39 +4407,240 @@ public final class MainActivity extends Activity {
             .show();
     }
 
+    /**
+     * 下载的工作目录：应用私有目录。
+     *
+     * <p>分片多线程要按偏移写同一个文件，只有 File 能这么干；而公共目录在
+     * Android 10 起没有 File 路径可写（分区存储）。所以下载永远先落在这里，
+     * 完成了再往公共目录发布（见 {@link #publishDownload}）—— 用户要的是
+     * 「东西在外部存储的 Download/novabrowser 里」，不是「下载器换个目录写」。
+     */
     private java.io.File downloadDir() {
-        // 不用 DownloadManager 的公共目录：那会要求写外部存储权限，
-        // 而应用私有目录在 Android 10+ 免权限，且卸载时自动清理。
         java.io.File d = new java.io.File(getFilesDir(), "downloads");
         if (!d.exists()) d.mkdirs();
         return d;
     }
 
-    private void openDownloaded(DownloadTask t) {
-        java.io.File f = new java.io.File(downloadDir(), t.fileName);
-        if (!f.exists()) {
-            toast("文件已不在，可能被系统清理");
+    /**
+     * 公共下载目录里的 Nova 子目录：外部存储的 {@code Download/novabrowser}。
+     * 用户在文件管理器里找得到、别的应用也读得到。
+     *
+     * <p>API 29 起没有它的 File 路径可用，那条路走 MediaStore（见
+     * {@link #publishViaMediaStore}）；这里只服务 API 24-28 的老设备。
+     */
+    @SuppressWarnings("deprecation")
+    private java.io.File publicDownloadsDir() {
+        java.io.File d = new java.io.File(
+            android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS), "novabrowser");
+        if (!d.exists()) d.mkdirs();
+        return d;
+    }
+
+    /**
+     * 把下载完成的文件发布到公共「下载/novabrowser」目录，落定后通知并唤起。
+     *
+     * <p>两条路按系统版本分：
+     * <ul>
+     *   <li>API 29+：MediaStore.Downloads，RELATIVE_PATH 指向 Download/novabrowser，
+     *       自己的条目自己写，零权限；</li>
+     *   <li>API 24-28：直接写公共目录的 File，要 WRITE_EXTERNAL_STORAGE
+     *       （manifest 里带 maxSdkVersion=28），写完借媒体扫描器把文件登记成
+     *       content Uri —— API 24 起给别的应用 file:// 会直接抛异常。</li>
+     * </ul>
+     * 任一条失败都安静退回私有目录：下载本身已经成功，不该为落脚点再报一次错，
+     * 打开时走路径兜底告诉用户东西在哪（见 {@link #openDownloaded}）。
+     *
+     * <p>拷贝与扫描都在后台线程跑 —— {@code onSettled} 在主线程（见
+     * Downloader.Listener），大文件在主线程拷会直接 ANR。发布完再回主线程
+     * 做通知与唤起（{@code startActivity} 只能在主线程调）。
+     */
+    private void publishDownload(DownloadTask t) {
+        if (t == null) return;
+        final boolean already = t.publicUri != null || t.publicPath != null;
+        if (!already && (t.fileName == null
+                || !new java.io.File(downloadDir(), t.fileName).exists())) {
+            finishDownload(t); // 没东西可发布（文件已被清掉）：直接通知 + 唤起
             return;
         }
-        // 文件在应用私有目录，别的应用读不到。要让别的应用打开就得先拷到公共目录 ——
-        // 那样需要用户授权。这里直接说明，不静默失败。
+        new Thread(() -> {
+            if (!already) {
+                java.io.File src = new java.io.File(downloadDir(), t.fileName);
+                try {
+                    if (Build.VERSION.SDK_INT >= 29) {
+                        t.publicUri = publishViaMediaStore(src, t.fileName);
+                        if (t.publicUri != null) {
+                            t.publicPath = android.os.Environment.DIRECTORY_DOWNLOADS
+                                + "/novabrowser/" + t.fileName;
+                        }
+                    } else if (checkSelfPermission(
+                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                            == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        t.publicUri = publishViaFile(t, src, t.fileName);
+                    }
+                    // 公共目录有了一份（拿到 Uri、或至少拿到了路径）就删掉私有目录
+                    // 里的临时文件 —— 一份东西不存两份。删不掉不阻塞。
+                    if (t.publicUri != null || t.publicPath != null) src.delete();
+                } catch (Exception ignored) {
+                    t.publicUri = null;
+                }
+            }
+            new Handler(Looper.getMainLooper()).post(() -> finishDownload(t));
+        }, "nova-publish").start();
+    }
+
+    /** 发布落定之后：通知 + 唤起。只在主线程调。 */
+    private void finishDownload(DownloadTask t) {
+        if (settings.downloadNotify) notifyDownloaded(t);
+        invokeDownloaded(t);
+    }
+
+    /** API 29+：经 MediaStore 落进公共下载目录，不需要任何存储权限。 */
+    private android.net.Uri publishViaMediaStore(java.io.File src, String name)
+            throws Exception {
+        android.content.ContentResolver cr = getContentResolver();
+        android.content.ContentValues cv = new android.content.ContentValues();
+        cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
+        cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, mimeOf(name));
+        cv.put(android.provider.MediaStore.Downloads.RELATIVE_PATH,
+            android.os.Environment.DIRECTORY_DOWNLOADS + "/novabrowser");
+        // 先占位：拷贝期间别的应用与扫描器都跳过它，写完再转正（IS_PENDING=0）
+        cv.put(android.provider.MediaStore.Downloads.IS_PENDING, 1);
+        android.net.Uri uri = cr.insert(
+            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+        if (uri == null) return null;
+        try (java.io.InputStream in = new java.io.FileInputStream(src);
+             java.io.OutputStream out = cr.openOutputStream(uri)) {
+            if (out == null) { cr.delete(uri, null, null); return null; }
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        } catch (Exception e) {
+            // 拷一半失败：把占位条目删掉，别在公共下载里留个打不开的半截文件
+            cr.delete(uri, null, null);
+            throw e;
+        }
+        cv.clear();
+        cv.put(android.provider.MediaStore.Downloads.IS_PENDING, 0);
+        cr.update(uri, cv, null, null);
+        return uri;
+    }
+
+    /** API 24-28：拷进公共目录，再借媒体扫描器把文件登记成 content Uri。 */
+    private android.net.Uri publishViaFile(DownloadTask t, java.io.File src, String name)
+            throws Exception {
+        java.io.File dst = new java.io.File(publicDownloadsDir(), name);
+        // 同名不覆盖：加时间戳另存，别把用户上次下的那个顶掉
+        if (dst.exists()) {
+            String base = name, ext = "";
+            int dot = name.lastIndexOf('.');
+            if (dot > 0) { base = name.substring(0, dot); ext = name.substring(dot); }
+            dst = new java.io.File(publicDownloadsDir(),
+                base + "-" + System.currentTimeMillis() + ext);
+        }
+        try (java.io.InputStream in = new java.io.FileInputStream(src);
+             java.io.OutputStream out = new java.io.FileOutputStream(dst)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        }
+        t.publicPath = dst.getAbsolutePath();
+        final android.net.Uri[] box = new android.net.Uri[1];
+        java.util.concurrent.CountDownLatch latch =
+            new java.util.concurrent.CountDownLatch(1);
+        android.media.MediaScannerConnection.scanFile(this,
+            new String[]{dst.getAbsolutePath()}, new String[]{mimeOf(name)},
+            (path, uri) -> { box[0] = uri; latch.countDown(); });
+        latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+        return box[0];
+    }
+
+    /**
+     * 打开一个下载完成的东西：安装包交系统安装器，其余文件让本地程序查看。
+     * 列表点按走这里；下载完成后的自动唤起走 {@link #invokeDownloaded}。
+     * MIME 猜不准时不慌： chooser 让用户自己挑（{@link #mimeOf} 兜底给通配类型）。
+     */
+    private void openDownloaded(DownloadTask t) {
+        if (t == null) return;
+        if (t.publicUri != null) {
+            boolean apk = isApk(t.fileName);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(t.publicUri,
+                apk ? "application/vnd.android.package-archive" : mimeOf(t.fileName));
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try {
+                if (apk) {
+                    startActivity(intent);
+                } else {
+                    // 套 chooser：MIME 猜错时用户还能自己挑一个应用
+                    startActivity(Intent.createChooser(intent, "打开「" + t.fileName + "」"));
+                }
+            } catch (Exception e) {
+                toast(apk ? "没能唤起安装器，请先在系统设置里允许本应用安装未知应用"
+                          : "没有能打开这个文件的应用");
+            }
+            return;
+        }
+        // 没有公共 Uri（发布失败、或老设备没拿到写权限）：告诉用户文件实际在哪。
+        java.io.File f = t.publicPath != null
+            ? new java.io.File(t.publicPath) : new java.io.File(downloadDir(), t.fileName);
+        if (!f.exists()) { toast("文件已不在，可能被系统清理"); return; }
         new NovaAlert(this, "下载完成",
-            "文件保存在应用私有目录（不会占用公共存储）：\n"
-            + getFilesDir().getAbsolutePath() + "/downloads/\n\n"
-            + "要查看或取出它，请用「复制链接」保存地址，或从下方目录用文件管理器"
-            + "（需授予访问应用私有目录的权限）打开。")
+            "文件已保存在：\n" + f.getAbsolutePath() + "\n\n"
+            + "可用「复制路径」保存地址，或用文件管理器打开。")
             .negative("知道了", null)
             .positive("复制路径", () -> copyToClipboard(f.getAbsolutePath()))
             .show();
     }
 
-    /** 删掉下载目录里的一个文件。名字不叫 deleteFile 是因为那会撞 Context 的同名方法。 */
-    private void deleteDownloaded(String name) {
+    /**
+     * 下载完成后的自动唤起：安装包直接拉安装器，别的文件让本地程序看。
+     * 与点按列表的区别只在「自动」—— 打不开时不吵（后台完成会被系统拦、
+     * 没有匹配应用、ROM 限制），通知和列表点按还在。
+     */
+    private void invokeDownloaded(DownloadTask t) {
+        if (t == null) return;
+        if (t.publicUri == null) {
+            toast("已保存：" + (t.publicPath != null ? t.publicPath : "应用目录"));
+            return;
+        }
         try {
-            java.io.File f = new java.io.File(downloadDir(), name);
-            if (f.exists() && !f.delete()) {
-                toast("删除失败，可能正被其他应用打开");
+            boolean apk = isApk(t.fileName);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(t.publicUri,
+                apk ? "application/vnd.android.package-archive" : mimeOf(t.fileName));
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (apk) {
+                startActivity(intent);
+            } else {
+                startActivity(Intent.createChooser(intent, null));
             }
+        } catch (Exception ignored) {
+            // 见方法注释：自动唤起是尽力而为，失败留给通知与列表
+        }
+    }
+
+    private boolean isApk(String name) {
+        return name != null && name.toLowerCase(java.util.Locale.US).endsWith(".apk");
+    }
+
+    /**
+     * 删掉一个下载：公共目录里的那份（MediaStore 记录或 File）+ 私有目录里的临时文件。
+     * 名字不叫 deleteFile 是因为那会撞 Context 的同名方法。
+     */
+    private void deleteDownloaded(DownloadTask t) {
+        try {
+            if (t.publicUri != null) {
+                getContentResolver().delete(t.publicUri, null, null);
+            } else if (t.publicPath != null) {
+                java.io.File pf = new java.io.File(t.publicPath);
+                if (pf.exists() && !pf.delete()) {
+                    toast("删除失败，可能正被其他应用打开");
+                }
+            }
+            java.io.File f = new java.io.File(downloadDir(), t.fileName);
+            if (f.exists()) f.delete();
         } catch (Exception ignored) {
             // 删不掉不算失败：记录已经移除了，用户看到列表里没有它就行
         }
@@ -4966,6 +5177,7 @@ public final class MainActivity extends Activity {
         final View grab = sheet.findViewById(R.id.aiGrab);
         final View send = sheet.findViewById(R.id.aiSend);
         final View clear = sheet.findViewById(R.id.aiClear);
+        final View actions = sheet.findViewById(R.id.aiActions);
 
         // 全屏键：AI 各家现已要求登录，对话页一展开就需要大空间，
         // 常规的 82% 模样不够用 —— 给它在 × 左边点一下拉满整屏、再点收回。
@@ -5003,10 +5215,15 @@ public final class MainActivity extends Activity {
                     aiInject(aiPending);
                     aiPending = null;
                 }
+                // 自定义页面内容不定：载入后探测有没有输入框，有就收起面板那套。
+                syncAiCompose(spinner, aiText, actions, aiUrls);
             }
         });
         host.addView(aiWebView);
         aiWebView.loadUrl(aiUrls[0]);
+        // 默认第一家（DeepSeek）的对话页自带输入框 —— 面板那套先收起来，
+        // 之后每次页面载入完成再由 onPageFinished 复核（自定义那格才真探测）。
+        syncAiCompose(spinner, aiText, actions, aiUrls);
 
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -5018,14 +5235,52 @@ public final class MainActivity extends Activity {
                     String cur = aiWebView.getUrl();
                     if (cur == null || !cur.equals(url)) aiWebView.loadUrl(url);
                 }
+                syncAiCompose(spinner, aiText, actions, aiUrls);
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) { /* 不会真发生 */ }
         });
 
-        grab.setOnClickListener(v -> aiGrab(aiText));
+        grab.setOnClickListener(v -> aiGrab(aiText, actions));
         send.setOnClickListener(v -> aiSend(aiText, aiCustom, aiUrls, spinner));
         clear.setOnClickListener(v -> aiText.setText(""));
+    }
+
+    /**
+     * 按当前服务商决定面板输入行（输入框 + 发送/清空）的显隐。
+     *
+     * <p>为什么要收：AI 对话网页自己带输入框，面板底部再放一个，同一件事两个入口、
+     * 两个光标，用户不知道该用哪个。网页对话的输入就该只有一个 —— 页面那个。
+     * 桌面端同理：网页对话直接在页面里输入，面板那套是 API 模式的；移动端没有
+     * API 模式，所以面板这套只在「页面没有输入框」时当兜底。
+     *
+     * <p>已知四家（DeepSeek / Kimi / 通义 / 豆包）的对话页必定有输入框，选中即收；
+     * 自定义页面内容不定，交给 {@link #probePageInput} 载入后探测。
+     */
+    private void syncAiCompose(Spinner spinner, EditText aiText, View actions, String[] aiUrls) {
+        if (aiText == null || actions == null) return;
+        int pos = spinner != null ? spinner.getSelectedItemPosition() : 0;
+        boolean custom = pos >= 0 && pos < aiUrls.length && aiUrls[pos] == null;
+        if (custom) {
+            probePageInput(aiText, actions);
+        } else {
+            aiText.setVisibility(View.GONE);
+            actions.setVisibility(View.GONE);
+        }
+    }
+
+    /** 自定义页面：看看有没有输入框，有就收起面板那套，没有才留着当兜底。 */
+    private void probePageInput(EditText aiText, View actions) {
+        if (aiWebView == null) return;
+        String js = "(function(){try{"
+            + "var sels=['textarea','[contenteditable=true]','[contenteditable=\"true\"]','input[type=text]'];"
+            + "for(var i=0;i<sels.length;i++){if(document.querySelector(sels[i]))return 'yes';}"
+            + "return 'no';}catch(e){return 'no';}})()";
+        aiWebView.evaluateJavascript(js, v -> {
+            boolean has = v != null && v.contains("yes");
+            aiText.setVisibility(has ? View.GONE : View.VISIBLE);
+            actions.setVisibility(has ? View.GONE : View.VISIBLE);
+        });
     }
 
     /** 把文本 best-effort 注入到对话输入框（textarea / contenteditable / 单行文本）。 */
@@ -5077,7 +5332,12 @@ public final class MainActivity extends Activity {
     }
 
     /** 把当前标签页选中的文字（没有选中则退而取标题 + 地址）带进输入框。 */
-    private void aiGrab(EditText aiText) {
+    /**
+     * 把当前标签页选中的文字（没有选中则退而取标题 + 地址）带进 AI。
+     * 面板输入行可见（自定义兜底）时填进去让用户改；不可见（输入归页面）时
+     * 直接注入对话页的输入框。
+     */
+    private void aiGrab(EditText aiText, View actions) {
         if (web == null) { toast(getString(R.string.ai_nothing)); return; }
         web.evaluateJavascript("(window.getSelection?window.getSelection().toString():'')",
             sel -> {
@@ -5088,9 +5348,13 @@ public final class MainActivity extends Activity {
                     t = (title != null ? title : "") + "\n" + (u != null ? u : "");
                 }
                 if (t.trim().isEmpty()) { toast(getString(R.string.ai_nothing)); return; }
-                String existing = aiText.getText().toString();
-                aiText.setText((existing.isEmpty() ? "" : existing + "\n\n") + t.trim());
-                aiText.setSelection(aiText.getText().length());
+                if (actions != null && actions.getVisibility() == View.VISIBLE) {
+                    String existing = aiText.getText().toString();
+                    aiText.setText((existing.isEmpty() ? "" : existing + "\n\n") + t.trim());
+                    aiText.setSelection(aiText.getText().length());
+                } else {
+                    aiInject(t.trim());
+                }
             });
     }
 

@@ -105,7 +105,11 @@
             android:paddingTop="10dp"
             android:paddingBottom="10dp" />
 
+        <!-- 输入行：多行输入框 + 发送 / 清空。网页服务商的对话页自带输入框时
+             这一整行由代码收起（见 MainActivity#syncAiCompose）—— 面板一个、
+             页面一个，两个输入框同时存在才是要修掉的问题。 -->
         <LinearLayout
+            android:id="@+id/aiActions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"

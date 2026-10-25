@@ -14,6 +14,13 @@
          不声明的话点了安装也会被系统直接拒绝。 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- 写公共「下载」目录（下载落 Download/novabrowser，见 MainActivity#publishDownload）。
+         Android 10 起那条路改走 MediaStore、不再需要任何存储权限，所以这条带
+         maxSdkVersion=28：在 29+ 声明了也要不到，只会平白多一个吓人的权限项。
+         24-28 的老设备才靠它，拿不到就退回应用私有目录，下载本身不卡死。 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
     <application
         android:usesCleartextTraffic="true"
         android:allowBackup="true"
