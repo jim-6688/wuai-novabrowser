@@ -4,7 +4,7 @@
          改这里不会改到桌面端，两边要一起改。 -->
     <string name="app_name">吾爱Nova浏览器</string>
     <!-- 版本号单点。原先散在若干个字符串字面量里，改版本要改四处，漏一处就对不上。 -->
-    <string name="app_version">1.6.10</string>
+    <string name="app_version">1.6.11</string>
 
     <!-- 底栏。现在是五格：后退 / 前进 / 标签 / 工具 / 菜单。
          「内核」那一格早已换掉（移动版只有系统 WebView 真内置，
@@ -12,6 +12,10 @@
          「下载」「阅读」两格本轮合并成「工具」。 -->
     <string name="mb_back">后退</string>
     <string name="mb_home">主页</string>
+    <!-- 标签面板里内置新标签页那一格显示的名字。它的真身是一条
+         file:///android_asset/newtab.html 地址，不特判就会把原始路径
+         当标题显示出来（2026-10-25 用户报「显示的本地路径代码」）。 -->
+    <string name="tab_home">主页</string>
     <string name="mb_reload">刷新</string>
     <string name="mb_tabs">标签</string>
     <string name="mb_tools">工具</string>

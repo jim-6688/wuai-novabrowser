@@ -404,6 +404,9 @@
 
           格子从 0dp+weight 撑满通栏改成固定 56×46dp：胶囊按内容收宽，
           weight 在没有剩余空间的 wrap_content 父容器里不起作用，写固定值才诚实。
+          注意 android:gravity="center_vertical"：格子 46dp 比胶囊 58dp 矮一截，
+          横向 LinearLayout 的子 View 默认顶端对齐，不写这句整行格子（连中间
+          品牌块）会齐齐偏高 —— 2026-10-25 用户报「标签图标底色靠上」就是它。
 
           投影由本 View 自己的 elevation 出；底栏那一行（bottomRow）是通栏矩形，
           由它出投影会在胶囊四周露一圈通栏影子，所以行的 elevation 已撤掉。
@@ -417,6 +420,7 @@
             android:layout_gravity="bottom|center_horizontal"
             android:layout_marginBottom="10dp"
             android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:paddingStart="6dp"
             android:paddingEnd="6dp"
             android:background="@drawable/bg_bottom_capsule"

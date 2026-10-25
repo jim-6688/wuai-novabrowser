@@ -5808,8 +5808,19 @@ public final class MainActivity extends Activity {
                     .inflate(R.layout.item_tab, parent, false);
             }
             Tab t = tabs.get(i);
-            ((TextView) row.findViewById(R.id.tabTitle)).setText(t.displayTitle());
-            ((TextView) row.findViewById(R.id.tabHost)).setText(Tab.hostOf(t.url));
+            String title = t.displayTitle();
+            String host = Tab.hostOf(t.url);
+            if (t.url != null && t.url.startsWith(NewTab.ASSET_URL)) {
+                // 内置新标签页（关完全部门户后补上的那一张，主动新建的也是它）：
+                // 真身是 file:///android_asset/newtab.html，页面标题还没写上时
+                // displayTitle 会退回整条路径，hostOf 对空 authority 的 file://
+                // 也原样返回 —— 标签面板里就是一坨「本地路径代码」。统一显示
+                // 「主页」；第二行没有域名可显示，留空。
+                title = getString(R.string.tab_home);
+                host = "";
+            }
+            ((TextView) row.findViewById(R.id.tabTitle)).setText(title);
+            ((TextView) row.findViewById(R.id.tabHost)).setText(host);
             ((ImageView) row.findViewById(R.id.tabShot)).setImageBitmap(t.snapshot);
             row.findViewById(R.id.tabShot).setVisibility(
                 t.snapshot == null ? View.GONE : View.VISIBLE);
