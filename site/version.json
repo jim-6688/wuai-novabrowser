@@ -1,27 +1,25 @@
 {
-  "version": "1.6.9",
-  "versionCode": 22,
+  "version": "1.6.10",
+  "versionCode": 23,
   "channel": "release",
   "updatedAt": "2026-10-25",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "下载保存到外部存储的「下载/novabrowser」文件夹，文件管理器里找得到、别的应用也打得开",
-    "下载完成自动唤起：安装包直接进安装器，其他文件用本地程序打开",
-    "AI 助手去掉重复的输入框：对话直接在网页里输入，面板只留服务商切换和「带入当前页」"
+    "修复 AI 助手里点输入框时，键盘弹起来把输入框遮住的问题"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.9.apk",
-      "size": 496530,
-      "sha256": "99feb152aee013309171b40c41366238cb2c39c1dac9fc452e2d23ce34697a3e"
+      "url": "download/nova-1.6.10.apk",
+      "size": 496998,
+      "sha256": "b0bba534490db88e4637b4020184caccc4e7eae8617ef1329c216d1962b4ad72"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.9/nova-1.6.9.apk",
-      "size": 496530,
-      "sha256": "99feb152aee013309171b40c41366238cb2c39c1dac9fc452e2d23ce34697a3e"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.10/nova-1.6.10.apk",
+      "size": 496998,
+      "sha256": "b0bba534490db88e4637b4020184caccc4e7eae8617ef1329c216d1962b4ad72"
     }
   ],
   "pc": {
