@@ -1,29 +1,25 @@
 {
-  "version": "1.6.6",
-  "versionCode": 19,
+  "version": "1.6.7",
+  "versionCode": 20,
   "channel": "release",
-  "updatedAt": "2026-10-24",
+  "updatedAt": "2026-10-25",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "底栏「标签」按钮加品牌色底：开着几个标签，在底栏一眼就能看到",
-    "AI 助手弹层新增「全屏」按钮：点一下把对话区拉满整屏，再点收回原来的小窗",
-    "收藏按钮未收藏是灰色、收藏后变金色，扫一眼就知道哪页存过；工具面板右上角换成工具图标，点它收起面板",
-    "收藏夹与新标签页共用同一份内置数据；升级时只补新增的内置条目，你删过的不会跟着回来",
-    "AI 服务商列表去掉了名不副实的「免登录」标注（各家现已要求登录）"
+    "工具箱改成四列两行：八个工具平铺两排正好铺满，面板矮了一截，一眼看全"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.6.apk",
-      "size": 492614,
-      "sha256": "cba98b91898aad7feab0be4c84dfc5e2867ead4e811ade2b9a23da7f710b3e0a"
+      "url": "download/nova-1.6.7.apk",
+      "size": 492606,
+      "sha256": "99ed79780b376a6bce7fe876d7445a73caaca9e00de84f6bb84279d98882d6b0"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.6/nova-1.6.6.apk",
-      "size": 492614,
-      "sha256": "cba98b91898aad7feab0be4c84dfc5e2867ead4e811ade2b9a23da7f710b3e0a"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.7/nova-1.6.7.apk",
+      "size": 492606,
+      "sha256": "99ed79780b376a6bce7fe876d7445a73caaca9e00de84f6bb84279d98882d6b0"
     }
   ],
   "pc": {
