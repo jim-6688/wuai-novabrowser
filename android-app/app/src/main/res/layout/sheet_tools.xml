@@ -2,36 +2,38 @@
 <!--
   工具栏面板。底栏「工具」格弹出的底部面板。
 
-  这个面板是**九宫格**（三列三行），不是列表：
+  这个面板是**宫格**（四列两行八格），不是列表：
     · 面板里的每一项都是「点一下就对网页做一件事」，彼此没有先后、没有层级，
-      也没有从属关系。这种并列关系用宫格表达最省地方 —— 三行把九项装完，
-      列表要九行、还要滚动才看得全。
+      也没有从属关系。这种并列关系用宫格表达最省地方 —— 两行把八项装完，
+      列表要八行、还要滚动才看得全。
     · 图标成为主角。列表里图标只是一个 20dp 的行首标记，文字才是重点；
       宫格里相反，用户的视线先落在图形上，名称退成注解。
 
   因此这里没有分区标题（原先的「网页工具」/「菜单」两组）：宫格本身已经把
-  「一堆并列的动作」说清楚了，再加一层标题只会把面板撑高。末格的「主菜单」
-  仍然是一个出口型入口（去历史 / 书签 / 设置），放在右下的收尾位置。
+  「一堆并列的动作」说清楚了，再加一层标题只会把面板撑高。
 
   这里原先还有一行「深浅模式」，已撤掉：那个动作在「设置 → 个性化 → 主题」
   里有一份，同一个开关留两处入口，早晚会出现两处说法不一样。
 
-视图 id 沿用改建前的那一套（toolDownloads / toolRead / …）：改的是排列方式，
-    不是这些入口的语义，id 跟着变只会让 MainActivity 的 diff 更难看懂。
+  视图 id 沿用改建前的那一套（toolDownloads / toolRead / …）：改的是排列方式，
+  不是这些入口的语义，id 跟着变只会让 MainActivity 的 diff 更难看懂。
 
-    现在是**三行八格**（原来十格，含已撤掉的两格）：
-      1) 下载 / 阅读模式 / 翻译网页
-      2) 观影模式 / 篡改猴
-      3) 广告拦截 / 网页安全 / 收藏夹
-    第三行三格、第二行两格是「去掉两格之后剩下的」—— 刻意不为了凑满
-    而把某格拉宽成两列：格子的宽度是它的语义（每格一样宽才读得出这是一宫格），
-    为了填满而拉宽最后一格会让它看起来像另一个东西。
+  现在是**四列两行八格**（2026-10-25 由三行八格改来，对齐设计稿
+  design/mobile-spring-demo.html）：
+    1) 下载 / 阅读模式 / 翻译网页 / 观影模式
+    2) 篡改猴 / 广告拦截 / 网页安全 / 收藏夹
+  原先三列排下来第二行只剩两格、中间缺一口，读起来像「还有一格没加载」；
+  四列两行正好铺满，还比三行少一行高度。改的是列数，不碰格子本身 ——
+  每格仍等宽（约 80dp），12sp 的四字标签（阅读模式 / 翻译网页 / 观影模式）
+  放得下，不拉宽任何一格、也不缩图标。早先「不为了凑满而把某格拉宽成两列」
+  的顾虑仍然成立，只是那条针对「把一格抻成两列」，四列每格照样等宽，
+  不是一回事。
 
-    已撤掉的两格（2026-10）都在顶栏有常驻入口了，不再需要工具箱里的副本：
-      · toolMenu —— 主菜单移到顶栏左端的品牌标（左上角）
-      · toolAi —— AI 助手在顶栏右端
-    同一件事在顶栏占一格，代价是「那一格一直在」；而工具箱要的是
-    「不想用的时候不占任何地方」。这两个入口都属于前者。
+  已撤掉的两格（2026-10）都在顶栏有常驻入口了，不再需要工具箱里的副本：
+    · toolMenu —— 主菜单移到顶栏左端的品牌标（左上角）
+    · toolAi —— AI 助手在顶栏右端
+  同一件事在顶栏占一格，代价是「那一格一直在」；而工具箱要的是
+  「不想用的时候不占任何地方」。这两个入口都属于前者。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -52,7 +54,7 @@
         android:background="@drawable/bg_menu_group">
 
         <!--
-          三个 <include> 并排，各占一份 weight。
+          每行四个 <include> 并排，各占一份 weight。
           注意：include 上的 layout_weight / margin 这类参数，只有在同时显式写了
           layout_width 和 layout_height 时才会生效（这是 include 的坑，不是本项目的约定）
           —— 所以下面每一处都老老实实四件套写全，别省。
@@ -71,19 +73,9 @@
             <include layout="@layout/item_tool_cell" android:id="@+id/toolTranslate"
                 android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
             <include layout="@layout/item_tool_cell" android:id="@+id/toolMovie"
                 android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" />
-            <include layout="@layout/item_tool_cell" android:id="@+id/toolPlugins"
-                android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" />
         </LinearLayout>
 
         <LinearLayout
@@ -91,6 +83,9 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
+            <include layout="@layout/item_tool_cell" android:id="@+id/toolPlugins"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" />
             <include layout="@layout/item_tool_cell" android:id="@+id/toolAdblock"
                 android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" />
