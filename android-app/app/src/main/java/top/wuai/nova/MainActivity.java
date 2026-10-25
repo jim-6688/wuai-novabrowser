@@ -3051,6 +3051,9 @@ public final class MainActivity extends Activity {
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -2);
         lp.gravity = Gravity.BOTTOM;
         root.addView(sheet, lp);
+        // 键盘弹起时把弹层往上顶，别遮住底部的输入框（AI 对话页自带的输入、
+        // 自定义地址框、面板自己的输入行都在弹层底部）。见 attachImeShift。
+        attachImeShift(root, sheet, lp);
 
         TextView t = sheet.findViewById(R.id.sheetTitle);
         if (t != null) t.setText(title);
@@ -3091,6 +3094,38 @@ public final class MainActivity extends Activity {
             aiWebView = null;
         }
         aiPending = null;
+    }
+
+    /**
+     * 键盘弹起时把弹层往上顶，别让输入法遮住弹层底部的输入框。
+     *
+     * <p>为什么必须自己补：窗口声明的是 adjustResize，但弹层根是代码 new 的
+     * FrameLayout（openSheet 里）、没写 fitsSystemWindows；更常见的是 WebView
+     * 在键盘弹起时只做「把聚焦元素滚进视口」而不重新排版 —— 底部那颗输入框
+     * （AI 对话页自带的、自定义地址框、面板自己的输入行）照样被遮住。
+     *
+     * <p>补多少不能直接拿键盘高度：窗口若已经因 adjustResize 收缩过（root 变矮），
+     * 那部分不能再补第二遍，否则弹层会浮在键盘上方空出一截。所以取
+     * {@code 补 = 当前内容高 - 可见区域高}：窗口收缩过 → 两者相等 → 补 0；
+     * 没收缩 → 差值正好是键盘高。两种机型路径落在同一个结果上。
+     *
+     * <p>可见区域只小了一点点（不足 15%）不是键盘，是导航栏一类的固有差异，
+     * 不当键盘处理。改动只在数值真变时发生，不会和布局监听互相触发成环。
+     */
+    private void attachImeShift(final View root, final View sheet,
+            final FrameLayout.LayoutParams lp) {
+        root.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            android.graphics.Rect r = new android.graphics.Rect();
+            root.getWindowVisibleDisplayFrame(r);
+            int visibleH = r.bottom - r.top;   // 可见区域高（键盘弹起时不含键盘）
+            int curH = root.getHeight();       // 当前内容高（adjustResize 生效时已收缩）
+            int pad = Math.max(0, curH - visibleH);
+            if (curH > 0 && pad < curH * 0.15) pad = 0;
+            if (lp.bottomMargin != pad) {
+                lp.bottomMargin = pad;
+                sheet.setLayoutParams(lp);
+            }
+        });
     }
 
     // ------------------------------------------------------- 内核信息（只读）
