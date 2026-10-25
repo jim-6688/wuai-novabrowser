@@ -8,6 +8,11 @@
   代表「这个动作」。两个主色挨在一起，一渐变一纯色才分得开谁是谁；
   都是渐变只会互相抢。
 
+  2026-10-25 改圆角 8dp → 17dp：底栏整体改成胶囊（见 bg_bottom_capsule）之后，
+  这一块也跟着设计稿放大到 46×48dp（mb_tab_block_w/h）—— 比格子（56×46）
+  宽、上下各探出 1dp，是底栏上唯一「胖一圈」的格。圆角取 17dp 才配得上
+  这个尺寸：8dp 在 46dp 宽的一块上太抠，17dp 是设计稿 .cell.pri::before 的原值。
+
   色值走 @color/brand 令牌而不是写死：渐变那版写死是为了对齐官网徽标
   （深浅两模同一份），现在它是 app 自己的动作色，跟着主题走 ——
   深色模式下是 brand_dark，压在深色底栏上比一成不变的亮蓝更稳。
@@ -18,5 +23,5 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/brand" />
-    <corners android:radius="8dp" />
+    <corners android:radius="17dp" />
 </shape>

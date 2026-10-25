@@ -343,82 +343,118 @@
 
     <!-- ============ 底栏（两态叠放） ============
          这一行有两种形态，同一行里叠着、滚动时交叉淡入淡出：
-           常态   = mobileBar     —— 五格等宽纯图标（后退 / 主页 / 标签 / 刷新 / 工具）
+           常态   = mobileBar     —— 五格纯图标（后退 / 主页 / 标签 / 刷新 / 工具），
+                                      2026-10-25 起是浮在网页上的玻璃胶囊，不再通栏
            滚动中 = searchCapsule —— 整条换成胶囊搜索框
 
          为什么搜索框搬到这里（原先是放在顶栏那一行的）：
-         底栏隐去时它那 60dp 是留着的（用 INVISIBLE 而不是 GONE，图的是不改布局、
+         底栏隐去时它那 68dp 是留着的（用 INVISIBLE 而不是 GONE，图的是不改布局、
          不推网页），于是屏幕下方多出一条谁也没用的空白。与其让它空着，
          不如把「滚动时唯一还要用的东西」放进去 —— 手指刚划完的地方，
          本来也是拇指最顺的位置。
 
-         行高恒定（60dp）的做法与顶栏原先一样：两个子 View 互相覆盖，
-         「行高 = 最高的那个」，胶囊 40dp < 60dp，所以它在 GONE 与 VISIBLE
+         行高恒定（68dp）的做法与顶栏原先一样：两个子 View 互相覆盖，
+         「行高 = 最高的那个」，胶囊 40dp < 68dp，所以它在 GONE 与 VISIBLE
          之间怎么切都不会改这一行的高度 —— 网页不会被推一下。
 
-         60dp 而不是 54dp：五格改成纯图标之后，54dp 上下的余量只剩十来 dp，
-         图标贴得太近，反而比带文字时更挤。60dp 给 26dp 的图标留出上下各 17dp
-         的呼吸，也刚好是设计板上那一格的高度。
+         68dp = 58dp 胶囊 + 10dp 离屏底的悬浮量（对齐设计稿 .mbar 的 bottom:10px：
+         胶囊是浮起来的，不是贴着屏幕下沿的）。本机不走 edge-to-edge，布局下沿
+         本来就在系统导航栏之上，这 10dp 浮得开。
     -->
     <!--
       这一条**压在网页上**，不是把网页推上去的一行。
 
-      「压在网页上」靠上面那个 layout_marginTop="-60dp"：负的外边距让这一条
-      从网页区的下沿再往上提 60dp，正好盖住网页最后一条；LinearLayout 里后画的
+      「压在网页上」靠上面那个 layout_marginTop="-68dp"：负的外边距让这一条
+      从网页区的下沿再往上提 68dp，正好盖住网页最后一条；LinearLayout 里后画的
       兄弟盖在先画的上面，所以它是盖上去而不是把网页挤走。负值必须与 height 相等
-      （都是 60dp），改高度时这里要跟着改。
+      （都是 68dp），改高度时这里要跟着改。
 
       底色**随形态切**（见 MainActivity#applyBottomBarGround）：
-        五格工具栏时 = @color/surface（实底）
-        胶囊搜索框时 = @color/surface_translucent（玻璃条）
+        五格工具栏时 = 行本身透明，玻璃底长在胶囊自己身上（bg_bottom_capsule）
+        胶囊搜索框时 = @color/surface_translucent（行的玻璃条，搜索胶囊浮在它上面）
 
-      为什么不是一直半透明：五格工具栏是常驻的一条，底下永远压着网页，
-      半透明时页面文字会从图标缝里透出来，读起来像脏、也像没对齐；
-      而滚动态的胶囊是临时浮上来的一块输入区，半透明才有层级感。
-      这里写的是初态（工具栏形态）—— 布局加载出来时就是实底，
-      不能靠代码来纠正，否则冷启动第一帧会闪一下玻璃条。
+      2026-10-25 起五格也改半透明：它曾经是实底，理由是「常驻的一条，页面文字
+      会从图标缝里透出来，读起来像脏」。设计稿把这条理由否了 —— 底栏与顶栏是
+      同一套材质（上下两条才像一对），而且玻璃只占中间一条窄胶囊、网页从它
+      两侧穿过去，不是整个通栏压在页面上。行自己不再出底色、也不再出投影：
+      它是一条通栏矩形，投影会在胶囊四周露出一圈通栏的影子。投影由胶囊
+      （mobileBar 的 elevation）和搜索胶囊各自出。
 
-      代价说清楚：网页最底下 60dp 会被挡住。所以 MainActivity#injectBarInset
+      初态（工具栏形态）行就是透明的 —— 写在布局里而不是等代码纠正，
+      否则冷启动第一帧会闪一下通栏底色。
+
+      代价说清楚：网页最底下 68dp 会被挡住。所以 MainActivity#injectBarInset
       会给页面补一条同样高度的 padding-bottom，把最后一行还回来。
     -->
     <FrameLayout
         android:id="@+id/bottomRow"
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:layout_marginTop="-60dp"
-        android:background="@color/surface"
-        android:elevation="8dp">
+        android:layout_height="68dp"
+        android:layout_marginTop="-68dp"
+        android:background="@android:color/transparent">
 
+        <!--
+          五格底栏，胶囊形（2026-10-25，对齐设计稿 mobile-spring-demo.html 的 .mbar）：
+          按内容收紧、水平居中、离屏底悬浮 10dp，玻璃底 + 投影，
+          与顶栏同一套材质，上下两条才像一对。
+
+          尺寸走 dimens 里那一套（mb_capsule_h/radius、mb_cell_w/h、mb_tab_block_w/h）：
+          圆角必须正好是半个身高，端头才是正圆 —— 差一个 dp 就退回「圆角矩形」，
+          那正是这次修掉的旧形态。
+
+          格子从 0dp+weight 撑满通栏改成固定 56×46dp：胶囊按内容收宽，
+          weight 在没有剩余空间的 wrap_content 父容器里不起作用，写固定值才诚实。
+
+          投影由本 View 自己的 elevation 出；底栏那一行（bottomRow）是通栏矩形，
+          由它出投影会在胶囊四周露一圈通栏影子，所以行的 elevation 已撤掉。
+          两端格子的矩形按背景会探出胶囊的圆弧，靠 clipToOutline 裁掉
+          （在 MainActivity 绑定 mobileBar 处开）。
+        -->
         <LinearLayout
             android:id="@+id/mobileBar"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:orientation="horizontal">
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/mb_capsule_h"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="10dp"
+            android:orientation="horizontal"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:background="@drawable/bg_bottom_capsule"
+            android:elevation="8dp">
 
             <!--
               各格用 <include> 复用同一份布局。include 上必须显式写 id：
               不写的话被包含布局的根 id（btnBox）会原样冒上来，几格一模一样的 id，
               findViewById 只会拿到第一个 —— 那就是「几个按钮全绑成同一个动作」这种
               能编译能运行、只是完全不对的 bug。
+              尺寸也在这里显式写全（56×46dp，见 mb_cell_w/h）：被包含布局的根是
+              0dp+weight 的通栏写法，胶囊要的是固定格。
             -->
-            <include layout="@layout/item_mb_back" android:id="@+id/item_mb_back" />
-            <include layout="@layout/item_mb_home" android:id="@+id/item_mb_home" />
+            <include layout="@layout/item_mb_back" android:id="@+id/item_mb_back"
+                android:layout_width="@dimen/mb_cell_w" android:layout_height="@dimen/mb_cell_h" />
+            <include layout="@layout/item_mb_home" android:id="@+id/item_mb_home"
+                android:layout_width="@dimen/mb_cell_w" android:layout_height="@dimen/mb_cell_h" />
 
             <!--
-              中间那格是标签页。它原先是一颗 56dp 的品牌渐变主按钮、图标是白的 ——
-              五格改成等宽之后它不再有自己的底色，于是计数徽标（品牌色小胶囊）
-              成了这一格唯一的有色元素：标签数的存在感从「一整块蓝」收到「一粒徽标」，
-              但「现在开着几个标签」这件事仍然是底栏上唯一被强调的数字。
+              中间那格是标签页，底栏上唯一的「主操作」：格外壳固定 56×46dp，里面一块
+              46×48dp 的品牌色实底（mb_tab_block_w/h）—— 比格子宽、上下各探出 1dp，
+              主操作比周围格胖一圈，但不炸满整格。2026-10-25 随底栏胶囊化从
+              26×26 放大回来，对齐设计稿 .cell.pri::before；圆角 17dp 见 bg_tab_brand。
 
-              徽标挂在 30dp 的图标壳里、贴在图标右上角，而不是挂在这一格上：
-              挂在格上会按整格（60dp 高、宽度随屏幕变）定位，它在不同机型上会飘。
-              壳要 clipChildren=false，否则超出 30dp 的那半个徽标会被裁掉。
+              它原先是一颗 56dp 的品牌渐变主按钮；五格改等宽后被压成一颗小图标壳，
+              计数徽标成了这一格唯一的有色元素。如今块放大回来，「现在开着几个标签」
+              重新成为底栏上被强调的一粒。
+
+              徽标挂在块壳里、贴块壳右上角，而不是挂在这一格上：挂在格上会按整格
+              （高度随胶囊变、宽度固定）定位，它在不同机型上会飘。壳要
+              clipChildren=false，否则探出壳外的半个徽标会被裁掉；格外壳也要
+              clipChildren=false，管的是块比格高出那 1dp。
             -->
             <FrameLayout
                 android:id="@+id/mbTabs"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
+                android:layout_width="@dimen/mb_cell_w"
+                android:layout_height="@dimen/mb_cell_h"
+                android:clipChildren="false"
                 android:background="?android:attr/selectableItemBackground"
                 android:clickable="true"
                 android:focusable="true">
@@ -426,15 +462,13 @@
                 <!--
                   这一格的底色是品牌色实底（bg_tab_brand）：2026-10-24 由官网徽标
                   那套渐变改成纯色 —— 顶栏品牌钮是渐变（代表「这个应用」），这一格
-                  是纯色（代表「这个动作」），两个主色挨在一起才分得开谁是谁。
-                  原先撤掉底色后，白图标落在浅色底上等于看不见，于是图标改成了
-                  中性的 text_3、只留计数徽标做有色元素；现在有了渐变底，图标
-                  重新刷白（android:tint="#FFFFFF"），计数徽标也换成白底品牌字
-                  （bg_tab_count），在渐变上读得清。
+                  是纯色（代表「这个动作」），两个主色挨在一起才分得开谁是谁；
+                  2026-10-25 圆角随块放大从 8dp 改到 17dp。
+                  块 46×48dp，比格外壳高出 1dp —— 靠两层 clipChildren=false 放行。
                 -->
                 <FrameLayout
-                    android:layout_width="@dimen/icon_action"
-                    android:layout_height="@dimen/icon_action"
+                    android:layout_width="@dimen/mb_tab_block_w"
+                    android:layout_height="@dimen/mb_tab_block_h"
                     android:layout_gravity="center"
                     android:background="@drawable/bg_tab_brand"
                     android:clipChildren="false">
@@ -466,10 +500,13 @@
                 </FrameLayout>
             </FrameLayout>
 
-            <include layout="@layout/item_mb_reload" android:id="@+id/item_mb_reload" />
-            <!-- 第五格「工具箱」：弹工具面板（下载 / 阅读 / 翻译 / 观影 / AI /
-                 广告拦截 / 主菜单）。顶栏那个工具图标撤掉之后，这里是工具的唯一下沉入口。 -->
-            <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools" />
+            <include layout="@layout/item_mb_reload" android:id="@+id/item_mb_reload"
+                android:layout_width="@dimen/mb_cell_w" android:layout_height="@dimen/mb_cell_h" />
+            <!-- 第五格「工具箱」：弹工具面板（下载 / 阅读模式 / 翻译网页 / 观影模式 /
+                 篡改猴 / 广告拦截 / 网页安全 / 收藏夹）。顶栏那个工具图标撤掉之后，
+                 这里是工具的唯一下沉入口。 -->
+            <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools"
+                android:layout_width="@dimen/mb_cell_w" android:layout_height="@dimen/mb_cell_h" />
         </LinearLayout>
 
         <!--

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  底栏五格的胶囊形底：按内容收紧的一条玻璃，浮在网页上。
+  对齐设计稿 mobile-spring-demo.html 的 .mbar —— 58dp 高、圆角取半个身高
+  （29dp，端头才是正圆）、玻璃底 + 1dp 亮描边；大而软的投影由 View 自己的
+  elevation 出（见 activity_main.xml 的 mobileBar），形状只负责底色与边缘。
+
+  玻璃用 surface_translucent 令牌（浅色 #CCFFFFFF / 深色 #CC171A22）而不是
+  照抄设计稿的 86%：这一档 app 已经用了很久、深浅两模都有，复用比新造一个
+  只差 6% 的颜色值划算。
+  描边走 capsule_edge（近白、不随主题翻转）：玻璃的边缘是「光」不是「分隔线」。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface_translucent" />
+    <stroke android:width="1dp" android:color="@color/capsule_edge" />
+    <corners android:radius="@dimen/mb_capsule_radius" />
+</shape>

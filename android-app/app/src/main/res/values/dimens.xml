@@ -17,4 +17,19 @@
     <dimen name="icon_action">26dp</dimen>
     <dimen name="tap_action">40dp</dimen>
     <dimen name="icon_row">20dp</dimen>
+
+    <!--
+      底栏胶囊（2026-10-25 起，对齐设计稿 mobile-spring-demo.html 的 .mbar）：
+      五格底栏不再是通栏实底，而是按内容收紧、浮在网页上的一条玻璃胶囊。
+      这一组数字是一套：58 = 胶囊高、29 = 圆角（取半个身高，端头才是正圆）、
+      56×46 = 一格、46×48 = 中间品牌块（比格子宽、上下各探出 1dp）。
+      改任何一个都要对着这套核 —— 圆角不等于半个身高时，端头会变成
+      「圆角矩形」而不是胶囊，那正是这次要修掉的旧形态。
+    -->
+    <dimen name="mb_capsule_h">58dp</dimen>
+    <dimen name="mb_capsule_radius">29dp</dimen>
+    <dimen name="mb_cell_w">56dp</dimen>
+    <dimen name="mb_cell_h">46dp</dimen>
+    <dimen name="mb_tab_block_w">46dp</dimen>
+    <dimen name="mb_tab_block_h">48dp</dimen>
 </resources>

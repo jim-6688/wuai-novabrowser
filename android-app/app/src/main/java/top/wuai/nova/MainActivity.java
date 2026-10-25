@@ -889,6 +889,11 @@ public final class MainActivity extends Activity {
         statusStrip = findViewById(R.id.statusStrip);
         noImageChip = findViewById(R.id.noImageChip);
         mobileBar = findViewById(R.id.mobileBar);
+        // 底栏胶囊（bg_bottom_capsule）要裁掉子 View：两端格子的矩形按背景和水波纹
+        // 会探出胶囊的圆弧 —— 格子贴着胶囊的 6dp 内边距放，两端格的角正落在圆弧外面。
+        // 圆角形状背景会给出圆角轮廓，打开 clipToOutline 让按背景和波纹都收在轮廓里。
+        // 幂等：重复 inflate 重复设无害。
+        if (mobileBar != null) mobileBar.setClipToOutline(true);
         topRow = findViewById(R.id.topRow);
         topBar = findViewById(R.id.topBar);
         searchCapsule = findViewById(R.id.searchCapsule);
@@ -1658,10 +1663,13 @@ public final class MainActivity extends Activity {
         // 放在这里，两件事在同一帧开始，看起来就是一次切换。
         applyBottomBarGround(showBar);
 
-        // 高度拿不到（还没 layout）时用布局里写死的尺寸兜底，否则位移量会是 0，
-        // 动画看起来就像没动。60dp 对应 bottomRow（底栏那一行）。
+        // 位移量取**整行**的高度（bottomRow）而不是各自的身高：两个子 View 都要从
+        // 本行下沿整个滑出去，只移自身高度会卡在行里露一条边。行高 68dp
+        // （= 58dp 胶囊 + 10dp 悬浮量，见 activity_main.xml 的 bottomRow）。
+        // 拿不到（还没 layout）时用 68dp 兜底，否则位移量会是 0，动画像没动。
         float density = getResources().getDisplayMetrics().density;
-        int barH = bar.getHeight() > 0 ? bar.getHeight() : Math.round(60 * density);
+        int rowH = bottomRow != null && bottomRow.getHeight() > 0
+                ? bottomRow.getHeight() : Math.round(68 * density);
         // 顶栏高度同理兜底。48dp = 40dp 按钮 + 上下 padding 6+2，见 activity_main.xml —
         // 这一行的真实高度决定补偿多少，写错就等于没补（顶栏收起时它已被 GONE，量不到）。
         int topH = top.getHeight() > 0 ? top.getHeight() : Math.round(48 * density);
@@ -1680,13 +1688,13 @@ public final class MainActivity extends Activity {
             applyChromeFor(currentUrl());
             // 胶囊向下滑出行外。位移取的是整个「行高」而不是它自己的高度：
             // 它要从本行下沿出去，只移自身高度的话会卡在行里露一条边。
-            cap.animate().alpha(0f).translationY(barH).setDuration(duration)
+            cap.animate().alpha(0f).translationY(rowH).setDuration(duration)
                 .withEndAction(() -> settleReveal(cap, View.GONE,
                     BottomBarReveal.State.SHOW_BAR))
                 .start();
             // 五格从下方滑回来
             bar.setVisibility(View.VISIBLE);
-            bar.setTranslationY(barH);
+            bar.setTranslationY(rowH);
             bar.animate().alpha(1f).translationY(0f).setDuration(duration).start();
         } else {
             // 顶栏整行收起，把这一行的高度让给网页
@@ -1695,9 +1703,9 @@ public final class MainActivity extends Activity {
             cap.setVisibility(View.VISIBLE);
             // 先摆到行外，再滑进来。少了这一步，第一帧它已经在终点上，
             // 看起来是「啪」一下出现，而不是滑进来。
-            cap.setTranslationY(barH);
+            cap.setTranslationY(rowH);
             cap.animate().alpha(1f).translationY(0f).setDuration(duration).start();
-            bar.animate().alpha(0f).translationY(barH).setDuration(duration)
+            bar.animate().alpha(0f).translationY(rowH).setDuration(duration)
                 .withEndAction(() -> settleReveal(bar, View.GONE,
                     BottomBarReveal.State.SHOW_CAPSULE))
                 .start();
@@ -1705,22 +1713,27 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 底栏底色：工具栏实底，滚动态玻璃条。
+     * 底栏底色：五格形态下行本身透明（玻璃长在胶囊自己身上），滚动态给行一条玻璃条。
      *
-     * <p>为什么不是一直半透明：五格工具栏是<b>常驻</b>的一条，它底下永远压着网页。
-     * 半透明时页面文字会从图标缝里透出来，读起来像脏、也像没对齐；
-     * 而滚动态的胶囊搜索框是<b>临时浮上来</b>的一块输入区，半透明才有「浮在页面上」
-     * 的层级感。同一块底，两种身份，底色就该分开。
+     * <p>2026-10-25 改：五格也曾是实底，理由是「常驻的一条，页面文字会从图标缝里
+     * 透出来，读起来像脏」。设计稿（mobile-spring-demo）把这条理由否了 —— 底栏与
+     * 顶栏是同一套材质（上下两条才像一对），而且玻璃只占中间一条窄胶囊、网页从它
+     * 两侧穿过去，不是整个通栏压在页面上。于是五格形态的底色搬进了胶囊自己
+     * （bg_bottom_capsule），行自己不留底色、也不出投影 —— 行是一条通栏矩形，
+     * 由它出投影会在胶囊四周露一圈通栏的影子。投影由胶囊（mobileBar 的 elevation）
+     * 和滚动态的搜索胶囊各自出。
+     *
+     * <p>滚动态仍是老样子：行出玻璃条，胶囊搜索框浮在它上面。
      *
      * <p>颜色走 {@code @color} 令牌而不是写死：#CC 那一档在浅色下是
      * {@code #CCFFFFFF}、深色下是 {@code #CC171A22}，两侧都由 values-night 给。
      *
-     * @param showBar true = 五格工具栏形态（实底）；false = 胶囊搜索框形态（玻璃条）
+     * @param showBar true = 五格工具栏形态（行透明）；false = 胶囊搜索框形态（行玻璃条）
      */
     private void applyBottomBarGround(boolean showBar) {
         if (bottomRow == null) return;
         bottomRow.setBackgroundColor(
-            color(showBar ? R.color.surface : R.color.surface_translucent));
+                showBar ? Color.TRANSPARENT : color(R.color.surface_translucent));
     }
 
     /**
