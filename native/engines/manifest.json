@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-26T15:29:29.883Z",
+  "generatedAt": "2026-10-26T16:01:15.012Z",
   "platform": "win32 x64",
   "node": "v22.22.2",
   "engineRoot": "native/engines",
@@ -24,38 +24,38 @@
         {
           "id": "chromium-electron",
           "label": "Electron 主内核",
-          "version": "Electron 40.10.6",
+          "version": "Electron 45.0.0",
           "role": "primary",
           "dir": "node_modules/electron/dist",
           "present": true,
           "complete": true,
-          "sizeBytes": 346359350,
-          "fileCount": 75,
+          "sizeBytes": 374097589,
+          "fileCount": 73,
           "arch": "x64 (AMD64)",
           "archNote": null,
           "probes": [
             {
               "desc": "Chromium 运行时主程序",
               "present": true,
-              "sizeBytes": 213976576,
+              "sizeBytes": 249797632,
               "path": "node_modules/electron/dist/electron.exe"
             },
             {
               "desc": "Chromium 资源包",
               "present": true,
-              "sizeBytes": 6432249,
+              "sizeBytes": 13371538,
               "path": "node_modules/electron/dist/resources.pak"
             },
             {
               "desc": "ICU 国际化数据",
               "present": true,
-              "sizeBytes": 10822192,
+              "sizeBytes": 10824432,
               "path": "node_modules/electron/dist/icudtl.dat"
             },
             {
               "desc": "V8 堆快照",
               "present": true,
-              "sizeBytes": 713034,
+              "sizeBytes": 753112,
               "path": "node_modules/electron/dist/v8_context_snapshot.bin"
             }
           ],
@@ -66,10 +66,10 @@
             "arch": "x64 (AMD64)",
             "is64": true,
             "subsystem": "WINDOWS_GUI",
-            "exportCount": 3413,
+            "exportCount": 3250,
             "dllName": "electron.exe",
-            "linkedAt": "2026-06-28",
-            "imageBytes": 218099712,
+            "linkedAt": "2026-10-20",
+            "imageBytes": 251240448,
             "sampleExports": [
               "??$TryToCopyAndConvertArrayToCppBuffer@$0DAA@H@v8@@YA_NV?$Local@VArray@v8@@@0@PEAHI@Z",
               "??$TryToCopyAndConvertArrayToCppBuffer@$0EAA@I@v8@@YA_NV?$Local@VArray@v8@@@0@PEAII@Z",
@@ -82,19 +82,19 @@
           "sha256": [
             {
               "file": "electron.exe",
-              "sha256": "98124313b3e0e5127b82e10580a95a26fdb81c1e3d6429fa75b8b91bb6b46069"
+              "sha256": "8e84549b05d27d444da2957653200d1e0ac287eff0fc5722b92835b9e0821a59"
             },
             {
               "file": "resources.pak",
-              "sha256": "5e2fd4d456e6a5b999c3c0a099340035b0fcbbe40a8f072d0464a400bd04800b"
+              "sha256": "a7b40d37892f0bb380b6735bdd9382ee69e9ca24dad1119bde5b53d55edb9b2b"
             },
             {
               "file": "icudtl.dat",
-              "sha256": "1cf67874b5a87a8363a86fb3f81e3cbbed54d389062dab8fb52308d5cf8c8612"
+              "sha256": "02a01b3188b6a41a756f7322fdb5e6b5ca6573b327b01dfc8ed662d571a6f769"
             },
             {
               "file": "v8_context_snapshot.bin",
-              "sha256": "8b47181db61d20574cf3407ffbfea0f4584d4d74b5e5bcd873dbad5b19d4d0ed"
+              "sha256": "2fc28f6396a571fb6490504aff0b0f767bce24105cad2489dcc3d53396df8a38"
             }
           ]
         },
@@ -298,12 +298,12 @@
   ],
   "upstream": {
     "electron": {
-      "file": "electron-v40.10.6-win32-x64.zip",
+      "file": "electron-v45.0.0-win32-x64.zip",
       "found": true,
-      "archivePath": "C:/Users/jim/AppData/Local/electron/Cache/ce11c5d03244ec3f1f6a72a4af2a26b45cde2089527d8b5aa846fe4cb30d031f/electron-v40.10.6-win32-x64.zip",
-      "sizeBytes": 138171008,
-      "expectedSha256": "072480360a5d5e3ec0d4173b1f9d7d0bca435098567d7e6bb5829638072febfd",
-      "actualSha256": "072480360a5d5e3ec0d4173b1f9d7d0bca435098567d7e6bb5829638072febfd",
+      "archivePath": "C:/Users/jim/AppData/Local/electron/Cache/3b8969e65244bc9d05c7eea4e654968940f4e6ea34bbda0e3c19deb9932d94f2/electron-v45.0.0-win32-x64.zip",
+      "sizeBytes": 158223852,
+      "expectedSha256": "ae53887a23bb640369c93dbd38c408a2af5c0deb86f2fa76c6c244cb444b7f47",
+      "actualSha256": "ae53887a23bb640369c93dbd38c408a2af5c0deb86f2fa76c6c244cb444b7f47",
       "match": true
     }
   }

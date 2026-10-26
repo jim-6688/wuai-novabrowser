@@ -45,15 +45,15 @@
   if (!navigator.userAgentData) {
     def(navigator, 'userAgentData', () => ({
       brands: [
-        { brand: 'Google Chrome', brandVersion: '144' },
-        { brand: 'Chromium', brandVersion: '144' },
+        { brand: 'Google Chrome', brandVersion: '156' },
+        { brand: 'Chromium', brandVersion: '156' },
         { brand: 'Not?A_Brand', brandVersion: '24' }
       ],
       mobile: false,
       platform: 'Windows',
       getHighEntropyValues: () => Promise.resolve({
         architecture: 'x86', bitness: '64', model: '', platform: 'Windows',
-        platformVersion: '15.0.0', uaFullVersion: '144.0.7559.236'
+        platformVersion: '15.0.0', uaFullVersion: '156.0.8078.48'
       }),
       toJSON: () => ({})
     }));

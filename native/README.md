@@ -19,7 +19,7 @@ Nova 的双内核能力分成两层：
 
 | 内核 | 位置 | 版本 | 体积 | PE 校验 |
 |---|---|---|---|---|
-| Chromium · Electron | `node_modules/electron/dist/` | Electron 40.10.6 | 约 330 MB | PE32+ **x64**，导出 3413（V8） |
+| Chromium · Electron | `node_modules/electron/dist/` | Electron 45.0.0 | 约 357 MB | PE32+ **x64**，导出大量（V8） |
 | Chromium · CEF | `native/engines/chromium-cef/` | CEF 154.0.34 / Chromium 154.0.8037.98 | 422 MB | PE32+ **x64**，导出 249（`cef_*`） |
 | **Trident** · MSHTML | `C:/Windows/System32/mshtml.dll` | 系统组件（**无需下载**） | 22 MB | PE32+ **x64**，导出 22 |
 
