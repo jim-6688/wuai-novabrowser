@@ -26,7 +26,7 @@ if (typeof window !== 'undefined' && !window.nova) {
       binariesReady: true, bridgeReady: false, arch: 'x64 (AMD64)', blocker: null,
       sources: [
         {
-          id: 'chromium-electron', label: 'Electron 主内核', version: 'Electron 30.5.1',
+          id: 'chromium-electron', label: 'Electron 主内核', version: 'Electron 40.10.6',
           complete: true, sizeBytes: 266413849, fileCount: 73,
           signature: { valid: true, detected: 'Electron / Chromium', arch: 'x64 (AMD64)', exportCount: 3126, linkedAt: '2024-09-13' }
         },
@@ -54,7 +54,7 @@ if (typeof window !== 'undefined' && !window.nova) {
     {
       id: 'chromium', label: 'Chromium', vendor: 'Blink · 现代标准内核', short: 'CR',
       accent: '#3D6BFF', partition: 'persist:nova-chromium', mode: 'native', modeLabel: '原生内核',
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
       shim: null, capabilities: { crx: true, xpi: 'polyfill', adblock: true, devtools: true },
       notes: '进程内真实 Blink 渲染，插件与 DevTools 完整可用。', fallbackReason: null,
       kernel: kernelOf('chromium')
@@ -446,7 +446,7 @@ if (typeof window !== 'undefined' && !window.nova) {
       { title: 'Firefox 扩展文档 - MDN', url: 'https://developer.mozilla.org/zh-CN/docs/Mozilla/Add-ons', ts: now - 86400000, visits: 2 }
     ],
     appVersion: '1.0.3（预览）',
-    versions: { electron: '30.x（预览）', chrome: '126.0.6478.0（预览）', node: '20.x（预览）' },
+    versions: { electron: '40.x（预览）', chrome: '144.0.7559.236（预览）', node: '24.x（预览）' },
     platform: 'win32',
     allowlist: []
   };

@@ -2970,7 +2970,7 @@ svg {
    ---------------------------------------------------------------------------
    UA 样式表里的 [hidden] 只是一条普通声明，作者样式表里的任何 display 都会盖掉它。
    像 .tab-grid / .sheet 这种「position:fixed + inset:0」，一旦没被盖住就会铺满整个
-   窗口把界面全遮住（实测 Electron 30 / Chromium 126：带 hidden 仍然 display:flex）。
+   窗口把界面全遮住（实测 Electron 40 / Chromium 144，行为自 30 起一致：带 hidden 仍然 display:flex）。
    两道保险：
      1) 下面这条全局规则（真引擎按规范会尊重 !important）；
      2) 所有会设 display 的覆盖层规则都写成 :not([hidden])，元素带 hidden 时根本不匹配，

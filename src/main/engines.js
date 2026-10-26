@@ -33,7 +33,7 @@ const HOST_BIN_DIR = path.join(ROOT_FOR_BIN, 'native', 'bin');
 // 清单是普通 JSON，从 asar 内读取即可，不需要 unpack。
 const ENGINE_MANIFEST = path.join(ROOT, 'native', 'engines', 'manifest.json');
 
-const CHROME_MAJOR = (process.versions.chrome || '126.0.0.0').split('.')[0];
+const CHROME_MAJOR = (process.versions.chrome || '144.0.0.0').split('.')[0];
 
 /**
  * 读取内核清单（由 tools/check-engines.js 生成）。

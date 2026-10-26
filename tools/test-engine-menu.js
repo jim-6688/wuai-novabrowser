@@ -187,7 +187,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         '实际 ' + body.querySelectorAll('.kb-src').length + ' 个');
   check('没有 is-missing（本次全部就位）',
         body.querySelectorAll('.kb-src.is-missing').length === 0);
-  check('Chromium 标注为原生桥接就绪态', /Electron 30\.5\.1/.test(txt) && /CEF 154\.0\.34/.test(txt));
+  check('Chromium 标注为原生桥接就绪态', /Electron 40\.\d+\.\d+/.test(txt) && /CEF 154\.0\.34/.test(txt));
   check('Trident 标为系统组件', /Windows 内置 MSHTML/.test(txt));
   check('显示 PE 特征识别结果', /CEF \/ Chromium Embedded/.test(txt) && /Trident \/ MSHTML \(IE\)/.test(txt));
   check('显示文件数与体积', /73 文件 \/ 254 MB/.test(txt), txt.match(/\d+ 文件 \/ \d+ MB/)?.[0] || '未找到');

@@ -201,7 +201,7 @@ compat  兼容层（伪造 UA/文档模式/API 垫片，但渲染仍是 Blink）
 
 | 内核 | 位置 | 版本 | 体积 | PE 校验结果 |
 |---|---|---|---|---|
-| Chromium · Electron | `node_modules/electron/dist/` | Electron 30.5.1 | 254 MB | PE32+ **x64** · 导出 3126 个 V8 符号 → `Electron / Chromium` |
+| Chromium · Electron | `node_modules/electron/dist/` | Electron 40.10.6 | 约 330 MB | PE32+ **x64** · 导出 3413 个 V8 符号 → `Electron / Chromium` |
 | Chromium · CEF | `native/engines/chromium-cef/` | CEF 154.0.34 / Chromium 154.0.8037.98 | 422 MB | PE32+ **x64** · 导出 249 个 `cef_*` → `CEF / Chromium Embedded` |
 | **Gecko** · GeckoFX 45 | `native/engines/gecko-xulrunner45/output/` | GeckoFX 45.0.6 / XULRunner 45.0.0.5873 | 74 MB | PE32 **x86** · 导出 1847 个 `NS_*` → `Gecko / XULRunner (XPCOM)` |
 | Gecko · 官方 XULRunner | `native/engines/gecko-xulrunner41/xulrunner/` | XULRunner 41.0.2（2015 官方归档） | 75 MB | PE32 **x86** · 导出 1123 个 → `Gecko / XULRunner (XPCOM)` |
