@@ -130,7 +130,10 @@ contextBridge.exposeInMainWorld('nova', {
     sourceToggle: (id, enabled) => ipcRenderer.invoke('adblock:source:toggle', { id, enabled }),
     allowlistAdd: (host) => ipcRenderer.invoke('adblock:allowlist:add', host),
     allowlistRemove: (host) => ipcRenderer.invoke('adblock:allowlist:remove', host),
-    importList: () => ipcRenderer.invoke('adblock:import-list')
+    importList: () => ipcRenderer.invoke('adblock:import-list'),
+    /* 独立窗口：点工具栏盾牌时由外壳侧栏调用，主进程据此开一个独立窗口
+       （已开则提到前面）。窗口内自己拉状态、自己画，不依赖侧栏状态。 */
+    openWindow: () => ipcRenderer.invoke('adblock:open-window')
   },
 
   /* --- 扩展 --- */

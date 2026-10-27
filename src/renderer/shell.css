@@ -11,6 +11,7 @@
   /* 品牌。青兰为主、蓝绿为辅，两者之间的 135° 渐变是「星云」母题，
      用在品牌标识、一级按钮、内核胶囊、进度条与开关的开态上。 */
   --brand: #2D6BF5;
+  --brand-2: #6FA0FF;
   --brand-strong: #1D52D6;
   --brand-soft: rgba(45, 107, 245, 0.12);
   --accent: #00C8A8;
@@ -95,6 +96,7 @@
 
 [data-theme="dark"] {
   --brand: #5B8BFF;
+  --brand-2: #8FB0FF;
   --brand-strong: #4272E8;
   --brand-soft: rgba(91, 139, 255, 0.20);
   --accent: #2BD9BE;
@@ -1712,15 +1714,37 @@ svg {
 .dl-pill.is-paused { color: var(--warn); border-color: var(--warn); background: transparent; }
 .dl-pill.is-canceled, .dl-pill.is-queued { color: var(--text-4); }
 
-/* 分片进度条 —— 每一格就是一条连接 */
+/* 整体进度条 —— 随总进度单调增长的主视觉，一眼看出下载走了多少 */
+.dl-bar {
+  height: 10px;
+  margin-top: var(--sp-2);
+  margin-bottom: 4px;
+  background: var(--surface-3);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.dl-bar-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  /* 渐变让「在走」比纯色更明显，避免「一条蓝、看不出进度」的观感 */
+  background: linear-gradient(90deg, var(--brand), var(--brand-2, #5B8BFF));
+  border-radius: 999px;
+  transition: width 220ms var(--ease);
+}
+.dl-bar.is-done .dl-bar-fill { background: var(--ok); }
+.dl-bar.is-error .dl-bar-fill { background: var(--danger); }
+.dl-bar.is-paused .dl-bar-fill { background: var(--warn); }
+
+/* 分片进度条（细节条）—— 每一格就是一条连接，已降为上方整体条下方的细条 */
 .dl-segs {
   display: flex;
   /* 间隙透出卡片底色，每一条连接各自成格。2px 在这个尺度下几乎看不出分隔，
      所以留 4px；这一条控件是整页的说明重点，分隔必须一眼可见。 */
   gap: 4px;
-  height: 9px;
-  margin-top: var(--sp-2);
-  margin-bottom: 2px;
+  height: 4px;
+  margin-top: 0;
+  margin-bottom: var(--sp-2);
   background: var(--surface);
 }
 .dl-seg {
@@ -2699,7 +2723,8 @@ svg {
 [data-layout="mobile"] .dl-stats { grid-template-columns: repeat(2, 1fr); }
 [data-layout="mobile"] .dl-new { flex-direction: column; align-items: stretch; }
 [data-layout="mobile"] .dl-new input { width: 100%; }
-[data-layout="mobile"] .dl-segs { height: 6px; }
+[data-layout="mobile"] .dl-bar { height: 8px; }
+[data-layout="mobile"] .dl-segs { height: 3px; }
 
 /* 嗅探页在窄屏：统计两列、条目按钮换行排 */
 [data-layout="mobile"] .sn-stats { grid-template-columns: repeat(2, 1fr); }

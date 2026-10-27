@@ -833,6 +833,7 @@ class AdBlocker {
       enabled: this.enabled,
       cosmetic: this.cosmeticEnabled,
       level: this.level,
+      allowlist: [...this.allowlist],
       rules: {
         network: this._counts.network,
         cosmetic: this.cosmeticUniversal.length

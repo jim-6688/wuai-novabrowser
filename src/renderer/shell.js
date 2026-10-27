@@ -3717,6 +3717,12 @@ function dlTaskRow(t) {
   const total = t.total > 0 ? t.total : 0;
   const pct = Math.round(dlProgressOf(t) * 100);
   const native = t.source === 'chromium' || t.source === 'fallback';
+  // 整体进度条的状态色：完成时绿、出错红、暂停黄，其余用品牌蓝。
+  // 之前只有分片条，多连接时各格填充顺序乱，一眼看像「一条蓝、没进度」；
+  // 现在加一条随总进度单调增长的干净进度条作为主视觉，分片条降为下方细节条。
+  const barCls = t.state === 'done' || t.state === 'completed' ? 'is-done'
+    : t.state === 'error' ? 'is-error'
+    : t.state === 'paused' ? 'is-paused' : '';
 
   const meta = [];
   meta.push(total ? `${fmtBytes(t.received)} / ${fmtBytes(total)}（${pct}%）` : fmtBytes(t.received));
@@ -3738,7 +3744,10 @@ function dlTaskRow(t) {
         <span class="dl-name" title="${esc(t.url)}">${esc(t.filename || hostOf(t.url) || t.url)}</span>
         <span class="dl-pill ${st.cls}">${esc(st.label)}</span>
       </div>
-      <div class="dl-segs">${dlSegments(t)}</div>
+      <div class="dl-bar ${barCls}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" title="总进度 ${pct}%">
+        <span class="dl-bar-fill" style="width:${pct}%"></span>
+      </div>
+      <div class="dl-segs" title="各连接分片进度">${dlSegments(t)}</div>
       <div class="dl-meta">${meta.map((m) => `<span>${esc(m)}</span>`).join('')}</div>
       ${err}${where}
       <div class="dl-actions">${dlActions(t)}</div>
@@ -6951,6 +6960,19 @@ async function openAiWindow() {
   toast('已在独立窗口打开 AI 助手（内容一并带过来了）');
 }
 
+/**
+ * 把广告拦截面板搬到**独立窗口**（打开即最大化）。
+ *
+ * 与 AI 助手不同，广告拦截没有要带过去的「当前画面 / 对话」，窗口起来后
+ * 自己拉状态、自己画面板；所以在侧栏这一侧不需要收起任何东西，只管打开。
+ */
+async function openAdblockWindow() {
+  let r = null;
+  try { r = await bridge.adblock.openWindow(); } catch { r = null; }
+  if (!r || r.ok === false) { toast('没能打开广告拦截窗口'); return; }
+  toast('已在独立窗口打开广告拦截');
+}
+
 /** 按 state.aiApiMessages 重画侧栏的 API 对话列表（独立窗口关回来时用）。 */
 function renderAiApiMessages() {
   const box = $('#ai-chat');
@@ -7711,7 +7733,7 @@ function wireUi() {
   $('#engine-menu').addEventListener('click', (ev) => ev.stopPropagation());
   document.addEventListener('click', closeEngineMenu);
 
-  $('#btn-shield').addEventListener('click', () => openPanel('adblock'));
+  $('#btn-shield').addEventListener('click', () => openAdblockWindow());
   $('#btn-sniff').addEventListener('click', () => toggleSniffPopover());
 
   /* 拼图图标 = 打开**独立的扩展小窗**（就地开关），不再直接跳进设置。
@@ -8192,7 +8214,7 @@ function wireUi() {
     else if (mod && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); stepZoom(activeTab(), 1); }
     else if (mod && ev.key === '-') { ev.preventDefault(); stepZoom(activeTab(), -1); }
     else if (mod && ev.key === '0') { ev.preventDefault(); setTabZoom(activeTab(), 1); }
-    else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); openPanel('adblock'); }
+    else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); openAdblockWindow(); }
     else if (mod && ev.key.toLowerCase() === 'k') { ev.preventDefault(); openCmdPalette(); }
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }

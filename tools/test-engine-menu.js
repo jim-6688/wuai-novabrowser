@@ -221,10 +221,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('渲染内核面板后仍无异常', errors.length === 0, errors.join(' | ') || '无');
 
   console.log('\n[K] 广告拦截分区 · 三个拦截源');
-  $('#btn-shield').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  // 注：工具栏盾牌现在直接弹「广告拦截」独立窗口（见 openAdblockWindow），
+  // 这里验证的是设置页里仍保留的拦截分区面板——它和独立窗口共用同一份渲染，
+  // 三个源都要画对。独立窗口本身由真实 Electron 行为测试覆盖。
+  window.nova && window.eval && window.eval("openPanel('adblock')");
   await sleep(50);
 
-  check('盾牌按钮把设置页切到拦截分区', (() => {
+  check('设置页能切到拦截分区并可见', (() => {
     const a = $('#settings-nav .sv-nav-item.is-active');
     return a && a.dataset.sec === 'adblock' && $('#settings-view').hidden === false;
   })());

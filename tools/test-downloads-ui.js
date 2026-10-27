@@ -282,10 +282,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const probeRow = $$('#dl-pop-list .dl-task')
     .find((r) => r.dataset.task === 'native_probe');
   check('小窗里出现了这条内建下载器的任务', !!probeRow);
-  const probeBar = probeRow && probeRow.querySelector('.dl-seg b');
-  check('进度条按 received / total 画出来了（不是 0% 宽）',
+  // 现在主视觉是整体进度条 .dl-bar-fill；只有字节数（没有 progress）时它也要按 received / total 走
+  const probeBar = probeRow && probeRow.querySelector('.dl-bar-fill');
+  check('整体进度条按 received / total 画出来了（不是 0% 宽）',
     probeBar && parseFloat(probeBar.style.width) > 24 && parseFloat(probeBar.style.width) < 26,
     probeBar ? probeBar.style.width : '没有进度条');
+  check('分片细节条也跟着画出来（不是 0% 宽）',
+    probeRow && (() => {
+      const b = probeRow.querySelector('.dl-seg b');
+      return b && parseFloat(b.style.width) > 24 && parseFloat(b.style.width) < 26;
+    })(),
+    probeRow ? (probeRow.querySelector('.dl-seg b') || {}).style?.width || '没有分片条' : '');
   check('旁边的百分比与条形一致', probeRow && /（25%）/.test(probeRow.textContent),
     probeRow ? probeRow.textContent.replace(/\s+/g, ' ').slice(0, 80) : '');
 
@@ -296,8 +303,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   await sleep(450);
   const probeBar2 = $$('#dl-pop-list .dl-task')
-    .find((r) => r.dataset.task === 'native_probe').querySelector('.dl-seg b');
-  check('下一帧推到 80%，条形也跟着变',
+    .find((r) => r.dataset.task === 'native_probe').querySelector('.dl-bar-fill');
+  check('下一帧推到 80%，整体条形也跟着变',
     parseFloat(probeBar2.style.width) > 79 && parseFloat(probeBar2.style.width) < 81,
     probeBar2.style.width);
 

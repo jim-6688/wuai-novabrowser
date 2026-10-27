@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>广告拦截 · 吾爱Nova浏览器</title>
+<!-- 独立窗口也走 contextIsolation + preload：页面里没有任何 Node，
+     脚本只用本地文件，样式同理。
+     这里没有 <webview>，不需要给元素定尺寸，CSP 可以收紧一点；
+     但仍保留 'unsafe-inline'（本页布局用到少量内联过渡/状态类，
+     与 shell.html 同源，删了反而会让一些交互态失效）。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+<!-- 复用外壳那份样式表：设计令牌（:root / [data-theme="dark"]）与 .btn、
+     .stat-card、.src-card 等基础控件都从那里来，本页只补自己的布局
+     （adblock-window.css），这样独立窗口和主界面是同一套语言。 -->
+<link rel="stylesheet" href="shell.css" />
+<link rel="stylesheet" href="adblock-window.css" />
+</head>
+<body>
+<div class="abw-app" id="abw-app">
+  <header class="abw-head">
+    <span class="brand-mark" aria-hidden="true">N</span>
+    <strong class="abw-title">广告拦截</strong>
+    <span class="abw-src" id="abw-mode">独立窗口</span>
+    <div class="abw-head-btns">
+      <button class="btn btn-sm" id="abw-close" title="关掉这个窗口，回到主界面">关闭窗口</button>
+    </div>
+  </header>
+
+  <main class="abw-body" id="abw-root">
+    <!-- 面板内容由 adblock-window.js 渲染 -->
+    <div class="abw-loading">加载中…</div>
+  </main>
+</div>
+<script src="adblock-window.js"></script>
+</body>
+</html>
