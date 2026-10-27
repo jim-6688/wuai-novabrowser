@@ -32,8 +32,8 @@
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
     "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v2.0.0/nova-pc-2.0.0-win-x64-setup.exe",
-    "size": 107062703,
-    "sha256": "34a06c07ab69cb8c9bced5925fc6c2dca7b4e9c96de60f09b459ec6c309d72ad",
+    "size": 107060644,
+    "sha256": "66d60878668ad0fbd87de31898f5f7442e9c8623bfc03688685f5fe334824ad3",
     "updatedAt": "2026-10-27"
   }
 }
