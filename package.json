@@ -58,7 +58,8 @@
     "publish:gitee": "node tools/publish-gitee.js",
     "test:favicon": "node tools/test-favicon-cache.js",
     "test:shortcut": "node tools/test-desktop-shortcut.js",
-    "test:store": "node tools/test-ext-store.js"
+    "test:store": "node tools/test-ext-store.js",
+    "publish:github": "node tools/publish-github.js"
   },
   "build": {
     "appId": "top.wuai.nova",
