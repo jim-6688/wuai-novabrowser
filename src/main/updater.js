@@ -72,7 +72,8 @@ function requireElectronApp() {
  *  换域名 / 换仓库时只改这里。 */
 const MANIFEST_URLS = [
   'https://nova.52ta.top/version.json',
-  'https://gitee.com/jinghe-net/i-adore-the-nova-browser/raw/main/site/version.json'
+  'https://gitee.com/jinghe-net/i-adore-the-nova-browser/raw/main/site/version.json',
+  'https://raw.githubusercontent.com/jim-6688/wuai-novabrowser/main/site/version.json'
 ];
 /** 兼容旧引用：主清单地址。 */
 const MANIFEST_URL = MANIFEST_URLS[0];

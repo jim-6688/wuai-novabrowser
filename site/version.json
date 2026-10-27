@@ -33,6 +33,12 @@
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
     "url": "https://download.52ta.top/nova-pc-2.0.1-win-x64-setup.exe",
+    "mirrors": [
+      {
+        "label": "GitHub Releases",
+        "url": "https://github.com/jim-6688/wuai-novabrowser/releases/download/v2.0.1/nova-pc-2.0.1-win-x64-setup.exe"
+      }
+    ],
     "size": 107060777,
     "sha256": "a46ccf57511c32fb140d0a4f24d3453f038a615230c7504980dd01f29979b13d",
     "updatedAt": "2026-10-27"
