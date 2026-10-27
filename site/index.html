@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>吾爱Nova浏览器 · 轻量、省流、可扩展的开源浏览器</title>
-    <meta name="description" content="吾爱Nova 是面向移动端的开源浏览器：安装包不足 400 KB，不内置内核、渲染交由系统 Chromium 完成。提供多线程下载、广告拦截、用户脚本、无图模式与自动拼页，能力与边界均如实标注。">
+    <meta name="description" content="吾爱Nova 是开源浏览器：手机版不内置内核（安装包不足 400 KB，渲染交由系统 WebView）；桌面版内置 Chromium 156（Electron 45）真内核。提供多线程下载、广告拦截、用户脚本、无图模式与自动拼页，能力与边界均如实标注。">
     <!--
       网站图标。原来只声明了 logo.png（192×192），而 favicon 的标准位置是根目录下的
       /favicon.ico —— 没有它时浏览器要去 HTML 里翻 rel="icon"，爬虫与某些抓取器
@@ -21,6 +21,11 @@
     <link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
     <link rel="apple-touch-icon" href="assets/img/favicon-32.png">
     <link rel="stylesheet" href="assets/css/style.css">
+    <!-- 安装包直链在独立域名（多吉云 CDN）。提前把 DNS 解析好，
+         用户点「下载」时少一次跨域解析等待（国内高延迟网络收益更明显）。
+         等 downioad 配好 HTTPS 证书后，可把下一行换成
+         <link rel="preconnect" href="https://downioad.nova.52ta.top" crossorigin> 进一步省掉 TLS 握手。 -->
+    <link rel="dns-prefetch" href="//downioad.nova.52ta.top">
 </head>
 <body>
 
@@ -50,9 +55,9 @@
                 <h1>不内置内核的浏览器，<br><em>把安装包与内存都省下来</em></h1>
                 <p class="lede">
                     吾爱Nova 是一款同时提供 <b>Windows 桌面版</b>与 <b>Android 手机版</b>的开源浏览器。
-                    两端都<b>不内置浏览器内核</b>：Android 版交由系统 WebView（Chromium）渲染，
-                    桌面版提供原生内核 / 原生宿主 / 兼容层三档渲染路径，由用户在设置中自行选择，
-                    省下的是上百 MB 的下载与一份常驻内存。多线程下载、广告拦截、用户脚本、
+                    <b>手机版不内置内核</b>，渲染交由系统 WebView（Chromium）完成，安装包不足 400 KB；
+                    <b>桌面版内置 Chromium 156</b>（Electron 45）真内核，另有原生宿主 / 兼容层运行时可切换。
+                    多线程下载、广告拦截、用户脚本、
                     无图模式与自动拼页两端均已具备；做不到的部分，在下方逐条写明。
                 </p>
                 <div class="hero-actions">
@@ -63,7 +68,7 @@
                     <span id="verLatest">最新版本 1.6.11（24）</span>
                     <span id="verDate">更新于 2026-10-25</span>
                     <span><i></i>Windows 10 及以上 · Android 7.0 及以上</span>
-                    <span><i></i>不内置内核 · 零个 .so</span>
+                    <span><i></i>手机版不内置内核 · 零个 .so</span>
                 </div>
             </div>
 
@@ -184,7 +189,7 @@
                 <div class="card">
                     <div class="fico g">⬢</div>
                     <h3><span class="tag">PC</span>三档内核可切换</h3>
-                    <p>地址栏右端随时切换 Chromium / Gecko / IE(Trident) 运行时，兼容层如实标注。
+                    <p>内置 <b>Chromium 156</b>（Electron 45）真内核，地址栏右端还可随时切换到 Gecko / IE(Trident) 运行时，兼容层如实标注。
                        新标签页自带常用入口与插件商店入口，扩展与收藏夹开箱可用。</p>
                 </div>
             </div>
@@ -535,15 +540,15 @@
                 <div class="cmp-col">
                     <div class="cmp-hd">
                         <span class="cmp-os">Windows</span>
-                        <strong>电脑版 · v1.0.30</strong>
-                        <span class="cmp-size">约 90 MB</span>
+                        <strong>电脑版 · v2.0.0</strong>
+                        <span class="cmp-size">约 102 MB</span>
                     </div>
                     <ul class="cmp-list">
                         <li><b>扩展</b><span>拖入 .crx 即自动安装</span></li>
-                        <li><b>渲染</b><span>原生内核 / 原生宿主 / 兼容层 三档可选</span></li>
+                        <li><b>渲染</b><span>Chromium 156 真内核 / 原生宿主 / 兼容层 三档可选</span></li>
                         <li><b>AI</b><span>侧边窗口，内嵌对话，不打断当前页</span></li>
                         <li><b>下载</b><span>地址栏旁浮窗，按连接分格显示进度</span></li>
-                        <li><b>内核更新</b><span>跟随应用，自动更新</span></li>
+                        <li><b>内核版本</b><span>Chromium 156（Electron 45），跟随应用自动更新</span></li>
                         <li class="no"><b>触屏手势</b><span>不适用（桌面端无此形态）</span></li>
                     </ul>
                 </div>
@@ -634,10 +639,11 @@
             </div>
             <div class="honest">
                 <div class="card">
-                    <h3><span class="tag b">取舍</span>为什么不内置内核</h3>
+                    <h3><span class="tag b">取舍</span>内核策略：手机不内置，桌面内置</h3>
                     <p>Android 版安装包不足 400 KB，是因为 APK 中<b>零个 .so</b>——渲染交由系统 WebView（Chromium）完成。
                        换来的是极小的体积与更低的内存占用；代价是内核版本跟随系统，无法独立升级。
-                       桌面版同理不内置内核，但体积极大（约 90 MB），因为三档运行时各自携带了一份。
+                       桌面版则内置了一份 <b>Chromium 156</b>（Electron 45）真内核，所以体积较大（约 102 MB）；
+                       Gecko / Trident 两档由可选的独立宿主进程承载，未安装时自动降级为兼容层。
                        我们认为对多数用户这是值得的取舍，但你应当了解这笔账。</p>
                 </div>
                 <div class="card">
@@ -700,9 +706,9 @@
                 </div>
             </div>
 
-            <!-- PC 版：安装包走 Gitee Release 附件（约 90 MB，不进 git 仓库），官网只放外链。
-                 只发 EXE 安装程序：Gitee 单附件上限 100 MB，绿色 ZIP 压到 125 MB 传不上去，
-                 与其让用户下分卷，不如老实给一个安装包。 -->
+            <!-- PC 版：安装包托管在多吉云（DogeCloud）云存储 + CDN（约 102 MB，不进 git、不进 EdgeOne 站点产物）。
+                 直链为 downioad.nova.52ta.top；Gitee Release 单附件上限 100 MB 装不下，故不再走 Gitee 附件。
+                 只发 EXE 安装程序。 -->
             <div class="dl-plat" data-plat="pc">
                 <h3 class="dl-os">Windows 电脑版</h3>
                 <div class="dl-box">
@@ -711,7 +717,7 @@
                         <span>Windows x64</span>
                         <span class="dl-count" id="dlCountPc" hidden></span>
                     </div>
-                    <p class="dl-note">桌面版以 <b>EXE 安装程序</b>发布（约 90 MB）：标准安装向导，可选安装目录，含开始菜单与卸载项。
+                    <p class="dl-note">桌面版内置 <b>Chromium 156</b>（Electron 45）内核，以 <b>EXE 安装程序</b>发布（约 102 MB）：标准安装向导，可选安装目录，含开始菜单与卸载项。
                        部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示，选择「保留」即可。
                        安装程序未做代码签名，首次运行时 Windows 可能提示「未知发布者」——这是自签包的固有现象，不是文件损坏。</p>
                     <div class="dl-list">
@@ -719,6 +725,7 @@
                     </div>
                     <ul class="dl-facts">
                         <li><span>版本</span><span>2.0.0</span></li>
+                        <li><span>内核</span><span>Chromium 156 · Electron 45</span></li>
                         <li><span>平台</span><span>Windows x64</span></li>
                         <li><span>大小</span><span>约 102 MB</span></li>
                     </ul>
