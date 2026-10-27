@@ -2201,7 +2201,7 @@ function wireQuickBar() {
     });
   }
 
-  // 收藏夹按钮现在是下拉：开合 + 导入 / 导出 + 管理，绑定见 wireBmMenu()
+  // 收藏夹按钮现在是下拉：开合 + 导入 / 导出 + 管理，绑定见 wireQkBmMenu()
 
   // 「关于」：顶栏直达，版本/更新/下载入口不必再翻菜单进设置
   const abtn = $('#qk-about');
@@ -2290,36 +2290,81 @@ function wireToolsMenu() {
 }
 
 /* --- 收藏夹下拉（顶栏「收藏夹」按钮） ---
- * 把「开合收藏夹栏 / 导入 / 导出 / 进设置」收在一处。
- * 导入导出复用 doBookmarksImport / doBookmarksExport，不重写一套。 */
-function renderBmMenu() {
+ * 把「开合收藏夹栏 / 导入（文件 / 已装浏览器）/ 导出 / 进设置」收在一处。
+ * 导入导出复用 doBookmarksImport / doBookmarksExport，不重写一套。
+ * 第二个视图就地列出**检测到的已安装浏览器**，点一项直接读它的书签。
+ *
+ * 命名统一带 Qk 前缀：收藏栏「更多」菜单已经占了 renderBmMenu / closeBmMenu /
+ * toggleBmMenu 这几个名字，重名会让后定义者覆盖前者（踩过一次）。 */
+function renderQkBmMenu() {
   const cnt = $('#qk-bm-count');
   if (cnt) cnt.textContent = `${(state.bookmarks || []).length} 条书签`;
   const tg = $('#qk-bm-toggle');
   if (tg) tg.textContent = bmBarMode() === 'hidden' ? '展开收藏夹栏' : '收起收藏夹栏';
 }
 
-function closeBmMenu() {
+/** 回到下拉的第一视图（开合 / 导入 / 导出 / 管理）。 */
+function showQkBmMain() {
+  const main = $('#qk-bm-main'), brow = $('#qk-bm-browsers'), head = $('#qk-bm-head');
+  if (main) main.hidden = false;
+  if (brow) brow.hidden = true;
+  if (head) head.textContent = '收藏夹';
+  renderQkBmMenu();
+}
+
+function closeQkBmMenu() {
   const m = $('#qk-bm-menu'), b = $('#qk-bmbar');
   if (!m || m.hidden) return;
   m.hidden = true;
   if (b) b.setAttribute('aria-expanded', 'false');
+  showQkBmMain();
 }
 
-function toggleBmMenu() {
+function toggleQkBmMenu() {
   const m = $('#qk-bm-menu'), b = $('#qk-bmbar');
   if (!m) return;
   const open = m.hidden;
-  if (open) renderBmMenu();
+  if (open) showQkBmMain();   // 每次打开都从第一视图开始
   m.hidden = !open;
   if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
-function wireBmMenu() {
+/** 从某个已安装浏览器导入书签（与设置页那条链路共用主进程 bookmarks:from-browser）。 */
+async function doQkBmImportFromBrowser(id) {
+  const r = await bridge.bookmarks.fromBrowser(id);
+  if (!r || r.error) { toast('导入失败：' + ((r && r.error) || '未知错误'), 4200); return; }
+  if (r.bookmarks) state.bookmarks = r.bookmarks;
+  refreshCurrent();
+  const bits = [`从 ${r.from} 导入：新增 ${r.added} 条`];
+  if (r.dup) bits.push(`已在 ${r.dup} 条`);
+  toast(`${bits.join(' · ')}，共 ${r.total} 条`, 4200);
+  showQkBmMain();
+}
+
+/** 切到「从其他浏览器导入」视图：先画占位，再问主进程要检测结果。 */
+async function showQkBmBrowsers() {
+  const main = $('#qk-bm-main'), brow = $('#qk-bm-browsers'), head = $('#qk-bm-head');
+  if (!brow) return;
+  if (main) main.hidden = true;
+  brow.hidden = false;
+  if (head) head.textContent = '从其他浏览器导入';
+  brow.innerHTML = '<button class="em-item" data-bmback="1">← 返回</button>'
+    + '<div class="em-foot">正在检测已安装的浏览器…</div>';
+  let list = [];
+  try { const r = await bridge.bookmarks.browsers(); list = (r && r.browsers) || []; } catch { list = []; }
+  const rows = list.length
+    ? list.map((b) => `<button class="em-item" ${b.supported ? `data-browser="${esc(b.id)}"` : 'disabled'}`
+        + ` title="${esc(b.supported ? '点击导入它的书签' : (b.note || '格式暂不支持'))}">`
+        + `${esc(b.name)}<span style="opacity:.6"> · ${esc(b.supported ? '导入' : (b.note || '不支持'))}</span></button>`).join('')
+    : '<div class="em-foot">没检测到已安装的浏览器，可用「从文件导入…」。</div>';
+  brow.innerHTML = '<button class="em-item" data-bmback="1">← 返回</button>' + rows;
+}
+
+function wireQkBmMenu() {
   const btn = $('#qk-bmbar'), menu = $('#qk-bm-menu');
   if (!btn || !menu) return;
-  renderBmMenu();
-  btn.addEventListener('click', (ev) => { ev.stopPropagation(); toggleBmMenu(); });
+  renderQkBmMenu();
+  btn.addEventListener('click', (ev) => { ev.stopPropagation(); toggleQkBmMenu(); });
 
   const tg = $('#qk-bm-toggle');
   if (tg) {
@@ -2330,23 +2375,35 @@ function wireBmMenu() {
       renderBookmarkBar(true);
       syncQuickBar();
       refreshCurrent();
-      closeBmMenu();
+      closeQkBmMenu();
       await bridge.settings.patch({ bookmarkBar: next });
       toast('收藏夹栏：' + BM_BAR_LABEL[next]);
     });
   }
   const imp = $('#qk-bm-import');
-  if (imp) imp.addEventListener('click', async () => { closeBmMenu(); await doBookmarksImport(); renderBmMenu(); });
+  if (imp) imp.addEventListener('click', async () => { closeQkBmMenu(); await doBookmarksImport(); renderQkBmMenu(); });
   const exp = $('#qk-bm-export');
-  if (exp) exp.addEventListener('click', async () => { closeBmMenu(); await doBookmarksExport(); });
+  if (exp) exp.addEventListener('click', async () => { closeQkBmMenu(); await doBookmarksExport(); });
   const mg = $('#qk-bm-manage');
-  if (mg) mg.addEventListener('click', () => { closeBmMenu(); openPanel('bookmarks'); });
+  if (mg) mg.addEventListener('click', () => { closeQkBmMenu(); openPanel('bookmarks'); });
+
+  const fromBrowser = $('#qk-bm-from-browser');
+  if (fromBrowser) fromBrowser.addEventListener('click', () => { showQkBmBrowsers(); });
+
+  const brow = $('#qk-bm-browsers');
+  if (brow) {
+    brow.addEventListener('click', async (ev) => {
+      if (ev.target.closest('[data-bmback]')) { showQkBmMain(); return; }
+      const b = ev.target.closest('[data-browser]');
+      if (b && !b.disabled) await doQkBmImportFromBrowser(b.dataset.browser);
+    });
+  }
 
   // 点外面收起
   document.addEventListener('click', (ev) => {
     if (menu.hidden) return;
     if (ev.target.closest('#qk-bm-menu') || ev.target.closest('#qk-bmbar')) return;
-    closeBmMenu();
+    closeQkBmMenu();
   });
 }
 
@@ -8403,7 +8460,7 @@ function wireUi() {
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeBmMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeOmniMenu(); closeFindBar(); closeSniffPopover(); closeAdblockPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeBmMenu(); closeQkBmMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeOmniMenu(); closeFindBar(); closeSniffPopover(); closeAdblockPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -8416,7 +8473,7 @@ function wireUi() {
   wireQuickBar();
   wireCmdPalette();
   wireToolsMenu();
-  wireBmMenu();
+  wireQkBmMenu();
   wireAuthDialog();
   window.addEventListener('resize', applyLayout);
 }

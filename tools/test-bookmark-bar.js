@@ -377,6 +377,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(60);
   check('点收藏夹按钮弹出下拉', !$('#qk-bm-menu').hidden);
   check('下拉里有导入 / 导出', !!$('#qk-bm-import') && !!$('#qk-bm-export'));
+  check('下拉里有「从其他浏览器导入」', !!$('#qk-bm-from-browser'));
+
+  // 第二视图：检测已装浏览器（预览模式的 mock 没有这个方法，会退化成「没检测到」，
+  // 但视图切换本身必须成立 —— 那才是这里的接线）
+  $('#qk-bm-from-browser').click();
+  await sleep(60);
+  check('切到「从其他浏览器导入」视图',
+    $('#qk-bm-main').hidden && !$('#qk-bm-browsers').hidden);
+  $('#qk-bm-browsers [data-bmback]').click();
+  await sleep(30);
+  check('返回后回到主视图', !$('#qk-bm-main').hidden && $('#qk-bm-browsers').hidden);
 
   $('#qk-bm-toggle').click();
   await sleep(60);

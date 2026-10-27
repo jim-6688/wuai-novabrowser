@@ -63,13 +63,18 @@
         </button>
         <!-- 收藏夹下拉：开合栏 + 导入 / 导出 + 进设置。导入导出与设置页、侧栏共用同一套逻辑。 -->
         <div class="tools-menu qk-bm-menu" id="qk-bm-menu" role="menu" aria-label="收藏夹" hidden>
-          <div class="em-head">收藏夹</div>
-          <div class="em-list">
-            <button class="em-item" id="qk-bm-toggle" role="menuitem">收起收藏夹栏</button>
-            <button class="em-item" id="qk-bm-import" role="menuitem">导入书签…</button>
-            <button class="em-item" id="qk-bm-export" role="menuitem">导出书签…</button>
-            <button class="em-item" id="qk-bm-manage" role="menuitem">在设置里管理</button>
+          <div class="em-head" id="qk-bm-head">收藏夹</div>
+          <div id="qk-bm-main">
+            <div class="em-list">
+              <button class="em-item" id="qk-bm-toggle" role="menuitem">收起收藏夹栏</button>
+              <button class="em-item" id="qk-bm-import" role="menuitem">从文件导入…</button>
+              <button class="em-item" id="qk-bm-from-browser" role="menuitem">从其他浏览器导入 ▸</button>
+              <button class="em-item" id="qk-bm-export" role="menuitem">导出书签…</button>
+              <button class="em-item" id="qk-bm-manage" role="menuitem">在设置里管理</button>
+            </div>
           </div>
+          <!-- 第二视图：检测到的已安装浏览器（点一项直接导入），由 JS 填 -->
+          <div id="qk-bm-browsers" hidden></div>
           <div class="em-foot" id="qk-bm-count">—</div>
         </div>
       </div>
