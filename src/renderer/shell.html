@@ -219,11 +219,27 @@
     </div>
 
     <div class="tool-group">
-      <button class="icon-btn has-badge has-label" id="btn-shield" title="广告拦截">
-        <svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z" /></svg>
-        <span class="ib-label">广告拦截</span>
-        <i class="badge" id="shield-count">0</i>
-      </button>
+      <!-- 广告拦截：点盾牌弹一个**贴在按钮下方的小窗**（与下载 / 媒体嗅探 / 扩展
+           同一套 .dl-popover 外壳），就地开关拦截与拦截源，不在整页设置里跳来跳去。
+           更细的白名单 / 强度 / 导入清单仍在设置页，小窗底部留入口过去。 -->
+      <div class="ab-cluster">
+        <button class="icon-btn has-badge has-label" id="btn-shield" title="广告拦截" aria-expanded="false" aria-haspopup="dialog">
+          <svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z" /></svg>
+          <span class="ib-label">广告拦截</span>
+          <i class="badge" id="shield-count">0</i>
+        </button>
+        <div class="dl-popover ab-popover" id="ab-popover" role="dialog" aria-label="广告拦截" hidden>
+          <div class="dl-pop-head">
+            <span>广告拦截</span>
+            <button class="dl-pop-x" id="ab-pop-close" title="收起">×</button>
+          </div>
+          <div class="dl-pop-list" id="ab-pop-body"></div>
+          <div class="dl-pop-foot">
+            <button class="btn btn-sm" id="ab-pop-manage">在设置里管理</button>
+            <button class="btn btn-sm" id="ab-pop-reset">重置统计</button>
+          </div>
+        </div>
+      </div>
       <!-- 媒体嗅探：点按钮弹出贴在下方的小窗（复用下载/扩展小窗的 .dl-popover）。
            内容和设置里的「媒体嗅探」是同一份，只是省掉了页头和长说明；
            底部留一个「在设置里管理」的入口，需要看完整说明时再过去。 -->

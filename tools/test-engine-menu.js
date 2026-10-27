@@ -221,9 +221,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('渲染内核面板后仍无异常', errors.length === 0, errors.join(' | ') || '无');
 
   console.log('\n[K] 广告拦截分区 · 三个拦截源');
-  // 注：工具栏盾牌现在直接弹「广告拦截」独立窗口（见 openAdblockWindow），
-  // 这里验证的是设置页里仍保留的拦截分区面板——它和独立窗口共用同一份渲染，
-  // 三个源都要画对。独立窗口本身由真实 Electron 行为测试覆盖。
+  // 注：工具栏盾牌现在弹出「广告拦截」小窗（贴在按钮下方的 .dl-popover 浮层，
+  // 见 toggleAdblockPopover）；这里验证的是设置页里仍保留的拦截分区面板——
+  // 它和小窗共用同一份数据与渲染，三个源都要画对。小窗的显示/收起由
+  // test-hidden-attr / 真实 Electron 行为覆盖。
   window.nova && window.eval && window.eval("openPanel('adblock')");
   await sleep(50);
 

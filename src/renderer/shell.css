@@ -1441,6 +1441,30 @@ svg {
 .sniff-popover .sn-stats { grid-template-columns: repeat(3, 1fr); }
 .sniff-popover .sn-card .sn-item { padding: 10px 12px; }
 
+/* 广告拦截小窗：外壳复用 .dl-popover（贴在盾牌下方往左展开），
+   内容排成「一行一件事」：本次拦截数 / 总开关 / 各拦截源 / 当前站点白名单。 */
+.ab-cluster { position: relative; display: flex; align-items: center; }
+.ab-popover { width: 320px; max-height: 60vh; }
+.ab-pop-inner { padding: 4px 0 6px; }
+.ab-pop-stat {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 10px var(--sp-3) 12px;
+}
+.ab-pop-stat b {
+  font-size: 24px; line-height: 1; color: var(--ok);
+  font-variant-numeric: tabular-nums;
+}
+.ab-pop-stat span { font-size: 11px; color: var(--text-4); }
+.ab-pop-sub {
+  padding: 8px var(--sp-3) 4px;
+  font-size: 11px; color: var(--text-4);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+/* 小窗里 list-row 收紧上下留白，一屏能多看两行 */
+.ab-pop-inner .list-row { padding: 9px var(--sp-3); }
+.ab-popover .dl-pop-list { overflow-x: hidden; }
+
 /* 扩展一行：图标 / 名字+版本 / 开关。比设置里那张卡片矮得多 ——
    这里的目标是「一眼扫完、顺手切一个」，不是读描述。 */
 .ext-pop-row {

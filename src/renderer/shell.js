@@ -3287,6 +3287,83 @@ function toggleSniffPopover() {
   else closeSniffPopover();
 }
 
+/* --- 广告拦截小窗 ---
+ * 点工具栏盾牌弹出，贴在按钮下方往左展开（复用 .dl-popover 外壳，与下载/嗅探/扩展
+ * 同一套交互）。这里只放「高频、就地能切」的东西：本次拦截数、总开关、三个拦截源、
+ * 当前站点白名单；更细的强度/白名单管理/导入清单仍在设置页（底部留入口）。
+ * 所有开关沿用 wireActions 里已有的 data-toggle / data-source / data-allow 委托，
+ * 不在这里另抄一套点击逻辑。
+ */
+function buildAdblockCompact() {
+  const s = state.adblock || {};
+  const ab = (state.settings && state.settings.adblock) || {};
+  const host = activeTab() ? hostOf(activeTab().url) : '';
+  const allowed = state.allowlist.some((h) => h === host || (host && host.endsWith('.' + h)));
+  const sources = s.sources || [];
+  return `
+    <div class="ab-pop-inner">
+      <div class="ab-pop-stat">
+        <b>${fmtNum(s.blocked)}</b>
+        <span>本次会话已拦截</span>
+      </div>
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">启用广告拦截</span><span class="lr-sub">网络层 + 元素隐藏</span></span>
+        <button class="switch ${ab.enabled ? 'is-on' : ''}" data-toggle="enabled"></button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">元素隐藏</span><span class="lr-sub">外观过滤</span></span>
+        <button class="switch ${ab.cosmetic ? 'is-on' : ''}" data-toggle="cosmetic"></button>
+      </div>
+      ${sources.length ? `
+      <div class="ab-pop-sub">拦截来源</div>
+      ${sources.map((src) => `
+        <div class="list-row">
+          <span class="lr-main">
+            <span class="lr-title">${esc(src.name)}</span>
+            <span class="lr-sub">${fmtNum((src.counts || {}).network)} 网络 · ${fmtNum(src.blocked)} 命中</span>
+          </span>
+          <button class="switch ${src.enabled ? 'is-on' : ''}" data-source="${esc(src.id)}"></button>
+        </div>`).join('')}` : ''}
+      ${host ? `
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">当前站点 ${esc(host)}</span><span class="lr-sub">${allowed ? '已加入白名单，本站不拦截' : '正常拦截'}</span></span>
+        <button class="btn btn-sm" data-allow="${esc(host)}">${allowed ? '移出白名单' : '加入白名单'}</button>
+      </div>` : ''}
+    </div>
+  `;
+}
+
+function renderAdblockPopover() {
+  const body = $('#ab-pop-body');
+  if (!body) return;
+  body.innerHTML = buildAdblockCompact();
+  wireActions(body);
+}
+
+function openAdblockPopover() {
+  const pop = $('#ab-popover');
+  if (!pop) return;
+  renderAdblockPopover();
+  pop.hidden = false;
+  const btn = $('#btn-shield');
+  if (btn) btn.setAttribute('aria-expanded', 'true');
+}
+
+function closeAdblockPopover() {
+  const pop = $('#ab-popover');
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  const btn = $('#btn-shield');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function toggleAdblockPopover() {
+  const pop = $('#ab-popover');
+  if (!pop) return;
+  if (pop.hidden) openAdblockPopover();
+  else closeAdblockPopover();
+}
+
 async function buildHistory() {
   const items = await bridge.history.list(200);
   return `
@@ -6960,19 +7037,6 @@ async function openAiWindow() {
   toast('已在独立窗口打开 AI 助手（内容一并带过来了）');
 }
 
-/**
- * 把广告拦截面板搬到**独立窗口**（打开即最大化）。
- *
- * 与 AI 助手不同，广告拦截没有要带过去的「当前画面 / 对话」，窗口起来后
- * 自己拉状态、自己画面板；所以在侧栏这一侧不需要收起任何东西，只管打开。
- */
-async function openAdblockWindow() {
-  let r = null;
-  try { r = await bridge.adblock.openWindow(); } catch { r = null; }
-  if (!r || r.ok === false) { toast('没能打开广告拦截窗口'); return; }
-  toast('已在独立窗口打开广告拦截');
-}
-
 /** 按 state.aiApiMessages 重画侧栏的 API 对话列表（独立窗口关回来时用）。 */
 function renderAiApiMessages() {
   const box = $('#ai-chat');
@@ -7733,7 +7797,22 @@ function wireUi() {
   $('#engine-menu').addEventListener('click', (ev) => ev.stopPropagation());
   document.addEventListener('click', closeEngineMenu);
 
-  $('#btn-shield').addEventListener('click', () => openAdblockWindow());
+  // 广告拦截小窗：点盾牌开/收；点外面、点网页、改窗口尺寸都收起
+  $('#btn-shield').addEventListener('click', () => toggleAdblockPopover());
+  document.addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (t && typeof t.closest === 'function'
+        && (t.closest('#ab-popover') || t.closest('#btn-shield'))) return;
+    closeAdblockPopover();
+  });
+  window.addEventListener('resize', closeAdblockPopover);
+  $('#ab-pop-close').addEventListener('click', closeAdblockPopover);
+  $('#ab-pop-manage').addEventListener('click', () => { closeAdblockPopover(); openPanel('adblock'); });
+  $('#ab-pop-reset').addEventListener('click', async () => {
+    state.adblock = await bridge.adblock.reset();
+    renderAdblockPopover();
+    toast('统计已重置');
+  });
   $('#btn-sniff').addEventListener('click', () => toggleSniffPopover());
 
   /* 拼图图标 = 打开**独立的扩展小窗**（就地开关），不再直接跳进设置。
@@ -8214,13 +8293,13 @@ function wireUi() {
     else if (mod && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); stepZoom(activeTab(), 1); }
     else if (mod && ev.key === '-') { ev.preventDefault(); stepZoom(activeTab(), -1); }
     else if (mod && ev.key === '0') { ev.preventDefault(); setTabZoom(activeTab(), 1); }
-    else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); openAdblockWindow(); }
+    else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); toggleAdblockPopover(); }
     else if (mod && ev.key.toLowerCase() === 'k') { ev.preventDefault(); openCmdPalette(); }
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeOmniMenu(); closeFindBar(); closeSniffPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeOmniMenu(); closeFindBar(); closeSniffPopover(); closeAdblockPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -8251,7 +8330,13 @@ function wireBridgeEvents() {
     }
   });
 
-  bridge.on('adblock:stats', (s) => { state.adblock = s; $('#shield-count').textContent = String(s.blocked); });
+  bridge.on('adblock:stats', (s) => {
+    state.adblock = s;
+    $('#shield-count').textContent = String(s.blocked);
+    // 小窗开着就顺手重画，让「本次已拦截」与各源命中数实时跟着走
+    const pop = $('#ab-popover');
+    if (pop && !pop.hidden) renderAdblockPopover();
+  });
   bridge.on('ext:changed', (list) => {
     state.extensions = list;
     // 小窗一直挂在那儿（点别处才收起），主进程推来的变化要立刻反映上去

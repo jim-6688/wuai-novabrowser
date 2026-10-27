@@ -191,10 +191,6 @@ async function bootstrap() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       try { mainWindow.webContents.send('adblock:stats', s); } catch { /* 窗口正在销毁 */ }
     }
-    // 独立窗口开着时也推一份，让它「本次会话已拦截」实时往上跳
-    if (adblockWindow && !adblockWindow.isDestroyed()) {
-      try { adblockWindow.webContents.send('adblock:stats', s); } catch { /* 窗口正在销毁 */ }
-    }
   });
 
   // 2) 内核解析（探测原生宿主，决定 native / bridge / compat）
@@ -510,58 +506,11 @@ function openAiWindow(payload) {
   return { ok: true, reused: false };
 }
 
-/**
- * 广告拦截 · 独立窗口（打开即最大化，单例）
- *
- * 点工具栏盾牌时由渲染层调 adblock:open-window 进来。窗口内自己拉状态、
- * 自己画面板、自己接按钮，和侧栏那一份互不依赖；关窗口只关这个窗口，
- * 没有要还给主界面的对话态，所以 closed 里不用回传。
- */
-let adblockWindow = null;
-
-/** 把最新拦截快照推给主窗口与广告拦截独立窗口（两边都要实时反映）。 */
+/** 把最新拦截快照推给主窗口（拦截来源 / 命中数要实时反映到广告拦截小窗）。 */
 function pushAdblockStats() {
-  const snap = adblock.statsSnapshot();
-  for (const w of [mainWindow, adblockWindow]) {
-    if (w && !w.isDestroyed()) {
-      try { w.webContents.send('adblock:stats', snap); } catch { /* 窗口正在销毁 */ }
-    }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.webContents.send('adblock:stats', adblock.statsSnapshot()); } catch { /* 窗口正在销毁 */ }
   }
-}
-
-function openAdblockWindow() {
-  // 已经开着：提到前面即可，不再开第二个
-  if (adblockWindow && !adblockWindow.isDestroyed()) {
-    adblockWindow.focus();
-    return { ok: true, reused: true };
-  }
-
-  adblockWindow = new BrowserWindow({
-    width: 760,
-    height: 720,
-    minWidth: 420,
-    minHeight: 420,
-    title: '广告拦截 · 吾爱Nova浏览器',
-    icon: path.join(ROOT, 'assets', 'icon', 'nova.ico'),
-    backgroundColor: settings.get('theme') === 'dark' ? '#0E1016' : '#F6F7FB',
-    show: false,
-    webPreferences: {
-      preload: path.join(ROOT, 'src', 'preload', 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      spellcheck: false
-    }
-  });
-
-  adblockWindow.loadFile(path.join(ROOT, 'src', 'renderer', 'adblock-window.html'));
-  adblockWindow.once('ready-to-show', () => {
-    adblockWindow.show();
-    // 进独立窗口就要大：直接铺满，想变回普通窗口点还原即可
-    adblockWindow.maximize();
-  });
-  adblockWindow.on('closed', () => { adblockWindow = null; });
-
-  return { ok: true, reused: false };
 }
 
 /* ------------------------------------------------------------------ *
@@ -1437,7 +1386,6 @@ function registerIpc() {
   /* --- AI 助手独立窗口 --- */
   // 侧栏把「现在在看什么」打包发过来，主进程开一个独立窗口并转交这份状态。
   handle('ai:open-window', (payload) => openAiWindow(payload));
-  handle('adblock:open-window', () => openAdblockWindow());
 
   // 新窗口起来后取初始状态（地址 / 草稿 / 对话）。
   handle('ai:init', () => aiWindowPayload || {});

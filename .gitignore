@@ -14,6 +14,11 @@ native/engines/**
 native/bin/*
 !native/bin/trident-host.exe
 
+# PC 安装包（约 100MB+）不入库：Gitee Release 单附件上限 100MB 装不下，
+# 改为托管到官网（site/download/ 由 EdgeOne 部署，走文件系统拷贝、不受 git 忽略影响）。
+# 入库会永久撑大仓库，故只在本地磁盘保留用于部署。
+site/download/*.exe
+
 # 过滤规则：约 5MB，且上游每周更新
 # 用 `npm run filters` 重新抓取，不要提交
 assets/filters/*.txt
