@@ -2179,8 +2179,11 @@ function syncQuickBar() {
     const mode = bmBarMode();
     const on = mode !== 'hidden';
     bbtn.classList.toggle('is-on', on);
-    bbtn.title = `收藏夹栏：${BM_BAR_LABEL[mode]} · 点击${on ? '隐藏' : '显示'}`;
+    bbtn.title = `收藏夹 · ${BM_BAR_LABEL[mode]} · 点击打开菜单`;
   }
+  // 下拉里的开合项文案跟着档位走
+  const bmTg = $('#qk-bm-toggle');
+  if (bmTg) bmTg.textContent = bmBarMode() === 'hidden' ? '展开收藏夹栏' : '收起收藏夹栏';
 }
 
 function wireQuickBar() {
@@ -2198,20 +2201,7 @@ function wireQuickBar() {
     });
   }
 
-  const bbtn = $('#qk-bmbar');
-  if (bbtn) {
-    bbtn.addEventListener('click', async () => {
-      // 两态开关：「仅新标签页」那一档在这里读作「开着」，点一下收起，再点
-      // 放成常驻 —— 三档之间的细微差别留给设置页。
-      const next = bmBarMode() === 'hidden' ? 'always' : 'hidden';
-      state.settings.bookmarkBar = next;
-      renderBookmarkBar(true);
-      syncQuickBar();
-      refreshCurrent();
-      await bridge.settings.patch({ bookmarkBar: next });
-      toast('收藏夹栏：' + BM_BAR_LABEL[next]);
-    });
-  }
+  // 收藏夹按钮现在是下拉：开合 + 导入 / 导出 + 管理，绑定见 wireBmMenu()
 
   // 「关于」：顶栏直达，版本/更新/下载入口不必再翻菜单进设置
   const abtn = $('#qk-about');
@@ -2297,6 +2287,67 @@ function wireToolsMenu() {
   });
   // Esc 收起交给全局 Escape 链（window 上那条），这里不重复绑 ——
   // 事件从 window 派发时不会走到 document 的监听器，绑 document 等于没绑。
+}
+
+/* --- 收藏夹下拉（顶栏「收藏夹」按钮） ---
+ * 把「开合收藏夹栏 / 导入 / 导出 / 进设置」收在一处。
+ * 导入导出复用 doBookmarksImport / doBookmarksExport，不重写一套。 */
+function renderBmMenu() {
+  const cnt = $('#qk-bm-count');
+  if (cnt) cnt.textContent = `${(state.bookmarks || []).length} 条书签`;
+  const tg = $('#qk-bm-toggle');
+  if (tg) tg.textContent = bmBarMode() === 'hidden' ? '展开收藏夹栏' : '收起收藏夹栏';
+}
+
+function closeBmMenu() {
+  const m = $('#qk-bm-menu'), b = $('#qk-bmbar');
+  if (!m || m.hidden) return;
+  m.hidden = true;
+  if (b) b.setAttribute('aria-expanded', 'false');
+}
+
+function toggleBmMenu() {
+  const m = $('#qk-bm-menu'), b = $('#qk-bmbar');
+  if (!m) return;
+  const open = m.hidden;
+  if (open) renderBmMenu();
+  m.hidden = !open;
+  if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function wireBmMenu() {
+  const btn = $('#qk-bmbar'), menu = $('#qk-bm-menu');
+  if (!btn || !menu) return;
+  renderBmMenu();
+  btn.addEventListener('click', (ev) => { ev.stopPropagation(); toggleBmMenu(); });
+
+  const tg = $('#qk-bm-toggle');
+  if (tg) {
+    tg.addEventListener('click', async () => {
+      // 两态开关：「仅新标签页」那档在这里读作「开着」，点一下收起，再点放成常驻。
+      const next = bmBarMode() === 'hidden' ? 'always' : 'hidden';
+      state.settings.bookmarkBar = next;
+      renderBookmarkBar(true);
+      syncQuickBar();
+      refreshCurrent();
+      closeBmMenu();
+      await bridge.settings.patch({ bookmarkBar: next });
+      toast('收藏夹栏：' + BM_BAR_LABEL[next]);
+    });
+  }
+  const imp = $('#qk-bm-import');
+  if (imp) imp.addEventListener('click', async () => { closeBmMenu(); await doBookmarksImport(); renderBmMenu(); });
+  const exp = $('#qk-bm-export');
+  if (exp) exp.addEventListener('click', async () => { closeBmMenu(); await doBookmarksExport(); });
+  const mg = $('#qk-bm-manage');
+  if (mg) mg.addEventListener('click', () => { closeBmMenu(); openPanel('bookmarks'); });
+
+  // 点外面收起
+  document.addEventListener('click', (ev) => {
+    if (menu.hidden) return;
+    if (ev.target.closest('#qk-bm-menu') || ev.target.closest('#qk-bmbar')) return;
+    closeBmMenu();
+  });
 }
 
 /** 命令面板：输入框实时过滤 + 键盘导航 + 背景关闭。只在启动时绑定一次。 */
@@ -8352,7 +8403,7 @@ function wireUi() {
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeOmniMenu(); closeFindBar(); closeSniffPopover(); closeAdblockPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeBmMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeOmniMenu(); closeFindBar(); closeSniffPopover(); closeAdblockPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -8365,6 +8416,7 @@ function wireUi() {
   wireQuickBar();
   wireCmdPalette();
   wireToolsMenu();
+  wireBmMenu();
   wireAuthDialog();
   window.addEventListener('resize', applyLayout);
 }

@@ -53,13 +53,26 @@
         </svg>
         <span class="qk-label">主题</span>
       </button>
-      <button class="qk-btn" id="qk-bmbar" title="收藏夹栏">
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M6.2 3.5h7.6v8.6l-3.8-2.9-3.8 2.9z" />
-          <path d="M3.4 16.5h13.2" />
-        </svg>
-        <span class="qk-label">收藏夹</span>
-      </button>
+      <div class="qk-tools-wrap">
+        <button class="qk-btn" id="qk-bmbar" title="收藏夹 · 导入 / 导出" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M6.2 3.5h7.6v8.6l-3.8-2.9-3.8 2.9z" />
+            <path d="M3.4 16.5h13.2" />
+          </svg>
+          <span class="qk-label">收藏夹</span>
+        </button>
+        <!-- 收藏夹下拉：开合栏 + 导入 / 导出 + 进设置。导入导出与设置页、侧栏共用同一套逻辑。 -->
+        <div class="tools-menu qk-bm-menu" id="qk-bm-menu" role="menu" aria-label="收藏夹" hidden>
+          <div class="em-head">收藏夹</div>
+          <div class="em-list">
+            <button class="em-item" id="qk-bm-toggle" role="menuitem">收起收藏夹栏</button>
+            <button class="em-item" id="qk-bm-import" role="menuitem">导入书签…</button>
+            <button class="em-item" id="qk-bm-export" role="menuitem">导出书签…</button>
+            <button class="em-item" id="qk-bm-manage" role="menuitem">在设置里管理</button>
+          </div>
+          <div class="em-foot" id="qk-bm-count">—</div>
+        </div>
+      </div>
       <!-- 工具菜单：把新增的功能（命令面板 / 站点权限 / 分享 / 密码 / 插件商店…）
            收在一个下拉里速达，摆在「关于」左面。按钮包一层 .qk-tools-wrap 作为
            下拉的定位锚点（标题栏整条是拖拽区，这一组要 no-drag）。 -->

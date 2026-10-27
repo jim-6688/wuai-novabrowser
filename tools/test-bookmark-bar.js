@@ -372,15 +372,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   window.eval('syncQuickBar()');
   check('栏露着的时候开关是亮的', qkBm.classList.contains('is-on'));
 
+  // 按钮现在是一个下拉：点按钮开菜单，再由菜单里的开合项真正收起 / 放出
   qkBm.click();
   await sleep(60);
-  check('点一下把栏收起来', bar.hidden);
+  check('点收藏夹按钮弹出下拉', !$('#qk-bm-menu').hidden);
+  check('下拉里有导入 / 导出', !!$('#qk-bm-import') && !!$('#qk-bm-export'));
+
+  $('#qk-bm-toggle').click();
+  await sleep(60);
+  check('点「收起」把栏收起来', bar.hidden);
   check('设置值写成 hidden', window.eval('state.settings.bookmarkBar') === 'hidden');
   check('开关也跟着灭', !qkBm.classList.contains('is-on'));
 
   qkBm.click();
   await sleep(60);
-  check('再点一下放出来', !bar.hidden);
+  $('#qk-bm-toggle').click();
+  await sleep(60);
+  check('再点「展开」放出来', !bar.hidden);
   check('设置值回到 always', window.eval('state.settings.bookmarkBar') === 'always');
 
   // 「仅新标签页」档下栏是收着的，但开关不该跟着页面闪 —— 它回答的是

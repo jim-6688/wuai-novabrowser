@@ -264,6 +264,9 @@ svg {
   animation: menuIn 140ms var(--ease);
 }
 .tools-menu .em-item { cursor: pointer; }
+/* 收藏夹下拉：条目只有一行文字，收窄一点，别沿用工具菜单那 280px 的宽 */
+.qk-bm-menu { width: 220px; }
+.qk-bm-menu .em-item { justify-content: flex-start; padding: 8px 10px; font-size: 12.5px; }
 .em-ico {
   flex: 0 0 18px;
   width: 18px; height: 18px;
