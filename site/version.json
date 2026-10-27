@@ -24,16 +24,17 @@
     }
   ],
   "pc": {
-    "version": "2.0.0",
+    "version": "2.0.1",
     "changelog": [
+      "新增 NovaBrowser UA 标识：自家站点（如导航 52ta.top）可识别「已是 Nova 用户」，不再重复推荐下载",
       "升级 Chromium 内核至 156（Electron 45），页面兼容性与运行性能提升",
       "下载进度条改为单调增长的整体进度条，多连接分片进度作为下方细节条，进度一目了然",
       "广告拦截改为贴在工具栏盾牌下方的小浮层：就地开关拦截与拦截源，不再跳进设置页"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://downioad.nova.52ta.top/nova-pc-2.0.0-win-x64-setup.exe",
-    "size": 107060644,
-    "sha256": "66d60878668ad0fbd87de31898f5f7442e9c8623bfc03688685f5fe334824ad3",
+    "url": "https://downioad.nova.52ta.top/nova-pc-2.0.1-win-x64-setup.exe",
+    "size": 107060777,
+    "sha256": "a46ccf57511c32fb140d0a4f24d3453f038a615230c7504980dd01f29979b13d",
     "updatedAt": "2026-10-27"
   }
 }

@@ -231,6 +231,17 @@ const DEFINITIONS = [
   }
 ];
 
+/* 统一在 UA 末尾追加一个 NovaBrowser/<版本> 标识：
+ * 自家站点（如导航 52ta.top）可据此识别「已经是 Nova 用户」，不再重复推荐下载。
+ * 只做**增量追加**，不改动上面的内核伪装串 —— Gecko/IE 的子串仍完整，
+ * 依赖 UA 判断内核的站点不受影响。版本号取自 package.json，随发版自动更新。 */
+let NOVA_VERSION = '0';
+try { NOVA_VERSION = require('../../package.json').version; } catch { /* 打包异常时降级 */ }
+const NOVA_UA_TOKEN = ' NovaBrowser/' + NOVA_VERSION;
+for (const def of DEFINITIONS) {
+  if (def.userAgent && !/NovaBrowser\//.test(def.userAgent)) def.userAgent += NOVA_UA_TOKEN;
+}
+
 /* ========================================================================== *
  * 引擎实例
  * ========================================================================== */
