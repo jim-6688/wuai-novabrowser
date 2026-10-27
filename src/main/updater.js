@@ -67,8 +67,15 @@ function requireElectronApp() {
   }
 }
 
-/** 清单与下载地址。官网正式域名，换域名时只改这一处。 */
-const MANIFEST_URL = 'https://nova.52ta.top/version.json';
+/** 清单地址（多源，按顺序回退）。
+ *  主源 = 官网；官网不可达时退回**码云仓库里的 raw version.json**（该文件已入库）。
+ *  换域名 / 换仓库时只改这里。 */
+const MANIFEST_URLS = [
+  'https://nova.52ta.top/version.json',
+  'https://gitee.com/jinghe-net/i-adore-the-nova-browser/raw/main/site/version.json'
+];
+/** 兼容旧引用：主清单地址。 */
+const MANIFEST_URL = MANIFEST_URLS[0];
 
 /** 版本号比大小：逐段按数字比，「1.10.0」要大于「1.9.0」。 */
 function isNewer(remote, local) {
@@ -143,7 +150,14 @@ function httpsGet(url, left, finish) {
  * @returns {Promise<{updateAvailable:boolean, version?:string, notes?:string[], url?:string, sha256?:string, size?:number, reason?:string}>}
  */
 async function check(localVersion, manifestUrl, httpGet) {
-  const m = await fetchManifest(manifestUrl || MANIFEST_URL, undefined, httpGet);
+  // 多源清单：显式传入（单测只喂一个）就只试它；否则按 MANIFEST_URLS 依次回退
+  const sources = manifestUrl ? [manifestUrl] : MANIFEST_URLS;
+  let m = null;
+  for (const src of sources) {
+    m = await fetchManifest(src, undefined, httpGet);
+    if (m && m.pc && m.pc.version) break;
+    m = null;
+  }
   if (!m || !m.pc || !m.pc.version) {
     return { updateAvailable: false, reason: '清单不可达或格式不对' };
   }
@@ -162,13 +176,24 @@ async function check(localVersion, manifestUrl, httpGet) {
    * 会拿到一个 .zip，而 {@link installAndRestart} 启动不了它，
    * 用户会看到一句「无法启动安装器」，好过静默失败。 */
   const dl = m.pc.exe || m.pc;
+  /* 下载地址做成**多源回退**：清单里的 `pc.mirrors`（码云 / GitHub 等）优先，
+     最后回落到主 `url`（多吉云）。每个源都可能失败（单附件超限、区域不可达、限速），
+     所以给调用方一个有序列表，download() 逐个试、校验通过才收。 */
+  const urls = [];
+  const push = (x) => {
+    const u = typeof x === 'string' ? x : (x && x.url);
+    if (u && !urls.includes(u)) urls.push(u);
+  };
+  if (Array.isArray(m.pc.mirrors)) m.pc.mirrors.forEach(push);
+  push(dl.url);
   return {
     updateAvailable: true,
     version: m.pc.version,
     // 只读 PC 自己这一版的更新日志。顶层 changelog 是 Android 的历史累加，
     // 拿来当 PC 的更新说明会把整份日志都铺进更新窗口。
     notes: Array.isArray(m.pc.changelog) ? m.pc.changelog : [],
-    url: dl.url,
+    url: urls[0] || dl.url,
+    urls,                          // 有序回退列表（新增；旧字段 url 保留 = 第一个）
     sha256: dl.sha256 || '',
     size: dl.size || 0,
     reason: ''
@@ -364,7 +389,8 @@ function pruneOldInstallers(keepPath) {
  */
 async function download(state, handlers) {
   const info = state && state.info;
-  if (!info || !info.url) throw new Error('没有可下载的地址');
+  const urls = (info && (info.urls && info.urls.length ? info.urls : (info.url ? [info.url] : []))) || [];
+  if (!urls.length) throw new Error('没有可下载的地址');
 
   const app = requireElectronApp();
   if (app && app.isPackaged === false) {
@@ -374,7 +400,7 @@ async function download(state, handlers) {
 
   const dir = updatesDir();
   fs.mkdirSync(dir, { recursive: true });
-  const name = fileNameOf(info.url, `nova-pc-${info.version || 'new'}-setup.exe`);
+  const name = fileNameOf(urls[0], `nova-pc-${info.version || 'new'}-setup.exe`);
   const dest = path.join(dir, name);
   const part = dest + '.part';
 
@@ -393,38 +419,56 @@ async function download(state, handlers) {
   }
   if (fs.existsSync(part)) fs.unlinkSync(part);
 
-  let lastBytes = 0;
-  let lastAt = Date.now();
-  await downloadTo(info.url, part, {
-    total: info.size || 0,
-    onProgress: (p) => {
-      if (!handlers || typeof handlers.onProgress !== 'function') return;
-      const now = Date.now();
-      const dt = (now - lastAt) / 1000;
-      // 速度按 ~600ms 一档算：逐块算的话数字跳得根本看不清
-      let speed = 0;
-      if (dt >= 0.6) {
-        speed = Math.max(0, Math.round((p.got - lastBytes) / dt));
-        lastBytes = p.got;
-        lastAt = now;
-      }
-      handlers.onProgress({ percent: p.percent, speed, got: p.got, total: p.total });
-    }
-  });
+  /* 逐个源尝试：任一个下完且**校验通过**即收；全失败才抛出（带最后一个错误）。
+     换源时重置速度采样，避免把上一个源已下的字节算进新源的速度里。 */
+  let lastErr = null;
+  let downloaded = false;
+  for (const src of urls) {
+    let lastBytes = 0;
+    let lastAt = Date.now();
+    try {
+      if (fs.existsSync(part)) fs.unlinkSync(part);
+      await downloadTo(src, part, {
+        total: info.size || 0,
+        onProgress: (p) => {
+          if (!handlers || typeof handlers.onProgress !== 'function') return;
+          const now = Date.now();
+          const dt = (now - lastAt) / 1000;
+          // 速度按 ~600ms 一档算：逐块算的话数字跳得根本看不清
+          let speed = 0;
+          if (dt >= 0.6) {
+            speed = Math.max(0, Math.round((p.got - lastBytes) / dt));
+            lastBytes = p.got;
+            lastAt = now;
+          }
+          handlers.onProgress({ percent: p.percent, speed, got: p.got, total: p.total });
+        }
+      });
 
-  /* **校验**。这一步很要紧：下回来的东西是用来**覆盖用户机器上那份程序**的。
-   * 下坏了、或者被中间替换了却照装，后果比「更新失败」严重得多。
-   * 清单里的 sha256 是我们发布时现算的，正好拿来当判据。 */
-  if (info.sha256) {
-    const got = await sha256File(part);
-    if (got !== String(info.sha256).toLowerCase()) {
-      fs.unlinkSync(part);
-      throw new Error('下载的文件校验不通过（sha256 不符），已丢弃');
+      /* **校验**。这一步很要紧：下回来的东西是用来**覆盖用户机器上那份程序**的。
+       * 下坏了、或者被中间替换了却照装，后果比「更新失败」严重得多。
+       * 清单里的 sha256 是我们发布时现算的，正好拿来当判据。
+       * 校验不过就当作这个源失败、继续试下一个（换个镜像可能是好的）。 */
+      if (info.sha256) {
+        const got = await sha256File(part);
+        if (got !== String(info.sha256).toLowerCase()) {
+          throw new Error('下载的文件校验不通过（sha256 不符）');
+        }
+      }
+
+      // 校验通过才改名 —— 否则半个文件会以「下好了」的名字留在那儿
+      fs.renameSync(part, dest);
+      downloaded = true;
+      break;
+    } catch (e) {
+      lastErr = e;
+      try { if (fs.existsSync(part)) fs.unlinkSync(part); } catch { /* 清理失败无所谓 */ }
     }
   }
 
-  // 校验通过才改名 —— 否则半个文件会以「下好了」的名字留在那儿
-  fs.renameSync(part, dest);
+  if (!downloaded) {
+    throw new Error('所有下载源都失败了' + (lastErr ? '：' + lastErr.message : ''));
+  }
   pruneOldInstallers(dest);
   return { path: dest, reused: false };
 }
@@ -468,6 +512,7 @@ function installAndRestart(state) {
 
 module.exports = {
   MANIFEST_URL,
+  MANIFEST_URLS,
   isNewer,
   fetchManifest,
   check,
