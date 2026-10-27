@@ -28,10 +28,10 @@
     "changelog": [
       "升级 Chromium 内核至 156（Electron 45），页面兼容性与运行性能提升",
       "下载进度条改为单调增长的整体进度条，多连接分片进度作为下方细节条，进度一目了然",
-      "广告拦截面板改为独立窗口：点工具栏盾牌直接弹出（打开即最大化），与主界面互不干扰"
+      "广告拦截改为贴在工具栏盾牌下方的小浮层：就地开关拦截与拦截源，不再跳进设置页"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v2.0.0/nova-pc-2.0.0-win-x64-setup.exe",
+    "url": "http://downioad.nova.52ta.top/nova-pc-2.0.0-win-x64-setup.exe",
     "size": 107060644,
     "sha256": "66d60878668ad0fbd87de31898f5f7442e9c8623bfc03688685f5fe334824ad3",
     "updatedAt": "2026-10-27"
