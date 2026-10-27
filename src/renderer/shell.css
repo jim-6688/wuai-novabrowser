@@ -914,6 +914,44 @@ svg {
 }
 .viewport webview[hidden] { display: none; }
 
+/* ---- 侧边收藏夹（bookmarkBar=side）----
+   webview 原本 inset:0 + width:100%；这里同时改 right 与 width:auto 才能正确缩窄
+   （只改 right 而留着 width:100% 会撑出视口）。它是**占布局**的，不是浮层。 */
+.viewport.bm-side webview { right: 240px; width: auto; }
+.bm-side {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 240px;
+  display: none; flex-direction: column;
+  background: var(--surface); border-left: 1px solid var(--border); z-index: 6;
+}
+.viewport.bm-side .bm-side { display: flex; }
+.bm-side-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border);
+  font-size: 12.5px; font-weight: 600; flex: 0 0 auto;
+}
+.bm-side-tools { display: flex; gap: 4px; }
+.bm-side-btn {
+  border: 0; background: transparent; color: var(--text-3);
+  font-size: 11.5px; cursor: pointer; padding: 3px 6px; border-radius: var(--r-sm);
+}
+.bm-side-btn:hover { background: var(--surface-2); color: var(--text); }
+.bm-side-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.bm-side-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px var(--sp-3); border: 0; background: transparent;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.bm-side-item:hover { background: var(--surface-2); }
+.bm-side-item .bm-fav { flex: 0 0 auto; }
+.bm-side-item .bm-side-title {
+  flex: 1; min-width: 0; font-size: 12.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bm-side-empty { padding: var(--sp-5) var(--sp-3); color: var(--text-4); font-size: 12px; text-align: center; }
+/* 移动端布局太窄，侧栏不可用：隐藏它并让网页恢复满宽 */
+[data-layout="mobile"] .bm-side { display: none !important; }
+[data-layout="mobile"] .viewport.bm-side webview { right: 0; width: 100%; }
+
 /* 内核桥接（真·trident/gecko 宿主）：canvas 承接宿主帧，同样铺满视口 */
 .bridge-view { position: absolute; inset: 0; background: #fff; }
 .bridge-view[hidden] { display: none; }

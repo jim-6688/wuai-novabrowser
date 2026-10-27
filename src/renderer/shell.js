@@ -1883,12 +1883,13 @@ function navGo(dir) {
  */
 function bmBarMode() {
   const v = state.settings && state.settings.bookmarkBar;
-  return (v === 'ntp' || v === 'hidden') ? v : 'always';
+  return (v === 'ntp' || v === 'hidden' || v === 'side') ? v : 'always';
 }
 
 /** 档位 → 设置页上的说法。toast 与分段控件共用一份，免得两处各写一遍。 */
 const BM_BAR_LABEL = {
   always: '地址栏下方',
+  side: '侧边栏',
   ntp: '仅新标签页',
   hidden: '不显示'
 };
@@ -1899,6 +1900,8 @@ const BM_BAR_LABEL = {
  * 就会不停重建 —— 表现是鼠标停在某一格上，底色一直闪。
  */
 let bmBarSig = null;
+/** 侧边收藏夹的内容指纹（与横向栏分开记，避免两种模式互相把对方的缓存打掉）。 */
+let bmSideSig = null;
 
 /**
  * 某个地址的站点图标，取到给 data: URI，取不到给空串。
@@ -2032,6 +2035,28 @@ function renderBookmarkBar(force = false) {
   // 而「这条栏现在不在了」最好在 DOM 上也成立，不是只靠一层 CSS 挡。
   const show = mode === 'always' || (mode === 'ntp' && onNtp);
 
+  const viewport = $('#viewport');
+  const sideEl = $('#bm-side');
+
+  // 侧边栏档：横向栏收起，改在视口右侧竖向显示；webview 让出的 240px 由 CSS 负责
+  if (mode === 'side' && state.layout !== 'mobile') {
+    if (viewport) viewport.classList.add('bm-side');
+    if (sideEl) sideEl.hidden = false;
+    if (!bar.hidden) bar.hidden = true;
+    if (track.firstChild) track.innerHTML = '';
+    closeBmMenu();
+    const list = state.bookmarks || [];
+    const sig = 'side|' + list
+      .map((b) => `${b.url}\u0001${b.title || ''}\u0001${hostIcon(b.url)}\u0001${b.favicon || ''}`)
+      .join('\u0002');
+    if (force || sig !== bmSideSig) { bmSideSig = sig; renderBookmarkSide(list); }
+    return;
+  }
+  // 非侧栏（或移动端）：把让出的宽度还给网页
+  if (viewport) viewport.classList.remove('bm-side');
+  if (sideEl) sideEl.hidden = true;
+  bmSideSig = null;
+
   if (!show) {
     if (!bar.hidden) bar.hidden = true;
     if (track.firstChild) track.innerHTML = '';
@@ -2086,6 +2111,48 @@ function renderBookmarkBar(force = false) {
 function syncBookmarkBar() {
   if (bmBarMode() !== 'ntp') return;
   renderBookmarkBar();
+}
+
+/* --- 侧边收藏夹：竖向列表 ---
+ * 条目沿用横向栏那套 [data-bm] 委托点击（见 document 上的监听），
+ * 所以这里只负责画，不重复绑事件。
+ */
+function renderBookmarkSide(list) {
+  const box = $('#bm-side-list');
+  if (!box) return;
+  const arr = list || state.bookmarks || [];
+  if (!arr.length) {
+    box.innerHTML = '<div class="bm-side-empty">还没有书签。<br>地址栏右侧的星形按钮可以把当前页加进来。</div>';
+    return;
+  }
+  box.innerHTML = arr.map((b) => {
+    const p = bmEntry(b);
+    return `<button class="bm-side-item" data-bm="${esc(b.url)}" title="${esc(p.label)}\n${esc(b.url)}">` +
+      `<span class="bm-fav">${p.icon}</span>` +
+      `<span class="bm-side-title">${esc(p.label)}</span>` +
+      `</button>`;
+  }).join('');
+}
+
+/* 导入 / 导出：设置页与侧栏共用同一套（含导入后刷新图标与如实报数）。 */
+async function doBookmarksImport() {
+  // 文件对话框在主进程那边（渲染层不碰文件系统）；取消返回 { canceled:true } 不是错误。
+  const r = await bridge.bookmarks.import();
+  if (!r || r.canceled) return;
+  if (r.error) { toast('导入失败：' + r.error, 4200); return; }
+  if (r.bookmarks) state.bookmarks = r.bookmarks;
+  refreshCurrent();
+  const bits = [`导入完成：新增 ${r.added} 条`];
+  if (r.dup) bits.push(`已在书签里 ${r.dup} 条`);
+  if (r.skipped) bits.push(`跳过 ${r.skipped} 条`);
+  toast(`${bits.join(' · ')}，当前共 ${r.total} 条`, 4200);
+}
+
+async function doBookmarksExport() {
+  const r = await bridge.bookmarks.export();
+  if (!r || r.canceled) return;
+  if (r.error) { toast(r.error, 4200); return; }
+  toast(`已导出 ${r.count} 条书签`, 3200);
 }
 
 /* ------------------------------------------------------------------ *
@@ -4145,12 +4212,13 @@ function buildAppearance() {
     <div class="panel-section">
       <div class="segmented" id="set-bmbar">
         <button data-bmbar="always" class="${bmbar === 'always' ? 'is-active' : ''}">地址栏下方</button>
+        <button data-bmbar="side" class="${bmbar === 'side' ? 'is-active' : ''}">视口右侧</button>
         <button data-bmbar="ntp" class="${bmbar === 'ntp' ? 'is-active' : ''}">仅新标签页</button>
         <button data-bmbar="hidden" class="${bmbar === 'hidden' ? 'is-active' : ''}">不显示</button>
       </div>
       <div class="muted" style="padding:var(--sp-2) 0 0">
-        这条栏只有一处可放：地址栏与网页之间（再往上就是标签条）。所以这一项实际管的是
-        <b>什么时候露出来</b> —— 「仅新标签页」在浏览网页时会把这一行高度还给页面。
+        收藏夹栏可放在<b>地址栏下方</b>（横向）或<b>视口右侧</b>（竖向侧栏，网页会自动缩窄让位）；
+        「仅新标签页」与「不显示」管的是<b>什么时候露出来</b>。
         当前：${esc(BM_BAR_LABEL[bmbar])}，${(state.bookmarks || []).length} 条书签。
       </div>
     </div>
@@ -5829,27 +5897,9 @@ function wireActions(root) {
         refreshCurrent();
         toast('书签已清空');
       } else if (act === 'bookmarks-import') {
-        // 导入：文件对话框在主进程那边（渲染层不碰文件系统）。
-        // 取消时返回 { canceled:true } —— 那不是错误，别弹红色的提示。
-        const r = await bridge.bookmarks.import();
-        if (!r || r.canceled) return;
-        if (r.error) {
-          toast('导入失败：' + r.error, 4200);
-          return;
-        }
-        if (r.bookmarks) state.bookmarks = r.bookmarks;
-        refreshCurrent();
-        // 如实报数：加了几条、重复几条、跳过几条。
-        // 只说「导入成功」的话，用户不知道自己那份文件里有多少被合并掉了。
-        const bits = [`导入完成：新增 ${r.added} 条`];
-        if (r.dup) bits.push(`已在书签里 ${r.dup} 条`);
-        if (r.skipped) bits.push(`跳过 ${r.skipped} 条`);
-        toast(`${bits.join(' · ')}，当前共 ${r.total} 条`, 4200);
+        await doBookmarksImport();
       } else if (act === 'bookmarks-export') {
-        const r = await bridge.bookmarks.export();
-        if (!r || r.canceled) return;
-        if (r.error) { toast(r.error, 4200); return; }
-        toast(`已导出 ${r.count} 条书签`, 3200);
+        await doBookmarksExport();
       } else if (act === 'newtab-builtin') { await setNtpMode('start'); }
       else if (act === 'newtab-homepage') { await setNtpMode('homepage'); }
       else if (act === 'newtab-blank') { await setNtpMode('blank'); }
@@ -8188,6 +8238,9 @@ function wireUi() {
     if (pop) pop.hidden = true;
     openPanel('downloads');
   });
+  // 侧边收藏夹头部的导入 / 导出：复用设置页同一套逻辑（不重复实现）
+  if ($('#bm-side-import')) $('#bm-side-import').addEventListener('click', doBookmarksImport);
+  if ($('#bm-side-export')) $('#bm-side-export').addEventListener('click', doBookmarksExport);
   $('#scrim').addEventListener('click', closeDrawer);
   $('#sv-back').addEventListener('click', goSettingsBack);
   $('#sv-close').addEventListener('click', closeSettings);

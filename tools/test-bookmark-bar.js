@@ -233,22 +233,33 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   window.eval("openSettings('appearance')");
   await waitFor(() => $('#set-bmbar'));
   const btns = $$('#set-bmbar button');
-  check('外观分区里有三档', btns.length === 3,
+  check('外观分区里有四档（含侧边栏）', btns.length === 4,
     btns.map((b) => b.textContent.trim()).join(' / '));
   check('默认档落在第一档', btns[0].classList.contains('is-active'),
     btns.find((b) => b.classList.contains('is-active')).textContent.trim());
 
-  btns[2].click();
+  // 按 data-bmbar 找按钮，不按索引 —— 以后再加档位也不会连累这条用例
+  const byMode = (m) => $$('#set-bmbar button').find((b) => b.dataset.bmbar === m);
+
+  byMode('hidden').click();
   await sleep(80);
   check('点了「不显示」后写进设置', window.eval('state.settings.bookmarkBar') === 'hidden');
   check('收藏夹栏当场收起', bar.hidden);
-  const btns2 = $$('#set-bmbar button');
   check('选中态跟着走（重绘后仍然对）',
-    btns2[2].classList.contains('is-active') && !btns2[0].classList.contains('is-active'));
+    byMode('hidden').classList.contains('is-active') && !byMode('always').classList.contains('is-active'));
 
-  btns2[0].click();
+  // 侧边栏档：横向栏收起、视口加 bm-side（网页让位）、竖向列表出现
+  byMode('side').click();
+  await sleep(100);
+  check('侧边栏：写进设置', window.eval('state.settings.bookmarkBar') === 'side');
+  check('侧边栏：横向栏收起', bar.hidden);
+  check('侧边栏：视口加上 bm-side（网页让位）', $('#viewport').classList.contains('bm-side'));
+  check('侧边栏：竖向列表有条目', $$('#bm-side-list [data-bm]').length > 0);
+
+  byMode('always').click();
   await sleep(80);
   check('点回「地址栏下方」后恢复', !bar.hidden);
+  check('侧边栏：撤回后视口去掉 bm-side', !$('#viewport').classList.contains('bm-side'));
   check('设置值也回到 always', window.eval('state.settings.bookmarkBar') === 'always');
   window.eval('closeSettings()');
 

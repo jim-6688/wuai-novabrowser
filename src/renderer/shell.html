@@ -357,6 +357,22 @@
         <button class="btn" id="pe-home">回到首页</button>
       </div>
     </div>
+
+    <!-- ============ 侧边收藏夹 ============
+         设置里「收藏夹栏位置」选「侧边栏」时出现，常驻在视口右侧 240px。
+         同层 <webview> 是 absolute 铺满视口的原生层，靠 CSS 让出这段宽度
+         （.viewport.bm-side webview{right:240px}）—— 所以它是**占布局**的，
+         不是浮层，不会被网页盖住，也不用 JS 算尺寸。 -->
+    <aside class="bm-side" id="bm-side" aria-label="收藏夹" hidden>
+      <header class="bm-side-head">
+        <span>收藏夹</span>
+        <span class="bm-side-tools">
+          <button class="bm-side-btn" id="bm-side-import" title="从文件导入书签">导入</button>
+          <button class="bm-side-btn" id="bm-side-export" title="导出书签到文件">导出</button>
+        </span>
+      </header>
+      <div class="bm-side-list" id="bm-side-list"></div>
+    </aside>
   </main>
 
   <!-- ============ 移动端底栏 ============ -->
