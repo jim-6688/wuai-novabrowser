@@ -24,23 +24,23 @@
     }
   ],
   "pc": {
-    "version": "2.0.1",
+    "version": "2.0.2",
     "changelog": [
-      "新增 NovaBrowser UA 标识：自家站点（如导航 52ta.top）可识别「已是 Nova 用户」，不再重复推荐下载",
-      "升级 Chromium 内核至 156（Electron 45），页面兼容性与运行性能提升",
-      "下载进度条改为单调增长的整体进度条，多连接分片进度作为下方细节条，进度一目了然",
-      "广告拦截改为贴在工具栏盾牌下方的小浮层：就地开关拦截与拦截源，不再跳进设置页"
+      "新增侧边收藏夹：收藏夹栏可停靠在视口右侧竖排，网页自动缩窄让位（设置 → 外观 → 视口右侧）",
+      "顶栏「收藏夹」改为下拉菜单：开合收藏夹栏、导入 / 导出书签、从其他浏览器导入、进设置管理",
+      "新增「从其他浏览器导入」：自动检测本机已装的浏览器，点一项直接读取它的书签",
+      "更新器支持多源：版本清单按官网 → 码云 → GitHub 回退，更新包优先 GitHub Releases、回落官网直链"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://download.52ta.top/nova-pc-2.0.1-win-x64-setup.exe",
+    "url": "https://download.52ta.top/nova-pc-2.0.2-win-x64-setup.exe",
     "mirrors": [
       {
         "label": "GitHub Releases",
-        "url": "https://github.com/jim-6688/wuai-novabrowser/releases/download/v2.0.1/nova-pc-2.0.1-win-x64-setup.exe"
+        "url": "https://github.com/jim-6688/wuai-novabrowser/releases/download/v2.0.2/nova-pc-2.0.2-win-x64-setup.exe"
       }
     ],
-    "size": 107060777,
-    "sha256": "a46ccf57511c32fb140d0a4f24d3453f038a615230c7504980dd01f29979b13d",
+    "size": 107063831,
+    "sha256": "fc985edf35a53aacef3b5bb50ef23b6d00b58d9662842bb4cf09d7704e13c321",
     "updatedAt": "2026-10-27"
   }
 }
