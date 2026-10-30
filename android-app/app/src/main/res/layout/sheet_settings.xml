@@ -101,6 +101,13 @@
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
                 <include layout="@layout/item_menu" android:id="@+id/setSwipeUpSearch" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <!--
+                  地址栏联想的「互联网」那一路开关。书签/历史两路始终在本机做，
+                  所以关掉它并不等于关掉联想，只是不再把正在打的字发给搜索引擎。
+                -->
+                <include layout="@layout/item_menu" android:id="@+id/setOmniOnline" />
                 <!-- 这里原先是「收藏夹栏」那一行（setBookmarkBar）。随横栏一起删掉了：
                      收藏夹现在收在底栏工具箱那一格里，直接开列表。 -->
             </LinearLayout>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  地址栏联想浮层的外壳。
+
+  为什么和「复制 / 分享」一样用 PopupWindow 而不是 openSheet：
+  候选必须贴着输入框往下长，用户视线从输入框移动到第一行候选不能跳；
+  从屏幕底部滑上来的面板会把这条视线拉穿整屏。
+
+  内容全部由代码填充（行数、行高都随结果变），这里只给一张卡片底。
+  卡片底沿用 bg_url_actions：两者都是「贴在地址栏下方」的同一种东西，
+  长得一样才不会显得像两套界面的产物。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/omniList"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_url_actions"
+    android:padding="4dp" />

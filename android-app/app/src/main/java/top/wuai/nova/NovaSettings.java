@@ -71,6 +71,14 @@ public final class NovaSettings {
      */
     public boolean swipeUpSearch = true;
     /**
+     * 地址栏是否联网取「搜索建议」。
+     *
+     * <p>默认开：这是浏览器早就当成标配的东西，关着反而像坏了。但必须给开关 ——
+     * 开了就意味着**你正在打的字**会发到搜索引擎（书签与历史那两路始终只在本机，
+     * 不受这个开关影响）。介意的人可以关掉，联想仍然可用，只是少了互联网那一段。
+     */
+    public boolean omniOnline = true;
+    /**
     /* bookmarkBarButton 与它那套三档显隐已随收藏夹栏一起退场（2026-10）。
        保留这段注释是为了说明「为什么读配置里那个旧键会没有」：老用户的
        settings.json 里仍然带着它，只是没有人再读 —— 与其读到之后假装它还有效，
@@ -220,6 +228,7 @@ public final class NovaSettings {
         m.put(K_THEME, theme);
         m.put(K_ACCENT_THEME, accentTheme);
         m.put("swipeUpSearch", String.valueOf(swipeUpSearch));
+        m.put("omniOnline", String.valueOf(omniOnline));
         m.put("adblockEnabled", String.valueOf(adblockEnabled));
         m.put("thirdPartyBlock", String.valueOf(thirdPartyBlock));
         m.put("noImage", noImage);
@@ -264,6 +273,7 @@ public final class NovaSettings {
         // 默认 true：老配置里没有这个键，bool() 走 fallback，于是升级上来的用户
         // 保持现在的行为（上划换搜索框）—— 新增开关不该让任何人的界面突然变了。
         s.swipeUpSearch = bool(m.get("swipeUpSearch"), s.swipeUpSearch);
+        s.omniOnline = bool(m.get("omniOnline"), s.omniOnline);
         s.adblockEnabled = bool(m.get("adblockEnabled"), s.adblockEnabled);
         s.thirdPartyBlock = bool(m.get("thirdPartyBlock"), s.thirdPartyBlock);
         s.noImage = NoImagePolicy.Level.fromId(m.get("noImage")).id;

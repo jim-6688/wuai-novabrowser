@@ -1,27 +1,27 @@
 {
-  "version": "1.6.12",
-  "versionCode": 25,
+  "version": "1.6.13",
+  "versionCode": 26,
   "channel": "release",
   "updatedAt": "2026-10-31",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "UA 末尾加上 NovaBrowser 标识：自家站点（导航 52ta.top）能认出「已经在用 Nova」，不再重复弹下载提示",
-    "底栏透明度调到 65%，网页从玻璃底下透出来更明显",
-    "书签面板新增「导入书签」：认 Chrome / Edge / Firefox 导出的书签 HTML，也认本产品自己的 JSON，自动去重并如实报数"
+    "地址栏输入中文名称会联想：从书签与历史里找出最像的站点，点一下直达；也能从搜索引擎的补全里挑一个词去搜",
+    "设置新增「地址栏联网联想」开关：关掉后只用本机书签与历史，正在打的字不再发给搜索引擎",
+    "关于页重写：改讲四个取舍（不内置内核 / 原生控件 / 与桌面同源 / 数据不出本机），并列出 52ta.top 家族六条产品线"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.12.apk",
-      "size": 501386,
-      "sha256": "7b37491737a04694bb066bfcc082e1723dcf115b6e634c38b22ad3a9847784c8"
+      "url": "download/nova-1.6.13.apk",
+      "size": 507866,
+      "sha256": "da62d5e0c2473060af73ddea235833a9589e07897f4d7258036cb037f50149a0"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.12/nova-1.6.12.apk",
-      "size": 501386,
-      "sha256": "7b37491737a04694bb066bfcc082e1723dcf115b6e634c38b22ad3a9847784c8"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.13/nova-1.6.13.apk",
+      "size": 507866,
+      "sha256": "da62d5e0c2473060af73ddea235833a9589e07897f4d7258036cb037f50149a0"
     }
   ],
   "pc": {

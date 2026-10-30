@@ -263,6 +263,26 @@ public final class MainActivity extends Activity {
      * 否则浮层会孤零零地悬在一个已经换过的界面上。
      */
     private PopupWindow urlActions;
+    /**
+     * 地址栏下方的联想候选浮层（书签 / 历史 / 联网补全）。
+     *
+     * <p>与 {@link #urlActions} 是同一套 PopupWindow 手法，但两者互斥：
+     * 一开打字就收掉「复制/分享」，露出候选；候选只给当前输入服务。
+     */
+    private PopupWindow omniPopup;
+    /** 候选列表容器（{@code pop_omni_suggest.xml} 的根）。 */
+    private LinearLayout omniList;
+    /** 输入防抖 + 丢弃过期响应都靠它。 */
+    private final Handler omniHandler = new Handler(Looper.getMainLooper());
+    /**
+     * 请求代次。每次输入变化 +1，联网结果回来时对不上就丢弃 ——
+     * 否则用户连打几个字，先发的慢请求后到，反而把新结果盖掉。
+     */
+    private int omniSeq = 0;
+    /** 当前候选里的本地项（联网结果回来后重画时要用）。 */
+    private final List<OmniSuggest.Item> omniLocal = new ArrayList<>();
+    /** 当前这条查询，用于「前往/搜索」那一行与联网请求。 */
+    private String omniQuery = "";
     /** 装着 WebView 的容器，负责下拉刷新（见 {@link RefreshHost}）。 */
     private RefreshHost refreshHost;
     /**
@@ -1833,6 +1853,7 @@ public final class MainActivity extends Activity {
                 || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                     && event.getAction() == KeyEvent.ACTION_DOWN);
             if (!go) return false;
+            hideSuggest();
             go(settings.resolveInput(urlBar.getText().toString()));
             hideKeyboard();
             return true;
@@ -1859,6 +1880,7 @@ public final class MainActivity extends Activity {
                 showUrlActions();
             } else {
                 dismissUrlActions();
+                hideSuggest();
             }
         });
 
@@ -1874,8 +1896,159 @@ public final class MainActivity extends Activity {
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void afterTextChanged(Editable s) {
                 if (urlActions != null && urlActions.isShowing()) dismissUrlActions();
+                // 输入即联想（防抖 220ms）。候选只服务「正在输入」这一刻，
+                // 回车、失焦、跳转都会收掉，见 scheduleSuggest / hideSuggest。
+                scheduleSuggest(s == null ? "" : s.toString());
             }
         });
+    }
+
+    // ---------------------------------------------------------- 地址栏联想
+
+    /**
+     * 输入防抖 + 前置过滤。
+     *
+     * <p>三点判断：
+     * <ul>
+     *   <li>空输入不联想 —— 这时该显示的是书签/常用，不是候选；</li>
+     *   <li>已经打出完整路径（带 {@code /}）不联想：用户知道自己要去哪，候选只是噪音；</li>
+     *   <li>其余交给 {@link #computeSuggest}，220ms 内的连打只算最后一次。</li>
+     * </ul>
+     */
+    private void scheduleSuggest(String text) {
+        omniHandler.removeCallbacksAndMessages(null);
+        final String q = text == null ? "" : text.trim();
+        if (q.isEmpty()) {
+            hideSuggest();
+            return;
+        }
+        if (q.contains("/")) {
+            // 带斜杠基本是在敲具体路径了（https://a.com/b、file:///…）
+            hideSuggest();
+            return;
+        }
+        omniHandler.postDelayed(() -> computeSuggest(q), 220);
+    }
+
+    /** 算候选：先出本地（书签/历史），再异步补联网建议。 */
+    private void computeSuggest(String q) {
+        if (!mainViewMounted || web == null) return;
+        omniQuery = q;
+        final int seq = ++omniSeq;
+
+        omniLocal.clear();
+        omniLocal.addAll(OmniSuggest.fromLocal(q, store.bookmarks(), store.history(), 3));
+        renderSuggest(null);   // 先把本地结果亮出来，别等联网
+
+        if (!settings.omniOnline) return;
+        final String engine = settings.searchTemplateId;
+        if (!SuggestClient.supported(engine)) return;
+
+        final String ua;
+        try { ua = web.getSettings().getUserAgentString(); } catch (Exception e) { return; }
+        new Thread(() -> {
+            final List<String> raw = SuggestClient.fetch(engine, q, ua);
+            final List<OmniSuggest.Item> online = OmniSuggest.fromOnline(q, raw, 3);
+            runOnUiThread(() -> {
+                // 代次对不上说明用户又打了字，这批结果已经过期，丢掉
+                if (seq != omniSeq || online.isEmpty()) return;
+                renderSuggest(online);
+            });
+        }, "omni-suggest").start();
+    }
+
+    /**
+     * 画候选。
+     *
+     * @param online 联网建议；null = 只有本地（第一屏先这么出）
+     */
+    private void renderSuggest(List<OmniSuggest.Item> online) {
+        if (omniList == null) {
+            omniList = (LinearLayout) LayoutInflater.from(this)
+                .inflate(R.layout.pop_omni_suggest, null);
+        }
+        omniList.removeAllViews();
+
+        final String q = omniQuery;
+        final String target = settings.resolveInput(q);
+        final boolean urlLike = OmniSuggest.looksLikeUrl(q);
+
+        // 第一行永远是「前往 / 搜索」，回车的行为与它一致，位置也一致
+        omniList.addView(suggestRow(
+            urlLike ? q : "搜索「" + q + "」",
+            urlLike ? target : settings.searchTemplate().label,
+            target));
+
+        for (OmniSuggest.Item it : omniLocal) {
+            omniList.addView(suggestRow(it.title, it.sub + " · " + it.url, it.url));
+        }
+        if (online != null) {
+            for (OmniSuggest.Item it : online) {
+                // 联网那几行是「拿这个词去搜」，不是网址 —— 界面上靠副标题区分
+                omniList.addView(suggestRow(it.title, it.sub, settings.searchTemplate().build(it.title)));
+            }
+        }
+        showSuggest();
+    }
+
+    /** 一行候选：主标题 + 副标题，整行可点。 */
+    private View suggestRow(String title, String sub, final String url) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(12), dp(8), dp(12), dp(8));
+        row.setBackgroundResource(android.R.drawable.list_selector_background);
+
+        TextView t = new TextView(this);
+        t.setText(title);
+        t.setTextSize(13.5f);
+        t.setTextColor(color(R.color.text));
+        t.setMaxLines(1);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(t);
+
+        if (sub != null && !sub.isEmpty()) {
+            TextView s = new TextView(this);
+            s.setText(sub);
+            s.setTextSize(11f);
+            s.setTextColor(color(R.color.text_3));
+            s.setMaxLines(1);
+            s.setEllipsize(TextUtils.TruncateAt.END);
+            row.addView(s);
+        }
+
+        row.setOnClickListener(v -> {
+            hideSuggest();
+            hideKeyboard();
+            go(url);
+        });
+        return row;
+    }
+
+    /** 贴到地址栏下方。已开着就只改宽度，不重开（重开会闪）。 */
+    private void showSuggest() {
+        if (omniList == null || omniList.getChildCount() == 0) return;
+        View anchor = findViewById(R.id.omniboxWrap);
+        if (anchor == null) return;
+        int w = anchor.getWidth();
+        if (w <= 0) w = getResources().getDisplayMetrics().widthPixels - dp(24);
+        if (omniPopup == null) {
+            omniPopup = new PopupWindow(omniList, w,
+                ViewGroup.LayoutParams.WRAP_CONTENT, false);
+            // 背景必须非 null，否则「点外面收起」不生效（与 urlActions 同一个坑）
+            omniPopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            omniPopup.setOutsideTouchable(true);
+            // 焦点留在输入框上：候选不能把软键盘顶掉
+            omniPopup.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
+            omniPopup.setElevation(dp(8));
+        } else {
+            omniPopup.setWidth(w);
+        }
+        if (!omniPopup.isShowing()) omniPopup.showAsDropDown(anchor, 0, dp(4));
+    }
+
+    private void hideSuggest() {
+        omniHandler.removeCallbacksAndMessages(null);
+        if (omniPopup != null && omniPopup.isShowing()) omniPopup.dismiss();
     }
 
     /**
@@ -2009,6 +2182,7 @@ public final class MainActivity extends Activity {
         // 已经导航走了，浮层说的还是上一页的地址。这里必须收 ——
         // 点「首页」这一类按钮不会让地址栏失焦，浮层自己不会消失。
         dismissUrlActions();
+        hideSuggest();
         String url = applyHttps(raw);
         Tab t = current();
         if (t != null) t.url = url;
@@ -4899,6 +5073,17 @@ public final class MainActivity extends Activity {
                 // 开关（其余都走 mountMain + 重开面板，整页刷一遍自然就对了），
                 // 少了这一步，右侧会一直写着「开」，看起来就是这个开关点不动。
                 repaintToggle(sheet, R.id.setSwipeUpSearch, settings.swipeUpSearch);
+            });
+
+        // 地址栏联想里的「互联网」那一路。书签与历史始终在本机匹配，不受这个开关影响；
+        // 关掉只是不再把正在打的字发给搜索引擎取建议。
+        setToggleRow(sheet, R.id.setOmniOnline, "地址栏联网联想",
+            "开：输入时向搜索引擎取补全建议（会把正在打的字发过去）；关：只用本机书签与历史",
+            settings.omniOnline, false, () -> {
+                settings.omniOnline = !settings.omniOnline;
+                store.save(settings);
+                repaintToggle(sheet, R.id.setOmniOnline, settings.omniOnline);
+                if (!settings.omniOnline) hideSuggest();
             });
 
         // 这里原先有一个「收藏夹栏」开关（setBookmarkBar）。连同横栏一起删掉了 ——
