@@ -5675,6 +5675,12 @@ public final class MainActivity extends Activity {
             "版本 " + getString(R.string.app_version)
             + " · 渲染由系统内核（Chromium）提供"
             + (v.isEmpty() ? "" : " " + v));
+        // 家族那一段讲完六条产品线，总得给一扇能过去的门。
+        // 先 mountMain 再 go：不先装主界面的话，新页面会被当前面板顶掉（与其它入口同一套写法）。
+        sheet.findViewById(R.id.abOpenHub).setOnClickListener(x -> {
+            mountMain();
+            go("https://52ta.top/");
+        });
     }
 
     private void menuRow(View sheet, int id, String title, Runnable onTap) {

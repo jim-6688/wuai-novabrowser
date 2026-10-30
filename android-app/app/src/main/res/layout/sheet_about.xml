@@ -2,17 +2,20 @@
 <!--
   关于页。
 
-  原来这里只是一个 NovaAlert 文字框：版本 + 三段说明，一屏不到、不能滚动、
-  也没有层次 —— 「它是什么」和「它不是什么」混在同一段里，用户要找的那句
-  （到底有没有内核）埋在中间。重设计成独立面板，按四个问题分段：
+  重写（1.6.12 之后）的取向：**先讲「它为什么是这样」，再讲「它能干什么」**。
 
-    1. 这是什么          —— 名字、版本、一句话定位
-    2. 它能做什么        —— 能力清单，扫一眼就知道覆盖面
-    3. 它不是什么/做不到  —— 平台边界，全部是真的限制，没有一条是谦虚
-    4. 现在到什么程度     —— 验证状态，放在最后但用警示色框出来
+  原来「它能做什么 / 它做不到什么」两段并列，读起来像一份功能清单；
+  但这款产品真正跟别家不一样的地方不在功能表，而在几个**取舍**：
+  不内置内核、界面用原生控件、逻辑与桌面端同源、数据不出本机。
+  这几条同时决定了体积、启动速度，以及「某些事它干脆不做」。
+  所以这次把它们提上来单独立段（「它的几个取舍」），功能与边界放后面当佐证。
 
-  顺序是有意的：先给能力再给边界。反过来写（先泼冷水）会让一个其实做了不少事的
-  应用看起来像半成品。
+  另外三处调整：
+    · 补「它属于哪个家族」—— 52ta.top 下六条产品线共享一套授权，这是真实存在的
+      产品关系，用户在浏览器里应该看得到，而不是只在官网上；末尾给了一个入口。
+    · 删掉「尚未在真机验证」那段：1.6.12 已发布并在真机上日常使用，
+      继续挂着就是假话。
+    · 功能清单补「从其他浏览器导入书签」「UA 带 NovaBrowser 标识」。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -64,10 +67,69 @@
                 android:layout_marginStart="20dp"
                 android:layout_marginTop="8dp"
                 android:layout_marginEnd="20dp"
-                android:text="面向移动端的轻量级浏览器：以极小的体积提供省流量、广告拦截、多线程下载、脚本扩展等核心能力，渲染交由系统 Chromium 内核完成。"
+                android:text="一台不替你做主的浏览器：不内置内核、不放推荐位、不弹广告。省下的上百 MB 换成一件事 —— 点开就能用。"
                 android:textColor="@color/text_2"
                 android:textSize="13sp"
                 android:lineSpacingExtra="4dp" />
+
+            <!-- ============ 原生特点（本页重点） ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="它的几个取舍" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="下面四条不是功能，是设计时的取舍。它们决定了这个应用多大、多快，以及它干脆不做哪些事。" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="· 不内置内核。渲染交给系统 WebView（Chromium），安装包 500 KB 上下。代价是内核版本跟系统走；换来的是同样的内核不在手机里存两份，也不必为追内核版本反复发版。" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="· 界面是原生控件，不是网页套壳。地址栏、底栏、各个面板都用系统控件，跟手、启动快，不会出现「点设置先白一下」。" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="· 和 Windows 版共用同一套逻辑。拼页算法、嗅探名单、拦截规则解析都由桌面端源码同步生成，两端对同一类资源的判断一致，不会「电脑能拦、手机漏拦」。" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="· 数据只留在本机。没有账号体系，书签、历史、设置都存在应用自己的目录里，不上传任何服务器。" />
 
             <!-- ============ 能做什么 ============ -->
             <TextView
@@ -82,7 +144,7 @@
                 android:textColor="@color/text_2"
                 android:textSize="12.5sp"
                 android:lineSpacingExtra="5dp"
-                android:text="· 自动拼页：滚动到底自动加载下一页，翻页上限可调\n· 无图模式：按资源后缀拦截图片，另有「加载图片」总开关可彻底关闭\n· 广告拦截：内置规则随包分发，支持订阅外部规则源\n· 媒体嗅探：识别页面中的音视频资源，多线程分片下载\n· 用户脚本：安装 .user.js（兼容 Tampermonkey），按 @match 规则注入\n· 标签管理、会话恢复、无痕浏览\n· 书签：一键收藏当前页，集中管理" />
+                android:text="· 自动拼页：滚动到底自动加载下一页，翻页上限可调\n· 无图模式：按资源后缀拦截图片，另有「加载图片」总开关可彻底关闭\n· 广告拦截：内置规则随包分发，支持订阅外部规则源\n· 媒体嗅探：识别页面中的音视频资源，多线程分片下载\n· 用户脚本：安装 .user.js（兼容 Tampermonkey），按 @match 规则注入\n· 书签：一键收藏，可从 Chrome / Edge / Firefox 导出的书签文件整批导入\n· 标签管理、会话恢复、无痕浏览、页内查找\n· UA 末尾带 NovaBrowser 标识，自家站点能认出你用的是 Nova" />
 
             <!-- ============ 边界 ============ -->
             <TextView
@@ -97,7 +159,47 @@
                 android:textColor="@color/text_2"
                 android:textSize="12.5sp"
                 android:lineSpacingExtra="5dp"
-                android:text="· 不内置浏览器内核：渲染由系统 WebView（Chromium）提供，版本随系统更新。独立内核体积约 80 MB 起，内置后安装包将突破 100 MB\n· 广告拦截限于域名粒度：Android 拦截接口不区分资源类型，元素隐藏与路径级规则在移动端不可用\n· 用户脚本并非浏览器扩展：系统未提供扩展宿主，仅支持用户脚本，且不开放跨域等特权\n· 下载文件存于应用私有目录：其他应用不可直接访问，暂未接入系统分享" />
+                android:text="· 不内置浏览器内核：渲染由系统 WebView 提供，版本随系统更新。独立内核 80 MB 起，内置后安装包会突破 100 MB\n· 广告拦截限于域名粒度：Android 的拦截接口不区分资源类型，元素隐藏与路径级规则在移动端不可用\n· 用户脚本不是扩展：系统未提供扩展宿主，只有用户脚本，且不开放跨域等特权\n· 下载文件存于应用私有目录：其他应用不能直接访问，暂未接入系统分享" />
+
+            <!-- ============ 家族产品 ============ -->
+            <TextView
+                style="@style/SectionHead"
+                android:text="它属于哪个家族" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="52ta.top 下的六条产品线，规则一致：工具就是工具，不抢注意力；买过的授权一个账号通行全部。" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="· 吾爱导航 52ta.top —— 十个分类的导航站，零弹窗，上网第一步\n· 吾爱音乐 —— 打开就播，没有开屏\n· 吾爱Nova浏览器 —— 就是本应用；桌面端另有 Windows 版，三档运行时可选\n· 吾爱CMS —— 挑一套模板，几分钟搭起企业站\n· 吾爱邮箱 —— 一个域名一条登录页，多通道登录\n· 吾爱装机助手 —— Windows 上的系统部署与调优工具" />
+
+            <!-- 讲完家族总得让人能过去看一眼；这一行是唯一的外链入口 -->
+            <TextView
+                android:id="@+id/abOpenHub"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:background="@drawable/row"
+                android:text="打开 52ta.top 看看全部产品"
+                android:textColor="@color/accent"
+                android:textSize="13.5sp" />
 
             <!-- ============ 与桌面端的关系 ============ -->
             <TextView
@@ -112,15 +214,24 @@
                 android:textColor="@color/text_2"
                 android:textSize="12.5sp"
                 android:lineSpacingExtra="5dp"
-                android:text="拼页算法、嗅探名单、拦截规则解析与桌面端共用同一份代码，经构建脚本由桌面端源码生成后同步至移动端。两端对同一类资源的判断保持一致，不存在「桌面端可拦、移动端漏拦」的差异。" />
+                android:text="桌面端走「真内核」路线：内置 Chromium 156，另有原生宿主与兼容层可选，安装包约 102 MB。手机端走「轻外壳」路线，把内核那份体积省掉。路线不同，拼页、嗅探、拦截的规则是同一份代码。" />
 
-            <!-- ============ 验证状态 ============ -->
+            <!-- ============ 状态 ============ -->
             <TextView
                 style="@style/SectionHead"
                 android:text="现在到什么程度" />
 
-            <!-- 用警示色边条框起来。这不是谦虚，是当前最大的未知项：
-                 所有功能都有单元测试兜底，但没有在真机或模拟器上跑过。 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="20dp"
+                android:textColor="@color/text_2"
+                android:textSize="12.5sp"
+                android:lineSpacingExtra="5dp"
+                android:text="已发布并在日常使用。逻辑层（拼页、嗅探、下载调度、书签与历史的存取、书签导入、UA 构造等）都有单元测试兜底。仍然粗糙的地方写在上面「它做不到什么」里，不藏。" />
+
+            <!-- 待办用警示色框出来：这是当前明确「该有还没有」的缺口 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -144,7 +255,7 @@
                     android:textColor="@color/text_2"
                     android:textSize="12sp"
                     android:lineSpacingExtra="4dp"
-                    android:text="尚未在真机或模拟器上验证。全部功能有单元测试兜底，但下载、嗅探、注入这类和系统版本强相关的行为，只有装上真机跑过才算数。已知待办：下载目录未接系统分享。" />
+                    android:text="已知待办：下载目录还没接系统分享（下完要回浏览器里打开）；截长图、阅读模式尚未提供。" />
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
