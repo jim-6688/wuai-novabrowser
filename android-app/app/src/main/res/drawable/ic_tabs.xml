@@ -17,9 +17,11 @@
         android:pivotX="10" android:pivotY="10">
         <path android:strokeColor="#000" android:strokeWidth="1.16"
             android:strokeLineJoin="round"
-            android:pathData="M4,6.5 h12 v9 h-12 z" />
+            android:pathData="M4,6.5 h12 v9 h-12 z"
+            android:strokeLineCap="round" />
         <path android:strokeColor="#000" android:strokeWidth="1.16"
             android:strokeLineCap="round"
-            android:pathData="M6.5,4.5 h7" />
+            android:pathData="M6.5,4.5 h7"
+            android:strokeLineJoin="round" />
     </group>
 </vector>

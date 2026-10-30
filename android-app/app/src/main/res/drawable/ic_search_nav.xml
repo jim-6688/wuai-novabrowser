@@ -25,9 +25,12 @@
         android:scaleX="1.31" android:scaleY="1.31"
         android:pivotX="10.6" android:pivotY="10.6">
         <path android:strokeColor="#000" android:strokeWidth="1.30"
-            android:pathData="M9,9 a4.2,4.2 0 1,0 0.01,0 z" />
+            android:pathData="M9,9 a4.2,4.2 0 1,0 0.01,0 z"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
         <path android:strokeColor="#000" android:strokeWidth="1.30"
             android:strokeLineCap="round"
-            android:pathData="M12.4,12.4 L16.4,16.4" />
+            android:pathData="M12.4,12.4 L16.4,16.4"
+            android:strokeLineJoin="round" />
     </group>
 </vector>

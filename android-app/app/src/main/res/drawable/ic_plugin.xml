@@ -5,11 +5,14 @@
     <!-- 插头形状：两个脚 + 身 + 尾线。与用户脚本「插件」的语义一致。 -->
     <path android:strokeColor="#000" android:strokeWidth="1.5"
         android:strokeLineCap="round"
-        android:pathData="M7,3.2 V7.4 M13,3.2 V7.4" />
+        android:pathData="M7,3.2 V7.4 M13,3.2 V7.4"
+            android:strokeLineJoin="round" />
     <path android:strokeColor="#000" android:strokeWidth="1.5"
         android:strokeLineJoin="round"
-        android:pathData="M5.2,7.4 H14.8 V10.2 A4.8,4.8 0 0,1 10,15 A4.8,4.8 0 0,1 5.2,10.2 z" />
+        android:pathData="M5.2,7.4 H14.8 V10.2 A4.8,4.8 0 0,1 10,15 A4.8,4.8 0 0,1 5.2,10.2 z"
+            android:strokeLineCap="round" />
     <path android:strokeColor="#000" android:strokeWidth="1.5"
         android:strokeLineCap="round"
-        android:pathData="M10,15 V17" />
+        android:pathData="M10,15 V17"
+            android:strokeLineJoin="round" />
 </vector>

@@ -12,8 +12,11 @@
     android:width="22dp" android:height="22dp"
     android:viewportWidth="20" android:viewportHeight="20">
     <path android:strokeColor="@color/brand" android:strokeWidth="1.6"
-        android:pathData="M9,9 a4.2,4.2 0 1,0 0.01,0 z" />
+        android:pathData="M9,9 a4.2,4.2 0 1,0 0.01,0 z"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
     <path android:strokeColor="@color/brand" android:strokeWidth="1.6"
         android:strokeLineCap="round"
-        android:pathData="M12.4,12.4 L16.4,16.4" />
+        android:pathData="M12.4,12.4 L16.4,16.4"
+            android:strokeLineJoin="round" />
 </vector>

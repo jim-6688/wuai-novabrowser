@@ -44,7 +44,9 @@
         android:strokeColor="#B3FFFFFF"
         android:strokeWidth="1.5"
         android:strokeAlpha="0.45"
-        android:fillColor="#00000000" />
+        android:fillColor="#00000000"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
 
     <!-- 四角星 -->
     <path

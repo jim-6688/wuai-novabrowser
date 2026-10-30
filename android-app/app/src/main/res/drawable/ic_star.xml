@@ -16,5 +16,9 @@
     android:width="22dp" android:height="22dp"
     android:viewportWidth="20" android:viewportHeight="20">
     <path android:fillColor="@color/text_3"
+        android:strokeColor="@color/text_3"
+        android:strokeWidth="1.4"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
         android:pathData="M10,1.5 L12.0,7.25 L18.08,7.37 L13.23,11.05 L15.0,16.88 L6.6,10 L5.0,16.88 L6.77,11.05 L1.92,7.37 L8.0,7.25 Z" />
 </vector>

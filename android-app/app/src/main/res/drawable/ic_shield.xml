@@ -5,5 +5,6 @@
     <!-- 盾牌：广告拦截。与桌面端拦截源的语义一致。 -->
     <path android:strokeColor="#000" android:strokeWidth="1.5"
         android:strokeLineJoin="round"
-        android:pathData="M10,2.6 L16.2,5.2 V10 C16.2,13.6 13.6,16.2 10,17.6 C6.4,16.2 3.8,13.6 3.8,10 V5.2 z" />
+        android:pathData="M10,2.6 L16.2,5.2 V10 C16.2,13.6 13.6,16.2 10,17.6 C6.4,16.2 3.8,13.6 3.8,10 V5.2 z"
+            android:strokeLineCap="round" />
 </vector>

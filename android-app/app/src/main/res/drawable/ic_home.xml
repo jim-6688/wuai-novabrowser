@@ -32,6 +32,7 @@
             android:pathData="M5.2,8.6 V16.2 H14.8 V8.6" />
         <path android:strokeColor="@color/brand" android:strokeWidth="1.41"
             android:strokeLineCap="round"
-            android:pathData="M8.6,16.2 V11.8 H11.4 V16.2" />
+            android:pathData="M8.6,16.2 V11.8 H11.4 V16.2"
+            android:strokeLineJoin="round" />
     </group>
 </vector>
