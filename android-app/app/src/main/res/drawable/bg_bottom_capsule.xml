@@ -5,7 +5,7 @@
   （29dp，端头才是正圆）、玻璃底 + 1dp 亮描边；大而软的投影由 View 自己的
   elevation 出（见 activity_main.xml 的 mobileBar），形状只负责底色与边缘。
 
-  玻璃用 surface_translucent 令牌（浅色 #80FFFFFF / 深色 #80171A22，即 50% 不透明）
+  玻璃用 surface_translucent 令牌（浅色 #D9FFFFFF / 深色 #D9171A22，即 85% 不透明）
   而不是照抄设计稿的 86%：这一档 app 已经在用，深浅两模都有，复用比新造一个值划算。
   描边走 capsule_edge（近白、不随主题翻转）：玻璃的边缘是「光」不是「分隔线」。
 -->

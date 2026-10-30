@@ -1745,8 +1745,8 @@ public final class MainActivity extends Activity {
      *
      * <p>滚动态仍是老样子：行出玻璃条，胶囊搜索框浮在它上面。
      *
-     * <p>颜色走 {@code @color} 令牌而不是写死：50% 那一档在浅色下是
-     * {@code #80FFFFFF}、深色下是 {@code #80171A22}，两侧都由 values-night 给。
+     * <p>颜色走 {@code @color} 令牌而不是写死：85% 那一档在浅色下是
+     * {@code #D9FFFFFF}、深色下是 {@code #D9171A22}，两侧都由 values-night 给。
      *
      * @param showBar true = 五格工具栏形态（行透明）；false = 胶囊搜索框形态（行玻璃条）
      */
