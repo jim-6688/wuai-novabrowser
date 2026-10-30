@@ -1,27 +1,26 @@
 {
-  "version": "1.6.13",
-  "versionCode": 26,
+  "version": "1.6.14",
+  "versionCode": 27,
   "channel": "release",
   "updatedAt": "2026-10-31",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "地址栏输入中文名称会联想：从书签与历史里找出最像的站点，点一下直达；也能从搜索引擎的补全里挑一个词去搜",
-    "设置新增「地址栏联网联想」开关：关掉后只用本机书签与历史，正在打的字不再发给搜索引擎",
-    "关于页重写：改讲四个取舍（不内置内核 / 原生控件 / 与桌面同源 / 数据不出本机），并列出 52ta.top 家族六条产品线"
+    "导入书签改为「从已安装的浏览器」：先列出本机装的浏览器，能读的直接导入，读不了的说明原因并给一步到位的文件导入",
+    "导入结果如实报数：新增 / 已有 / 跳过；文件导入与浏览器导入走同一套去重口径"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.13.apk",
-      "size": 507866,
-      "sha256": "da62d5e0c2473060af73ddea235833a9589e07897f4d7258036cb037f50149a0"
+      "url": "download/nova-1.6.14.apk",
+      "size": 512050,
+      "sha256": "5253f5b949515c8fa5adbf2a1474b76462ba124cb8688d2a8d101953cfade09d"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.13/nova-1.6.13.apk",
-      "size": 507866,
-      "sha256": "da62d5e0c2473060af73ddea235833a9589e07897f4d7258036cb037f50149a0"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.14/nova-1.6.14.apk",
+      "size": 512050,
+      "sha256": "5253f5b949515c8fa5adbf2a1474b76462ba124cb8688d2a8d101953cfade09d"
     }
   ],
   "pc": {

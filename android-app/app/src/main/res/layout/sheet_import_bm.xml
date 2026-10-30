@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「从已安装的浏览器导入书签」的选择面板。
+
+  为什么要有这一层，而不是直接弹文件选择器：
+  用户想的是「我从 Chrome 导过来」，弹出的却是文件管理器 —— 他得先知道
+  「去桌面版导出 HTML」这件事，否则这一步看起来就是「找不到我的书签」。
+
+  这一层把话说明白：本机装了哪些浏览器、哪些能直接读、读不了的为什么不能，
+  以及最后那条「从文件导入」是干什么用的。行内容全部由代码填（数量、状态会变）。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="18dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_3"
+        android:textSize="11.5sp"
+        android:lineSpacingExtra="4dp"
+        android:text="Android 没有统一的书签接口：AOSP 系浏览器开放了，Chromium 系（Chrome / Edge）不开放。能读的直接导入，读不了的会说明原因。" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="120dp"
+        android:maxHeight="460dp">
+
+        <LinearLayout
+            android:id="@+id/ibList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_menu_group"
+            android:orientation="vertical" />
+    </ScrollView>
+</LinearLayout>

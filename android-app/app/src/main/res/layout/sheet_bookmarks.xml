@@ -68,7 +68,7 @@
         android:layout_marginTop="14dp"
         android:gravity="center"
         android:background="@drawable/row"
-        android:text="导入书签（Chrome / Edge 导出的 HTML）"
+        android:text="导入书签（从其他浏览器）"
         android:textColor="@color/text_2"
         android:textSize="14sp" />
 

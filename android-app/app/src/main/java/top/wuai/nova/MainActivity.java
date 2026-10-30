@@ -3835,7 +3835,7 @@ public final class MainActivity extends Activity {
 
         for (BookmarkStore.Bookmark b : bms) list.addView(bookmarkRow(list, b));
 
-        sheet.findViewById(R.id.bmImport).setOnClickListener(v -> pickBookmarkFile());
+        sheet.findViewById(R.id.bmImport).setOnClickListener(v -> pickBookmarkSource());
 
         sheet.findViewById(R.id.bmClear).setOnClickListener(v -> {
             final int n = store.bookmarks().size();
@@ -4299,6 +4299,102 @@ public final class MainActivity extends Activity {
     // ---------------------------------------------------------- 导入其他浏览器书签
 
     /**
+     * 「导入书签」入口：先列本机装的浏览器，再给文件导入兜底。
+     *
+     * <p>用户说的是「从 Chrome 导过来」，直接弹文件管理器会让他以为找不到书签 ——
+     * 所以先摆出真实的浏览器清单，逐个标注能不能读；读不了的说明原因再引到文件。
+     */
+    private void pickBookmarkSource() {
+        final View sheet = openSheet("导入书签", R.layout.sheet_import_bm);
+        final LinearLayout list = (LinearLayout) sheet.findViewById(R.id.ibList);
+        list.removeAllViews();
+        list.addView(importRow("正在检查本机浏览器…", null, null));
+
+        new Thread(() -> {
+            final List<BrowserImport.App> apps = BrowserImport.browsers(this);
+            final List<BrowserImport.Read> reads = new ArrayList<>();
+            for (BrowserImport.App a : apps) reads.add(BrowserImport.read(this, a.pkg));
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                renderImportSources(list, apps, reads);
+            });
+        }, "bm-browser-scan").start();
+    }
+
+    /** 把扫描结果画成可选行。 */
+    private void renderImportSources(LinearLayout list,
+                                     List<BrowserImport.App> apps,
+                                     List<BrowserImport.Read> reads) {
+        list.removeAllViews();
+        if (apps.isEmpty()) {
+            list.addView(importRow("没检测到已安装的浏览器", "可以直接从导出文件导入", null));
+        }
+        for (int i = 0; i < apps.size(); i++) {
+            final BrowserImport.App a = apps.get(i);
+            final BrowserImport.Read r = reads.get(i);
+            final String status;
+            if (!r.readable()) {
+                status = r.error;                       // 例如「系统未开放读取」
+            } else if (r.items.isEmpty()) {
+                status = "可读，但没有书签";
+            } else {
+                status = "可导入 " + r.items.size() + " 条";
+            }
+            list.addView(importRow(a.label, status, v -> {
+                if (!r.readable()) {
+                    new NovaAlert(this, "这个浏览器读不了",
+                        a.label + "：" + r.error
+                            + "\n\nAndroid 没有统一的书签接口，Chromium 系（Chrome / Edge）"
+                            + "不把书签开放给其它应用。可以在电脑上导出书签 HTML，再用下面的"
+                            + "「从文件导入」选进来。")
+                        .negative("知道了", null)
+                        .positive("从文件导入", this::pickBookmarkFile)
+                        .show();
+                    return;
+                }
+                if (r.items.isEmpty()) {
+                    toast(a.label + " 里没有书签");
+                    return;
+                }
+                applyImported(r.items, r.skipped, a.label);
+            }));
+        }
+        // 兜底那条永远在最后：它解决的是「读不到」的情况，不该抢在最前面
+        list.addView(importRow("从文件导入…",
+            "Chrome / Edge / Firefox 导出的书签 HTML，或本产品导出的 JSON",
+            v -> pickBookmarkFile()));
+    }
+
+    /** 一行「浏览器 / 说明」，整行可点。不需要点击时传 null。 */
+    private View importRow(String title, String sub, View.OnClickListener onClick) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(14), dp(11), dp(14), dp(11));
+        if (onClick != null) {
+            row.setBackgroundResource(android.R.drawable.list_selector_background);
+            row.setOnClickListener(onClick);
+        }
+
+        TextView t = new TextView(this);
+        t.setText(title);
+        t.setTextSize(13.5f);
+        t.setTextColor(color(R.color.text));
+        t.setMaxLines(1);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(t);
+
+        if (sub != null && !sub.isEmpty()) {
+            TextView s = new TextView(this);
+            s.setText(sub);
+            s.setTextSize(11f);
+            s.setTextColor(color(R.color.text_3));
+            s.setLineSpacing(dp(2), 1f);
+            row.addView(s);
+        }
+        return row;
+    }
+
+    /**
      * 打开系统文件选择器挑书签文件。
      *
      * <p>手机上「别的浏览器」不把书签开放给第三方读（Chrome 存在账号里，没有可查的
@@ -4335,13 +4431,29 @@ public final class MainActivity extends Activity {
             new NovaAlert(this, "无法导入", p.error).positive("知道了", null).show();
             return;
         }
+        applyImported(p.items, p.skipped, null);
+    }
+
+    /**
+     * 把解析好的一批书签并进收藏。
+     *
+     * <p>文件导入和浏览器导入共用这一条：去重口径、报数口径、导完重开面板，
+     * 三处必须完全一样，否则两条入口会给出不同的「新增/已有」数字。
+     *
+     * @param fromLabel 来源名字（如「Chrome」）；null 表示来自文件，提示里不必点名
+     */
+    private void applyImported(List<BookmarkImport.Entry> items, int skipped, String fromLabel) {
+        if (items == null || items.isEmpty()) {
+            toast("没有可导入的书签");
+            return;
+        }
         List<String> existing = new ArrayList<>();
         for (BookmarkStore.Bookmark b : store.bookmarks()) existing.add(b.url);
-        BookmarkImport.Merge m = BookmarkImport.merge(existing, p.items);
+        BookmarkImport.Merge m = BookmarkImport.merge(existing, items);
 
         if (m.added.isEmpty()) {
-            // 全是重复的就别假装成功；如实说清「这份文件里一条新的都没有」
-            toast("没有新增：这 " + p.items.size() + " 条都已经在收藏里了");
+            // 全是重复的就别假装成功；如实说清「这条来源里一条新的都没有」
+            toast("没有新增：这 " + items.size() + " 条都已经在收藏里了");
             return;
         }
         List<BookmarkStore.Draft> drafts = new ArrayList<>();
@@ -4350,9 +4462,11 @@ public final class MainActivity extends Activity {
         }
         int n = store.addBookmarks(drafts);
         // 如实报数：加了几条、已有几条、跳过几条（坏行 / javascript: 这类）
-        StringBuilder msg = new StringBuilder("已导入 " + n + " 条");
+        StringBuilder msg = new StringBuilder(
+            fromLabel == null ? "已导入 " : "已从 " + fromLabel + " 导入 ");
+        msg.append(n).append(" 条");
         if (m.dup > 0) msg.append(" · 已有 ").append(m.dup).append(" 条");
-        if (p.skipped > 0) msg.append(" · 跳过 ").append(p.skipped).append(" 条");
+        if (skipped > 0) msg.append(" · 跳过 ").append(skipped).append(" 条");
         toast(msg.toString());
         showBookmarksSheet();
     }

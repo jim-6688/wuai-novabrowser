@@ -21,6 +21,20 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!--
+      包可见性（Android 11 起默认看不见别的应用）。
+      「从已安装的浏览器导入书签」要先知道本机装了哪些浏览器，没有这段
+      queryIntentActivities 只会返回自己，列表永远是空的 —— 而且不报错，
+      看起来就像功能没做。
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:usesCleartextTraffic="true"
         android:allowBackup="true"
