@@ -91,8 +91,47 @@ public final class BookmarkStore {
         return true;
     }
 
-    /** 取消收藏。按 url 删（一个 url 只会有一条）。 */
-    public void remove(String url) {
+    /** 导入用的一条草稿：只有标题和网址，id / 时间戳由存储层补。 */
+    public static final class Draft {
+        public final String url;
+        public final String title;
+        public Draft(String url, String title) {
+            this.url = url;
+            this.title = title;
+        }
+    }
+
+    /**
+     * 批量收藏（导入用）。<b>只落一次盘</b> —— 逐条调 {@link #add} 会读一遍写一遍，
+     * 导入几百条就是几百次全量重写。
+     *
+     * <p>已存在的（同 url，按 {@link BookmarkImport#norm} 归一化）跳过，不算新增。
+     *
+     * @return 真正新增的条数
+     */
+    public int addAll(List<Draft> items) {
+        if (items == null || items.isEmpty()) return 0;
+        List<Bookmark> ordered = list();
+        Collections.reverse(ordered); // 存盘正序，翻回来再追加
+        java.util.Set<String> have = new java.util.HashSet<>();
+        for (Bookmark b : ordered) have.add(BookmarkImport.norm(b.url));
+        int added = 0;
+        long now = System.currentTimeMillis();
+        for (Draft d : items) {
+            if (d == null) continue;
+            String url = d.url == null ? "" : d.url.trim();
+            if (url.isEmpty()) continue;
+            if (!have.add(BookmarkImport.norm(url))) continue;
+            String id = "bm_" + Long.toHexString((url + "|" + (now + added)).hashCode());
+            String title = (d.title == null || d.title.trim().isEmpty()) ? url : d.title.trim();
+            ordered.add(new Bookmark(id, title, url, now + added));
+            added++;
+        }
+        if (added > 0) save(ordered);
+        return added;
+    }
+
+    /** 取消收藏。按 url 删（一个 url 只会有一条）。 */    public void remove(String url) {
         if (url == null || url.isEmpty()) return;
         List<Bookmark> ordered = list();
         Collections.reverse(ordered);

@@ -1725,8 +1725,8 @@ public final class MainActivity extends Activity {
      *
      * <p>滚动态仍是老样子：行出玻璃条，胶囊搜索框浮在它上面。
      *
-     * <p>颜色走 {@code @color} 令牌而不是写死：#CC 那一档在浅色下是
-     * {@code #CCFFFFFF}、深色下是 {@code #CC171A22}，两侧都由 values-night 给。
+     * <p>颜色走 {@code @color} 令牌而不是写死：65% 那一档在浅色下是
+     * {@code #A6FFFFFF}、深色下是 {@code #A6171A22}，两侧都由 values-night 给。
      *
      * @param showBar true = 五格工具栏形态（行透明）；false = 胶囊搜索框形态（行玻璃条）
      */
@@ -2850,22 +2850,42 @@ public final class MainActivity extends Activity {
     private void applyUserAgent() {
         WebSettings s = web.getSettings();
         // 自定义 UA 优先于一切 —— 它是用户明确要的，压过任何预设。
+        // 这一档**不追加** NovaBrowser 标识：用户填的 UA 可能就是为了伪装成别的浏览器，
+        // 追加会破坏他的意图。其余两档都是我们自己造的串，追加不影响任何站点判断。
         if (!settings.customUA.trim().isEmpty()) {
             s.setUserAgentString(settings.customUA.trim());
             return;
         }
         String system = getSystemDefaultUA();
+        String ver = uaVersion();
         if ("desktop".equals(settings.layout)) {
             // 电脑版 UA：取系统默认 UA 里的真实 Chrome 版本号，套一个桌面 Chrome 模板。
             // 不写死版本 —— WebView 实际跑的就是那个版本，写死会造成「UA 说 80、内核是 100」的错位。
-            s.setUserAgentString(desktopUA(system));
+            s.setUserAgentString(UaToken.append(desktopUA(system), ver));
             return;
         }
         // mobile / auto 都是手机 UA（系统默认），auto 在移动端没有「按窗口宽度」一说，
         // 一律等同手机。
-        String cur = s.getUserAgentString();
-        if (!system.isEmpty() && !system.equals(cur)) {
-            s.setUserAgentString(system);
+        // 取不到系统默认 UA 时退而用「当前 UA」当底，至少别把这个标识丢了。
+        String base = system.isEmpty() ? s.getUserAgentString() : system;
+        String target = UaToken.append(base, ver);
+        if (target != null && !target.isEmpty() && !target.equals(s.getUserAgentString())) {
+            s.setUserAgentString(target);
+        }
+    }
+
+    /**
+     * UA 尾部标识用的版本号。
+     *
+     * <p>取 {@code app_version} 而不是 {@code BuildConfig.VERSION_NAME}：前者是「关于」页、
+     * 设置页显示的那个号，也是构建时读进去的唯一来源，用它才不会出现「关于页 1.6.12、
+     * UA 里却是 1.6.11」的错位。真取不到再退回 BuildConfig。
+     */
+    private String uaVersion() {
+        try {
+            return getString(R.string.app_version);
+        } catch (Exception e) {
+            return BuildConfig.VERSION_NAME;
         }
     }
 
@@ -3641,6 +3661,8 @@ public final class MainActivity extends Activity {
 
         for (BookmarkStore.Bookmark b : bms) list.addView(bookmarkRow(list, b));
 
+        sheet.findViewById(R.id.bmImport).setOnClickListener(v -> pickBookmarkFile());
+
         sheet.findViewById(R.id.bmClear).setOnClickListener(v -> {
             final int n = store.bookmarks().size();
             if (n == 0) return;
@@ -4044,17 +4066,24 @@ public final class MainActivity extends Activity {
     }
 
     private static final int REQ_PICK_SCRIPT = 4101;
+    private static final int REQ_PICK_BOOKMARKS = 4102;
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
-        if (req != REQ_PICK_SCRIPT || res != RESULT_OK || data == null
-            || data.getData() == null) {
-            return;
+        if (res != RESULT_OK || data == null || data.getData() == null) return;
+        // 按请求码分派：两个入口共用这一个回调，别再在里面写 if 嵌套。
+        if (req == REQ_PICK_SCRIPT) {
+            onScriptPicked(data.getData());
+        } else if (req == REQ_PICK_BOOKMARKS) {
+            onBookmarksPicked(data.getData());
         }
+    }
+
+    private void onScriptPicked(android.net.Uri uri) {
         String text;
         try {
-            text = readUriText(data.getData());
+            text = readUriText(uri);
         } catch (Exception e) {
             toast("读取失败：" + e.getClass().getSimpleName());
             return;
@@ -4066,7 +4095,7 @@ public final class MainActivity extends Activity {
         }
         String id = UserScript.idOf(p.meta, p.body);
         UserScript.Installed inst = new UserScript.Installed(id, p.meta, p.body,
-            System.currentTimeMillis(), data.getData().toString());
+            System.currentTimeMillis(), uri.toString());
 
         String summary = p.meta.name
             + "\n\n匹配：" + String.join("、", p.meta.match)
@@ -4093,7 +4122,74 @@ public final class MainActivity extends Activity {
         }
     }
 
+    // ---------------------------------------------------------- 导入其他浏览器书签
+
+    /**
+     * 打开系统文件选择器挑书签文件。
+     *
+     * <p>手机上「别的浏览器」不把书签开放给第三方读（Chrome 存在账号里，没有可查的
+     * ContentProvider），所以可行的路子是把 Chrome / Edge / Firefox 导出的书签 HTML
+     * 选进来 —— 这三个的导出格式是同一个 Netscape 规范，一份解析器全吃。
+     */
+    private void pickBookmarkFile() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        // 不用 *.html 限定：有些文件管理器/云盘给回来的 mime 是 octet-stream，
+        // 限死 mime 会让文件在选择器里直接变灰、点不着。真正的格式判断在解析里做。
+        i.setType("*/*");
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivityForResult(i, REQ_PICK_BOOKMARKS);
+        } catch (Exception e) {
+            startActivityForResult(
+                Intent.createChooser(i, "选择书签文件"), REQ_PICK_BOOKMARKS);
+        }
+    }
+
+    private void onBookmarksPicked(android.net.Uri uri) {
+        String text;
+        try {
+            // 书签文件比脚本大得多：几千条带图标 data: 的导出能有几 MB，
+            // 所以这里单独放宽到 16MB（脚本那边仍是 2MB）。
+            text = readUriText(uri, 16 * 1024 * 1024);
+        } catch (Exception e) {
+            toast("读取失败：" + e.getMessage());
+            return;
+        }
+        BookmarkImport.Parsed p = BookmarkImport.parse(text);
+        if (!p.ok()) {
+            new NovaAlert(this, "无法导入", p.error).positive("知道了", null).show();
+            return;
+        }
+        List<String> existing = new ArrayList<>();
+        for (BookmarkStore.Bookmark b : store.bookmarks()) existing.add(b.url);
+        BookmarkImport.Merge m = BookmarkImport.merge(existing, p.items);
+
+        if (m.added.isEmpty()) {
+            // 全是重复的就别假装成功；如实说清「这份文件里一条新的都没有」
+            toast("没有新增：这 " + p.items.size() + " 条都已经在收藏里了");
+            return;
+        }
+        List<BookmarkStore.Draft> drafts = new ArrayList<>();
+        for (BookmarkImport.Entry e : m.added) {
+            drafts.add(new BookmarkStore.Draft(e.url, e.title));
+        }
+        int n = store.addBookmarks(drafts);
+        // 如实报数：加了几条、已有几条、跳过几条（坏行 / javascript: 这类）
+        StringBuilder msg = new StringBuilder("已导入 " + n + " 条");
+        if (m.dup > 0) msg.append(" · 已有 ").append(m.dup).append(" 条");
+        if (p.skipped > 0) msg.append(" · 跳过 ").append(p.skipped).append(" 条");
+        toast(msg.toString());
+        showBookmarksSheet();
+    }
+
+
     private String readUriText(android.net.Uri uri) throws Exception {
+        // 脚本正常只有几 KB。超过 2MB 基本是选错文件了，而读下去会把这个内存吃满。
+        return readUriText(uri, 2 * 1024 * 1024);
+    }
+
+    private String readUriText(android.net.Uri uri, int maxBytes) throws Exception {
         java.io.InputStream in = getContentResolver().openInputStream(uri);
         if (in == null) throw new java.io.IOException("打不开这个文件");
         java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
@@ -4103,9 +4199,7 @@ public final class MainActivity extends Activity {
         while ((n = in.read(buf)) > 0) {
             bos.write(buf, 0, n);
             total += n;
-            // 脚本正常只有几 KB。超过 2MB 基本是选错文件了，
-            // 而读下去会把这个内存吃满。
-            if (total > 2 * 1024 * 1024) throw new java.io.IOException("文件太大了");
+            if (total > maxBytes) throw new java.io.IOException("文件太大了");
         }
         in.close();
         // 显式 UTF-8：不少用户脚本是中文，不给编码会用平台默认，

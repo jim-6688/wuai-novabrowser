@@ -21,9 +21,9 @@
     <color name="engine_chromium">@color/engine_chromium_dark</color>
     <color name="bg">@color/bg_dark</color>
     <color name="surface">@color/surface_dark</color>
-    <!-- 深色模的半透明底栏。与浅色同透明度：两边差一点点，切换主题时
+    <!-- 深色模的半透明底栏。与浅色同透明度（65%，A6）：两边差一点点，切换主题时
          底栏的「通透感」就会不一样，而这是同一件东西。 -->
-    <color name="surface_translucent">#CC171A22</color>
+    <color name="surface_translucent">#A6171A22</color>
     <color name="surface_2">@color/surface_2_dark</color>
     <color name="surface_3">@color/surface_3_dark</color>
     <color name="border">@color/border_dark</color>

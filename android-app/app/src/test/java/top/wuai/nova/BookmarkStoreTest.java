@@ -96,4 +96,37 @@ public class BookmarkStoreTest {
         assertEquals(1, s2.list().size());
         assertEquals("留存", s2.list().get(0).title);
     }
+
+    @Test
+    public void 批量导入只加新的() throws Exception {
+        BookmarkStore s = store();
+        s.add("https://have.com", "已有");
+
+        java.util.List<BookmarkStore.Draft> drafts = new java.util.ArrayList<>();
+        drafts.add(new BookmarkStore.Draft("https://have.com/", "重复的（带斜杠）"));
+        drafts.add(new BookmarkStore.Draft("https://new1.com", "新的1"));
+        drafts.add(new BookmarkStore.Draft("https://new2.com", "新的2"));
+        drafts.add(new BookmarkStore.Draft("https://new2.com", "文件内重复"));
+
+        // 返回真正新增的条数，不是传进去的条数
+        assertEquals(2, s.addAll(drafts));
+        assertEquals(3, s.list().size());
+    }
+
+    @Test
+    public void 批量导入空标题用网址顶上() throws Exception {
+        BookmarkStore s = store();
+        java.util.List<BookmarkStore.Draft> drafts = new java.util.ArrayList<>();
+        drafts.add(new BookmarkStore.Draft("https://notitle.com", "   "));
+        assertEquals(1, s.addAll(drafts));
+        assertEquals("https://notitle.com", s.list().get(0).title);
+    }
+
+    @Test
+    public void 批量导入空列表不动盘() throws Exception {
+        BookmarkStore s = store();
+        assertEquals(0, s.addAll(new java.util.ArrayList<>()));
+        assertEquals(0, s.addAll(null));
+        assertEquals(0, s.list().size());
+    }
 }

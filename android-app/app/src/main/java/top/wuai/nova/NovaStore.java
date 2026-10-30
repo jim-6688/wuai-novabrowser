@@ -692,6 +692,14 @@ public final class NovaStore {
         bookmarkStore.remove(url);
     }
 
+    /**
+     * 批量收藏（导入用）。一次落盘，返回真正新增的条数。
+     * 与 {@link #addBookmark} 的区别只在性能与去重范围：这里同批内的重复也一并吃掉。
+     */
+    public int addBookmarks(List<BookmarkStore.Draft> items) {
+        return bookmarkStore.addAll(items);
+    }
+
     /** 清空全部书签。 */
     public void clearBookmarks() {
         bookmarkStore.clear();

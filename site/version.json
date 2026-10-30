@@ -1,26 +1,27 @@
 {
-  "version": "1.6.11",
-  "versionCode": 24,
+  "version": "1.6.12",
+  "versionCode": 25,
   "channel": "release",
-  "updatedAt": "2026-10-25",
+  "updatedAt": "2026-10-31",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复底栏标签格位置偏上的问题，现在居中",
-    "标签面板里内置主页不再显示一长串本地路径，改显示「主页」"
+    "UA 末尾加上 NovaBrowser 标识：自家站点（导航 52ta.top）能认出「已经在用 Nova」，不再重复弹下载提示",
+    "底栏透明度调到 65%，网页从玻璃底下透出来更明显",
+    "书签面板新增「导入书签」：认 Chrome / Edge / Firefox 导出的书签 HTML，也认本产品自己的 JSON，自动去重并如实报数"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.11.apk",
-      "size": 497078,
-      "sha256": "06bbb78b1f692f124cf7b6ee7e455cfd481eada16bff1e0a25586f448c31c85f"
+      "url": "download/nova-1.6.12.apk",
+      "size": 501386,
+      "sha256": "7b37491737a04694bb066bfcc082e1723dcf115b6e634c38b22ad3a9847784c8"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.11/nova-1.6.11.apk",
-      "size": 497078,
-      "sha256": "06bbb78b1f692f124cf7b6ee7e455cfd481eada16bff1e0a25586f448c31c85f"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.12/nova-1.6.12.apk",
+      "size": 501386,
+      "sha256": "7b37491737a04694bb066bfcc082e1723dcf115b6e634c38b22ad3a9847784c8"
     }
   ],
   "pc": {
