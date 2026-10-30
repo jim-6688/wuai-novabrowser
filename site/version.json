@@ -1,26 +1,26 @@
 {
-  "version": "1.6.14",
-  "versionCode": 27,
+  "version": "1.6.15",
+  "versionCode": 28,
   "channel": "release",
   "updatedAt": "2026-10-31",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "导入书签改为「从已安装的浏览器」：先列出本机装的浏览器，能读的直接导入，读不了的说明原因并给一步到位的文件导入",
-    "导入结果如实报数：新增 / 已有 / 跳过；文件导入与浏览器导入走同一套去重口径"
+    "底栏胶囊透明度 65% → 50%：浅色页面上不再和白底糊在一起，网页内容能透出来，形状靠描边与投影定住",
+    "滚动时那条玻璃搜索条同步变透（与胶囊共用同一档透明度）"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.14.apk",
-      "size": 512050,
-      "sha256": "5253f5b949515c8fa5adbf2a1474b76462ba124cb8688d2a8d101953cfade09d"
+      "url": "download/nova-1.6.15.apk",
+      "size": 512046,
+      "sha256": "9cd5c0ca3c53f593d76a008eabc236ab462a94e7aa5cf2aeabcaa35a6b91b143"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.14/nova-1.6.14.apk",
-      "size": 512050,
-      "sha256": "5253f5b949515c8fa5adbf2a1474b76462ba124cb8688d2a8d101953cfade09d"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.15/nova-1.6.15.apk",
+      "size": 512046,
+      "sha256": "9cd5c0ca3c53f593d76a008eabc236ab462a94e7aa5cf2aeabcaa35a6b91b143"
     }
   ],
   "pc": {
