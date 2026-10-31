@@ -1,27 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
-  底栏「标签」格。原来是画在 56dp 蓝色主按钮里的白图标（tint 写死 #FFFFFF，
-  因为那时底下一定有一块品牌色）。底栏改成五格等宽纯图标之后，这一格不再有
-  自己的底色，白图标落在浅色底上等于看不见 —— 改成与左邻 ic_back 同一支
-  text_3，让计数徽标（品牌色）成为这一格唯一的有色元素。
+  底栏「标签」：实心方块 + 上方一条实心短杠（表示「叠着的页」）。
+
+  2026-10-31 由描边改实心。描边版是一圈矩形框 + 一条短线，实心版把主体填满、
+  上面那条短杠保留 —— 两笔都是实心，颜色一致，读起来仍是「一叠标签页」。
+
+  几何 24×24 画布：主体 3.4×7.4→20.6×16.8（圆角 2.2），短杠 7.4→16.6（圆角 1.3）。
+  尺寸由 mb_icon=22dp 控制。这一格底下是品牌蓝块，图标被 MainActivity 用
+  android:tint="#FFFFFF" 染白，所以这里路径仍写 #000、根节点 tint 给 text_3 作兜底
+  （主菜单里若有复用，深色下也是亮灰）。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="20dp" android:height="20dp"
-    android:viewportWidth="20" android:viewportHeight="20"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
     android:tint="@color/text_3">
-    <!-- 与其余顶栏/底栏图标同一档：视觉高（含描边）16.9 / 画布 20 ≈ 22dp。
-         方形标签原图形只占 55%，是五格里与 ic_back 并列最矮小的两枚之一；
-         上一轮做图标归一化时漏了这一支（当时它被一块渐变底遮着，看不出偏小），
-         补上与邻格一致。 -->
-    <group
-        android:scaleX="1.38" android:scaleY="1.38"
-        android:pivotX="10" android:pivotY="10">
-        <path android:strokeColor="#000" android:strokeWidth="2.32"
-            android:strokeLineJoin="round"
-            android:pathData="M4,6.5 h12 v9 h-12 z"
-            android:strokeLineCap="round" />
-        <path android:strokeColor="#000" android:strokeWidth="2.32"
-            android:strokeLineCap="round"
-            android:pathData="M6.5,4.5 h7"
-            android:strokeLineJoin="round" />
-    </group>
+    <path
+        android:fillColor="#000000"
+        android:pathData="M6.2,7.4h11.6a2.4,2.4 0 0 1 2.4,2.4v6.6a2.4,2.4 0 0 1 -2.4,2.4H6.2a2.4,2.4 0 0 1 -2.4,-2.4V9.8a2.4,2.4 0 0 1 2.4,-2.4z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M8,4.4h8a1.3,1.3 0 0 1 0,2.6H8a1.3,1.3 0 0 1 0,-2.6z" />
 </vector>

@@ -1,38 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  首页。房子轮廓：一条屋顶折线 + 一个门。
+  首页：实心房子（含门）。
 
-  放在工具栏地址栏左侧，不在底栏 —— 底栏六格是硬约束（320dp 机型上每格
-  已经贴着 44px 触控下限，加第七格会掉下去），而工具栏这里现在只有一个
-  只读的内核标识，位置是空的。UC/QQ/夸克也都在这个位置。
+  2026-10-31 由描边改实心。房子的实心版用「轮廓 + 门洞向下开口」一笔画成：
+  门是从底边凹进去的缺口，不用 evenOdd 挖洞 —— 挖洞那套在深色底上
+  边缘会露一圈底色的缝。
 
-  颜色直接写在 strokeColor 上，不再用 android:tint —— 根节点的 tint 会
-  无差别盖掉所有 path 的颜色，而顶栏这一行要上彩色（首页蓝 / 星标金 /
-  刷新青 / AI 渐变），tint 一开就全被染成同一个色。
-
-  尺幅 22dp（原来是 20dp）：按钮容器同时从 34dp 加到 40dp，
-  顶栏行高跟着从 46dp 变成 52dp，正好等于设计板 .mtoolbar 的 52px。
-  viewport 仍是 20×20，描边按比例放大到约 1.76dp，与底栏那些 20dp 图标
-  摆在一起时笔画量级仍然接近。
+  几何 24×24 标准画布，尺寸由 mb_icon=22dp 控制。颜色直接写 fillColor=@color/brand，
+  不开 android:tint：这枚在顶栏要与金色星标、青绿刷新拉开，tint 会一锅染成同色。
+  注意它同时被主菜单弹层的「首页」行引用，改这里两处一起变。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="22dp" android:height="22dp"
-    android:viewportWidth="20" android:viewportHeight="20">
-    <!-- 房子原图形占画布 66%（视觉高 12.6），按「视觉高（含描边）16.9 ≈ 22dp」
-         统一档放大。注意这枚图标同时被主菜单弹层的「首页」行引用，
-         缩放对两处同时生效。 -->
-    <group
-        android:scaleX="1.21" android:scaleY="1.21"
-        android:pivotX="10" android:pivotY="9.9">
-        <path android:strokeColor="@color/brand" android:strokeWidth="2.64"
-            android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:pathData="M3.4,9.4 L10,3.6 L16.6,9.4" />
-        <path android:strokeColor="@color/brand" android:strokeWidth="2.64"
-            android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:pathData="M5.2,8.6 V16.2 H14.8 V8.6" />
-        <path android:strokeColor="@color/brand" android:strokeWidth="2.64"
-            android:strokeLineCap="round"
-            android:pathData="M8.6,16.2 V11.8 H11.4 V16.2"
-            android:strokeLineJoin="round" />
-    </group>
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/brand"
+        android:pathData="M10,20v-6h4v6h5v-8h3L12,3 2,12h3v8z" />
 </vector>

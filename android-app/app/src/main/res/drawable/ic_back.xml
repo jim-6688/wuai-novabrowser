@@ -1,14 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  底栏「返回」：实心左箭头。
+
+  2026-10-31 由描边改实心。改的原因写在需求里：「去掉外圈背景层，直接实心图标」——
+  底栏去掉每格底片后，1.5dp 级的细线在玻璃条上更显轻飘，实心块的重量才和
+  品牌蓝块、右上角计数徽标站得住。
+
+  几何换成 24×24 标准画布（arrow_back 的通用形状）。24 画布自带 2 单位留白，
+  落到 mb_icon=22dp 上视觉高约 18dp，与另外四格一致；不再需要外层 group 缩放。
+  颜色仍走 android:tint="@color/text_3"（路径保持 #000）：深浅两模跟着主题换。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="20dp" android:height="20dp"
-    android:viewportWidth="20" android:viewportHeight="20"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
     android:tint="@color/text_3">
-    <!-- 返回箭头原来只占画布 55%（宽 5.5、高 11），是底栏最矮小的一枚。
-         放大到与全场一致的「视觉高 16.9 ≈ 22dp」，与邻格看齐。 -->
-    <group
-        android:scaleX="1.38" android:scaleY="1.38"
-        android:pivotX="9.75" android:pivotY="10">
-        <path android:strokeColor="#000" android:strokeWidth="2.32"
-            android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:pathData="M12.5,4.5 L7,10 L12.5,15.5" />
-    </group>
+    <path
+        android:fillColor="#000000"
+        android:pathData="M20,11H7.83l5.59,-5.59L12,4l-8,8 8,8 1.41,-1.41L7.83,13H20v-2z" />
 </vector>

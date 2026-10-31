@@ -2,22 +2,20 @@
 <!--
   刷新 / 停止。同一个位置两种形态，跟桌面端 .ow-refresh 同理。
 
-  青绿（accent）：和品牌蓝的首页、金色的星标拉开，顶栏一行读过去
-  是「蓝 · 金 · 青 · 渐变」，四个入口各有各的颜色，不用读形状就能区分。
+  2026-10-31 由描边改实心：圆弧那笔改成「带箭头的实心环带」（refresh 的通用形状），
+  箭头是环带末端的一角，不再单画一根折线。实心环带比描边圆弧重，
+  和首页的实心房子、标签的实心块是同一档重量。
+
+  颜色直接写 @color/accent（青绿）：这一枚在顶栏要与品牌蓝、星标金拉开，
+  不用 tint —— tint 会把整枚染成一个颜色，就没法一栏四色了。
+  几何 24×24 画布，尺寸走 mb_icon=22dp。同一枚也服务主菜单弹层的「刷新」行。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="22dp" android:height="22dp"
-    android:viewportWidth="20" android:viewportHeight="20">
-    <!-- 圆弧+箭头整体占画布 70%（视觉高 13.9），按「视觉高（含描边）16.9 ≈ 22dp」
-         统一档放大。同一枚图标也服务主菜单弹层的「刷新」行。 -->
-    <group
-        android:scaleX="1.09" android:scaleY="1.09"
-        android:pivotX="10.15" android:pivotY="9.55">
-        <path android:strokeColor="@color/accent" android:strokeWidth="2.94"
-            android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:pathData="M16.5,10 a6.5,6.5 0 1,1 -1.9,-4.6" />
-        <path android:strokeColor="@color/accent" android:strokeWidth="2.94"
-            android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:pathData="M16.8,2.6 V5.6 H13.8" />
-    </group>
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/accent"
+        android:pathData="M17.65,6.35C16.2,4.9 14.21,4 12,4c-4.42,0 -7.99,3.58 -8,8s3.58,8 8,8c3.73,0 6.84,-2.55 7.73,-6h-2.08c-0.82,2.33 -3.04,4 -5.65,4 -3.31,0 -6,-2.69 -6,-6s2.69,-6 6,-6c1.66,0 3.14,0.69 4.22,1.78L13,11h7V4l-2.35,2.35z" />
 </vector>

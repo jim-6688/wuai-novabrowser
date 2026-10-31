@@ -1,36 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  底栏「工具」图标：一只工具箱（箱体 + 提手 + 中缝）。
+  底栏「工具」：实心工具箱。
 
-  原来画的是「三条横线 + 三个滑块」的调节符号 —— 那套图形在 20dp 下和
-  ic_menu 的三条横线几乎分不出来，底栏里并排放着，「工具」与「菜单」看着像
-  同一个按钮。换成工具箱后两者一眼可分：箱体有明确的外轮廓，横线没有。
+  2026-10-31 由描边改实心。原来那套是「箱体 + 提手 + 中缝」三笔描边，中缝靠线宽
+  表现；实心化之后中缝必须靠形状本身，否则整块糊成一坨。所以改用箱包式轮廓：
+  箱体 + 上方提手，两者在视觉上就能读出「工具箱」。
 
-  造型沿用本工程线性图标的约定：20dp 画布、strokeColor 写 #000（真正的颜色由
-  根节点的 android:tint 决定）、圆头线帽、不写 fillColor（写了会变成实心块，
-  和 ic_back / ic_menu 不是一套）。
+  造型仍用 24×24 标准画布（work/briefcase 的通用形状），尺寸走 mb_icon=22dp。
+  颜色写 android:tint="@color/text_3"，路径保持 #000，深浅两模自动跟主题。
+  它同时被主菜单「工具」行与「有下载任务时换成 ic_download」那一格共用位置。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="20dp" android:height="20dp"
-    android:viewportWidth="20" android:viewportHeight="20"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
     android:tint="@color/text_3">
-    <!-- 工具箱原图形占画布 63%（视觉高 12.5、宽 14.4），按「视觉高（含描边）
-         16.9 ≈ 22dp」统一档放大。同时被主菜单弹层「工具」行与工具格的
-         「有下载任务」切换（ic_download）共用位置，两支已统一到同一档。 -->
-    <group
-        android:scaleX="1.22" android:scaleY="1.22"
-        android:pivotX="10" android:pivotY="10.55">
-        <path android:strokeColor="#000" android:strokeWidth="2.62"
-            android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:fillColor="@android:color/transparent"
-            android:pathData="M4.8,7.4 H15.2 A2,2 0 0,1 17.2,9.4 V14.8 A2,2 0 0,1 15.2,16.8 H4.8 A2,2 0 0,1 2.8,14.8 V9.4 A2,2 0 0,1 4.8,7.4 Z" />
-        <path android:strokeColor="#000" android:strokeWidth="2.62"
-            android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:fillColor="@android:color/transparent"
-            android:pathData="M7.4,7.4 V6 A1.7,1.7 0 0,1 9.1,4.3 H10.9 A1.7,1.7 0 0,1 12.6,6 V7.4" />
-        <path android:strokeColor="#000" android:strokeWidth="2.62"
-            android:strokeLineCap="round"
-            android:pathData="M2.8,11 H17.2"
-            android:strokeLineJoin="round" />
-    </group>
+    <path
+        android:fillColor="#000000"
+        android:pathData="M20,6h-4V4c0,-1.11 -0.89,-2 -2,-2h-4c-1.11,0 -2,0.89 -2,2v2H4c-1.11,0 -1.99,0.89 -1.99,2L2,19c0,1.11 0.89,2 2,2h16c1.11,0 2,-0.89 2,-2V8c0,-1.11 -0.89,-2 -2,-2zM14,6h-4V4h4v2z" />
 </vector>

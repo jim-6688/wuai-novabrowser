@@ -26,8 +26,6 @@
     <color name="surface_translucent">#D91A1E2B</color>
     <!-- 深色下描边要「亮一点」才看得见，与浅色那支同语义。 -->
     <color name="capsule_edge">#4B5470</color>
-    <color name="mb_cell">#FF26304A</color>
-    <color name="mb_cell_edge">#FF3B4A6E</color>
     <color name="surface_2">@color/surface_2_dark</color>
     <color name="surface_3">@color/surface_3_dark</color>
     <color name="border">@color/border_dark</color>
