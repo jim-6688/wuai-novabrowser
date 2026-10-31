@@ -15,8 +15,8 @@
 
     <ImageView
         android:id="@+id/btnIcon"
-        android:layout_width="@dimen/icon_action"
-        android:layout_height="@dimen/icon_action"
+        android:layout_width="@dimen/mb_icon"
+        android:layout_height="@dimen/mb_icon"
         android:contentDescription="@string/content_desc_back"
         android:scaleType="fitCenter" />
 

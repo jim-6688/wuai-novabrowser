@@ -15,6 +15,9 @@
 -->
 <resources>
     <dimen name="icon_action">26dp</dimen>
+    <!-- 底栏五格的图标：比顶栏小一号（26 → 22）。底栏格子 56×46dp、加了底片之后
+         26dp 的图标把底片撑得很满；22dp 留出呼吸，五个图标也不至于挤在一起。 -->
+    <dimen name="mb_icon">22dp</dimen>
     <dimen name="tap_action">40dp</dimen>
     <dimen name="icon_row">20dp</dimen>
 
