@@ -654,6 +654,20 @@ const MOCK_UPDATE = {
         state.settings.bookmarks = state.settings.bookmarks.filter((b) => b.url !== url);
         return state.settings.bookmarks;
       },
+      /* 改标题 / 网址：与主进程 settings.updateBookmark 同一套返回形状
+         （ok / error / bookmarks），预览里也就能试出「改成已有网址」的提示。 */
+      update: async (oldUrl, patch) => {
+        const list = state.settings.bookmarks;
+        const i = list.findIndex((b) => b.url === oldUrl);
+        if (i < 0) return { ok: false, error: 'missing', bookmarks: list };
+        const p = patch || {};
+        const nextUrl = String(p.url == null ? list[i].url : p.url).trim() || list[i].url;
+        if (nextUrl !== oldUrl && list.some((b, k) => k !== i && b.url === nextUrl)) {
+          return { ok: false, error: 'dup', bookmarks: list };
+        }
+        list[i] = { ...list[i], title: p.title == null ? list[i].title : p.title, url: nextUrl };
+        return { ok: true, error: '', bookmarks: list };
+      },
       clear: async () => { state.settings.bookmarks = []; return []; },
       /* 导入导出：预览模式下开不了文件对话框，一律当作「用户取消了」。
          不能假装成功 —— 那样评审点一下看到「导入完成：新增 0 条」，

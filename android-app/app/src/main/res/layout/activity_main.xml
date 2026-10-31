@@ -378,8 +378,8 @@
       会从图标缝里透出来，读起来像脏」。设计稿把这条理由否了 —— 底栏与顶栏是
       同一套材质（上下两条才像一对），而且玻璃只占中间一条窄胶囊、网页从它
       两侧穿过去，不是整个通栏压在页面上。行自己不再出底色、也不再出投影：
-      它是一条通栏矩形，投影会在胶囊四周露出一圈通栏的影子。投影由胶囊
-      （mobileBar 的 elevation）和搜索胶囊各自出。
+      它是一条通栏矩形，投影会在胶囊四周露出一圈通栏的影子。胶囊自己也不出投影
+      （2026-10-31 取消）；滚动态的搜索胶囊仍保留那点极淡的 elevation。
 
       初态（工具栏形态）行就是透明的 —— 写在布局里而不是等代码纠正，
       否则冷启动第一帧会闪一下通栏底色。
@@ -409,40 +409,21 @@
           横向 LinearLayout 的子 View 默认顶端对齐，不写这句整行格子（连中间
           品牌块）会齐齐偏高 —— 2026-10-25 用户报「标签图标底色靠上」就是它。
 
-          投影不再由 View 的 elevation 出（被行高裁掉，见 barWrap 那段注释），
-          改由外层 barWrap 的背景自绘；底栏那一行（bottomRow）仍是通栏矩形、
-          依旧不留底色也不出投影 —— 由它出会在胶囊四周露一圈通栏影子。
+          投影：**没有**。2026-10-31 用户连续两轮反馈「阴影太深」——
+          先是把 5 层叠出来的柔影收成一层，再是直接要求取消，于是整块撤掉：
+          底栏与顶栏现在同一套材质（玻璃底 + 1dp 亮描边），上下两条才像一对。
+          早先为它包过一层 barWrap（自绘影子载体），现在一并拆掉，
+          mobileBar 重新是 bottomRow 的直接子节点 —— 动画与显隐也就回到它自己身上。
+          底栏那一行（bottomRow）仍是通栏矩形、依旧不留底色也不出投影。
           两端格子的矩形按背景会探出胶囊的圆弧，靠 clipToOutline 裁掉
           （在 MainActivity 绑定 mobileBar 处开）。
         -->
-        <!--
-          投影载体（2026-10-31）：胶囊自己投不出像样的影子 —— elevation 的影子
-          受父容器裁切，而这一行只有 68dp（58 胶囊 + 10 悬浮量），12dp 的 elevation
-          大半被裁掉，看起来就像没有阴影。
-
-          所以把影子画进这一层的背景（bg_bottom_shadow：一块比胶囊大一圈、
-          向下偏移的胶囊形，一层）。
-          并给它留出十面空间：四周 padding 10dp，胶囊正好内缩 10dp 坐在里面。
-          影子往下铺 10dp、左右各 8dp，全程落在本层边界内，不会再被裁成硬边。
-
-          动画与显隐都挂在这一层（MainActivity#applyReveal 的 bar），
-          否则胶囊淡出滑走之后，影子会孤零零留在原地。
-        -->
-        <FrameLayout
-            android:id="@+id/barWrap"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="0dp"
-            android:paddingBottom="10dp"
-            android:background="@drawable/bg_bottom_shadow">
-
         <LinearLayout
             android:id="@+id/mobileBar"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/mb_capsule_h"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="10dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:paddingStart="6dp"
@@ -518,7 +499,6 @@
             <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools"
                 android:layout_width="@dimen/mb_cell_w" android:layout_height="@dimen/mb_cell_h" />
         </LinearLayout>
-        </FrameLayout>
 
         <!--
           滚动态的胶囊搜索框。顶栏整行收起后，搜索入口落到这里。

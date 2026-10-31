@@ -238,18 +238,6 @@ public final class MainActivity extends Activity {
     private View topBar;
     /** 五格底栏。滚动时整条淡出，位置上换成 {@link #searchCapsule}。 */
     private View mobileBar;
-    /**
-     * 底栏胶囊的投影载体，包着 {@link #mobileBar}。
-     *
-     * <p>为什么要单独一层：elevation 投出的影子会被父容器裁掉，而这一行只有 68dp
-     * （58 胶囊 + 10 悬浮量），12dp 的 elevation 大半落在行外 —— 那就是「加了 elevation
-     * 却看不到阴影」。影子改由这一层的背景自绘（{@code bg_bottom_shadow}），
-     * 四周留 10dp 给它，胶囊内缩坐在里面。
-     *
-     * <p>显隐与滑动动画都挂在这一层而不是胶囊本身：胶囊淡出滑走后，
-     * 影子必须跟着一起走，否则会孤零零飘在原地。见 {@link #applyReveal}。
-     */
-    private View barWrap;
     /** 顶栏那一行。滚动时整行收起，把这 52dp 还给网页。 */
     private View topRow;
     /** 滚动态的胶囊搜索框。与 {@link #mobileBar} 叠在同一行里（布局里的 bottomRow）。 */
@@ -921,7 +909,6 @@ public final class MainActivity extends Activity {
         statusStrip = findViewById(R.id.statusStrip);
         noImageChip = findViewById(R.id.noImageChip);
         mobileBar = findViewById(R.id.mobileBar);
-        barWrap = findViewById(R.id.barWrap);
         // 底栏胶囊（bg_bottom_capsule）要裁掉子 View：两端格子的矩形按背景和水波纹
         // 会探出胶囊的圆弧 —— 格子贴着胶囊的 6dp 内边距放，两端格的角正落在圆弧外面。
         // 圆角形状背景会给出圆角轮廓，打开 clipToOutline 让按背景和波纹都收在轮廓里。
@@ -1684,10 +1671,7 @@ public final class MainActivity extends Activity {
      * @param animate 是否播放 300ms 动画；装配阶段不需要动画
      */
     private void applyReveal(BottomBarReveal.State s, boolean animate) {
-        // 动画挂在投影载体（barWrap）上而不是胶囊：影子属于胶囊的一部分，
-        // 胶囊淡出滑走时它必须一起走，否则会留在原地。拿不到载体时退回胶囊本身
-        // （老布局/极端情况下至少不空指针）。
-        final View bar = barWrap != null ? barWrap : mobileBar;
+        final View bar = mobileBar;
         final View cap = searchCapsule;
         final View top = topRow;
         if (bar == null || cap == null || top == null) return;
@@ -1756,8 +1740,8 @@ public final class MainActivity extends Activity {
      * 顶栏是同一套材质（上下两条才像一对），而且玻璃只占中间一条窄胶囊、网页从它
      * 两侧穿过去，不是整个通栏压在页面上。于是五格形态的底色搬进了胶囊自己
      * （bg_bottom_capsule），行自己不留底色、也不出投影 —— 行是一条通栏矩形，
-     * 由它出投影会在胶囊四周露一圈通栏的影子。投影由胶囊外层的载体（barWrap 的背景
-     * {@code bg_bottom_shadow}）和滚动态的搜索胶囊各自的 elevation 出。
+     * 由它出投影会在胶囊四周露一圈通栏的影子。胶囊自己也不出投影（2026-10-31 取消：
+     * 用户连续两轮说阴影太深）；滚动态的搜索胶囊仍保留那点极淡的 elevation。
      *
      * <p>滚动态仍是老样子：行出玻璃条，胶囊搜索框浮在它上面。
      *
@@ -3269,23 +3253,30 @@ public final class MainActivity extends Activity {
         if (t != null) t.setText(title);
         View close = sheet.findViewById(R.id.sheetClose);
         if (close != null) {
-            // 工具栏那一格的右上角是**工具箱**（ic_tools，和底栏「工具」格同一支），
-            // 其余弹层仍是 ×。两者共用 sheet_head.xml，所以图标按布局分派；
-            // 行为一致 —— 点哪一格都是收起面板（下拉拖柄、点遮罩也能关）。
+            // 工具栏那一格的右上角是**设置入口**（齿轮），其余弹层仍是 ×。
+            // 两者共用 sheet_head.xml，所以图标与行为按布局分派。
             //
-            // 2026-10-24 改：这一格原来是齿轮、点它进设置。按设计稿
-            // （design/mobile-spring-demo.html）换成工具面板自己的图标 + 收起 ——
-            // 一个「工具」图标却通向设置是自相矛盾的；设置入口在菜单面板
-            // （menuSettings）还有一份，撤掉这处不撤出路。
+            // 中间改过一版：2026-10-24 按设计稿把它换成「工具」图标 + 收起。
+            // 2026-10-31 用户反馈「工具里右上角图标没有链接到设置」——
+            // 说明这一角在用户心里就是设置口（那是它最初的样子）。改回齿轮，
+            // 点它直接进设置面板，不再只是关闭。关掉的出路仍有三条：
+            // 下拉拖柄、点遮罩、底部面板本身的滑动收起。
             //
             // 声明成 ImageView：换图标要调 setImageResource，而那是 ImageView 的方法，
             // View 上没有（写成 View 会「找不到符号」）。
             boolean isTools = layoutRes == R.layout.sheet_tools;
             ImageView icon = (ImageView) close;
-            icon.setImageResource(isTools ? R.drawable.ic_tools : R.drawable.ic_close);
+            icon.setImageResource(isTools ? R.drawable.ic_settings : R.drawable.ic_close);
             close.setContentDescription(getString(
-                isTools ? R.string.sheet_collapse_tools : R.string.action_close_tab));
-            close.setOnClickListener(v -> mountMain());
+                isTools ? R.string.sheet_settings : R.string.action_close_tab));
+            if (isTools) {
+                close.setOnClickListener(v -> {
+                    mountMain();
+                    showSettings();
+                });
+            } else {
+                close.setOnClickListener(v -> mountMain());
+            }
         }
 
         setContentView(root);
@@ -3884,7 +3875,68 @@ public final class MainActivity extends Activity {
             // 星标同理 —— 删掉的可能正是当前这一页。
             updateStarState();
         });
+        // 长按 = 编辑（改标题 / 改网址 / 移出）。不放一个常驻的铅笔按钮：
+        // 一格只有图标 + 标题 + 网址 + ×，再塞一个就挤成两行了；
+        // 而「改」是低频动作，「删」是高频动作 —— 高频的留在明面上。
+        row.setOnLongClickListener(v -> {
+            showBookmarkEditSheet(b);
+            return true;
+        });
         return row;
+    }
+
+    /**
+     * 编辑一条收藏：改标题、改网址、移出。
+     *
+     * <p>网址允许只写 {@code zhihu.com}（{@link UrlInput} 补 https://），
+     * 但不像网址的输入会**报错而不是当搜索词** —— 见 UrlInput 的类注释。
+     *
+     * <p>保存 / 移出之后都重开一次书签面板：列表是自己重画的，
+     * 不重画的话改完还显示旧标题。
+     */
+    private void showBookmarkEditSheet(final BookmarkStore.Bookmark b) {
+        final View sheet = openSheet("编辑收藏", R.layout.sheet_bookmark_edit);
+        final EditText title = sheet.findViewById(R.id.bmEditTitle);
+        final EditText url = sheet.findViewById(R.id.bmEditUrl);
+        final TextView tip = sheet.findViewById(R.id.bmEditTip);
+
+        title.setText(b.title);
+        url.setText(b.url);
+        // 光标停在末尾而不是全选：多数情况是改一两个字，全选一下就把原值顶掉了。
+        title.setSelection(title.getText().length());
+        tip.setVisibility(View.GONE);
+
+        sheet.findViewById(R.id.bmEditRemove).setOnClickListener(v -> {
+            store.removeBookmark(b.url);
+            showBookmarksSheet();
+            updateStarState();
+            toast("已移出收藏");
+        });
+
+        sheet.findViewById(R.id.bmEditSave).setOnClickListener(v -> {
+            final String nextUrl = UrlInput.toUrl(url.getText().toString());
+            if (nextUrl.isEmpty()) {
+                tip.setText("网址看起来不对：写 example.com 或 https://… 都行");
+                tip.setVisibility(View.VISIBLE);
+                url.requestFocus();
+                return;
+            }
+            BookmarkStore.Update r =
+                store.updateBookmark(b.url, title.getText().toString(), nextUrl);
+            if (r == BookmarkStore.Update.DUP) {
+                tip.setText("这个网址已经在收藏里了");
+                tip.setVisibility(View.VISIBLE);
+                return;
+            }
+            if (r == BookmarkStore.Update.MISSING) {
+                tip.setText("这条收藏已经不在了");
+                tip.setVisibility(View.VISIBLE);
+                return;
+            }
+            showBookmarksSheet();
+            updateStarState();
+            toast("收藏已更新");
+        });
     }
 
     // ---------------------------------------------------------- 浏览历史

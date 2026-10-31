@@ -129,4 +129,62 @@ public class BookmarkStoreTest {
         assertEquals(0, s.addAll(null));
         assertEquals(0, s.list().size());
     }
+
+    // ---------------------------------------------------------------- 编辑
+
+    @Test
+    public void 改标题与网址后落盘且id不变() throws Exception {
+        File dir = Files.createTempDirectory("bm-edit").toFile();
+        BookmarkStore s = new BookmarkStore(dir);
+        s.add("https://old.test/a", "旧标题");
+        String id = s.list().get(0).id;
+        long at = s.list().get(0).addedAt;
+
+        assertEquals(BookmarkStore.Update.OK,
+            s.update("https://old.test/a", "新标题", "https://new.test/b"));
+
+        // 新实例从同一文件读回，确认真的写盘了（不是只改了内存）
+        BookmarkStore again = new BookmarkStore(dir);
+        List<BookmarkStore.Bookmark> l = again.list();
+        assertEquals(1, l.size());
+        assertEquals("新标题", l.get(0).title);
+        assertEquals("https://new.test/b", l.get(0).url);
+        // id 与加入时间保持不变：这条还是同一条，排序不该因此改动
+        assertEquals(id, l.get(0).id);
+        assertEquals(at, l.get(0).addedAt);
+    }
+
+    @Test
+    public void 标题留空回退成网址() throws Exception {
+        BookmarkStore s = store();
+        s.add("https://a.test/", "原标题");
+        assertEquals(BookmarkStore.Update.OK, s.update("https://a.test/", "   ", null));
+        assertEquals("https://a.test/", s.list().get(0).title);
+    }
+
+    @Test
+    public void 改成另一条已收藏的网址会被拒绝() throws Exception {
+        BookmarkStore s = store();
+        s.add("https://a.test/", "A");
+        s.add("https://b.test/", "B");
+        // 带不带尾斜杠算同一个网址（与导入去重同一套归一化）
+        assertEquals(BookmarkStore.Update.DUP,
+            s.update("https://a.test/", "A", "https://b.test/"));
+        assertEquals(2, s.list().size());
+        // 想改的那条还是原样
+        boolean stillOld = false;
+        for (BookmarkStore.Bookmark b : s.list()) {
+            if (b.url.equals("https://a.test/")) stillOld = true;
+        }
+        assertTrue(stillOld);
+    }
+
+    @Test
+    public void 改不存在的条目返回MISSING() throws Exception {
+        BookmarkStore s = store();
+        s.add("https://a.test/", "A");
+        assertEquals(BookmarkStore.Update.MISSING, s.update("https://nope.test/", "x", null));
+        assertEquals(BookmarkStore.Update.MISSING, s.update(null, "x", null));
+        assertEquals(1, s.list().size());
+    }
 }

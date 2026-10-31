@@ -479,6 +479,28 @@ function removeBookmark(url) {
   scheduleFlush();
 }
 
+/**
+ * 改一条书签的标题 / 网址。**按老网址定位**，因为网址本身可能被改掉。
+ *
+ * @param {string} oldUrl 改之前那条书签的网址
+ * @param {{title?: string, url?: string}} patch 新值；缺省字段保持原样
+ * @returns {true|'missing'|'dup'} 成功 / 没这条 / 新网址已被另一条占用
+ */
+function updateBookmark(oldUrl, patch) {
+  const list = cache.bookmarks;
+  const i = list.findIndex((b) => b.url === oldUrl);
+  if (i < 0) return 'missing';
+  const p = patch || {};
+  const nextUrl = (p.url == null ? list[i].url : String(p.url)).trim() || list[i].url;
+  // 改成别人已经收过的网址 → 拒绝。合并（丢掉一条）会让用户以为自己改错了东西，
+  // 而「这条已经在收藏里」是它能理解、也能自己处理的一句话。
+  if (nextUrl !== oldUrl && list.some((b, k) => k !== i && b.url === nextUrl)) return 'dup';
+  const nextTitle = p.title == null ? list[i].title : String(p.title);
+  list[i] = { ...list[i], title: nextTitle, url: nextUrl };
+  scheduleFlush();
+  return true;
+}
+
 module.exports = {
   DEFAULT_HOMEPAGE,
   DEFAULTS,
@@ -493,5 +515,6 @@ module.exports = {
   clearHistory,
   addBookmark,
   removeBookmark,
+  updateBookmark,
   path: () => filePath
 };

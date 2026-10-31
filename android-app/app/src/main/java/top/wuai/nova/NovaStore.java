@@ -692,6 +692,11 @@ public final class NovaStore {
         bookmarkStore.remove(url);
     }
 
+    /** 改一条书签的标题 / 网址，按原网址定位。 */
+    public BookmarkStore.Update updateBookmark(String oldUrl, String title, String url) {
+        return bookmarkStore.update(oldUrl, title, url);
+    }
+
     /**
      * 批量收藏（导入用）。一次落盘，返回真正新增的条数。
      * 与 {@link #addBookmark} 的区别只在性能与去重范围：这里同批内的重复也一并吃掉。

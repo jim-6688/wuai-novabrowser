@@ -590,7 +590,10 @@ svg {
 
 /* 点地址栏网址弹出的分享面板：贴在地址栏下方，紧凑版（不铺满地址栏宽度） */
 .omni-share {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  /* 贴地址栏**右端**弹出（2026-10-31 由 left:0 改来）：面板里最显眼的是二维码，
+     而二维码的使用方式是「拿手机对着屏幕扫」—— 贴在地址栏右端、靠近窗口右上角，
+     手机举起来不用越过整条地址栏。左对齐时二维码落在地址栏中段，扫的时候还要找回位置。 */
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
   width: 236px; max-width: calc(100vw - 24px);
   background: var(--surface);
   border: 1px solid var(--border);

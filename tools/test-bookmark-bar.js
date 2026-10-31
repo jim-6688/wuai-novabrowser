@@ -133,7 +133,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('地址栏也跟着变了',
     $('#omni-input').value === 'https://example.com/a', $('#omni-input').value);
 
-  console.log('\n[D] 右键移出');
+  console.log('\n[D] 右键开编辑框，再从框里移出');
 
   setBms([
     { title: 'A', url: 'https://a.test/' },
@@ -141,11 +141,68 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ]);
   Right(items().find((el) => el.dataset.bm === 'https://a.test/'));
   await sleep(60);
-  check('书签少了一条', window.eval('state.bookmarks.length') === 1,
+  check('右键打开的是编辑框，不是直接删掉', !$('#bm-edit').hidden);
+  check('框里带着这一条的标题', $('#bm-edit-title').value === 'A',
+    $('#bm-edit-title').value);
+  check('框里带着这一条的网址', $('#bm-edit-url').value === 'https://a.test/',
+    $('#bm-edit-url').value);
+  check('右键之后书签没被删', window.eval('state.bookmarks.length') === 2,
+    window.eval('state.bookmarks.length') + ' 条');
+
+  $('#bm-edit-remove').click();
+  await sleep(80);
+  check('点了「移出收藏」才真的少一条', window.eval('state.bookmarks.length') === 1,
     window.eval('state.bookmarks.map(b=>b.url).join(",")'));
   check('留下的正好是另一条', window.eval('state.bookmarks[0].url') === 'https://b.test/');
   check('栏里那一格跟着消失',
     items().length === 1 && items()[0].dataset.bm === 'https://b.test/');
+  check('编辑框收起来了', $('#bm-edit').hidden);
+
+  console.log('\n[D2] 改标题与网址');
+
+  setBms([{ title: '旧标题', url: 'https://old.test/a' }]);
+  Right(items()[0]);
+  await sleep(50);
+  $('#bm-edit-title').value = '新标题';
+  $('#bm-edit-url').value = 'https://new.test/b';
+  $('#bm-edit-save').click();
+  await sleep(80);
+  check('标题写进去了', window.eval('state.bookmarks[0].title') === '新标题',
+    window.eval('state.bookmarks[0].title'));
+  check('网址写进去了', window.eval('state.bookmarks[0].url') === 'https://new.test/b',
+    window.eval('state.bookmarks[0].url'));
+  check('栏里那一格换成新标题', items().some((el) => el.textContent.includes('新标题')),
+    items().map((el) => el.textContent.trim()).join(' | '));
+  check('保存后编辑框关掉', $('#bm-edit').hidden);
+
+  // 半截域名自动补协议：收藏时写「zhihu.com」是常事
+  setBms([{ title: '知乎', url: 'https://zhihu.com/' }]);
+  Right(items()[0]);
+  await sleep(50);
+  $('#bm-edit-url').value = 'www.zhihu.com';
+  $('#bm-edit-save').click();
+  await sleep(80);
+  check('只写域名时自动补 https://',
+    window.eval('state.bookmarks[0].url') === 'https://www.zhihu.com',
+    window.eval('state.bookmarks[0].url'));
+
+  // 改成已有网址 → 拒绝并留在框里，别静默合并
+  setBms([
+    { title: 'A', url: 'https://a.test/' },
+    { title: 'B', url: 'https://b.test/' }
+  ]);
+  Right(items().find((el) => el.dataset.bm === 'https://a.test/'));
+  await sleep(50);
+  $('#bm-edit-url').value = 'https://b.test/';
+  $('#bm-edit-save').click();
+  await sleep(60);
+  check('改成已收藏的网址会被拒绝', !$('#bm-edit').hidden);
+  check('拒绝时给出理由',
+    ($('#bm-edit-tip').textContent || '').includes('已经在收藏里'),
+    $('#bm-edit-tip').textContent);
+  check('拒绝后数据没变', window.eval('state.bookmarks.length') === 2);
+  $('#bm-edit-cancel').click();
+  await sleep(40);
 
   console.log('\n[E] 星标与这条栏说的是同一件事');
 
@@ -157,7 +214,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ($('#omni-star').getAttribute('title') || '').includes('已在书签里'));
 
   Right(items()[0]);
-  await sleep(60);
+  await sleep(50);
+  $('#bm-edit-remove').click();
+  await sleep(80);
   check('从栏里移出当前页那一条之后，星标变回空心',
     !$('#omni-star').classList.contains('is-on'));
   check('星标的 title 跟着改回去',

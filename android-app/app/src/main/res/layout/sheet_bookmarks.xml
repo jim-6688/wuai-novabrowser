@@ -11,6 +11,19 @@
 
     <include layout="@layout/sheet_head" />
 
+    <!-- 长按能编辑这条提示必须写出来：长按不是自明的手势，不写没人会去试，
+         等于这个功能不存在。同理，右上角 × 只删不收 —— 那句「长按」也顺带说明
+         「删除不用长按」，两个动作用两种手势，互不打架。 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="8dp"
+        android:text="点一下即前往 · 长按可编辑标题和网址"
+        android:textColor="@color/text_4"
+        android:textSize="11.5sp" />
+
     <TextView
         android:id="@+id/bmEmpty"
         android:layout_width="match_parent"

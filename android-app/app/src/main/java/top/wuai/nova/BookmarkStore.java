@@ -131,7 +131,8 @@ public final class BookmarkStore {
         return added;
     }
 
-    /** 取消收藏。按 url 删（一个 url 只会有一条）。 */    public void remove(String url) {
+    /** 取消收藏。按 url 删（一个 url 只会有一条）。 */
+    public void remove(String url) {
         if (url == null || url.isEmpty()) return;
         List<Bookmark> ordered = list();
         Collections.reverse(ordered);
@@ -140,6 +141,47 @@ public final class BookmarkStore {
             if (!b.url.equals(url)) kept.add(b);
         }
         if (kept.size() != ordered.size()) save(kept);
+    }
+
+    /** 改一条书签的结果。界面按它决定提示什么。 */
+    public enum Update { OK, MISSING, DUP }
+
+    /**
+     * 改一条书签的标题 / 网址。
+     *
+     * <p>按<b>原网址</b>定位 —— 因为网址本身可能就是被改的那一项。
+     * id 与 addedAt 保持不变：这条收藏还是同一条，只是写法变了，
+     * 重新生成 id 会让「按时间排序」把它挪到最后。
+     *
+     * <p>改成另一条已经收藏的网址时返回 {@link Update#DUP}，<b>不合并</b>：
+     * 悄悄删掉一条会让用户以为自己改坏了东西，而「这个网址已经在收藏里」
+     * 是他能理解、也能自己处理的一句话。
+     */
+    public Update update(String oldUrl, String newTitle, String newUrl) {
+        if (oldUrl == null || oldUrl.isEmpty()) return Update.MISSING;
+        List<Bookmark> ordered = list();
+        Collections.reverse(ordered); // 存盘是正序
+        int at = -1;
+        for (int i = 0; i < ordered.size(); i++) {
+            if (ordered.get(i).url.equals(oldUrl)) { at = i; break; }
+        }
+        if (at < 0) return Update.MISSING;
+
+        Bookmark old = ordered.get(at);
+        String url = (newUrl == null || newUrl.trim().isEmpty()) ? old.url : newUrl.trim();
+        if (!url.equals(old.url)) {
+            String norm = BookmarkImport.norm(url);
+            for (int i = 0; i < ordered.size(); i++) {
+                if (i != at && BookmarkImport.norm(ordered.get(i).url).equals(norm)) {
+                    return Update.DUP;
+                }
+            }
+        }
+        // 标题留空就退回网址本身 —— 与 add() 的口径一致，列表里不会出现空白行。
+        String title = (newTitle == null || newTitle.trim().isEmpty()) ? url : newTitle.trim();
+        ordered.set(at, new Bookmark(old.id, title, url, old.addedAt));
+        save(ordered);
+        return Update.OK;
     }
 
     /** 清空全部书签。 */

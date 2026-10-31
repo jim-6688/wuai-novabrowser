@@ -618,6 +618,42 @@
        网页提交登录表单后由 webview preload 送到外壳（nova-login）。
        只在「表单里恰好有一个密码框」时出现，且可在 设置 → 密码 里关掉。
        放右下角而不是弹模态：登录完人正要开始用页面，挡在中间会打断。 -->
+  <!-- ============ 编辑收藏 ============
+       收藏夹栏 / 侧边收藏 / 设置里的书签行都能开这一份：改标题、改网址、移出收藏。
+       外壳里没有第二个「填两个字段」的场景，所以直接复用了登录框那套皮肤
+       （.auth-dlg / .auth-box / .auth-field…）：它在本项目里承担的是
+       「居中模态 + 表单 + 两个按钮」这件通用的事，不是「登录专用」。
+
+       网址那一栏允许写 zhihu.com 这种半截地址（自动补 https://），
+       但**不会**把不像网址的内容偷偷转成搜索链接 —— 收藏的是网址，
+       悄悄换成搜索引擎结果页，用户下次点开就找不到原来那条了。 -->
+  <section class="auth-dlg" id="bm-edit" hidden>
+    <div class="auth-backdrop" id="bm-edit-backdrop"></div>
+    <div class="auth-box" role="dialog" aria-modal="true" aria-labelledby="bm-edit-h">
+      <div class="auth-head">
+        <svg class="auth-ico" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5l2.2 4.5 4.9.7-3.6 3.4.9 4.9L10 13.7 5.6 16l.9-4.9L2.9 7.7l4.9-.7z"/></svg>
+        <div class="auth-head-text">
+          <h3 id="bm-edit-h">编辑收藏</h3>
+          <div class="auth-sub">改标题或网址，保存即生效</div>
+        </div>
+      </div>
+      <label class="auth-field">
+        <span>标题</span>
+        <input id="bm-edit-title" class="auth-input" type="text" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="auth-field">
+        <span>网址</span>
+        <input id="bm-edit-url" class="auth-input" type="text" autocomplete="off" spellcheck="false" />
+      </label>
+      <div class="auth-tip" id="bm-edit-tip"></div>
+      <div class="auth-btns">
+        <button class="btn" id="bm-edit-remove">移出收藏</button>
+        <button class="btn" id="bm-edit-cancel">取消</button>
+        <button class="btn btn-primary" id="bm-edit-save">保存</button>
+      </div>
+    </div>
+  </section>
+
   <div class="pwd-prompt" id="pwd-prompt" hidden role="dialog" aria-live="polite" aria-label="保存密码">
     <div class="pwd-main">
       <div class="pwd-title">要保存这个网站的密码吗？</div>

@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「编辑收藏」弹层：改标题、改网址、移出收藏。
+
+  以前收藏只能删、不能改。站点换域名（http→https、www 去掉）、或当初收的时候
+  标题是一串乱码，除了删掉重收没有别的办法 —— 而重收要先把原来的删掉，
+  排序也会变（书签按添加时间倒序）。
+
+  两个输入框都用 omnibox 那个圆角底，与设置页「首页地址」同一个样式：
+  这是本应用里唯一一种「单行文本输入框」的样子，别处不再另造一个。
+
+  网址那一栏允许只写 zhihu.com（代码里补 https://），但不会把不像网址的内容
+  偷偷转成搜索链接 —— 收藏的是网址，悄悄换成搜索结果页等于把它改坏了。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="18dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_3"
+        android:textSize="11.5sp"
+        android:text="标题留空就用网址；网址可以只写 zhihu.com。" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_2"
+        android:textSize="12sp"
+        android:text="标题" />
+
+    <EditText
+        android:id="@+id/bmEditTitle"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/omnibox"
+        android:hint="标题"
+        android:importantForAutofill="no"
+        android:inputType="text"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="@color/text"
+        android:textSize="14sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_2"
+        android:textSize="12sp"
+        android:text="网址" />
+
+    <EditText
+        android:id="@+id/bmEditUrl"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/omnibox"
+        android:hint="example.com 或 https://…"
+        android:importantForAutofill="no"
+        android:inputType="textUri"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="@color/text"
+        android:textSize="14sp" />
+
+    <!-- 出错提示（网址不像网址 / 已收藏过）。平时 gone，不占高度。 -->
+    <TextView
+        android:id="@+id/bmEditTip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/danger"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/bmEditRemove"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:background="@drawable/bg_btn_outline"
+            android:text="移出收藏"
+            android:textColor="@color/danger"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/bmEditSave"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="2"
+            android:layout_marginStart="10dp"
+            android:gravity="center"
+            android:background="@drawable/bg_btn_solid"
+            android:text="保存"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>

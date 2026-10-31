@@ -1996,6 +1996,104 @@ function closeBmMenu() {
   if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
+/* --- 编辑收藏（标题 / 网址 / 移出） ---
+ *
+ * 三处入口共用这一个框：收藏夹栏右键、侧边收藏右键、设置页书签行的「编辑」按钮。
+ * 之前右键是「即移出」—— 一个不可撤销的动作压在右键上太危险，而且改网址
+ * （站点换域名、当初收的时候标题是乱码）本来就没有入口。
+ */
+let bmEditOldUrl = '';
+
+/**
+ * 编辑框里的网址怎么算：像域名就补 https://，配了协议就原样认，其余一律判错。
+ *
+ * <p>和地址栏的 resolveInput 有意不同：那边「不像网址就当搜索词」，
+ * 这里绝不这么做 —— 收藏的是网址，悄悄换成搜索结果页，用户下次点开就找不到原条。
+ */
+function bmUrlOf(raw) {
+  const q = String(raw || '').trim();
+  if (!q) return '';
+  if (/^(https?|file|ftp|about|chrome|edge):/i.test(q)) return q;
+  if (/^[\w-]+(\.[\w-]+)+(:\d+)?(\/.*)?$/i.test(q) || /^localhost(:\d+)?/i.test(q)) {
+    return 'https://' + q;
+  }
+  return '';
+}
+
+function openBmEdit(url) {
+  const b = (state.bookmarks || []).find((x) => x.url === url);
+  const dlg = $('#bm-edit');
+  if (!b || !dlg) return;
+  bmEditOldUrl = url;
+  const t = $('#bm-edit-title'), u = $('#bm-edit-url'), tip = $('#bm-edit-tip');
+  if (t) t.value = b.title || '';
+  if (u) u.value = b.url || '';
+  if (tip) tip.textContent = '';
+  dlg.hidden = false;
+  if (t) { t.focus(); t.select(); }
+}
+
+function closeBmEdit() {
+  const dlg = $('#bm-edit');
+  if (dlg) dlg.hidden = true;
+  bmEditOldUrl = '';
+}
+
+async function saveBmEdit() {
+  if (!bmEditOldUrl) return;
+  const titleEl = $('#bm-edit-title'), urlEl = $('#bm-edit-url'), tip = $('#bm-edit-tip');
+  const url = bmUrlOf(urlEl ? urlEl.value : '');
+  if (!url) {
+    if (tip) tip.textContent = '网址看起来不对：写成 example.com 或 https://… 都行';
+    if (urlEl) urlEl.focus();
+    return;
+  }
+  const r = await bridge.bookmarks.update(bmEditOldUrl, {
+    title: (titleEl ? titleEl.value : '').trim(), url
+  });
+  if (r && r.bookmarks) state.bookmarks = r.bookmarks;
+  if (r && r.ok === false) {
+    // dup：改成了另一条已经收过的网址。missing：那条在这期间被删掉了。
+    if (tip) {
+      tip.textContent = r.error === 'dup'
+        ? '这个网址已经在收藏里了'
+        : '这条收藏已经不在了';
+    }
+    if (r.error !== 'dup') { refreshCurrent(); closeBmEdit(); }
+    return;
+  }
+  closeBmEdit();
+  refreshCurrent();
+  toast('收藏已更新');
+}
+
+async function removeFromBmEdit() {
+  if (!bmEditOldUrl) return;
+  state.bookmarks = await bridge.bookmarks.remove(bmEditOldUrl);
+  closeBmEdit();
+  refreshCurrent();
+  toast('已移出收藏');
+}
+
+/** 编辑框按钮接线。幂等：同一份 DOM 只接一次。 */
+function wireBmEdit() {
+  const dlg = $('#bm-edit');
+  if (!dlg) return;
+  const save = $('#bm-edit-save'), cancel = $('#bm-edit-cancel');
+  const rm = $('#bm-edit-remove'), back = $('#bm-edit-backdrop');
+  if (save) save.addEventListener('click', saveBmEdit);
+  if (cancel) cancel.addEventListener('click', closeBmEdit);
+  if (rm) rm.addEventListener('click', removeFromBmEdit);
+  if (back) back.addEventListener('click', closeBmEdit);
+  // 两个输入框里回车 = 保存。两条都绑：改完标题顺手回车是人的直觉，
+  // 不该逼着去点按钮。
+  dlg.querySelectorAll('input').forEach((inp) => {
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); saveBmEdit(); }
+    });
+  });
+}
+
 function toggleBmMenu() {
   const menu = $('#bm-menu');
   const btn = $('#bm-more');
@@ -3774,6 +3872,7 @@ function buildBookmarks() {
           <span class="lr-title">${esc(b.title || b.url)}</span>
           <span class="lr-sub">${esc(prettyUrl(b.url))}</span>
         </span>
+        <button class="btn" data-edit-bm="${esc(b.url)}">编辑</button>
         <button class="btn" data-unbookmark="${esc(b.url)}">删除</button>
       </div>`;
     }).join('')}</div>` : '<div class="sv-empty">还没有书签。地址栏右侧的星形按钮可以加入当前页。</div>'}
@@ -5766,6 +5865,16 @@ function wireActions(root) {
     });
   });
 
+  // 书签行「编辑」：开同一个编辑框（与收藏夹栏右键同一份）。
+  // 设置面板在编辑框后面仍然开着 —— 保存后 refreshCurrent 会重画列表，
+  // 所以用户看到的是「关掉框、行已经变了」。
+  root.querySelectorAll('[data-edit-bm]').forEach((b) => {
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      openBmEdit(b.dataset.editBm);
+    });
+  });
+
   // 历史行 → 当前标签页打开
   root.querySelectorAll('.hist-row').forEach((r) => {
     r.addEventListener('click', () => {
@@ -5778,7 +5887,7 @@ function wireActions(root) {
   // 书签行 → 当前标签页打开（删除按钮单独处理，不触发跳转）
   root.querySelectorAll('.list-row[data-url]').forEach((r) => {
     r.addEventListener('click', (ev) => {
-      if (ev.target.closest('[data-unbookmark]')) return;
+      if (ev.target.closest('[data-unbookmark]') || ev.target.closest('[data-edit-bm]')) return;
       const tab = activeTab();
       if (tab) navigate(tab.id, r.dataset.url);
       closeSettings();
@@ -7911,7 +8020,7 @@ function wireUi() {
     toast('已加入书签');
   });
 
-  // 收藏夹栏：左键在当前标签页打开，右键移出。
+  // 收藏夹栏：左键在当前标签页打开，右键改标题 / 网址（或移出）。
   // 栏里不放删除按钮 —— 一格只有 24px 高、标题本来就是截断的，再塞个 ×
   // 进去会把标题挤成两个字，而这条栏的全部价值就是「一眼看得见标题」。
   const bmBar = $('#bookmark-bar');
@@ -7921,15 +8030,15 @@ function wireUi() {
     const t = activeTab();
     if (t) navigate(t.id, el.dataset.bm);
   });
-  bmBar.addEventListener('contextmenu', async (ev) => {
-    const el = ev.target.closest('[data-bm]');
+  // 右键 = 打开编辑框（2026-10-31 改）。原先右键「即移出」：一次右键就删、
+  // 没有撤销，而且「改网址」根本没有入口。现在编辑框里同时给「移出收藏」，
+  // 删除多一步，但不会误删。收藏夹栏与侧边收藏共用这一条委托。
+  document.addEventListener('contextmenu', (ev) => {
+    const el = ev.target.closest && ev.target.closest('[data-bm]');
     if (!el) return;
-    // 拦掉默认菜单。Electron 里渲染进程默认不弹，但开发工具打开时或换到
-    // 别的平台就会，而这里要的是一个「右键即移出」的确定动作。
+    if (!ev.target.closest('#bookmark-bar') && !ev.target.closest('#bm-side')) return;
     ev.preventDefault();
-    state.bookmarks = await bridge.bookmarks.remove(el.dataset.bm);
-    refreshCurrent();
-    toast('已移出收藏夹栏');
+    openBmEdit(el.dataset.bm);
   });
 
   // 「更多」：栏里放不下时出现，点开列出全部书签
@@ -8460,7 +8569,7 @@ function wireUi() {
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
     else if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); $('#nav-forward').click(); }
-    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeBmMenu(); closeQkBmMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeOmniMenu(); closeFindBar(); closeSniffPopover(); closeAdblockPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); }
+    else if (ev.key === 'Escape') { closeEngineMenu(); closeToolsMenu(); closeBmMenu(); closeQkBmMenu(); closeDrawer(); closeAiPanel(); closeExtUiPanel(); closeOmniShare(); closeOmniMenu(); closeFindBar(); closeSniffPopover(); closeAdblockPopover(); closeUpdatePanel(); closeExtPopover(); closeTabGrid(); closeSheet(); closeReadSheet(); closePrintDialog(); hidePwdPrompt(); closeSettings(); closeCmdPalette(); closeAuthDialog(null); closeBmEdit(); }
     else if (mod && ev.key === 'Tab') {
       ev.preventDefault();
       if (state.tabs.length < 2) return;
@@ -8474,6 +8583,7 @@ function wireUi() {
   wireCmdPalette();
   wireToolsMenu();
   wireQkBmMenu();
+  wireBmEdit();
   wireAuthDialog();
   window.addEventListener('resize', applyLayout);
 }

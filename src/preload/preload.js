@@ -157,6 +157,8 @@ contextBridge.exposeInMainWorld('nova', {
     list: () => ipcRenderer.invoke('bookmarks:list'),
     add: (bm) => ipcRenderer.invoke('bookmarks:add', bm),
     remove: (url) => ipcRenderer.invoke('bookmarks:remove', url),
+    /** 改一条书签的标题 / 网址：oldUrl 定位，patch 带新的 title / url */
+    update: (oldUrl, patch) => ipcRenderer.invoke('bookmarks:update', { oldUrl, ...(patch || {}) }),
     clear: () => ipcRenderer.invoke('bookmarks:clear'),
     /** 导入：文件挑选用主进程的对话框，渲染层不碰文件系统 */
     import: () => ipcRenderer.invoke('bookmarks:import'),

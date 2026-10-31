@@ -1630,6 +1630,13 @@ function registerIpc() {
   handle('bookmarks:list', () => settings.get('bookmarks', []));
   handle('bookmarks:add', (bm) => { settings.addBookmark(bm); return settings.get('bookmarks'); });
   handle('bookmarks:remove', (url) => { settings.removeBookmark(url); return settings.get('bookmarks'); });
+  // 改标题 / 网址。payload 里带 oldUrl（定位用）与新的 title/url。
+  // 三种结果都回完整列表：界面据此重画，出错时也只多一句提示。
+  handle('bookmarks:update', (payload) => {
+    const p = payload || {};
+    const r = settings.updateBookmark(p.oldUrl, { title: p.title, url: p.url });
+    return { ok: r === true, error: r === true ? '' : r, bookmarks: settings.get('bookmarks') };
+  });
   handle('bookmarks:clear', () => { settings.patch({ bookmarks: [] }); return []; });
 
   /* ----------------------- 书签导入 / 导出 -----------------------
