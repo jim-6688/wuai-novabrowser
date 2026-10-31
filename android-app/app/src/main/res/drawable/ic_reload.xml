@@ -13,10 +13,10 @@
     <group
         android:scaleX="1.09" android:scaleY="1.09"
         android:pivotX="10.15" android:pivotY="9.55">
-        <path android:strokeColor="@color/accent" android:strokeWidth="1.56"
+        <path android:strokeColor="@color/accent" android:strokeWidth="2.94"
             android:strokeLineCap="round" android:strokeLineJoin="round"
             android:pathData="M16.5,10 a6.5,6.5 0 1,1 -1.9,-4.6" />
-        <path android:strokeColor="@color/accent" android:strokeWidth="1.56"
+        <path android:strokeColor="@color/accent" android:strokeWidth="2.94"
             android:strokeLineCap="round" android:strokeLineJoin="round"
             android:pathData="M16.8,2.6 V5.6 H13.8" />
     </group>

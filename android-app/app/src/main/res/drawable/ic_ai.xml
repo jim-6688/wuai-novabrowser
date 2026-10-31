@@ -37,7 +37,7 @@
          斜面在 y=12.5 处的实际宽度是 2.82→7.38，横杠两端各收 0.4，
          否则两个圆头端点会从斜线外面探出去。 -->
     <path
-        android:strokeWidth="1.72"
+        android:strokeWidth="2.58"
         android:strokeLineCap="round" android:strokeLineJoin="round"
         android:pathData="M1.6,16.4 L5.1,5.2 L8.6,16.4 M3.2,12.5 H7.0">
         <aapt:attr name="android:strokeColor">
@@ -54,7 +54,7 @@
     <!-- 字母 I：一竖。和 A 之间留 3.2 —— 描边字体没有字距一说，
          间距得自己给，靠紧了两个字母会连成一块。 -->
     <path
-        android:strokeWidth="1.72"
+        android:strokeWidth="2.58"
         android:strokeLineCap="round"
         android:pathData="M11.8,5.2 V16.4">
         <aapt:attr name="android:strokeColor">

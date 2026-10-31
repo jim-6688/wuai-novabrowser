@@ -1,26 +1,26 @@
 {
-  "version": "1.6.19",
-  "versionCode": 32,
+  "version": "1.6.20",
+  "versionCode": 33,
   "channel": "release",
   "updatedAt": "2026-10-31",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "底栏图标小一号（26dp → 22dp）：加了底片之后图标太满，缩小留出呼吸",
-    "图标底片加上淡品牌蓝（#E1E9FF）：原来纯白底片和白胶囊近乎同色，等于没上色"
+    "顶栏与底栏图标线条加粗：按最终渲染粗细统一到约 2 倍，五格图标明显更结实",
+    "加粗时顺带统一了各图标的视觉重量（原来细的两支 1.16 / 粗的两支 1.72，画出来却是同一个粗细，靠的是外层缩放）"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.19.apk",
-      "size": 513174,
-      "sha256": "be6810ea503f1c97fd59189bbaaa62e1f9ba7684d232fcddd3a5d3e735403cd1"
+      "url": "download/nova-1.6.20.apk",
+      "size": 513178,
+      "sha256": "387288815275755b4659478e0bca5afdb85ebd9e81ca332d1e8dadd9e7e235e7"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.19/nova-1.6.19.apk",
-      "size": 513174,
-      "sha256": "be6810ea503f1c97fd59189bbaaa62e1f9ba7684d232fcddd3a5d3e735403cd1"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.20/nova-1.6.20.apk",
+      "size": 513178,
+      "sha256": "387288815275755b4659478e0bca5afdb85ebd9e81ca332d1e8dadd9e7e235e7"
     }
   ],
   "pc": {

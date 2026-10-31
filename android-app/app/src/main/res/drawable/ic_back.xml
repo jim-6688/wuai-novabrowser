@@ -7,7 +7,7 @@
     <group
         android:scaleX="1.38" android:scaleY="1.38"
         android:pivotX="9.75" android:pivotY="10">
-        <path android:strokeColor="#000" android:strokeWidth="1.23"
+        <path android:strokeColor="#000" android:strokeWidth="2.32"
             android:strokeLineCap="round" android:strokeLineJoin="round"
             android:pathData="M12.5,4.5 L7,10 L12.5,15.5" />
     </group>

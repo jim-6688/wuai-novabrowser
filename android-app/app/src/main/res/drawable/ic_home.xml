@@ -24,13 +24,13 @@
     <group
         android:scaleX="1.21" android:scaleY="1.21"
         android:pivotX="10" android:pivotY="9.9">
-        <path android:strokeColor="@color/brand" android:strokeWidth="1.41"
+        <path android:strokeColor="@color/brand" android:strokeWidth="2.64"
             android:strokeLineCap="round" android:strokeLineJoin="round"
             android:pathData="M3.4,9.4 L10,3.6 L16.6,9.4" />
-        <path android:strokeColor="@color/brand" android:strokeWidth="1.41"
+        <path android:strokeColor="@color/brand" android:strokeWidth="2.64"
             android:strokeLineCap="round" android:strokeLineJoin="round"
             android:pathData="M5.2,8.6 V16.2 H14.8 V8.6" />
-        <path android:strokeColor="@color/brand" android:strokeWidth="1.41"
+        <path android:strokeColor="@color/brand" android:strokeWidth="2.64"
             android:strokeLineCap="round"
             android:pathData="M8.6,16.2 V11.8 H11.4 V16.2"
             android:strokeLineJoin="round" />
