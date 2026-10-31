@@ -1,27 +1,25 @@
 {
-  "version": "1.6.23",
-  "versionCode": 36,
+  "version": "1.6.24",
+  "versionCode": 37,
   "channel": "release",
   "updatedAt": "2026-10-31",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "标签格去掉品牌色底块，五个底栏图标终于同一层高度（标签用品牌色区分主操作）",
-    "底栏图标由 22dp 加大到 24dp",
-    "新标签页搜索按钮「搜索」改为「转到」，与「输入网址就直接打开」的实际行为一致"
+    "底栏五格图标由 24dp 加大到 30dp，拇指主战场更醒目"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.23.apk",
-      "size": 511482,
-      "sha256": "6d5a9fd10f6b43b29a95a7e795af604a8783047e0fd6a8aefaae4d5b209f7048"
+      "url": "download/nova-1.6.24.apk",
+      "size": 511486,
+      "sha256": "11285e955e8816e326ce1effdce3f414e03f4f213187aeb8c4f24d5b262500cd"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.23/nova-1.6.23.apk",
-      "size": 511482,
-      "sha256": "6d5a9fd10f6b43b29a95a7e795af604a8783047e0fd6a8aefaae4d5b209f7048"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.24/nova-1.6.24.apk",
+      "size": 511486,
+      "sha256": "11285e955e8816e326ce1effdce3f414e03f4f213187aeb8c4f24d5b262500cd"
     }
   ],
   "pc": {
