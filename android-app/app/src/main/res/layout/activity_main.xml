@@ -476,6 +476,7 @@
                     android:layout_height="@dimen/mb_tab_block_h"
                     android:layout_gravity="center"
                     android:background="@drawable/bg_tab_brand"
+                    android:elevation="2dp"
                     android:clipChildren="false">
 
                     <ImageView

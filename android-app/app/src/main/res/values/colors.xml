@@ -52,13 +52,16 @@
          透明度按设计定的 **85%**（D9 ≈ 217/255）。经历：80% → 65% → 50% → 85%，
          最终结论是「清楚优先」—— 太透时浅色页面上胶囊边界糊、图标压不住花哨背景，
          现在这一档既能看出是半透明，形状和五个图标也都立得住。 -->
-    <color name="surface_translucent">#D9FFFFFF</color>
+    <color name="surface_translucent">#D9E8ECF6</color>
 
     <!-- 玻璃件的边缘高光。底栏胶囊的 1dp 描边用。
          不随主题翻转（深浅两模都近白）：玻璃的边缘是「光」，不是「分隔线」——
          跟着主题翻成深色的话，深色模式下那一道线就消失了，胶囊会像没切边的
          一块模糊。对齐设计稿 .mbar 的 rgba(255,255,255,.75)。 -->
-    <color name="capsule_edge">#BFFFFFFF</color>
+    <color name="capsule_edge">#C6CEDF</color>
+    <!-- 底栏每格的底片（bg_mb_cell）：比胶囊亮一档，配 2dp 投影才看得出「一格一块」。 -->
+    <color name="mb_cell">#FFFFFFFF</color>
+    <color name="mb_cell_edge">#E7EBF5</color>
 
     <!-- 浅色中性。底色偏冷、与品牌蓝同向；卡片靠边框与投影分层，
          不靠加深底色，所以 surface 系列之间只差一档。 -->

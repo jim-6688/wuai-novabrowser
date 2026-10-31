@@ -23,7 +23,11 @@
     <color name="surface">@color/surface_dark</color>
     <!-- 深色模的半透明底栏。与浅色同透明度（85%，D9）：两边差一点点，切换主题时
          底栏的「通透感」就会不一样，而这是同一件东西。 -->
-    <color name="surface_translucent">#D9171A22</color>
+    <color name="surface_translucent">#D91A1E2B</color>
+    <!-- 深色下描边要「亮一点」才看得见，与浅色那支同语义。 -->
+    <color name="capsule_edge">#4B5470</color>
+    <color name="mb_cell">#FF2C3247</color>
+    <color name="mb_cell_edge">#3B4563</color>
     <color name="surface_2">@color/surface_2_dark</color>
     <color name="surface_3">@color/surface_3_dark</color>
     <color name="border">@color/border_dark</color>

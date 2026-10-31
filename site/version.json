@@ -1,27 +1,27 @@
 {
-  "version": "1.6.17",
-  "versionCode": 30,
+  "version": "1.6.18",
+  "versionCode": 31,
   "channel": "release",
   "updatedAt": "2026-10-31",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "顶栏与底栏图标去掉尖角：所有描边图标的转折与端点改成圆角（收藏的星星五个尖也磨圆了）",
-    "地址栏改成标准胶囊（圆角 17dp = 半高），与底栏胶囊、搜索胶囊统一成一种圆",
-    "加深层次：底栏胶囊投影 8dp → 12dp，地址栏单独浮起 2dp，一眼能看出谁压在谁上面"
+    "底栏五格各加一块圆角底片 + 2dp 投影：图标有了承载面，看着是「按键浮在托盘上」而不是画上去的",
+    "底栏胶囊调暗并补上可见轮廓：原来纯白胶囊压在白色网页上，边缘根本看不见",
+    "品牌色「标签」块也浮起 2dp，与其它四格同在一个层次上"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.17.apk",
-      "size": 512282,
-      "sha256": "6e67d044925d8ce993351dcfe596191d982fbe58c92dd3d1332740cb6da0108d"
+      "url": "download/nova-1.6.18.apk",
+      "size": 513114,
+      "sha256": "03e19a7fae0ea7aaf029a0e493dc1628c6a3732edf3ac95606bbba3d6b8ed4d3"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.17/nova-1.6.17.apk",
-      "size": 512282,
-      "sha256": "6e67d044925d8ce993351dcfe596191d982fbe58c92dd3d1332740cb6da0108d"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.18/nova-1.6.18.apk",
+      "size": 513114,
+      "sha256": "03e19a7fae0ea7aaf029a0e493dc1628c6a3732edf3ac95606bbba3d6b8ed4d3"
     }
   ],
   "pc": {
