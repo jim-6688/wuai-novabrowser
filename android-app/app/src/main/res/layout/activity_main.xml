@@ -409,23 +409,44 @@
           横向 LinearLayout 的子 View 默认顶端对齐，不写这句整行格子（连中间
           品牌块）会齐齐偏高 —— 2026-10-25 用户报「标签图标底色靠上」就是它。
 
-          投影由本 View 自己的 elevation 出；底栏那一行（bottomRow）是通栏矩形，
-          由它出投影会在胶囊四周露一圈通栏影子，所以行的 elevation 已撤掉。
+          投影不再由 View 的 elevation 出（被行高裁掉，见 barWrap 那段注释），
+          改由外层 barWrap 的背景自绘；底栏那一行（bottomRow）仍是通栏矩形、
+          依旧不留底色也不出投影 —— 由它出会在胶囊四周露一圈通栏影子。
           两端格子的矩形按背景会探出胶囊的圆弧，靠 clipToOutline 裁掉
           （在 MainActivity 绑定 mobileBar 处开）。
         -->
+        <!--
+          投影载体（2026-10-31）：胶囊自己投不出像样的影子 —— elevation 的影子
+          受父容器裁切，而这一行只有 68dp（58 胶囊 + 10 悬浮量），12dp 的 elevation
+          大半被裁掉，看起来就像没有阴影。
+
+          所以把影子画进这一层的背景（bg_bottom_shadow：5 层同心圆角矩形近似高斯模糊），
+          并给它留出十面空间：四周 padding 10dp，胶囊正好内缩 10dp 坐在里面。
+          影子往下铺 10dp、左右各 8dp，全程落在本层边界内，不会再被裁成硬边。
+
+          动画与显隐都挂在这一层（MainActivity#applyReveal 的 bar），
+          否则胶囊淡出滑走之后，影子会孤零零留在原地。
+        -->
+        <FrameLayout
+            android:id="@+id/barWrap"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="10dp"
+            android:background="@drawable/bg_bottom_shadow">
+
         <LinearLayout
             android:id="@+id/mobileBar"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/mb_capsule_h"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginBottom="10dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:paddingStart="6dp"
             android:paddingEnd="6dp"
-            android:background="@drawable/bg_bottom_capsule"
-            android:elevation="12dp">
+            android:background="@drawable/bg_bottom_capsule">
 
             <!--
               各格用 <include> 复用同一份布局。include 上必须显式写 id：
@@ -514,6 +535,7 @@
             <include layout="@layout/item_mb_tools" android:id="@+id/item_mb_tools"
                 android:layout_width="@dimen/mb_cell_w" android:layout_height="@dimen/mb_cell_h" />
         </LinearLayout>
+        </FrameLayout>
 
         <!--
           滚动态的胶囊搜索框。顶栏整行收起后，搜索入口落到这里。

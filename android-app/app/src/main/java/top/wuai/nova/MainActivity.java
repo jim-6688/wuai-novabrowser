@@ -238,6 +238,18 @@ public final class MainActivity extends Activity {
     private View topBar;
     /** 五格底栏。滚动时整条淡出，位置上换成 {@link #searchCapsule}。 */
     private View mobileBar;
+    /**
+     * 底栏胶囊的投影载体，包着 {@link #mobileBar}。
+     *
+     * <p>为什么要单独一层：elevation 投出的影子会被父容器裁掉，而这一行只有 68dp
+     * （58 胶囊 + 10 悬浮量），12dp 的 elevation 大半落在行外 —— 那就是「加了 elevation
+     * 却看不到阴影」。影子改由这一层的背景自绘（{@code bg_bottom_shadow}），
+     * 四周留 10dp 给它，胶囊内缩坐在里面。
+     *
+     * <p>显隐与滑动动画都挂在这一层而不是胶囊本身：胶囊淡出滑走后，
+     * 影子必须跟着一起走，否则会孤零零飘在原地。见 {@link #applyReveal}。
+     */
+    private View barWrap;
     /** 顶栏那一行。滚动时整行收起，把这 52dp 还给网页。 */
     private View topRow;
     /** 滚动态的胶囊搜索框。与 {@link #mobileBar} 叠在同一行里（布局里的 bottomRow）。 */
@@ -909,6 +921,7 @@ public final class MainActivity extends Activity {
         statusStrip = findViewById(R.id.statusStrip);
         noImageChip = findViewById(R.id.noImageChip);
         mobileBar = findViewById(R.id.mobileBar);
+        barWrap = findViewById(R.id.barWrap);
         // 底栏胶囊（bg_bottom_capsule）要裁掉子 View：两端格子的矩形按背景和水波纹
         // 会探出胶囊的圆弧 —— 格子贴着胶囊的 6dp 内边距放，两端格的角正落在圆弧外面。
         // 圆角形状背景会给出圆角轮廓，打开 clipToOutline 让按背景和波纹都收在轮廓里。
@@ -1671,7 +1684,10 @@ public final class MainActivity extends Activity {
      * @param animate 是否播放 300ms 动画；装配阶段不需要动画
      */
     private void applyReveal(BottomBarReveal.State s, boolean animate) {
-        final View bar = mobileBar;
+        // 动画挂在投影载体（barWrap）上而不是胶囊：影子属于胶囊的一部分，
+        // 胶囊淡出滑走时它必须一起走，否则会留在原地。拿不到载体时退回胶囊本身
+        // （老布局/极端情况下至少不空指针）。
+        final View bar = barWrap != null ? barWrap : mobileBar;
         final View cap = searchCapsule;
         final View top = topRow;
         if (bar == null || cap == null || top == null) return;
@@ -1740,8 +1756,8 @@ public final class MainActivity extends Activity {
      * 顶栏是同一套材质（上下两条才像一对），而且玻璃只占中间一条窄胶囊、网页从它
      * 两侧穿过去，不是整个通栏压在页面上。于是五格形态的底色搬进了胶囊自己
      * （bg_bottom_capsule），行自己不留底色、也不出投影 —— 行是一条通栏矩形，
-     * 由它出投影会在胶囊四周露一圈通栏的影子。投影由胶囊（mobileBar 的 elevation）
-     * 和滚动态的搜索胶囊各自出。
+     * 由它出投影会在胶囊四周露一圈通栏的影子。投影由胶囊外层的载体（barWrap 的背景
+     * {@code bg_bottom_shadow}）和滚动态的搜索胶囊各自的 elevation 出。
      *
      * <p>滚动态仍是老样子：行出玻璃条，胶囊搜索框浮在它上面。
      *

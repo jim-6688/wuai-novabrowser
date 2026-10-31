@@ -1,26 +1,26 @@
 {
-  "version": "1.6.21",
-  "versionCode": 34,
+  "version": "1.6.22",
+  "versionCode": 35,
   "channel": "release",
   "updatedAt": "2026-10-31",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "底栏去掉图标外圈的底片层，改成直接显示实心图标（返回 / 主页 / 标签 / 工具 / 刷新五枚全部重画为填充字形）",
-    "胶囊保留调暗后的底色与可见轮廓，图标直接压在玻璃上"
+    "底栏胶囊加上投影：5 层同心圆角自绘，往下铺 10dp 渐隐，浅色页面上终于有浮起感",
+    "修根因：原来的 elevation 投影被 68dp 行高裁掉大半，换再大的 elevation 也看不见"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.21.apk",
-      "size": 511654,
-      "sha256": "aba21c0f24052a6ff566adba70813e4503f3b61dcf02123b9f7a7c9ebb5cf1ac"
+      "url": "download/nova-1.6.22.apk",
+      "size": 512406,
+      "sha256": "22878ad7f7e447801126f75c066063133526ce0095e111e97ed8b4b3985fc152"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.21/nova-1.6.21.apk",
-      "size": 511654,
-      "sha256": "aba21c0f24052a6ff566adba70813e4503f3b61dcf02123b9f7a7c9ebb5cf1ac"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.22/nova-1.6.22.apk",
+      "size": 512406,
+      "sha256": "22878ad7f7e447801126f75c066063133526ce0095e111e97ed8b4b3985fc152"
     }
   ],
   "pc": {
