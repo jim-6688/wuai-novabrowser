@@ -25,23 +25,15 @@
     }
   ],
   "pc": {
-    "version": "2.0.2",
+    "version": "2.0.3",
     "changelog": [
-      "新增侧边收藏夹：收藏夹栏可停靠在视口右侧竖排，网页自动缩窄让位（设置 → 外观 → 视口右侧）",
-      "顶栏「收藏夹」改为下拉菜单：开合收藏夹栏、导入 / 导出书签、从其他浏览器导入、进设置管理",
-      "新增「从其他浏览器导入」：自动检测本机已装的浏览器，点一项直接读取它的书签",
-      "更新器支持多源：版本清单按官网 → 码云 → GitHub 回退，更新包优先 GitHub Releases、回落官网直链"
+      "收藏可编辑：设置页书签行加「编辑」按钮，收藏夹栏与侧边收藏右键由即移出改为开编辑框（删除多一步但不会误删）",
+      "地址栏二维码弹层改贴右端：扫码时手机不用越过整条地址栏"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://download.52ta.top/nova-pc-2.0.2-win-x64-setup.exe",
-    "mirrors": [
-      {
-        "label": "GitHub Releases",
-        "url": "https://github.com/jim-6688/wuai-novabrowser/releases/download/v2.0.2/nova-pc-2.0.2-win-x64-setup.exe"
-      }
-    ],
-    "size": 107063831,
-    "sha256": "fc985edf35a53aacef3b5bb50ef23b6d00b58d9662842bb4cf09d7704e13c321",
-    "updatedAt": "2026-10-27"
+    "url": "https://download.52ta.top/nova-pc-2.0.3-win-x64-setup.exe",
+    "size": 107065799,
+    "sha256": "f252136b5eed820a76880cf73954762ee197efb5280f1a5761bbd483e8bc8198",
+    "updatedAt": "2026-10-31"
   }
 }
