@@ -399,7 +399,7 @@
           按内容收紧、水平居中、离屏底悬浮 10dp，玻璃底 + 投影，
           与顶栏同一套材质，上下两条才像一对。
 
-          尺寸走 dimens 里那一套（mb_capsule_h/radius、mb_cell_w/h、mb_tab_block_w/h）：
+          尺寸走 dimens 里那一套（mb_capsule_h/radius、mb_cell_w/h）：
           圆角必须正好是半个身高，端头才是正圆 —— 差一个 dp 就退回「圆角矩形」，
           那正是这次修掉的旧形态。
 
@@ -462,19 +462,17 @@
                 android:layout_width="@dimen/mb_cell_w" android:layout_height="@dimen/mb_cell_h" />
 
             <!--
-              中间那格是标签页，底栏上唯一的「主操作」：格外壳固定 56×46dp，里面一块
-              46×48dp 的品牌色实底（mb_tab_block_w/h）—— 比格子宽、上下各探出 1dp，
-              主操作比周围格胖一圈，但不炸满整格。2026-10-25 随底栏胶囊化从
-              26×26 放大回来，对齐设计稿 .cell.pri::before；圆角 17dp 见 bg_tab_brand。
+              中间那格是标签页，底栏上唯一的「主操作」。2026-10-31 起**不再有品牌色
+              实底**：原先那块 46×48dp 的蓝块（bg_tab_brand）撤掉了，图标和另外四格
+              一样直接压在胶囊玻璃上 —— 五格的「重量」终于一致，底栏不再有一块
+              突然凸起的色块。主操作的地位改由**颜色**承担：ic_tabs 用 brand 着色，
+              其余四格是 text_3 / accent。
 
-              它原先是一颗 56dp 的品牌渐变主按钮；五格改等宽后被压成一颗小图标壳，
-              计数徽标成了这一格唯一的有色元素。如今块放大回来，「现在开着几个标签」
-              重新成为底栏上被强调的一粒。
-
-              徽标挂在块壳里、贴块壳右上角，而不是挂在这一格上：挂在格上会按整格
-              （高度随胶囊变、宽度固定）定位，它在不同机型上会飘。壳要
-              clipChildren=false，否则探出壳外的半个徽标会被裁掉；格外壳也要
-              clipChildren=false，管的是块比格高出那 1dp。
+              计数徽标（mbTabCount）随之挂到这一格本身（原先挂在块壳上）：块没了
+              就没有「块壳」可贴，而这一格是固定 56×46dp，不会像「高度随胶囊变」那样飘。
+              徽标的底色也换了一支：原先是白底 + 品牌字（那是压在蓝块上的方案），
+              现在压在浅色玻璃上会糊成一片白，改用 bg_count_badge 的「品牌底 +
+              badge_on_brand 字」。
             -->
             <FrameLayout
                 android:id="@+id/mbTabs"
@@ -485,46 +483,30 @@
                 android:clickable="true"
                 android:focusable="true">
 
-                <!--
-                  这一格的底色是品牌色实底（bg_tab_brand）：2026-10-24 由官网徽标
-                  那套渐变改成纯色 —— 顶栏品牌钮是渐变（代表「这个应用」），这一格
-                  是纯色（代表「这个动作」），两个主色挨在一起才分得开谁是谁；
-                  2026-10-25 圆角随块放大从 8dp 改到 17dp。
-                  块 46×48dp，比格外壳高出 1dp —— 靠两层 clipChildren=false 放行。
-                -->
-                <FrameLayout
-                    android:layout_width="@dimen/mb_tab_block_w"
-                    android:layout_height="@dimen/mb_tab_block_h"
+                <ImageView
+                    android:layout_width="@dimen/mb_icon"
+                    android:layout_height="@dimen/mb_icon"
                     android:layout_gravity="center"
-                    android:background="@drawable/bg_tab_brand"
-                    android:elevation="2dp"
-                    android:clipChildren="false">
+                    android:src="@drawable/ic_tabs"
+                    android:tint="@color/brand"
+                    android:contentDescription="@string/mb_tabs" />
 
-                    <ImageView
-                        android:layout_width="@dimen/mb_icon"
-                        android:layout_height="@dimen/mb_icon"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_tabs"
-                        android:tint="#FFFFFF"
-                        android:contentDescription="@string/mb_tabs" />
-
-                    <TextView
-                        android:id="@+id/mbTabCount"
-                        android:layout_width="wrap_content"
-                        android:layout_height="16dp"
-                        android:layout_gravity="top|end"
-                        android:minWidth="16dp"
-                        android:paddingStart="4dp"
-                        android:paddingEnd="4dp"
-                        android:gravity="center"
-                        android:text="1"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/brand"
-                        android:background="@drawable/bg_tab_count"
-                        android:translationX="2dp"
-                        android:translationY="-3dp" />
-                </FrameLayout>
+                <TextView
+                    android:id="@+id/mbTabCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="16dp"
+                    android:layout_gravity="top|end"
+                    android:minWidth="16dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:gravity="center"
+                    android:text="1"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/badge_on_brand"
+                    android:background="@drawable/bg_count_badge"
+                    android:translationX="-3dp"
+                    android:translationY="3dp" />
             </FrameLayout>
 
             <include layout="@layout/item_mb_reload" android:id="@+id/item_mb_reload"

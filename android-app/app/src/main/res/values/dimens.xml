@@ -15,9 +15,11 @@
 -->
 <resources>
     <dimen name="icon_action">26dp</dimen>
-    <!-- 底栏五格的图标：比顶栏小一号（26 → 22）。底栏格子 56×46dp、加了底片之后
-         26dp 的图标把底片撑得很满；22dp 留出呼吸，五个图标也不至于挤在一起。 -->
-    <dimen name="mb_icon">22dp</dimen>
+    <!-- 底栏五格的图标：比顶栏小一号（26 → 24）。底栏格子 56×46dp，
+         24dp 的图标四周各留 11dp（纵向 11dp、横向 16dp），五格之间不挤。
+         2026-10-31 由 22 提到 24：底片层撤掉、标签格的蓝块也撤掉之后，
+         图标直接压在玻璃上，小一号就显得「缩」了。 -->
+    <dimen name="mb_icon">24dp</dimen>
     <dimen name="tap_action">40dp</dimen>
     <dimen name="icon_row">20dp</dimen>
 
@@ -33,6 +35,4 @@
     <dimen name="mb_capsule_radius">29dp</dimen>
     <dimen name="mb_cell_w">56dp</dimen>
     <dimen name="mb_cell_h">46dp</dimen>
-    <dimen name="mb_tab_block_w">46dp</dimen>
-    <dimen name="mb_tab_block_h">48dp</dimen>
 </resources>

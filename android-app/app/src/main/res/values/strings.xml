@@ -4,7 +4,7 @@
          改这里不会改到桌面端，两边要一起改。 -->
     <string name="app_name">吾爱Nova浏览器</string>
     <!-- 版本号单点。原先散在若干个字符串字面量里，改版本要改四处，漏一处就对不上。 -->
-    <string name="app_version">1.6.22</string>
+    <string name="app_version">1.6.23</string>
 
     <!-- 底栏。现在是五格：后退 / 前进 / 标签 / 工具 / 菜单。
          「内核」那一格早已换掉（移动版只有系统 WebView 真内置，
