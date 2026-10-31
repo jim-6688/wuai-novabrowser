@@ -1,78 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  底栏胶囊的投影。
+  底栏胶囊的投影 —— **一层**。
 
-  为什么不交给 elevation：Android 的 elevation 阴影是「由 View 轮廓投出来的」，
-  投影范围受**父容器边界**裁切。胶囊所在的 bottomRow 只有 68dp（58dp 胶囊 + 10dp
-  悬浮量），10dp 的余量吃掉 12dp elevation 的大半 —— 结果是一条几乎看不见的浅影，
-  这就是「加了 elevation 还是没有阴影」的真正原因。
+  为什么不交给 elevation：Android 的 elevation 阴影由 View 轮廓投出，范围受父容器
+  边界裁切。胶囊所在的 bottomRow 只有 68dp（58 胶囊 + 10 悬浮量），12dp 的 elevation
+  大半落在行外，看起来像根本没加阴影。
 
-  这里的做法是把投影画进背景本身：5 层同心圆角矩形，由外到内逐层加深，
-  近似一次高斯模糊。外面几层浅、铺得远，里面几层深、收得近，视觉上就是
-  「离胶囊越远越淡」。全部只往下铺（top 不进，bottom 按层递增），
-  因为光从上方来 —— 胶囊上沿不该有影子。
+  这里画一层就够：一块比胶囊大一圈、向下偏移的胶囊形，落在胶囊后面。
+  竖向偏移（top 6dp）比四周外扩更重要 —— 光从上方来，影子只该出现在下方；
+  横向各扩 3dp 让两端也有落影，底部留 3dp 不贴到行边（否则会在屏幕底沿切出一条硬边）。
 
-  容器（barWrap）四周留 10dp 外边距给这层影，胶囊（mobileBar）正好内缩 10dp，
-  所以影子不会被裁成一条硬边：每一层都在不同高度收口，叠起来是渐变而不是阶梯。
-
-  颜色写死黑色而不是走 @color 令牌：投影是「光」，深浅两模都该是黑；
-  深色下本来就看不见影子，这是正常的（浅色底才需要投影定层次）。
+  早先试过 5 层同心矩形近似高斯模糊，效果是「更柔」，但底栏这个尺幅上
+  一层就够读，层数多了反而显脏。要更柔再说，不要直接加回来。
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 最外、最淡，一直铺到容器下沿（离胶囊底 10dp） -->
     <item
-        android:left="2dp"
-        android:right="2dp"
-        android:top="0dp"
-        android:bottom="0dp">
-        <shape android:shape="rectangle">
-            <solid android:color="#08000000" />
-            <corners android:radius="@dimen/mb_capsule_radius" />
-        </shape>
-    </item>
-
-    <item
-        android:left="4dp"
-        android:right="4dp"
-        android:top="0dp"
-        android:bottom="1dp">
-        <shape android:shape="rectangle">
-            <solid android:color="#0D000000" />
-            <corners android:radius="@dimen/mb_capsule_radius" />
-        </shape>
-    </item>
-
-    <item
-        android:left="6dp"
-        android:right="6dp"
-        android:top="0dp"
+        android:left="3dp"
+        android:right="3dp"
+        android:top="6dp"
         android:bottom="3dp">
         <shape android:shape="rectangle">
-            <solid android:color="#12000000" />
-            <corners android:radius="@dimen/mb_capsule_radius" />
-        </shape>
-    </item>
-
-    <item
-        android:left="8dp"
-        android:right="8dp"
-        android:top="0dp"
-        android:bottom="6dp">
-        <shape android:shape="rectangle">
-            <solid android:color="#17000000" />
-            <corners android:radius="@dimen/mb_capsule_radius" />
-        </shape>
-    </item>
-
-    <!-- 最内、最深，只比胶囊底低 2dp —— 贴着胶囊的那一圈最实 -->
-    <item
-        android:left="10dp"
-        android:right="10dp"
-        android:top="0dp"
-        android:bottom="8dp">
-        <shape android:shape="rectangle">
-            <solid android:color="#1C000000" />
+            <solid android:color="#1A000000" />
             <corners android:radius="@dimen/mb_capsule_radius" />
         </shape>
     </item>

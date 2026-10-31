@@ -1,25 +1,25 @@
 {
-  "version": "1.6.24",
-  "versionCode": 37,
+  "version": "1.6.25",
+  "versionCode": 38,
   "channel": "release",
   "updatedAt": "2026-10-31",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "底栏五格图标由 24dp 加大到 30dp，拇指主战场更醒目"
+    "底栏胶囊投影收成一层（原先 5 层叠近似模糊，显脏）：改为一块向下偏移的胶囊形影子"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.24.apk",
-      "size": 511486,
-      "sha256": "11285e955e8816e326ce1effdce3f414e03f4f213187aeb8c4f24d5b262500cd"
+      "url": "download/nova-1.6.25.apk",
+      "size": 511318,
+      "sha256": "138553758a59765e9fb0b372cfd33fcb7c2e533ced6f100d8e5af7392fe28311"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.24/nova-1.6.24.apk",
-      "size": 511486,
-      "sha256": "11285e955e8816e326ce1effdce3f414e03f4f213187aeb8c4f24d5b262500cd"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.25/nova-1.6.25.apk",
+      "size": 511318,
+      "sha256": "138553758a59765e9fb0b372cfd33fcb7c2e533ced6f100d8e5af7392fe28311"
     }
   ],
   "pc": {
