@@ -108,6 +108,9 @@ function hasUnsupportedOption(line) {
 
 const REGEX_SPECIALS = /[.+?^${}()|[\]\\]/g;
 
+/** 永不匹配的正则：给「正则编译失败的规则」兜底，避免在匹配路径上抛异常 */
+const NEVER_MATCH = /(?!)/;
+
 function abpToRegex(pattern) {
   let p = pattern;
   let prefix = '';
@@ -269,8 +272,16 @@ class NetworkRule {
     }
 
     this.pattern = body;
-    this.regex = abpToRegex(body);
-    if (this.matchCase) this.regex = new RegExp(this.regex.source, '');
+    /* 正则**延迟编译**。
+     *
+     * 内置 + 订阅清单合起来十几万条规则，而一次浏览真正要判的只有命中候选的那几十上百条。
+     * 构造时全编译等于把启动时间烧在绝大多数永远用不上的规则上 —— 实测这一项占了
+     * adblock 装载（约 1.9 s）的大头，也是启动阶段最大的单笔开销。
+     *
+     * 这里只留 null，等 matches() 真的要用这条规则时才编译，编译结果随即缓存。
+     * 代价是编译失败的点从「装载时被 addRules 跳过」挪到了「匹配时」，
+     * 所以 _re() 里要自己兜住异常（见下）。 */
+    this.regex = null;
 
     // 索引信息
     this.domainAnchor = domainAnchorOf(body);
@@ -280,6 +291,24 @@ class NetworkRule {
 
     // 去重戳记：同一请求内保证每条规则只判一次
     this._mark = 0;
+  }
+
+  /**
+   * 惰性编译正则：第一次判到这条规则时才付编译成本，之后复用。
+   *
+   * 编译失败（极少数畸形规则）返回永不匹配的正则 —— 匹配路径上不能抛异常，
+   * 一旦抛出去，整条请求闸门就失效了（表现为「广告拦截整个不工作」）。
+   */
+  _re() {
+    if (!this.regex) {
+      try {
+        const src = abpToRegex(this.pattern);
+        this.regex = this.matchCase ? new RegExp(src.source, '') : src;
+      } catch {
+        this.regex = NEVER_MATCH;
+      }
+    }
+    return this.regex;
   }
 
   /** ctx: { url, urlLower, hostname, resourceType, docHostname } */
@@ -303,7 +332,7 @@ class NetworkRule {
     // 廉价预筛：字面量必须是 URL 的子串
     if (this.literal && this.literal.length >= GRAM && !ctx.urlLower.includes(this.literal)) return false;
 
-    return this.regex.test(ctx.url);
+    return this._re().test(ctx.url);
   }
 }
 
