@@ -1,27 +1,26 @@
 {
-  "version": "1.6.26",
-  "versionCode": 39,
+  "version": "1.7.0",
+  "versionCode": 40,
   "channel": "release",
-  "updatedAt": "2026-10-31",
+  "updatedAt": "2026-11-01",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "底栏胶囊取消阴影：不再有那一圈影子，与顶栏同一套玻璃材质",
-    "工具面板右上角改回齿轮，点它进设置",
-    "收藏可编辑：长按一条收藏改标题 / 改网址，或从编辑框移出"
+    "扫一扫：手机扫 PC 版地址栏分享二维码，直接打开对应网页（ZXing 离线扫码，仅申请相机权限）",
+    "平板兼容：弹层在大屏上收成居中卡片、底栏令牌放大，手机端布局不变"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.6.26.apk",
-      "size": 514118,
-      "sha256": "d09b26090687ab58a31b8c3a91db5d85d9bfd9e4864dd0f074cdd26b1a479617"
+      "url": "download/nova-1.7.0.apk",
+      "size": 795014,
+      "sha256": "f4be816dee43e9447056e0e403db08a3f7b6ebdcfe5dcb9f06fcde3f452a30bf"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.26/nova-1.6.26.apk",
-      "size": 514118,
-      "sha256": "d09b26090687ab58a31b8c3a91db5d85d9bfd9e4864dd0f074cdd26b1a479617"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.0/nova-1.7.0.apk",
+      "size": 795014,
+      "sha256": "f4be816dee43e9447056e0e403db08a3f7b6ebdcfe5dcb9f06fcde3f452a30bf"
     }
   ],
   "pc": {

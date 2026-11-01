@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  大屏（平板）专属尺寸令牌。仅当 smallestScreenWidthDp >= 720 时这套值生效，
+  手机端完全不读这里，行为不变。
+
+  思路：浏览器的网页区本就会随宽度铺满，平板上看着没问题；需要"收一收"的只是
+  外壳——底栏胶囊稍微长大一点更有存在感、不显稀疏，弹层从拉满屏幕边缘收成
+  一张居中卡片（见 MainActivity#openSheet 用 sheet_max_width 限宽）。顶栏保持
+  与手机一致：浏览器顶栏在平板上本就不该放大，否则和网页内容尺度脱节。
+-->
+<resources>
+    <!-- 底栏图标：30 → 32。格子 60×50dp，32dp 图标上下各留 9dp、横向各留 14dp，
+         在更大的屏上更醒目，又不至于顶到格子边。 -->
+    <dimen name="mb_icon">32dp</dimen>
+    <!-- 底栏胶囊与单格整体放大一档（手机 58/56×46 → 62/60×50），
+         圆角取半个身高（31dp）保证端头仍是正圆胶囊。 -->
+    <dimen name="mb_capsule_h">62dp</dimen>
+    <dimen name="mb_capsule_radius">31dp</dimen>
+    <dimen name="mb_cell_w">60dp</dimen>
+    <dimen name="mb_cell_h">50dp</dimen>
+
+    <!-- 大屏弹层卡片最大宽度：比手机默认值更宽，平板上内容更舒展。 -->
+    <dimen name="sheet_max_width">560dp</dimen>
+</resources>

@@ -36,4 +36,11 @@
     <dimen name="mb_capsule_radius">29dp</dimen>
     <dimen name="mb_cell_w">56dp</dimen>
     <dimen name="mb_cell_h">46dp</dimen>
+
+    <!--
+      弹层（菜单 / 工具箱 / 书签…）在大屏上被收成的居中卡片最大宽度。
+      手机端 smallestScreenWidthDp 不足 720，openSheet 不会用到它（走 MATCH_PARENT）；
+      这里给个默认只是为了让资源在任意配置下都存在。真值在 values-sw720dp 里放大。
+    -->
+    <dimen name="sheet_max_width">480dp</dimen>
 </resources>

@@ -67,6 +67,11 @@ import java.util.Set;
 
 import org.json.JSONObject;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
+
 /**
  * 吾爱Nova浏览器 · 移动版主界面。
  *
@@ -3244,6 +3249,13 @@ public final class MainActivity extends Activity {
         sheet.setBackgroundResource(R.drawable.card);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -2);
         lp.gravity = Gravity.BOTTOM;
+        // 大屏（平板）不再把弹层拉到屏幕左右边缘，而是收成一张居中卡片，
+        // 否则菜单 / 工具箱在 10" 屏上会被拉伸成一条长带。手机端
+        // smallestScreenWidthDp 不足 720，走 MATCH_PARENT 原逻辑，零影响。
+        if (getResources().getConfiguration().smallestScreenWidthDp >= 720) {
+            lp.width = (int) getResources().getDimension(R.dimen.sheet_max_width);
+            lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        }
         root.addView(sheet, lp);
         // 键盘弹起时把弹层往上顶，别遮住底部的输入框（AI 对话页自带的输入、
         // 自定义地址框、面板自己的输入行都在弹层底部）。见 attachImeShift。
@@ -3489,6 +3501,10 @@ public final class MainActivity extends Activity {
             mountMain();
             showHistorySheet();
         }, true);
+
+        // ---- 浏览：扫一扫（扫 PC 分享面板的二维码，跳到对应网站）
+        menuRow(sheet, R.id.menuScan, R.drawable.ic_scan, "扫一扫", "扫描二维码打开网页",
+            () -> startScan(), false);
 
         // ---- 工具：对网页的加工能力（下载 / 阅读 / 篡改猴 / 广告拦截），
         // 收敛成「工具」一个入口，不再在这里逐项平铺 —— 那是「毛坯房」的来源之一。
@@ -4309,10 +4325,21 @@ public final class MainActivity extends Activity {
 
     private static final int REQ_PICK_SCRIPT = 4101;
     private static final int REQ_PICK_BOOKMARKS = 4102;
+    // 扫一扫的相机权限请求码。与 IntentIntegrator 自己的扫码请求码（49374）是两套，
+    // 别混淆：扫码结果在 onActivityResult 里由 parseActivityResult 识别。
+    private static final int RC_CAMERA = 4201;
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        // 扫一扫：ZXing 通过 Intent extras 返回结果，并不走 getData()，
+        // 必须在下面「data.getData()==null 就 return」的守卫之前先分流，
+        // 否则扫码结果会被当成空数据直接吞掉。
+        IntentResult scan = IntentIntegrator.parseActivityResult(req, res, data);
+        if (scan != null) {
+            if (scan.getContents() != null) navigateFromScan(scan.getContents());
+            return;
+        }
         if (res != RESULT_OK || data == null || data.getData() == null) return;
         // 按请求码分派：两个入口共用这一个回调，别再在里面写 if 嵌套。
         if (req == REQ_PICK_SCRIPT) {
@@ -4320,6 +4347,63 @@ public final class MainActivity extends Activity {
         } else if (req == REQ_PICK_BOOKMARKS) {
             onBookmarksPicked(data.getData());
         }
+    }
+
+    // --------------------------------------------------------- 扫一扫
+    // 手机扫 PC 地址栏分享面板生成的二维码：那张码编码的是当前标签页的纯网址，
+    // 所以扫到什么就当网址去导航，不需要解析任何私有协议。
+
+    /** 入口：先确认相机权限，有就直接起扫，否则申请权限后由回调起扫。 */
+    private void startScan() {
+        // minSdk 24（API 23+）直接走框架的权限 API，不引 androidx.core 依赖。
+        if (checkSelfPermission(Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, RC_CAMERA);
+            return;
+        }
+        launchScanner();
+    }
+
+    /** 起扫：只认 QR 码（PC 分享面板那张就是 QR），其余格式忽略，避免误扫。 */
+    private void launchScanner() {
+        IntentIntegrator ig = new IntentIntegrator(this);
+        ig.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
+        ig.setPrompt("将二维码放入取景框");
+        ig.setBeepEnabled(true);
+        ig.setOrientationLocked(false);
+        ig.initiateScan();
+    }
+
+    /**
+     * 相机权限结果。 granted 才真正起扫；否则提示，不崩溃、不反复弹窗。
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == RC_CAMERA) {
+            if (grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                launchScanner();
+            } else {
+                toast("未授予相机权限，无法扫码");
+            }
+        }
+    }
+
+    /**
+     * 把扫码内容变成可加载地址并导航：像网址就直接打开，
+     * 否则交给搜索引擎兜底（极少数非网址内容，不至于报错）。
+     */
+    private void navigateFromScan(String contents) {
+        String url = UrlInput.toUrl(contents);
+        if (url.isEmpty()) {
+            url = settings.resolveInput(contents);
+        }
+        if (!mainViewMounted) mountMain();
+        go(url);
+        String host = Tab.hostOf(url);
+        toast(TextUtils.isEmpty(host) ? "已扫码打开" : ("已打开 " + host));
     }
 
     private void onScriptPicked(android.net.Uri uri) {

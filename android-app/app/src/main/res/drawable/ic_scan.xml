@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  扫一扫：取景框（四角括号 + 中部扫描线）。与菜单里书签/历史同款画风：
+  描边 + tint=@color/text_3（深/浅色都跟主题走），20dp / viewport 20。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <!-- 左上角括号 -->
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8,4 L4,4 L4,8" />
+    <!-- 右上角括号 -->
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M12,4 L16,4 L16,8" />
+    <!-- 右下角括号 -->
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M16,12 L16,16 L12,16" />
+    <!-- 左下角括号 -->
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8,16 L4,16 L4,12" />
+    <!-- 中部扫描线 -->
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M4,10 L16,10" />
+</vector>

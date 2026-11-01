@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>吾爱Nova浏览器 · 轻量、省流、可扩展的开源浏览器</title>
-    <meta name="description" content="吾爱Nova 是开源浏览器：手机版不内置内核（安装包不足 400 KB，渲染交由系统 WebView）；桌面版内置 Chromium 156（Electron 45）真内核。提供多线程下载、广告拦截、用户脚本、无图模式与自动拼页，能力与边界均如实标注。">
+    <meta name="description" content="吾爱Nova 是开源浏览器：手机版不内置内核（安装包约 800 KB，渲染交由系统 WebView）；桌面版内置 Chromium 156（Electron 45）真内核。提供多线程下载、广告拦截、用户脚本、无图模式与自动拼页，能力与边界均如实标注。">
     <!--
       网站图标。原来只声明了 logo.png（192×192），而 favicon 的标准位置是根目录下的
       /favicon.ico —— 没有它时浏览器要去 HTML 里翻 rel="icon"，爬虫与某些抓取器
@@ -54,7 +54,7 @@
                 <h1>不内置内核的浏览器，<br><em>把安装包与内存都省下来</em></h1>
                 <p class="lede">
                     吾爱Nova 是一款同时提供 <b>Windows 桌面版</b>与 <b>Android 手机版</b>的开源浏览器。
-                    <b>手机版不内置内核</b>，渲染交由系统 WebView（Chromium）完成，安装包不足 400 KB；
+                    <b>手机版不内置内核</b>，渲染交由系统 WebView（Chromium）完成，安装包约 800 KB；
                     <b>桌面版内置 Chromium 156</b>（Electron 45）真内核，另有原生宿主 / 兼容层运行时可切换。
                     多线程下载、广告拦截、用户脚本、
                     无图模式与自动拼页两端均已具备；做不到的部分，在下方逐条写明。
@@ -64,8 +64,8 @@
                     <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
                 </div>
                 <div class="hero-meta">
-                    <span id="verLatest">最新版本 1.6.26（39）</span>
-                    <span id="verDate">更新于 2026-10-25</span>
+                    <span id="verLatest">最新版本 1.7.0（40）</span>
+                    <span id="verDate">更新于 2026-11-01</span>
                     <span><i></i>Windows 10 及以上 · Android 7.0 及以上</span>
                     <span><i></i>手机版不内置内核 · 零个 .so</span>
                 </div>
@@ -555,8 +555,8 @@
                 <div class="cmp-col">
                     <div class="cmp-hd">
                         <span class="cmp-os">Android</span>
-                        <strong>手机版 · v1.6.26</strong>
-                        <span class="cmp-size">不足 500 KB</span>
+                        <strong>手机版 · v1.7.0</strong>
+                        <span class="cmp-size">约 800 KB</span>
                     </div>
                     <ul class="cmp-list">
                         <li><b>渲染</b><span>交由系统 WebView（Chromium），零个 .so</span></li>
@@ -640,7 +640,7 @@
             <div class="honest">
                 <div class="card">
                     <h3><span class="tag b">取舍</span>内核策略：手机不内置，桌面内置</h3>
-                    <p>Android 版安装包不足 400 KB，是因为 APK 中<b>零个 .so</b>——渲染交由系统 WebView（Chromium）完成。
+                    <p>Android 版安装包约 800 KB，是因为 APK 中<b>零个 .so</b>——渲染交由系统 WebView（Chromium）完成。
                        换来的是极小的体积与更低的内存占用；代价是内核版本跟随系统，无法独立升级。
                        桌面版则内置了一份 <b>Chromium 156</b>（Electron 45）真内核，所以体积较大（约 102 MB）；
                        Gecko / Trident 两档由可选的独立宿主进程承载，未安装时自动降级为兼容层。
@@ -689,19 +689,19 @@
                 <h3 class="dl-os">Android 手机版</h3>
                 <div class="dl-box">
                     <div class="dl-version">
-                        <strong id="dlVer">v1.6.26</strong>
-                        <span id="dlStamp">更新于 2026-10-31</span>
+                        <strong id="dlVer">v1.7.0</strong>
+                        <span id="dlStamp">更新于 2026-11-01</span>
                         <span class="dl-count" id="dlCountAndroid" hidden></span>
                     </div>
-                    <p class="dl-note" id="dlNote">安装包大小约 500 KB。安装前请在系统设置中允许来自此来源的应用。</p>
+                    <p class="dl-note" id="dlNote">安装包大小约 800 KB。安装前请在系统设置中允许来自此来源的应用。</p>
                     <div class="dl-list" id="dlBtns">
-                        <a class="btn btn-primary btn-lg" href="download/nova-1.6.26.apk" data-dl="android" download>官网直链 · v1.6.26</a>
-                        <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.6.26/nova-1.6.26.apk" data-dl="android" download>Gitee Releases · v1.6.26</a>
+                        <a class="btn btn-primary btn-lg" href="download/nova-1.7.0.apk" data-dl="android" download>官网直链 · v1.7.0</a>
+                        <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.0/nova-1.7.0.apk" data-dl="android" download>Gitee Releases · v1.7.0</a>
                     </div>
                     <ul class="dl-facts" id="dlFacts">
-                        <li><span>版本</span><span>1.6.26</span></li>
-                        <li><span>版本码</span><span>39</span></li>
-                        <li><span>更新日期</span><span>2026-10-31</span></li>
+                        <li><span>版本</span><span>1.7.0</span></li>
+                        <li><span>版本码</span><span>40</span></li>
+                        <li><span>更新日期</span><span>2026-11-01</span></li>
                     </ul>
                 </div>
             </div>

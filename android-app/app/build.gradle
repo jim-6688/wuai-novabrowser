@@ -63,7 +63,7 @@ android {
         targetSdk 35
         // 本轮：新标签页版式改回「上 logo、中搜索、下六宫格」，
         // 且那六格不再可删、顺序不随任何操作变化（两端共用同一份页面）
-        versionCode 39
+        versionCode 40
         versionName appVersion
     }
     // AGP 8.0 起 BuildConfig 默认不生成。更新检查要用
@@ -113,5 +113,8 @@ android {
 }
 
 dependencies {
+    // 扫一扫：ZXing Embedded 全离线、不依赖 GMS（国内设备友好），扫码走 IntentIntegrator。
+    // appcompat / zxing core 由它传递依赖进来，不用单独声明。
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     testImplementation 'junit:junit:4.13.2'
 }
