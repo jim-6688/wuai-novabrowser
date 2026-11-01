@@ -146,6 +146,9 @@
       </button>
     </div>
 
+    <!-- 地址栏 + 专用搜索框同一行。地址栏限宽后不再吃满整条工具栏，
+         右边空出来的位置给搜索框 —— 两者职责分开：地址栏管网址，搜索框管搜索。 -->
+    <div class="omni-row">
     <div class="omnibox" id="omnibox">
       <span class="ow-lock" id="omni-lock" title="连接安全">
         <svg viewBox="0 0 16 16"><path d="M4.5 7V5.5a3.5 3.5 0 0 1 7 0V7" /><rect x="3" y="7" width="10" height="6.5" rx="1.6" /></svg>
@@ -264,6 +267,18 @@
 
       <!-- 打字时的自动匹配下拉：从收藏夹 + 历史记录里补齐网址（行由 JS 填） -->
       <div class="omni-suggest" id="omni-suggest" role="listbox" aria-label="网址建议" hidden></div>
+    </div>
+
+    <!-- 专用搜索框：与地址栏同高同圆角，但只承担搜索。
+         回车用当前默认搜索引擎在当前标签打开；Esc 清空并退出。 -->
+    <div class="search-box" id="search-box">
+      <svg class="sb-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.1" /><path d="M12.4 12.4l4 4" /></svg>
+      <input id="search-input" class="sb-input" type="text" spellcheck="false" autocomplete="off"
+             placeholder="搜索网页" aria-label="搜索网页" />
+      <button class="sb-go" id="search-go" type="button" title="搜索" aria-label="搜索">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11" /><path d="M11.5 6.5L15 10l-3.5 3.5" /></svg>
+      </button>
+    </div>
     </div>
 
     <!-- 下载：地址栏右侧的常驻入口。有下载时弹出一个贴在地址栏旁的小窗，

@@ -451,9 +451,19 @@ svg {
    都用绿色时两个相邻按钮上的数字会长得一模一样。 */
 #btn-sniff .badge { background: var(--brand); }
 
+/* 地址栏 + 搜索框：同一条行容器，地址栏可伸但有上限，剩余位置留给搜索框 */
+.omni-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
 /* 地址栏 */
 .omnibox {
-  flex: 1;
+  flex: 1 1 auto;
+  max-width: 620px;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -681,6 +691,62 @@ svg {
 .ow-btn:hover { background: var(--surface-3); color: var(--text); }
 .ow-btn.is-on { color: var(--warn); }
 .ow-btn.is-on svg { fill: currentColor; }
+
+/* ---------- 专用搜索框 ----------
+   与地址栏同高、同圆角、同底色，但内容极简（放大镜 + 输入 + 前往），
+   视觉上比地址栏弱一档：地址栏有连接状态、书签、复制/编辑/二维码、内核选择，
+   搜索框只有一件事，所以不该长得一样重。 */
+.search-box {
+  flex: 0 1 224px;
+  min-width: 116px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 10px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.search-box:focus-within {
+  background: var(--surface);
+  border-color: var(--brand);
+  box-shadow: var(--ring);
+}
+.sb-icon {
+  flex: 0 0 auto;
+  width: 15px; height: 15px;
+  color: var(--text-3);
+  fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round;
+}
+.sb-input {
+  flex: 1; min-width: 0;
+  height: 100%;
+  background: none; border: 0; outline: none;
+  font-family: inherit; font-size: 13px;
+  color: var(--text);
+}
+.sb-input::placeholder { color: var(--text-4); }
+.sb-go {
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  color: var(--text-4);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.sb-go:hover { background: var(--surface-3); color: var(--text); }
+.sb-go:active { transform: scale(0.94); }
+.sb-go svg {
+  width: 15px; height: 15px;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+/* 搜索框空着时箭头是暗的，有内容才亮起来 —— 少一个恒亮的干扰元素 */
+.search-box:not(.has-text) .sb-go { color: var(--text-4); }
+.search-box.has-text .sb-go { color: var(--brand); }
 
 /* 点地址栏弹出的快捷面板：站点名 + 网址、复制/编辑/二维码、最新复制、搜索历史。
    贴地址栏下方铺满整条（left:0;right:0），与 omni-suggest 同锚点、互斥显示。 */
@@ -2780,6 +2846,10 @@ svg {
 [data-layout="mobile"] .has-badge,
 [data-layout="mobile"] #btn-ext { display: none; }
 [data-layout="mobile"] .omnibox { height: 36px; }
+/* 窄窗口与移动端撤掉专用搜索框：地址栏本身就能搜索，
+   这时候再塞一个只会让两边都挤成一条缝。 */
+[data-layout="mobile"] .search-box { display: none; }
+@media (max-width: 900px) { .search-box { display: none; } }
 [data-layout="mobile"] .ow-divider { display: none; }
 [data-layout="mobile"] .ow-act { display: none; }
 [data-layout="mobile"] .ow-engine { height: 26px; padding: 0 6px 0 8px; }

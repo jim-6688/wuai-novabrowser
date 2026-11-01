@@ -7123,6 +7123,52 @@ function applyLayout() {
   if (changed) renderBookmarkBar(true);
 }
 
+/**
+ * 专用搜索框。
+ *
+ * 和地址栏的搜索是两套判断：地址栏要先分辨「这是网址还是搜索词」，
+ * 这里不用猜 —— 进了搜索框的就是要搜的词，直接套默认引擎模板。
+ * 在当前标签打开，与地址栏搜索保持一致；想留着原页面就再开个标签搜。
+ */
+function setupSearchBox() {
+  const input = $('#search-input');
+  const box = $('#search-box');
+  if (!input) return;
+
+  const submit = () => {
+    const q = input.value.trim();
+    if (!q) { input.focus(); return; }
+    const tab = activeTab();
+    if (!tab) return;
+    navigate(tab.id, searchUrl(q));
+    input.value = '';
+    if (box) box.classList.remove('has-text');
+    input.blur();
+  };
+
+  const syncTint = () => {
+    if (box) box.classList.toggle('has-text', !!input.value.trim());
+  };
+
+  input.addEventListener('input', syncTint);
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      submit();
+    } else if (ev.key === 'Escape') {
+      // 只清自己的内容，别再冒泡到全局 Esc（那会把一堆面板一起关掉）
+      ev.preventDefault();
+      ev.stopPropagation();
+      input.value = '';
+      syncTint();
+      input.blur();
+    }
+  });
+
+  const go = $('#search-go');
+  if (go) go.addEventListener('click', submit);
+}
+
 /* ------------------------------------------------------------------ *
  * 事件接线
  * ------------------------------------------------------------------ */
@@ -8736,6 +8782,7 @@ function wireUi() {
   });
 
   wireQuickBar();
+  setupSearchBox();
   wireCmdPalette();
   wireToolsMenu();
   wireQkBmMenu();
