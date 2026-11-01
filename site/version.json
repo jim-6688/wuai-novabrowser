@@ -1,26 +1,28 @@
 {
-  "version": "1.7.0",
-  "versionCode": 40,
+  "version": "1.7.1",
+  "versionCode": 41,
   "channel": "release",
   "updatedAt": "2026-11-01",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "扫一扫：手机扫 PC 版地址栏分享二维码，直接打开对应网页（ZXing 离线扫码，仅申请相机权限）",
-    "平板兼容：弹层在大屏上收成居中卡片、底栏令牌放大，手机端布局不变"
+    "扫一扫修复：改用自建扫码界面（相机预览 + 本地解码），不再调用系统里的其它扫码软件，此前在未安装扫码 App 的设备上点击即闪退",
+    "扫一扫入口移到顶栏：位于地址栏右侧、书签按钮左边，从主菜单移出",
+    "地址栏显示中文网站名：网页加载完成后显示站名，点击地址栏才切换为真实网址",
+    "地址栏自动纠正：中文输入法打出的全角「。」自动变半角「.」，打字与粘贴均生效"
   ],
   "downloads": [
     {
       "label": "官网直链",
-      "url": "download/nova-1.7.0.apk",
-      "size": 795014,
-      "sha256": "f4be816dee43e9447056e0e403db08a3f7b6ebdcfe5dcb9f06fcde3f452a30bf"
+      "url": "download/nova-1.7.1.apk",
+      "size": 740958,
+      "sha256": "a0ceaab29ca9095cee30f0e5cd23b8acde3cc3c8499f6f702296cbaa31dfa727"
     },
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.0/nova-1.7.0.apk",
-      "size": 795014,
-      "sha256": "f4be816dee43e9447056e0e403db08a3f7b6ebdcfe5dcb9f06fcde3f452a30bf"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.1/nova-1.7.1.apk",
+      "size": 740958,
+      "sha256": "a0ceaab29ca9095cee30f0e5cd23b8acde3cc3c8499f6f702296cbaa31dfa727"
     }
   ],
   "pc": {
