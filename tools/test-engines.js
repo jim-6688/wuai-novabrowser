@@ -61,10 +61,15 @@ const check = (name, cond, extra) => {
   /* ---------------------------------------------------------------- */
   console.log('\n[D] 描述符携带内核二进制详情（供 UI 展示）');
   const ce = by.chromium.kernel;
-  check('Chromium 列出 2 个发行版（Electron + CEF）', ce.sources.length === 2,
+  check('Chromium 列出 Electron 发行版',
+        ce.sources.some((s) => s.id === 'chromium-electron'),
         ce.sources.map((s) => s.id).join(', '));
-  check('CEF 被识别为 CEF/Chromium Embedded',
-        ce.sources.some((s) => /CEF/.test(s.signature.detected)));
+  // CEF 已不再随包下发（native/engines 里那 424 MB 清掉了），清单里不该再有它；
+  // 将来若重新拉回来，也得能被正确识别 —— 两种情况都放过。
+  const cefSrc = ce.sources.find((s) => s.id === 'chromium-cef');
+  check('CEF 不在盘上时不进清单；在盘上则识别为 CEF/Chromium Embedded',
+        !cefSrc || /CEF/.test((cefSrc.signature || {}).detected || ''),
+        cefSrc ? String((cefSrc.signature || {}).detected) : '（CEF 未下发，已跳过）');
   check('Electron 被识别为 Electron/Chromium',
         ce.sources.some((s) => /Electron/.test(s.signature.detected)));
 

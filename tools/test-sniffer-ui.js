@@ -88,7 +88,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('渲染出引擎状态卡', !!$('.sn-engine'));
   check('引擎卡标注「运行中」', $('.sn-engine .sn-pill').textContent.trim() === '运行中',
     $('.sn-engine .sn-pill').textContent.trim());
-  check('工具栏有嗅探按钮', !!$('#btn-sniff'));
+  // 顶栏那两个按钮（盾牌 / 嗅探）已收进扩展小窗，入口改成了面板里的行，
+  // 所以这里验的是「扩展小窗里有嗅探入口」而不是顶栏那颗按钮。
+  check('扩展小窗里有嗅探入口', !!$('#ext-sniff-row'));
   check('统计卡 5 格', $$('.sn-stat').length === 5, `实际 ${$$('.sn-stat').length}`);
 
   console.log('\n[B] 分类计数');

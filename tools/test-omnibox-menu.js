@@ -150,13 +150,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   savedSession = null;
   rightClick(); await sleep(10);
   await clickItem('paste-go');
-  check('地址栏填上了粘贴的内容', input.value === 'https://paste-go.test/hello', JSON.stringify(input.value));
   await sleep(600);
   const navUrl = ((savedSession && savedSession.tabs) || []).map((t) => t.url)
     .find((u) => String(u).indexOf('paste-go.test') >= 0) || '';
   check('真的发起了导航（标签页网址已更新）', !!navUrl, navUrl || '（会话里没有这个网址）');
+  // 导航完成后地址栏会切回「显示网站名」，所以这里先聚焦再验 ——
+  // 用户点进地址栏时看到的仍然是这条粘贴进来的网址。
+  input.focus();
+  check('粘贴并打开后，聚焦地址栏看到的就是这条网址',
+    input.value === 'https://paste-go.test/hello', JSON.stringify(input.value));
 
   console.log('\n[G] 剪切 / 删除 / 全选');
+  // 真实场景里能对着地址栏点右键，说明它本来就是聚焦的。
+  // 不先聚焦的话，cut 结尾那次 input.focus() 会触发「聚焦切回真实网址」，
+  // 把刚赋的值冲掉 —— 那是测试没模拟对，不是代码有问题。
+  input.focus();
   copied = null;
   input.value = 'https://example.com/page';
   setSel(8, 15);

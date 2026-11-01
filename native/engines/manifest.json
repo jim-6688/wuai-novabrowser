@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-01T15:56:13.315Z",
+  "generatedAt": "2026-11-01T23:16:05.999Z",
   "platform": "win32 x64",
   "node": "v22.22.2",
   "engineRoot": "native/engines",
@@ -97,81 +97,6 @@
               "sha256": "2fc28f6396a571fb6490504aff0b0f767bce24105cad2489dcc3d53396df8a38"
             }
           ]
-        },
-        {
-          "id": "chromium-cef",
-          "label": "CEF 嵌入内核",
-          "version": "CEF 154.0.34 / Chromium 154.0.8037.98",
-          "role": "embedded",
-          "dir": "native/engines/chromium-cef",
-          "present": false,
-          "complete": false,
-          "sizeBytes": 0,
-          "fileCount": 0,
-          "arch": null,
-          "archNote": null,
-          "probes": [
-            {
-              "desc": "CEF 运行时（Chromium 渲染本体）",
-              "present": false,
-              "sizeBytes": 0,
-              "path": "native/engines/chromium-cef/Release/libcef.dll"
-            },
-            {
-              "desc": "CEF 154 示例宿主（可直接运行）",
-              "present": false,
-              "sizeBytes": 0,
-              "path": "native/engines/chromium-cef/Release/bootstrap.exe"
-            },
-            {
-              "desc": "Chromium 崩溃处理模块",
-              "present": false,
-              "sizeBytes": 0,
-              "path": "native/engines/chromium-cef/Release/chrome_elf.dll"
-            },
-            {
-              "desc": "ICU 国际化数据",
-              "present": false,
-              "sizeBytes": 0,
-              "path": "native/engines/chromium-cef/Resources/icudtl.dat"
-            },
-            {
-              "desc": "Chromium 资源包",
-              "present": false,
-              "sizeBytes": 0,
-              "path": "native/engines/chromium-cef/Resources/resources.pak"
-            },
-            {
-              "desc": "CEF C++ API 头文件",
-              "present": false,
-              "sizeBytes": 0,
-              "path": "native/engines/chromium-cef/include/cef_browser.h"
-            },
-            {
-              "desc": "libcef_dll_wrapper 源码",
-              "present": false,
-              "sizeBytes": 0,
-              "path": "native/engines/chromium-cef/libcef_dll/wrapper/libcef_dll_wrapper.cc"
-            }
-          ],
-          "signature": {
-            "file": "native/engines/chromium-cef/Release/libcef.dll",
-            "valid": false,
-            "peType": null,
-            "arch": null,
-            "is64": null,
-            "subsystem": null,
-            "exportCount": 0,
-            "dllName": null,
-            "linkedAt": null,
-            "imageBytes": 0,
-            "sampleExports": [],
-            "detected": null,
-            "errors": [
-              "无法打开: ENOENT: no such file or directory, open 'D:\\projects\\novabrowser\\native\\engines\\chromium-cef\\Release\\libcef.dll'"
-            ]
-          },
-          "sha256": []
         }
       ]
     },

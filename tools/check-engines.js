@@ -318,7 +318,12 @@ function main() {
   };
 
   for (const cat of CATALOG) {
-    const sources = cat.sources.map(inspectSource);
+    // 只统计**真正在盘上**的源：root 指向的目录整个不存在时（比如已经不再随包下发的
+    // CEF），不要再往清单里塞一个「所有文件都缺失」的条目 —— 那会让内核状态页多出
+    // 一行永远红着的「CEF 未下发」，用户看不懂，也没有任何可操作项。
+    const sources = cat.sources
+      .filter((src) => !src.root || fs.existsSync(path.resolve(ROOT, src.root)))
+      .map(inspectSource);
     const ready = sources.filter((s) => s.complete);
 
     let mode = 'compat';

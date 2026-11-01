@@ -67,12 +67,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('触发器 aria-expanded=false', $('#omni-engine').getAttribute('aria-expanded') === 'false');
   check('徽标停在地址栏右端（最后一个可见控件）', (() => {
     const kids = [...$('#omnibox').children].map((c) => c.id || c.className);
-    // 期望顺序：锁 → 输入框 → 书签 → 分隔线 → 内核徽标 → 下拉面板 → 分享面板 →
-    // 快捷面板 → 右键菜单 → 建议下拉。
+    // 期望顺序：锁 → 输入框 → 书签 → 复制 → 编辑 → 二维码 → 分隔线 → 内核徽标 →
+    // 下拉面板 → 分享面板 → 快捷面板 → 右键菜单 → 建议下拉。
     // 末尾的 engine-menu / omni-share / omni-panel / omni-menu / omni-suggest 都是
     // position:absolute 的弹出层（默认 hidden、不占弹性布局），所以内核徽标仍是
     // 视觉上最右的那个常驻控件 —— 这里只补 DOM 顺序。
-    return kids.join(',') === 'omni-lock,omni-input,omni-star,ow-divider,omni-engine,engine-menu,omni-share,omni-panel,omni-menu,omni-suggest';
+    return kids.join(',') === 'omni-lock,omni-input,omni-star,omni-copy,omni-edit,omni-qr,ow-divider,omni-engine,engine-menu,omni-share,omni-panel,omni-menu,omni-suggest';
   })(), [...$('#omnibox').children].map((c) => c.id || c.className).join(' → '));
   check('快捷面板 omni-panel 已挂载（紧接在 omni-share 之后）', (() => {
     const kids = [...$('#omnibox').children].map((c) => c.id);
