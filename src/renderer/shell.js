@@ -3522,6 +3522,10 @@ function renderExtPopover() {
   const list = $('#ext-pop-list');
   const title = $('#ext-pop-title');
   if (!list) return;
+  // 内置工具入口（广告拦截 / 媒体嗅探）只在「已装扩展」视图露出：
+  // 导入视图是一条独立流程，混着两行无关入口会让人以为也能导入它们。
+  const quick = $('#ext-quick');
+  if (quick) quick.hidden = state.extPopView === 'import';
   // 两种视图：默认「已装扩展」（就地开关），导入视图「从浏览器导入」。
   // 都在这一个小窗里完成，不用为了导入专门跳去设置页 —— 那正是用户
   // 反馈「探测还是打开设置界面」要解决的：探测/导入就该在点开的这个窗里。
@@ -5737,7 +5741,10 @@ function wireActions(root) {
       state.settings.adblock[key] = next;
       if (key === 'enabled') {
         state.adblock.enabled = next;
-        $('#btn-shield').classList.toggle('is-off', !next);
+        // 顶栏那个盾牌已经收进扩展小窗了，状态标记挪到入口行上：
+        // 关掉拦截时整行灰下去，进扩展面板一眼能看出它是关着的。
+        const abRow = $('#ext-ab-row');
+        if (abRow) abRow.classList.toggle('is-off', !next);
       }
       toast(next ? '已开启' : '已关闭');
     });
@@ -7169,6 +7176,19 @@ function setupSearchBox() {
   if (go) go.addEventListener('click', submit);
 }
 
+/**
+ * 扩展小窗里的两个内置工具入口（广告拦截 / 媒体嗅探）。
+ *
+ * 这两块原本各占顶栏一格，现在收进扩展小窗。点一行时先把扩展小窗关掉再开对应面板：
+ * 三个小窗共用 .ext-cluster 这一个锚点，同时显示会叠在同一个位置。
+ */
+function setupExtQuick() {
+  const ab = $('#ext-ab-row');
+  if (ab) ab.addEventListener('click', () => { closeExtPopover(); openAdblockPopover(); });
+  const sn = $('#ext-sniff-row');
+  if (sn) sn.addEventListener('click', () => { closeExtPopover(); openSniffPopover(); });
+}
+
 /* ------------------------------------------------------------------ *
  * 事件接线
  * ------------------------------------------------------------------ */
@@ -8266,12 +8286,13 @@ function wireUi() {
   $('#engine-menu').addEventListener('click', (ev) => ev.stopPropagation());
   document.addEventListener('click', closeEngineMenu);
 
-  // 广告拦截小窗：点盾牌开/收；点外面、点网页、改窗口尺寸都收起
-  $('#btn-shield').addEventListener('click', () => toggleAdblockPopover());
+  // 广告拦截小窗：入口在扩展小窗里（见 setupExtQuick），这里只管「点外面收起」。
+  // 判断里必须带上 #ext-ab-row —— 点入口那一瞬事件还要冒泡到 document，
+  // 不放行的话面板刚打开就会被这一条关掉（界面闪一下、看起来像没反应）。
   document.addEventListener('click', (ev) => {
     const t = ev.target;
     if (t && typeof t.closest === 'function'
-        && (t.closest('#ab-popover') || t.closest('#btn-shield'))) return;
+        && (t.closest('#ab-popover') || t.closest('#ext-ab-row'))) return;
     closeAdblockPopover();
   });
   window.addEventListener('resize', closeAdblockPopover);
@@ -8282,7 +8303,7 @@ function wireUi() {
     renderAdblockPopover();
     toast('统计已重置');
   });
-  $('#btn-sniff').addEventListener('click', () => toggleSniffPopover());
+  // 媒体嗅探的入口同样收进了扩展小窗（见 setupExtQuick），这里不再单独绑按钮。
 
   /* 拼图图标 = 打开**独立的扩展小窗**（就地开关），不再直接跳进设置。
    *
@@ -8306,11 +8327,12 @@ function wireUi() {
     openPanel('extensions');
   });
 
-  // 媒体嗅探小窗：点外面 / 点网页 / 改窗口尺寸都收起
+  // 媒体嗅探小窗：点外面 / 点网页 / 改窗口尺寸都收起。
+  // 同样放行 #ext-sniff-row，否则点入口打开的面板会被这一条立刻收掉。
   document.addEventListener('click', (ev) => {
     const t = ev.target;
     if (t && typeof t.closest === 'function'
-        && (t.closest('#sniff-pop') || t.closest('#btn-sniff'))) return;
+        && (t.closest('#sniff-pop') || t.closest('#ext-sniff-row'))) return;
     closeSniffPopover();
   });
   window.addEventListener('resize', closeSniffPopover);
@@ -8783,6 +8805,7 @@ function wireUi() {
 
   wireQuickBar();
   setupSearchBox();
+  setupExtQuick();
   wireCmdPalette();
   wireToolsMenu();
   wireQkBmMenu();
@@ -9081,7 +9104,9 @@ async function init() {
   wireBridgeEvents();
 
   $('#shield-count').textContent = String(state.adblock.blocked || 0);
-  $('#btn-shield').classList.toggle('is-off', !state.adblock.enabled);
+  // 盾牌按钮已收进扩展小窗，关闭状态标在入口行上（没有按钮时不再直接取 classList）
+  const abRowInit = $('#ext-ab-row');
+  if (abRowInit) abRowInit.classList.toggle('is-off', !state.adblock.enabled);
   syncSniffBadge();
 
   // 首个标签页：按「恢复上次会话」决定是还原还是开主页

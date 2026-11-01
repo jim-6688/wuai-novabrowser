@@ -448,8 +448,9 @@ svg {
 .has-badge.is-off .badge { background: var(--text-4); }
 /* 嗅探徽标换成品牌色。它和拦截徽标本来就是两件事 ——
    一个是「已经挡掉了多少」，一个是「这页还有多少可下载」，
-   都用绿色时两个相邻按钮上的数字会长得一模一样。 */
-#btn-sniff .badge { background: var(--brand); }
+   都用绿色时两个挨着的数字会长得一模一样。
+   两个徽标现在都在扩展小窗的入口行里，这套区分照旧有效。 */
+#sniff-count { background: var(--brand-soft); color: var(--brand); }
 
 /* 地址栏 + 搜索框：同一条行容器，地址栏可伸但有上限，剩余位置留给搜索框 */
 .omni-row {
@@ -1605,8 +1606,51 @@ svg {
  * ------------------------------------------------------------------ */
 .ext-cluster { position: relative; display: flex; align-items: center; }
 
-/* 媒体嗅探小窗：外壳复用 .dl-popover，内容按窄窗收一收 */
-.sniff-cluster { position: relative; display: flex; align-items: center; }
+/* 扩展小窗里的「内置工具」入口：广告拦截 / 媒体嗅探。
+   一行一个，与下面的扩展列表用一条分隔线隔开 —— 它们是浏览器自带的，
+   和用户装的扩展开不是一回事，视觉上必须分得出来。 */
+.ext-quick {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+}
+.ext-quick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px var(--sp-3);
+  text-align: left;
+  color: var(--text);
+  transition: background var(--dur) var(--ease);
+}
+.ext-quick-row:hover { background: var(--surface-2); }
+.ext-quick-row svg {
+  flex: 0 0 auto;
+  width: 15px; height: 15px;
+  color: var(--text-2);
+  fill: none; stroke: currentColor; stroke-width: 1.5;
+  stroke-linejoin: round; stroke-linecap: round;
+}
+.eq-label { flex: 1; font-size: 13px; }
+/* 广告拦截被关掉时整行灰下去：顶栏已经看不到盾牌了，
+   进扩展面板得能一眼判断「拦截现在是开还是关」。 */
+.ext-quick-row.is-off .eq-label,
+.ext-quick-row.is-off svg { color: var(--text-4); }
+.ext-quick-row .badge {
+  flex: 0 0 auto;
+  min-width: 20px; height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 10px; font-weight: 700; font-style: normal;
+  display: grid; place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 媒体嗅探小窗：外壳复用 .dl-popover，内容按窄窗收一收。
+   它与广告拦截小窗都挂在 .ext-cluster 下（顶栏不再各占一格），
+   这里不需要自己的 position:relative —— 定位基准由 .ext-cluster 提供。 */
 /* 宽度沿用 .dl-popover 的 320（与扩展小窗一致），这里只收内部留白 */
 .sniff-popover .dl-pop-list { padding: 10px 12px; }
 .sniff-popover .sn-engine { padding: 10px; }
@@ -1614,9 +1658,8 @@ svg {
 .sniff-popover .sn-stats { grid-template-columns: repeat(3, 1fr); }
 .sniff-popover .sn-card .sn-item { padding: 10px 12px; }
 
-/* 广告拦截小窗：外壳复用 .dl-popover（贴在盾牌下方往左展开），
+/* 广告拦截小窗：外壳复用 .dl-popover（挂在扩展按钮下方往左展开），
    内容排成「一行一件事」：本次拦截数 / 总开关 / 各拦截源 / 当前站点白名单。 */
-.ab-cluster { position: relative; display: flex; align-items: center; }
 .ab-popover { width: 320px; max-height: 60vh; }
 .ab-pop-inner { padding: 4px 0 6px; }
 .ab-pop-stat {

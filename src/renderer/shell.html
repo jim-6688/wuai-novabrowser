@@ -304,47 +304,10 @@
     </div>
 
     <div class="tool-group">
-      <!-- 广告拦截：点盾牌弹一个**贴在按钮下方的小窗**（与下载 / 媒体嗅探 / 扩展
-           同一套 .dl-popover 外壳），就地开关拦截与拦截源，不在整页设置里跳来跳去。
-           更细的白名单 / 强度 / 导入清单仍在设置页，小窗底部留入口过去。 -->
-      <div class="ab-cluster">
-        <button class="icon-btn has-badge has-label" id="btn-shield" title="广告拦截" aria-expanded="false" aria-haspopup="dialog">
-          <svg viewBox="0 0 20 20"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z" /></svg>
-          <span class="ib-label">广告拦截</span>
-          <i class="badge" id="shield-count">0</i>
-        </button>
-        <div class="dl-popover ab-popover" id="ab-popover" role="dialog" aria-label="广告拦截" hidden>
-          <div class="dl-pop-head">
-            <span>广告拦截</span>
-            <button class="dl-pop-x" id="ab-pop-close" title="收起">×</button>
-          </div>
-          <div class="dl-pop-list" id="ab-pop-body"></div>
-          <div class="dl-pop-foot">
-            <button class="btn btn-sm" id="ab-pop-manage">在设置里管理</button>
-            <button class="btn btn-sm" id="ab-pop-reset">重置统计</button>
-          </div>
-        </div>
-      </div>
-      <!-- 媒体嗅探：点按钮弹出贴在下方的小窗（复用下载/扩展小窗的 .dl-popover）。
-           内容和设置里的「媒体嗅探」是同一份，只是省掉了页头和长说明；
-           底部留一个「在设置里管理」的入口，需要看完整说明时再过去。 -->
-      <div class="sniff-cluster">
-        <button class="icon-btn has-badge has-label" id="btn-sniff" title="媒体嗅探" aria-expanded="false" aria-haspopup="dialog">
-          <svg viewBox="0 0 20 20"><rect x="2.5" y="5" width="9" height="8" rx="1.4" /><path d="M5.5 8.5l2.4 1.5-2.4 1.5z" /><path d="M14 8a3.2 3.2 0 0 1 0 5" /><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4" /></svg>
-          <span class="ib-label">媒体嗅探</span>
-          <i class="badge" id="sniff-count">0</i>
-        </button>
-        <div class="dl-popover sniff-popover" id="sniff-pop" role="dialog" aria-label="媒体嗅探" hidden>
-          <div class="dl-pop-head">
-            <span>媒体嗅探</span>
-            <button class="dl-pop-x" id="sniff-pop-close" title="收起">×</button>
-          </div>
-          <div class="dl-pop-list" id="sniff-pop-body"></div>
-          <div class="dl-pop-foot">
-            <button class="btn btn-sm" id="sniff-pop-manage">在设置里管理</button>
-          </div>
-        </div>
-      </div>
+      <!-- 广告拦截与媒体嗅探已收进「扩展」小窗（见下方 .ext-cluster）。
+           理由：这两个都是「低频查看 + 点开才动作」的入口，常驻顶栏各占一格，
+           而顶栏的每一格都在跟地址栏抢宽度。两个小窗本身保留，只是锚点从
+           各自的按钮换成了扩展按钮 —— 三个小窗互斥，同一锚点不会打架。 -->
       <!-- 扩展：点图标弹出一个**独立的启用窗口**，就地开关，不必跳进设置。
            它是「快速开关」而不是「管理」—— 详情、移除、安装仍在设置里，
            所以底部留一个入口过去。两件事分开是有意的：管扩展是低频动作，
@@ -361,11 +324,52 @@
             <span id="ext-pop-title">扩展</span>
             <button class="dl-pop-x" id="ext-pop-close" title="收起">×</button>
           </div>
+          <!-- 内置工具入口：广告拦截 / 媒体嗅探从顶栏搬到这里。
+               点一行就关掉扩展小窗、打开对应面板（锚点相同，视觉上像换了一页）。
+               计数 badge 沿用原 id，JS 那边的更新逻辑不用改。 -->
+          <div class="ext-quick" id="ext-quick">
+            <button class="ext-quick-row" id="ext-ab-row" type="button">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z" /></svg>
+              <span class="eq-label">广告拦截</span>
+              <i class="badge" id="shield-count">0</i>
+            </button>
+            <button class="ext-quick-row" id="ext-sniff-row" type="button">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5" width="9" height="8" rx="1.4" /><path d="M5.5 8.5l2.4 1.5-2.4 1.5z" /><path d="M14 8a3.2 3.2 0 0 1 0 5" /><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4" /></svg>
+              <span class="eq-label">媒体嗅探</span>
+              <i class="badge" id="sniff-count">0</i>
+            </button>
+          </div>
           <div class="dl-pop-list" id="ext-pop-list"></div>
           <div class="dl-pop-foot">
             <button class="btn btn-sm" id="ext-pop-install">从文件安装</button>
             <button class="btn btn-sm" id="ext-pop-import">从浏览器导入</button>
             <button class="btn btn-sm" id="ext-pop-manage">管理全部扩展</button>
+          </div>
+        </div>
+
+        <!-- 广告拦截小窗：与扩展小窗共用锚点（.ext-cluster 是相对定位基准）。
+             互斥显示 —— 打开它之前会先 closeExtPopover()，所以不会两个同时挂着。 -->
+        <div class="dl-popover ab-popover" id="ab-popover" role="dialog" aria-label="广告拦截" hidden>
+          <div class="dl-pop-head">
+            <span>广告拦截</span>
+            <button class="dl-pop-x" id="ab-pop-close" title="收起">×</button>
+          </div>
+          <div class="dl-pop-list" id="ab-pop-body"></div>
+          <div class="dl-pop-foot">
+            <button class="btn btn-sm" id="ab-pop-manage">在设置里管理</button>
+            <button class="btn btn-sm" id="ab-pop-reset">重置统计</button>
+          </div>
+        </div>
+
+        <!-- 媒体嗅探小窗：内容与设置页「媒体嗅探」同一份，只是省掉页头和长说明 -->
+        <div class="dl-popover sniff-popover" id="sniff-pop" role="dialog" aria-label="媒体嗅探" hidden>
+          <div class="dl-pop-head">
+            <span>媒体嗅探</span>
+            <button class="dl-pop-x" id="sniff-pop-close" title="收起">×</button>
+          </div>
+          <div class="dl-pop-list" id="sniff-pop-body"></div>
+          <div class="dl-pop-foot">
+            <button class="btn btn-sm" id="sniff-pop-manage">在设置里管理</button>
           </div>
         </div>
       </div>
