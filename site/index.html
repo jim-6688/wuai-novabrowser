@@ -187,8 +187,8 @@
                 </div>
                 <div class="card">
                     <div class="fico g">⬢</div>
-                    <h3><span class="tag">PC</span>三档内核可切换</h3>
-                    <p>内置 <b>Chromium 156</b>（Electron 45）真内核，地址栏右端还可随时切换到 Gecko / IE(Trident) 运行时，兼容层如实标注。
+                    <h3><span class="tag">PC</span>双档内核可切换</h3>
+                    <p>内置 <b>Chromium 156</b>（Electron 45）真内核，地址栏右端还可切到 IE(Trident) 运行时，兼容层如实标注。
                        新标签页自带常用入口与插件商店入口，扩展与收藏夹开箱可用。</p>
                 </div>
             </div>
@@ -610,8 +610,8 @@
 
                 <figure class="pcshot">
                     <img src="assets/img/shots/02-set-general.png" width="1060" height="664"
-                         alt="设置-常规分区：主页、新标签页三档、默认内核 Chromium / Gecko / IE 三选" loading="lazy" decoding="async" />
-                    <figcaption><b>三档内核随时切换</b><span>Chromium 真内核与 Gecko / IE 兼容层，地址栏右端直接换</span></figcaption>
+                         alt="设置-常规分区：主页、新标签页三档、默认内核 Chromium / IE 二选" loading="lazy" decoding="async" />
+                    <figcaption><b>双档内核随时切换</b><span>Chromium 真内核与 IE 兼容层，地址栏右端直接换</span></figcaption>
                 </figure>
 
                 <figure class="pcshot is-narrow">
@@ -643,13 +643,13 @@
                     <p>Android 版安装包约 800 KB，是因为 APK 中<b>零个 .so</b>——渲染交由系统 WebView（Chromium）完成。
                        换来的是极小的体积与更低的内存占用；代价是内核版本跟随系统，无法独立升级。
                        桌面版则内置了一份 <b>Chromium 156</b>（Electron 45）真内核，所以体积较大（约 102 MB）；
-                       Gecko / Trident 两档由可选的独立宿主进程承载，未安装时自动降级为兼容层。
+                       Trident 由可选的独立宿主进程承载，未安装时自动降级为兼容层。
                        我们认为对多数用户这是值得的取舍，但你应当了解这笔账。</p>
                 </div>
                 <div class="card">
                     <h3><span class="tag t">如实</span>桌面端三档运行时的标注</h3>
                     <p>桌面版提供三档渲染路径，由用户在设置中自行选择：<b>原生内核</b>（进程内渲染）、
-                       <b>原生宿主</b>（由独立宿主进程渲染 Gecko / Trident），以及<b>兼容层</b>
+                       <b>原生宿主</b>（由独立宿主进程渲染 Trident），以及<b>兼容层</b>
                        （用 Chromium 渲染，但完整伪造目标内核的 UA、文档模式与 API 垫片）。
                        <b>兼容层不等于真内核</b>——原生宿主二进制不存在时会自动降级为兼容层，
                        界面如实标注当前实际生效的那一档。扩展方面支持拖入 <code>.crx</code> 自动安装。</p>

@@ -5231,9 +5231,9 @@ function buildAbout() {
     <div class="sv-note">
       内核之间互不干扰：每个内核一份独立 session，Cookie、缓存、UA 都不共享。
       <br /><br />
-      界面本身由 Electron 自带的 Blink 渲染。Gecko 和 Trident 的二进制已经放在
-      <code>native/engines/</code> 里，但还差一个原生宿主程序把它们接起来，
-      所以内核列表里标的是「兼容层」，现在还当不了真内核用。
+      界面本身由 Electron 自带的 Blink 渲染。另一个是 IE / Trident，它的内核由系统的
+      <code>mshtml.dll</code> 提供，要靠原生宿主 <code>trident-host.exe</code> 接进来。
+      接上了才当真 IE11 用，接不上就在内核列表里标「兼容层」。
     </div>
   `;
 }
