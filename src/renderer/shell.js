@@ -1493,6 +1493,69 @@ function closeOmniShare() {
   if (pop) pop.hidden = true;
 }
 
+/* --- 地址栏快捷面板（点地址栏弹出：站点名 + 网址 + 复制/编辑/二维码 + 最新复制 + 搜索历史） ---
+ * 仿小米浏览器地址栏下拉。打字时这套收起、改由 omni-suggest 给补全。 */
+function openOmniPanel() {
+  const panel = $('#omni-panel');
+  if (!panel) return;
+  panel.hidden = false;
+  fillOmniPanel();
+}
+function closeOmniPanel() {
+  const panel = $('#omni-panel');
+  if (panel) panel.hidden = true;
+}
+
+/** 填站点名称 + 网址 + favicon，并刷新「最新复制」与「搜索历史」。 */
+function fillOmniPanel() {
+  const t = activeTab();
+  const url = t ? t.url : '';
+  const titleEl = $('#op-title'), urlEl = $('#op-url'), favEl = $('#op-favicon');
+  if (titleEl) titleEl.textContent = (t && (t.title || '')) || (url ? prettyUrl(url) : '新标签页');
+  if (urlEl) urlEl.textContent = url ? prettyUrl(url) : 'about:blank';
+  if (favEl) {
+    const fav = t && t.favicon ? t.favicon : '';
+    if (fav) { favEl.src = fav; favEl.hidden = false; } else { favEl.removeAttribute('src'); favEl.hidden = true; }
+  }
+  renderOmniClip();
+  renderOmniHistory();
+}
+
+/** 「最新复制的内容」：优先本应用刚复制过的（state.lastClip），没有就读系统剪贴板
+ * （file:// 下 navigator.clipboard 不可用，必须走主进程）。被用户手动清除过的那条
+ * （state.clipDismissed）不再出现，直到剪贴板换成别的内容。 */
+async function renderOmniClip() {
+  const wrap = $('#op-clip'), txt = $('#op-clip-text');
+  if (!wrap || !txt) return;
+  let clip = (state.lastClip || '').trim();
+  if (!clip) {
+    try { const c = await bridge.system.paste(); if (c) clip = String(c).trim(); } catch { /* 无剪贴板权限就跳过 */ }
+  }
+  if (!clip || clip === state.clipDismissed) { wrap.hidden = true; return; }
+  txt.textContent = clip.length > 80 ? clip.slice(0, 80) + '…' : clip;
+  txt.title = clip;
+  wrap.hidden = false;
+}
+
+/** 「搜索历史」：最近 3 条（按 ts 倒序、按 URL 去重）。点击胶囊进对应网址。 */
+function renderOmniHistory() {
+  const box = $('#op-hist-tags');
+  if (!box) return;
+  const list = (state.historyCache || []).slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const seen = new Set();
+  const tags = [];
+  for (const h of list) {
+    const u = h.url;
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    tags.push({ url: u, label: siteNameOf(h.title, u) });
+    if (tags.length >= 3) break;
+  }
+  if (!tags.length) { box.innerHTML = '<span class="op-tag-empty">暂无历史</span>'; return; }
+  box.innerHTML = tags.map((t, i) =>
+    `<button class="op-tag" type="button" data-idx="${i}" data-url="${esc(t.url)}">${esc(t.label)}</button>`).join('');
+}
+
 /* --- 地址栏右键编辑菜单：撤销 / 剪切 / 复制 / 粘贴 / 全选 / 粘贴并打开 ---
  *
  * 为什么自己接：Electron 的渲染进程不给外壳自己的 <input> 弹原生编辑菜单
@@ -7925,13 +7988,14 @@ function wireUi() {
     const b = ev.target.closest('[data-share]');
     if (b) handleShareAction(b.dataset.share);
   });
-  // 点外面收起分享面板：用 mousedown 捕获阶段，点网页区域也能抢到；
+  // 点外面收起分享面板 / 快捷面板：用 mousedown 捕获阶段，点网页区域也能抢到；
   // 落点在地址栏 / 面板内则不收（点地址栏本身是「打开面板」）。
   document.addEventListener('mousedown', (ev) => {
     const t = ev.target;
     if (t && typeof t.closest === 'function'
-        && (t.closest('#omnibox') || t.closest('#omni-share'))) return;
+        && (t.closest('#omnibox') || t.closest('#omni-share') || t.closest('#omni-panel'))) return;
     closeOmniShare();
+    closeOmniPanel();
   }, true);
 
   // 地址栏
@@ -7958,14 +8022,21 @@ function wireUi() {
       input.blur();
     } else if (ev.key === 'Escape') {
       if ($('#omni-suggest') && !$('#omni-suggest').hidden) { hideOmniSuggest(); return; }
+      if ($('#omni-panel') && !$('#omni-panel').hidden) { closeOmniPanel(); input.blur(); return; }
       syncOmnibox();
       input.blur();
     }
   });
-  input.addEventListener('focus', () => { input.select(); ensureHistoryCache(true); });
-  // 点网址（地址栏还没聚焦时的那次点击）→ 弹分享面板；已在编辑态不弹。
-  // 只看左键：右键要留给编辑菜单，不然会先弹一次分享面板再弹菜单。
-  input.addEventListener('mousedown', (ev) => { if (ev.button === 0 && document.activeElement !== input) openOmniShare(); });
+  input.addEventListener('focus', () => {
+    input.select();
+    ensureHistoryCache(true).then(() => {
+      if (document.activeElement === input && $('#omni-panel') && !$('#omni-panel').hidden) renderOmniHistory();
+    });
+    if (!input.value.trim()) openOmniPanel();
+  });
+  // 点网址（地址栏还没聚焦时的那次点击）→ 弹快捷面板；已在编辑态不弹。
+  // 只看左键：右键要留给编辑菜单，不然会先弹一次面板再弹菜单。
+  input.addEventListener('mousedown', (ev) => { if (ev.button === 0 && document.activeElement !== input) openOmniPanel(); });
   // 右键 → 编辑菜单
   input.addEventListener('contextmenu', (ev) => {
     ev.preventDefault();
@@ -7991,8 +8062,12 @@ function wireUi() {
     if (ev.target && typeof ev.target.closest === 'function' && ev.target.closest('#omni-menu')) return;
     closeOmniMenu();
   }, true);
-  // 打字 → 收起分享面板、显示自动补齐（收藏 + 历史）
-  input.addEventListener('input', () => { closeOmniShare(); renderOmniSuggest(); });
+  // 打字 → 收起分享面板 / 快捷面板、显示自动补齐（收藏 + 历史）；清空则回到快捷面板
+  input.addEventListener('input', () => {
+    closeOmniShare();
+    if (input.value.trim()) { closeOmniPanel(); renderOmniSuggest(); }
+    else { hideOmniSuggest(); openOmniPanel(); }
+  });
   // 失焦收起建议；点建议行用的是 mousedown+preventDefault，不会先触发这里
   input.addEventListener('blur', hideOmniSuggest);
   // 点建议行 → 跳转（mousedown 抢在 blur 前，避免点了却先失焦收起）
@@ -8003,6 +8078,44 @@ function wireUi() {
       if (!row) return;
       ev.preventDefault();
       pickOmniSuggest(Number(row.dataset.idx));
+    });
+  }
+  // 快捷面板内的点击：复制 / 编辑 / 二维码 / 清除复制 / 点历史胶囊
+  const opanel = $('#omni-panel');
+  if (opanel) {
+    // mousedown 先吃默认：点复制/编辑这种会改变输入焦点的，别先把地址栏失焦收掉面板
+    opanel.addEventListener('mousedown', (ev) => { if (ev.target.closest('button')) ev.preventDefault(); });
+    opanel.addEventListener('click', (ev) => {
+      const t = ev.target;
+      const copyBtn = t.closest('#op-copy');
+      const editBtn = t.closest('#op-edit');
+      const qrBtn = t.closest('#op-qr');
+      const delBtn = t.closest('#op-clip-del');
+      const tag = t.closest('.op-tag');
+      if (copyBtn) {
+        const tab = activeTab();
+        if (tab && tab.url) {
+          bridge.system.copy(tab.url).then(() => {
+            state.lastClip = tab.url; state.clipDismissed = '';
+            toast('已复制当前网址'); renderOmniClip();
+          }).catch(() => { /* 复制失败不影响 */ });
+        }
+        return;
+      }
+      if (editBtn) { closeOmniPanel(); input.focus(); input.select(); return; }
+      if (qrBtn) { closeOmniPanel(); openOmniShare(); return; }
+      if (delBtn) {
+        const txt = $('#op-clip-text');
+        state.clipDismissed = (txt && txt.textContent || '').trim();
+        const wrap = $('#op-clip'); if (wrap) wrap.hidden = true;
+        return;
+      }
+      if (tag) {
+        const url = tag.dataset.url; const tab = activeTab();
+        closeOmniPanel();
+        if (url && tab) navigate(tab.id, url);
+        input.blur();
+      }
     });
   }
 

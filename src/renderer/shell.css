@@ -682,6 +682,66 @@ svg {
 .ow-btn.is-on { color: var(--warn); }
 .ow-btn.is-on svg { fill: currentColor; }
 
+/* 点地址栏弹出的快捷面板：站点名 + 网址、复制/编辑/二维码、最新复制、搜索历史。
+   贴地址栏下方铺满整条（left:0;right:0），与 omni-suggest 同锚点、互斥显示。 */
+.omni-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+  padding: 10px 12px 12px;
+  display: flex; flex-direction: column; gap: 10px;
+  animation: menuIn 140ms var(--ease);
+}
+/* 头部：站点信息（左） + 三个操作图标（右） */
+.op-head { display: flex; align-items: flex-start; gap: var(--sp-3); }
+.op-site { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.op-favicon { width: 22px; height: 22px; border-radius: 6px; flex: 0 0 22px; object-fit: cover; background: var(--surface-2); }
+.op-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.op-title { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-url { font-size: 11px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-acts { flex: 0 0 auto; display: flex; gap: 2px; }
+.op-act {
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border: 0; border-radius: var(--r-sm); background: transparent; color: var(--text-2);
+  cursor: pointer; transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.op-act svg { width: 18px; height: 18px; }
+.op-act:hover { background: var(--surface-2); color: var(--text); }
+.op-act:active { transform: scale(.94); }
+/* 最新复制的内容 */
+.op-clip { display: flex; flex-direction: column; gap: 4px; }
+.op-sec-label { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; color: var(--text-4); text-transform: uppercase; }
+.op-clip-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px; border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.op-clip-text {
+  flex: 1; min-width: 0; font-size: 12.5px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.op-clip-del {
+  flex: 0 0 auto; width: 22px; height: 22px; display: grid; place-items: center;
+  border: 0; border-radius: 6px; background: transparent; color: var(--text-4); cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.op-clip-del svg { width: 15px; height: 15px; }
+.op-clip-del:hover { background: var(--surface-3); color: var(--danger); }
+/* 搜索历史：胶囊标签 */
+.op-hist { display: flex; flex-direction: column; gap: 6px; }
+.op-hist-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.op-tag {
+  max-width: 100%; padding: 5px 11px; border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--text-2);
+  font-size: 12px; border: 0; cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.op-tag:hover { background: var(--brand-soft); color: var(--brand); }
+.op-tag-empty { font-size: 11.5px; color: var(--text-4); }
+
 /* ---------- 5b. 收藏夹栏 ---------- */
 /* 地址栏与网页视口之间的一条横栏。它跟工具栏共用 surface 底色、共用一条
    border-bottom —— 两行叠在一起读起来才是「一条顶栏的延续」，多一层阴影

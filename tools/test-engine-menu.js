@@ -68,12 +68,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('徽标停在地址栏右端（最后一个可见控件）', (() => {
     const kids = [...$('#omnibox').children].map((c) => c.id || c.className);
     // 期望顺序：锁 → 输入框 → 书签 → 分隔线 → 内核徽标 → 下拉面板 → 分享面板 →
-    // 右键菜单 → 建议下拉。
-    // 末尾的 engine-menu / omni-share / omni-menu / omni-suggest 都是 position:absolute
-    // 的弹出层（默认 hidden、不占弹性布局），所以内核徽标仍是视觉上最右的那个常驻
-    // 控件 —— 这里只补 DOM 顺序。
-    return kids.join(',') === 'omni-lock,omni-input,omni-star,ow-divider,omni-engine,engine-menu,omni-share,omni-menu,omni-suggest';
+    // 快捷面板 → 右键菜单 → 建议下拉。
+    // 末尾的 engine-menu / omni-share / omni-panel / omni-menu / omni-suggest 都是
+    // position:absolute 的弹出层（默认 hidden、不占弹性布局），所以内核徽标仍是
+    // 视觉上最右的那个常驻控件 —— 这里只补 DOM 顺序。
+    return kids.join(',') === 'omni-lock,omni-input,omni-star,ow-divider,omni-engine,engine-menu,omni-share,omni-panel,omni-menu,omni-suggest';
   })(), [...$('#omnibox').children].map((c) => c.id || c.className).join(' → '));
+  check('快捷面板 omni-panel 已挂载（紧接在 omni-share 之后）', (() => {
+    const kids = [...$('#omnibox').children].map((c) => c.id);
+    return kids.indexOf('omni-share') >= 0 && kids.indexOf('omni-panel') === kids.indexOf('omni-share') + 1;
+  })());
+  check('快捷面板含 复制/编辑/二维码 三按钮', !!($('#op-copy') && $('#op-edit') && $('#op-qr')));
+  check('快捷面板含 最新复制 / 搜索历史 两个分区', !!($('#op-clip') && $('#op-hist') && $('#op-hist-tags')));
   check('徽标本体在面板之前', (() => {
     const kids = [...$('#omnibox').children];
     return kids.findIndex((c) => c.id === 'omni-engine') < kids.findIndex((c) => c.id === 'engine-menu');
