@@ -1214,6 +1214,12 @@ function navigate(id, url) {
   const tab = state.tabs.find((t) => t.id === id);
   if (!tab || !url) return;
   tab.url = url;
+  /* 换地址就把旧标题清掉。
+   * 地址栏非聚焦时显示的是 title，不清的话从「新标签页」跳到某个站点，
+   * 中间会有一小段时间顶着上一页的标题（新标题要等页面加载完才过来）——
+   * 用户看到的是「地址已经变了，站名还是旧的」，很像是跳错了。
+   * 清空后 syncOmnibox 会先回落到网址，标题到了再换成站名。 */
+  tab.title = '';
 
   // 站点规则优先：目标站点配了另一个内核，就直接换过去。
   // switchEngine 会拿 tab.url 重新加载，所以这里不要再自己 load 一次。
@@ -3722,21 +3728,18 @@ function renderSniffPopover() {
   wireActions(body);
 }
 
+// 顶栏的嗅探按钮已收进扩展小窗，这里不再有 aria-expanded 要维护。
 function openSniffPopover() {
   const pop = $('#sniff-pop');
   if (!pop) return;
   renderSniffPopover();
   pop.hidden = false;
-  const btn = $('#btn-sniff');
-  if (btn) btn.setAttribute('aria-expanded', 'true');
 }
 
 function closeSniffPopover() {
   const pop = $('#sniff-pop');
   if (!pop || pop.hidden) return;
   pop.hidden = true;
-  const btn = $('#btn-sniff');
-  if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
 function toggleSniffPopover() {
@@ -3799,21 +3802,18 @@ function renderAdblockPopover() {
   wireActions(body);
 }
 
+// 同上：盾牌按钮已收进扩展小窗，不再维护它的 aria-expanded。
 function openAdblockPopover() {
   const pop = $('#ab-popover');
   if (!pop) return;
   renderAdblockPopover();
   pop.hidden = false;
-  const btn = $('#btn-shield');
-  if (btn) btn.setAttribute('aria-expanded', 'true');
 }
 
 function closeAdblockPopover() {
   const pop = $('#ab-popover');
   if (!pop || pop.hidden) return;
   pop.hidden = true;
-  const btn = $('#btn-shield');
-  if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
 function toggleAdblockPopover() {
