@@ -5213,9 +5213,11 @@ function buildAbout() {
     </div>
 
     <div class="sv-note">
-      渲染载体：每个内核一份独立 session（Cookie / 缓存 / UA 全隔离）。
-      当前 shell 由 Electron 自带 Blink 承载；Gecko 与 Trident 的真内核二进制已在
-      <code>native/engines/</code> 就位，但缺原生宿主程序，因此标为「兼容层」而非「原生内核」。
+      内核之间互不干扰：每个内核一份独立 session，Cookie、缓存、UA 都不共享。
+      <br /><br />
+      界面本身由 Electron 自带的 Blink 渲染。Gecko 和 Trident 的二进制已经放在
+      <code>native/engines/</code> 里，但还差一个原生宿主程序把它们接起来，
+      所以内核列表里标的是「兼容层」，现在还当不了真内核用。
     </div>
   `;
 }
