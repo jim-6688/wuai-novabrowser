@@ -13,14 +13,14 @@
   ],
   "downloads": [
     {
-      "label": "官网直链",
-      "url": "download/nova-1.7.1.apk",
+      "label": "Gitee Releases",
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.1/nova-1.7.1.apk",
       "size": 740958,
       "sha256": "a0ceaab29ca9095cee30f0e5cd23b8acde3cc3c8499f6f702296cbaa31dfa727"
     },
     {
-      "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.1/nova-1.7.1.apk",
+      "label": "官网直链",
+      "url": "download/nova-1.7.1.apk",
       "size": 740958,
       "sha256": "a0ceaab29ca9095cee30f0e5cd23b8acde3cc3c8499f6f702296cbaa31dfa727"
     }
