@@ -388,7 +388,23 @@ function syncEngineUi() {
   badge.style.setProperty('--engine-color', e.accent);
   badge.classList.toggle('is-compat', e.mode === 'compat');
   $('#omni-engine-short').textContent = e.short;
-  $('#brand-tag').textContent = `${e.label} · ${e.modeLabel}`;
+  // 左上角这格原来写「Chromium · 原生内核」——「原生内核/兼容层」是状态不是信息，
+  // 而用户在这里更想知道的是「现在跑的是哪个版本的内核」。模式仍留在 title 里，
+  // 悬停可见；真正的兼容层提示还有引擎条和地址栏的橙色标记，不靠这一格。
+  const ua = e.userAgent || '';
+  const cm = ua.match(/Chrome\/(\d+)/);        // 156.0.8078.48 → 156
+  const fm = ua.match(/Firefox\/([\d.]+)/);
+  const rm = ua.match(/rv:([\d.]+)/);          // IE11 的 UA 里是 rv:11.0
+  const ver = cm ? cm[1] : (fm ? fm[1] : (rm ? rm[1] : ''));
+  const btag = $('#brand-tag');
+  if (btag) {
+    btag.textContent = ver ? `${e.label} ${ver}` : e.label;
+    btag.title = e.modeLabel;
+    // 预览模式在 boot 里给这格写过内联的橙色（color / borderColor）。这里的赋值
+    // 会把文字盖掉、却留下那圈橙边，看着像内核出问题 —— 一起清掉。
+    btag.style.color = '';
+    btag.style.borderColor = '';
+  }
   $('#mb-engine-label').textContent = e.label;
 }
 
