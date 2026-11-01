@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-26T16:01:15.012Z",
+  "generatedAt": "2026-11-01T15:56:13.315Z",
   "platform": "win32 x64",
   "node": "v22.22.2",
   "engineRoot": "native/engines",
@@ -104,106 +104,74 @@
           "version": "CEF 154.0.34 / Chromium 154.0.8037.98",
           "role": "embedded",
           "dir": "native/engines/chromium-cef",
-          "present": true,
-          "complete": true,
-          "sizeBytes": 441971376,
-          "fileCount": 972,
-          "arch": "x64 (AMD64)",
+          "present": false,
+          "complete": false,
+          "sizeBytes": 0,
+          "fileCount": 0,
+          "arch": null,
           "archNote": null,
           "probes": [
             {
               "desc": "CEF 运行时（Chromium 渲染本体）",
-              "present": true,
-              "sizeBytes": 289818624,
+              "present": false,
+              "sizeBytes": 0,
               "path": "native/engines/chromium-cef/Release/libcef.dll"
             },
             {
               "desc": "CEF 154 示例宿主（可直接运行）",
-              "present": true,
-              "sizeBytes": 4315648,
+              "present": false,
+              "sizeBytes": 0,
               "path": "native/engines/chromium-cef/Release/bootstrap.exe"
             },
             {
               "desc": "Chromium 崩溃处理模块",
-              "present": true,
-              "sizeBytes": 2829312,
+              "present": false,
+              "sizeBytes": 0,
               "path": "native/engines/chromium-cef/Release/chrome_elf.dll"
             },
             {
               "desc": "ICU 国际化数据",
-              "present": true,
-              "sizeBytes": 10819840,
+              "present": false,
+              "sizeBytes": 0,
               "path": "native/engines/chromium-cef/Resources/icudtl.dat"
             },
             {
               "desc": "Chromium 资源包",
-              "present": true,
-              "sizeBytes": 23449876,
+              "present": false,
+              "sizeBytes": 0,
               "path": "native/engines/chromium-cef/Resources/resources.pak"
             },
             {
               "desc": "CEF C++ API 头文件",
-              "present": true,
-              "sizeBytes": 45719,
+              "present": false,
+              "sizeBytes": 0,
               "path": "native/engines/chromium-cef/include/cef_browser.h"
             },
             {
               "desc": "libcef_dll_wrapper 源码",
-              "present": true,
-              "sizeBytes": 26827,
+              "present": false,
+              "sizeBytes": 0,
               "path": "native/engines/chromium-cef/libcef_dll/wrapper/libcef_dll_wrapper.cc"
             }
           ],
           "signature": {
             "file": "native/engines/chromium-cef/Release/libcef.dll",
-            "valid": true,
-            "peType": "PE32+",
-            "arch": "x64 (AMD64)",
-            "is64": true,
-            "subsystem": "WINDOWS_CUI (控制台)",
-            "exportCount": 249,
-            "dllName": "libcef.dll",
-            "linkedAt": "2026-09-30",
-            "imageBytes": 291885056,
-            "sampleExports": [
-              "CrashForExceptionInNonABICompliantCodeRange",
-              "GetHandleVerifier",
-              "IsCrashReportingEnabledImpl",
-              "IsSandboxedProcess"
-            ],
-            "detected": "CEF / Chromium Embedded",
-            "errors": []
+            "valid": false,
+            "peType": null,
+            "arch": null,
+            "is64": null,
+            "subsystem": null,
+            "exportCount": 0,
+            "dllName": null,
+            "linkedAt": null,
+            "imageBytes": 0,
+            "sampleExports": [],
+            "detected": null,
+            "errors": [
+              "无法打开: ENOENT: no such file or directory, open 'D:\\projects\\novabrowser\\native\\engines\\chromium-cef\\Release\\libcef.dll'"
+            ]
           },
-          "sha256": [
-            {
-              "file": "Release/libcef.dll",
-              "sha256": "e3da6707a840a8f33f565e011542169fd51aaa5218603eb7a89039fb16d79ae7"
-            },
-            {
-              "file": "Release/bootstrap.exe",
-              "sha256": "0b6c80b6c81615f8c2b6c051d698cb9ff93d626fb82016ce61eefd62d8cc4fec"
-            },
-            {
-              "file": "Release/chrome_elf.dll",
-              "sha256": "f26656bfe38e1b78e42f292b6a8be1b5f0b5db15395ac571d6e20a1dedf698fb"
-            },
-            {
-              "file": "Resources/icudtl.dat",
-              "sha256": "495c45cc7a65562ec461f860c310c6b66e006acd96833f61d1aa31f77fe18cf1"
-            },
-            {
-              "file": "Resources/resources.pak",
-              "sha256": "8ee8b095ac381ebee66ee2a24ec6cd72adce90c101b82c132b753a2abaf4b246"
-            },
-            {
-              "file": "include/cef_browser.h",
-              "sha256": "7744e156356c28efe01b747c11ed5cb9b1711444880cbc717ec021ce50e158db"
-            },
-            {
-              "file": "libcef_dll/wrapper/libcef_dll_wrapper.cc",
-              "sha256": "421917f42bcb217b5365ea1d313664505df720a039bd8ca8c4094310784bb181"
-            }
-          ]
+          "sha256": []
         }
       ]
     },
@@ -279,23 +247,7 @@
       ]
     }
   },
-  "archives": [
-    {
-      "file": "cef_binary_154.0.34+g14c5a08+chromium-154.0.8037.98_windows64_minimal.tar.bz2",
-      "sizeBytes": 172752666,
-      "sha256": "c81c34d048d87276f4a18f0b000206710a1709bb67dd658948b87100e1a538da"
-    },
-    {
-      "file": "geckofx-1.0.5.zip",
-      "sizeBytes": 37863222,
-      "sha256": "3f17ccd29b5b9cf80fb9fef2f56c47dfc1291ca5e4ebe47138a488a2126bb034"
-    },
-    {
-      "file": "xulrunner-41.0.2.en-US.win32.zip",
-      "sizeBytes": 39794011,
-      "sha256": "e7ea4769dedeec40ef8c7e18b19f18a55415a1be630896e146ddd77c7f4b161c"
-    }
-  ],
+  "archives": [],
   "upstream": {
     "electron": {
       "file": "electron-v45.0.0-win32-x64.zip",
