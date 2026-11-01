@@ -69,8 +69,6 @@ import org.json.JSONObject;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import com.google.zxing.integration.android.IntentIntegrator;
-import com.google.zxing.integration.android.IntentResult;
 
 /**
  * 吾爱Nova浏览器 · 移动版主界面。
@@ -228,6 +226,8 @@ public final class MainActivity extends Activity {
 
     private WebView web;
     private EditText urlBar;
+    /** 纠正全角句号「。」时的重入保护位（替换会触发自身回调，挡一下）。 */
+    private boolean fixingFullWidthPeriod;
     private ProgressBar progress;
     private TextView statusStrip;
     private TextView noImageChip;
@@ -1230,6 +1230,10 @@ public final class MainActivity extends Activity {
                     // 那时不该再指望 onPageFinished 一定跑过。
                     saveSessionNow();
                 }
+                // 标题到手后，若地址栏当前正显示网址（未聚焦），刷新成中文网站名。
+                if (urlBar != null && !urlBar.hasFocus()) {
+                    syncUrlBar(currentUrl());
+                }
             }
         });
     }
@@ -1411,6 +1415,8 @@ public final class MainActivity extends Activity {
      */
     private void setupStarButton() {
         findViewById(R.id.btnStar).setOnClickListener(v -> toggleBookmark());
+        // 扫一扫：地址栏右边的入口，扫 PC 分享面板的二维码跳到对应网站。
+        findViewById(R.id.btnScan).setOnClickListener(v -> startScan());
     }
 
     /** 切换当前页收藏状态。 */
@@ -1543,6 +1549,12 @@ public final class MainActivity extends Activity {
                 if (!submit) return false;
                 submitCapsule();
                 return true;
+            });
+            // 专注模式搜索框同样是网址入口，和地址栏一致：全角「。」实时纠正为「.」。
+            capsuleInput.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+                @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+                @Override public void afterTextChanged(Editable s) { fixFullWidthPeriod(s); }
             });
         }
         // 放大镜图标同样能提交：软键盘的搜索键不是每个用户都找得到（有的输入法把它
@@ -1882,10 +1894,18 @@ public final class MainActivity extends Activity {
          */
         urlBar.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
+                // 地址栏当前若显示的是网站名，聚焦时切回真实网址，方便编辑/复制。
+                Tab t = current();
+                String real = (t != null) ? t.url : null;
+                if (real != null && !urlBar.getText().toString().equals(real)) {
+                    urlBar.setText(real);
+                    urlBar.setSelection(real.length());
+                }
                 showUrlActions();
             } else {
                 dismissUrlActions();
                 hideSuggest();
+                syncUrlBar(currentUrl());
             }
         });
 
@@ -1900,12 +1920,45 @@ public final class MainActivity extends Activity {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void afterTextChanged(Editable s) {
+                // 中文输入法敲网址时，句号键常落在全角「。」上；URL 一律用半角「.」，
+                // 这里实时纠正，免得用户敲完回车才发现网址被打坏。
+                fixFullWidthPeriod(s);
                 if (urlActions != null && urlActions.isShowing()) dismissUrlActions();
                 // 输入即联想（防抖 220ms）。候选只服务「正在输入」这一刻，
                 // 回车、失焦、跳转都会收掉，见 scheduleSuggest / hideSuggest。
                 scheduleSuggest(s == null ? "" : s.toString());
             }
         });
+    }
+
+    /**
+     * 把可编辑文本里的全角句号「。」就地纠正成半角「.」。
+     *
+     * <p>中文输入法敲网址时，句号键常落在全角「。」上，而 URL 的分隔符一律是半角
+     * 「.」，不纠正的话拼出来的就是一串无效主机名。逐字符原地替换（1 换 1，光标位置
+     * 不会被带偏），只在确实含有「。」时才动笔。
+     *
+     * <p>替换会触发 {@link Editable} 的自身 {@code afterTextChanged} 回调，所以用
+     * {@link #fixingFullWidthPeriod} 保护位挡掉嵌套调用，避免重复联想和抖动。
+     */
+    private void fixFullWidthPeriod(Editable s) {
+        if (s == null) return;
+        if (fixingFullWidthPeriod) return;
+        boolean dirty = false;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == '。') { dirty = true; break; }
+        }
+        if (!dirty) return;
+        fixingFullWidthPeriod = true;
+        try {
+            for (int i = 0; i < s.length(); i++) {
+                if (s.charAt(i) == '。') {
+                    s.replace(i, i + 1, ".");
+                }
+            }
+        } finally {
+            fixingFullWidthPeriod = false;
+        }
     }
 
     // ---------------------------------------------------------- 地址栏联想
@@ -2308,7 +2361,16 @@ public final class MainActivity extends Activity {
             urlBar.setHint(R.string.omnibox_new_tab);
             return;
         }
-        urlBar.setText(url == null ? "" : url);
+        // 非聚焦、已加载的普通网页：地址栏显示中文网站名（标题）而非裸网址，
+        // 聚焦/点击地址栏时再切回真实网址（见 setupOmnibox 的 focus 监听）。
+        String title = null;
+        Tab t = current();
+        if (t != null && !TextUtils.isEmpty(t.title)) title = t.title;
+        if (title != null) {
+            urlBar.setText(title);
+        } else {
+            urlBar.setText(url == null ? "" : url);
+        }
         urlBar.setHint(R.string.omnibox_hint);
         urlBar.setSelection(urlBar.getText().length());
     }
@@ -3502,10 +3564,6 @@ public final class MainActivity extends Activity {
             showHistorySheet();
         }, true);
 
-        // ---- 浏览：扫一扫（扫 PC 分享面板的二维码，跳到对应网站）
-        menuRow(sheet, R.id.menuScan, R.drawable.ic_scan, "扫一扫", "扫描二维码打开网页",
-            () -> startScan(), false);
-
         // ---- 工具：对网页的加工能力（下载 / 阅读 / 篡改猴 / 广告拦截），
         // 收敛成「工具」一个入口，不再在这里逐项平铺 —— 那是「毛坯房」的来源之一。
         menuRow(sheet, R.id.menuTools, R.drawable.ic_tools, "工具",
@@ -4325,19 +4383,17 @@ public final class MainActivity extends Activity {
 
     private static final int REQ_PICK_SCRIPT = 4101;
     private static final int REQ_PICK_BOOKMARKS = 4102;
-    // 扫一扫的相机权限请求码。与 IntentIntegrator 自己的扫码请求码（49374）是两套，
-    // 别混淆：扫码结果在 onActivityResult 里由 parseActivityResult 识别。
+    // 扫一扫：相机权限请求码（运行时申请），以及启动扫码界面的 startActivityForResult 请求码。
     private static final int RC_CAMERA = 4201;
+    private static final int REQ_SCAN = 4202;
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
-        // 扫一扫：ZXing 通过 Intent extras 返回结果，并不走 getData()，
-        // 必须在下面「data.getData()==null 就 return」的守卫之前先分流，
-        // 否则扫码结果会被当成空数据直接吞掉。
-        IntentResult scan = IntentIntegrator.parseActivityResult(req, res, data);
-        if (scan != null) {
-            if (scan.getContents() != null) navigateFromScan(scan.getContents());
+        // 扫一扫：自己的 ScanActivity 通过 EXTRA_SCAN 回传扫码内容。
+        if (req == REQ_SCAN) {
+            String s = (data != null) ? data.getStringExtra(ScanActivity.EXTRA_SCAN) : null;
+            if (s != null) navigateFromScan(s);
             return;
         }
         if (res != RESULT_OK || data == null || data.getData() == null) return;
@@ -4364,14 +4420,9 @@ public final class MainActivity extends Activity {
         launchScanner();
     }
 
-    /** 起扫：只认 QR 码（PC 分享面板那张就是 QR），其余格式忽略，避免误扫。 */
+    /** 起扫：打开自带的扫码界面（Camera 预览 + ZXing 解码，见 ScanActivity）。 */
     private void launchScanner() {
-        IntentIntegrator ig = new IntentIntegrator(this);
-        ig.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
-        ig.setPrompt("将二维码放入取景框");
-        ig.setBeepEnabled(true);
-        ig.setOrientationLocked(false);
-        ig.initiateScan();
+        startActivityForResult(new Intent(this, ScanActivity.class), REQ_SCAN);
     }
 
     /**

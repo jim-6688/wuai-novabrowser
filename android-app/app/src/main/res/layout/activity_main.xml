@@ -123,6 +123,18 @@
                         android:selectAllOnFocus="true" />
                 </FrameLayout>
 
+                <!-- 扫一扫：扫码 PC 地址栏分享面板的二维码跳转到对应网站。 -->
+                <ImageButton
+                    android:id="@+id/btnScan"
+                    android:layout_width="@dimen/tap_action"
+                    android:layout_height="@dimen/tap_action"
+                    android:layout_marginStart="4dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/content_desc_scan"
+                    android:scaleType="centerInside"
+                    android:padding="7dp"
+                    android:src="@drawable/ic_scan" />
+
                 <!-- 收藏（书签）按钮 -->
                 <ImageButton
                     android:id="@+id/btnStar"

@@ -113,8 +113,9 @@ android {
 }
 
 dependencies {
-    // 扫一扫：ZXing Embedded 全离线、不依赖 GMS（国内设备友好），扫码走 IntentIntegrator。
-    // appcompat / zxing core 由它传递依赖进来，不用单独声明。
-    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    // 扫一扫：ZXing core 负责解码（纯 Java、无 AndroidX 依赖），相机预览自己写。
+    // 不引 ZXing Embedded —— 它 4.x 已不含扫码 UI，只会调外部扫码 app，在无扫码
+    // app 的机器上会 ActivityNotFoundException 崩溃（见 ScanActivity 注释）。
+    implementation 'com.google.zxing:core:3.5.3'
     testImplementation 'junit:junit:4.13.2'
 }

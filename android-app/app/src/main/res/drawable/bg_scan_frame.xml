@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    <!-- 取景框四角括号，描边风格与 ic_scan 一致 -->
+    <path
+        android:strokeColor="#42A5F5"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M24 76 L24 24 L76 24 M164 24 L216 24 L216 76 M216 164 L216 216 L164 216 M76 216 L24 216 L24 164" />
+</vector>
