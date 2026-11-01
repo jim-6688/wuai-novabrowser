@@ -776,6 +776,7 @@ function mountTab(tab) {
   });
   wv.addEventListener('page-title-updated', (ev) => {
     tab.title = ev.title || tab.title;
+    if (tab.id === state.activeId) syncOmnibox();
     renderTabstrip();
     renderTabGrid();
   });
@@ -1441,13 +1442,27 @@ function syncOmnibox() {
     input.value = '';
     input.placeholder = '新标签页';
   } else {
-    input.value = tab ? tab.url : '';
+    // 非聚焦时优先显示网站名（中文站名）；聚焦/编辑态由 focus 处理切回真实网址
+    const title = tab && tab.title ? tab.title : '';
+    input.value = title || (tab ? tab.url : '');
     input.placeholder = OMNI_DEFAULT_PLACEHOLDER;
   }
   const lock = $('#omni-lock');
   const secure = tab && /^https:/i.test(tab.url);
   lock.classList.toggle('is-insecure', !secure);
   lock.title = secure ? '连接已加密' : '非加密连接或本地页面';
+}
+
+/** 全角句号「。」→ 半角「.」：中文输入法敲网址时常落全角句点，URL 分隔符必须是半角，
+ *  不打则网址失效。仅在确实含「。」时动笔；光标前的每个全角句号使位置 +1，尽量保留光标。 */
+function fixFullWidthPeriod(el) {
+  if (!el || el.value.indexOf('。') < 0) return;
+  const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
+  const before = el.value.slice(0, pos);
+  const shift = (before.match(/。/g) || []).length;
+  el.value = el.value.replace(/。/g, '.');
+  const np = Math.max(0, Math.min(pos + shift, el.value.length));
+  try { el.setSelectionRange(np, np); } catch { /* 非输入框环境忽略 */ }
 }
 
 /* --- 地址栏网址 → 分享面板 / 二维码 --- */
@@ -1674,6 +1689,7 @@ async function runOmniMenuAction(id) {
     t = omniOneLine(t);
     if (!t) { toast('剪贴板里没有文本'); return; }
     omniReplaceRange(t);
+    fixFullWidthPeriod(input);
     input.focus();
     if (id === 'paste-go') {
       hideOmniSuggest();
@@ -8028,6 +8044,9 @@ function wireUi() {
     }
   });
   input.addEventListener('focus', () => {
+    // 非聚焦时地址栏显示的是网站名，聚焦时切回真实网址便于编辑/复制
+    const t = activeTab();
+    if (t && input.value && input.value !== t.url) { input.value = t.url; }
     input.select();
     ensureHistoryCache(true).then(() => {
       if (document.activeElement === input && $('#omni-panel') && !$('#omni-panel').hidden) renderOmniHistory();
@@ -8062,14 +8081,15 @@ function wireUi() {
     if (ev.target && typeof ev.target.closest === 'function' && ev.target.closest('#omni-menu')) return;
     closeOmniMenu();
   }, true);
-  // 打字 → 收起分享面板 / 快捷面板、显示自动补齐（收藏 + 历史）；清空则回到快捷面板
+  // 打字 → 全角句点转半角、收起分享面板 / 快捷面板、显示自动补齐（收藏 + 历史）；清空则回到快捷面板
   input.addEventListener('input', () => {
+    fixFullWidthPeriod(input);
     closeOmniShare();
     if (input.value.trim()) { closeOmniPanel(); renderOmniSuggest(); }
     else { hideOmniSuggest(); openOmniPanel(); }
   });
-  // 失焦收起建议；点建议行用的是 mousedown+preventDefault，不会先触发这里
-  input.addEventListener('blur', hideOmniSuggest);
+  // 失焦收起建议并还原成网站名；点建议行用的是 mousedown+preventDefault，不会先触发这里
+  input.addEventListener('blur', () => { hideOmniSuggest(); syncOmnibox(); });
   // 点建议行 → 跳转（mousedown 抢在 blur 前，避免点了却先失焦收起）
   const sugEl = $('#omni-suggest');
   if (sugEl) {
@@ -8131,6 +8151,29 @@ function wireUi() {
     // refreshCurrent 会一并把星标点亮、把收藏夹栏补上那一条
     refreshCurrent();
     toast('已加入书签');
+  });
+
+  // 地址栏右侧常驻操作：复制网址 / 编辑网址 / 二维码（与移动端地址栏对齐）
+  $('#omni-copy') && $('#omni-copy').addEventListener('click', async () => {
+    const t = activeTab();
+    if (!t || !t.url) return;
+    try {
+      await bridge.system.copy(t.url);
+      state.lastClip = t.url; state.clipDismissed = '';
+      toast('已复制当前网址');
+    } catch { /* 复制失败无提示 */ }
+  });
+  $('#omni-edit') && $('#omni-edit').addEventListener('click', () => {
+    const t = activeTab();
+    // 切回真实网址并全选，进入编辑态
+    if (t && input.value && input.value !== t.url) input.value = t.url;
+    input.focus();
+    input.select();
+  });
+  $('#omni-qr') && $('#omni-qr').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    closeOmniPanel();
+    openOmniShare();
   });
 
   // 收藏夹栏：左键在当前标签页打开，右键改标题 / 网址（或移出）。

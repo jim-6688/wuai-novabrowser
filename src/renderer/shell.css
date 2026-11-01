@@ -2781,6 +2781,7 @@ svg {
 [data-layout="mobile"] #btn-ext { display: none; }
 [data-layout="mobile"] .omnibox { height: 36px; }
 [data-layout="mobile"] .ow-divider { display: none; }
+[data-layout="mobile"] .ow-act { display: none; }
 [data-layout="mobile"] .ow-engine { height: 26px; padding: 0 6px 0 8px; }
 [data-layout="mobile"] .ow-input { font-size: 14px; }
 [data-layout="mobile"] .viewport { padding-bottom: 0; }
