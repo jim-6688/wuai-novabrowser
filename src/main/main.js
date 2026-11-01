@@ -1637,6 +1637,23 @@ function registerIpc() {
     const r = settings.updateBookmark(p.oldUrl, { title: p.title, url: p.url });
     return { ok: r === true, error: r === true ? '' : r, bookmarks: settings.get('bookmarks') };
   });
+  // 拖拽排序：渲染层传完整的新顺序（url 数组）。
+  // 不传「从第几个挪到第几个」的索引 —— 拖的过程中若有别的写入（在别处加了书签），
+  // 索引就错位了，传全量顺序最不容易出错。传进来的列表没覆盖到的条目按原顺序补在后面，
+  // 宁可少排一下，也不能把用户的书签弄丢。
+  handle('bookmarks:reorder', (urls) => {
+    const cur = settings.get('bookmarks', []);
+    const byUrl = new Map(cur.map((b) => [b.url, b]));
+    const next = [];
+    const seen = new Set();
+    (Array.isArray(urls) ? urls : []).forEach((u) => {
+      const b = byUrl.get(u);
+      if (b && !seen.has(u)) { next.push(b); seen.add(u); }
+    });
+    cur.forEach((b) => { if (!seen.has(b.url)) next.push(b); });
+    settings.patch({ bookmarks: next });
+    return next;
+  });
   handle('bookmarks:clear', () => { settings.patch({ bookmarks: [] }); return []; });
 
   /* ----------------------- 书签导入 / 导出 -----------------------

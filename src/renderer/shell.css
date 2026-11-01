@@ -464,7 +464,6 @@ svg {
 /* 地址栏 */
 .omnibox {
   flex: 1 1 auto;
-  max-width: 620px;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -925,6 +924,19 @@ svg {
 .bm-item:hover { background: var(--surface-2); color: var(--text); }
 .bm-item:active { transform: scale(0.97); }
 .bm-item:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* 收藏夹栏拖拽排序：拖动中的条目淡出，落点画一条品牌色竖线。
+   条目本身是 static 定位（没有 relative），这里只为画那根线补一个 —— 不影响布局。 */
+.bm-item.is-dragging { opacity: 0.4; transform: none; }
+.bm-item.bm-drop-before { position: relative; }
+.bm-item.bm-drop-before::before {
+  content: "";
+  position: absolute;
+  left: -4px; top: 5px; bottom: 5px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--brand);
+}
 
 /* 站点图标。没有图标时退回首字母 —— 与标签条同一套降级，不额外去
    猜 favicon.ico 的地址：那等于翻书签就往十来家站点各发一个请求。 */

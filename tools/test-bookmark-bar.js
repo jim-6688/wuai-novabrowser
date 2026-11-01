@@ -130,8 +130,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('当前标签页的地址变成了那一格的书签',
     window.eval('activeTab().url') === 'https://example.com/a',
     window.eval('activeTab().url'));
-  check('地址栏也跟着变了',
-    $('#omni-input').value === 'https://example.com/a', $('#omni-input').value);
+  // 地址栏非聚焦时显示的是网站名，点进去才切回真实网址 —— 所以这里验
+  // 「聚焦后能拿到真实网址」，而不是「一直显示网址」。
+  const omniInp = $('#omni-input');
+  omniInp.focus();
+  await sleep(20);
+  check('地址栏聚焦后显示真实网址',
+    omniInp.value === 'https://example.com/a', omniInp.value);
+  omniInp.blur();
 
   console.log('\n[D] 右键开编辑框，再从框里移出');
 

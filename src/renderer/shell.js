@@ -2281,7 +2281,7 @@ function renderBookmarkBar(force = false) {
   // 条目之间插一条细分隔线：纯靠间距太挤，加边框又会把每格框死。
   track.innerHTML = list.map((b, i) => {
     const p = bmEntry(b);
-    const item = `<button class="bm-item" data-bm="${esc(b.url)}"` +
+    const item = `<button class="bm-item" draggable="true" data-bm="${esc(b.url)}"` +
       ` title="${esc(p.label)}&#10;${esc(b.url)}&#10;右键移出收藏夹栏">` +
       `<span class="bm-fav">${p.icon}</span>` +
       `<span class="bm-text">` +
@@ -2293,6 +2293,93 @@ function renderBookmarkBar(force = false) {
 
   closeBmMenu();
   updateBmOverflow();
+}
+
+/**
+ * 收藏夹栏拖拽排序。
+ *
+ * <p>用原生 HTML5 拖放，不用指针事件：条目是 `<button>`，自己算坐标容易把
+ * 「点击打开」也一起吞掉；HTML5 拖放只有按住真的移动了才触发，单击不受影响。
+ *
+ * <p>拖动过程中只画落点竖线，松手才重排 —— 中途按 Esc 或拖出栏外，
+ * 书签顺序一点不变，不会出现「拖着拖着就乱了」。
+ */
+function setupBookmarkBarDrag() {
+  const track = $('#bm-track');
+  if (!track) return;
+  let dragUrl = null;
+  let dropIndex = -1;
+
+  const clearMark = () => {
+    dropIndex = -1;
+    $$('#bm-track .bm-item').forEach((el) => el.classList.remove('is-dragging', 'bm-drop-before'));
+  };
+
+  track.addEventListener('dragstart', (ev) => {
+    const item = ev.target && ev.target.closest ? ev.target.closest('.bm-item') : null;
+    if (!item) return;
+    dragUrl = item.dataset.bm;
+    item.classList.add('is-dragging');
+    // 掐住冒泡：document 上还挂着「拖文件进来装扩展」的监听，
+    // 不拦的话拖一个书签会被它当成拖进来一个文件。
+    ev.stopPropagation();
+    try {
+      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setData('text/plain', dragUrl);
+    } catch { /* 写不进 dataTransfer 也不影响拖拽本身 */ }
+  });
+
+  track.addEventListener('dragend', () => {
+    dragUrl = null;
+    clearMark();
+  });
+
+  track.addEventListener('dragover', (ev) => {
+    if (!dragUrl) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    const items = $$('#bm-track .bm-item');
+    // 落点按「鼠标在谁的中线左边」算：给出的是插入位置的下标，不是被覆盖的那一项
+    let idx = items.length;
+    for (let i = 0; i < items.length; i++) {
+      const r = items[i].getBoundingClientRect();
+      if (ev.clientX < r.left + r.width / 2) { idx = i; break; }
+    }
+    dropIndex = idx;
+    items.forEach((el) => el.classList.remove('bm-drop-before'));
+    if (idx < items.length && items[idx].dataset.bm !== dragUrl) {
+      items[idx].classList.add('bm-drop-before');
+    }
+  });
+
+  track.addEventListener('drop', async (ev) => {
+    if (!dragUrl) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const dragged = dragUrl;
+    const items = $$('#bm-track .bm-item').map((el) => el.dataset.bm);
+    let to = dropIndex < 0 ? items.length : dropIndex;
+    dragUrl = null;
+    clearMark();
+    if (!items.includes(dragged)) return;
+
+    const from = items.indexOf(dragged);
+    const rest = items.filter((u) => u !== dragged);
+    // 先移除再插入：目标在它后面时，移除会让后续下标整体前移一位
+    if (to > from) to -= 1;
+    const next = rest.slice();
+    next.splice(Math.max(0, Math.min(to, rest.length)), 0, dragged);
+    // 落回原位不写盘：一次没必要的 patch 会白白触发整栏重画
+    if (next.join('\u0001') === items.join('\u0001')) return;
+
+    try {
+      state.bookmarks = await bridge.bookmarks.reorder(next);
+      renderBookmarkBar(true);
+    } catch (e) {
+      toast('调整顺序失败：' + String((e && e.message) || e), 4000);
+    }
+  });
 }
 
 /**
@@ -8824,6 +8911,7 @@ function wireUi() {
   wireQuickBar();
   setupSearchBox();
   setupExtQuick();
+  setupBookmarkBarDrag();
   wireCmdPalette();
   wireToolsMenu();
   wireQkBmMenu();
