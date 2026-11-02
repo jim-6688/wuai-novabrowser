@@ -19,8 +19,9 @@
 
 var CHANNELS = ['android', 'pc'];
 
-// 明确的候选绑定名（控制台绑定名称优先命中，省得全量扫描）。
-var KNOWN_NAMES = ['nova_dl_kv', 'roadtv', 'NOVA_DL_KV', 'ROADTV'];
+// 明确的候选绑定名（控制台「绑定名称」那一列的值）。
+// 实际线上绑的是 `exactly`（当初在控制台把 "exactly" 这个词填进了变量名输入框）。
+var KNOWN_NAMES = ['exactly', 'nova_dl_kv', 'roadtv', 'EXACTLY', 'NOVA_DL_KV', 'ROADTV'];
 
 function looksLikeKV(v) {
   return !!v && typeof v === 'object' &&
@@ -140,6 +141,13 @@ export async function onRequestGet(context) {
     var info = describeRuntime(context);
     info.ok = !!found.kv;
     info.detectedName = found.name;
+    // ?debug=1&zero=1 把计数清零（只在自测写脏数据后手工用一次）
+    if (found.kv && url.indexOf('zero=1') !== -1) {
+      for (var z = 0; z < CHANNELS.length; z++) {
+        try { await found.kv.put(keyOf(CHANNELS[z]), '0'); } catch (e) {}
+      }
+      info.zeroed = true;
+    }
     info.counts = found.kv ? await readCounts(found.kv) : null;
     return json(info);
   }
