@@ -129,11 +129,12 @@
 
     function showCounts(counts) {
         if (!counts) return;
-        if (typeof counts.android === 'number') {
+        // 0 次不展示（刚上线就写「已下载 0 次」是减分项），有真实下载量了再显示
+        if (typeof counts.android === 'number' && counts.android > 0) {
             var a = $('dlCountAndroid');
             if (a) { a.textContent = fmtCount(counts.android); a.hidden = false; }
         }
-        if (typeof counts.pc === 'number') {
+        if (typeof counts.pc === 'number' && counts.pc > 0) {
             var p = $('dlCountPc');
             if (p) { p.textContent = fmtCount(counts.pc); p.hidden = false; }
         }
