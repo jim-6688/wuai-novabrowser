@@ -823,6 +823,18 @@ svg {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+
+/* 摆放位置＝底部：靠 flex 的 order 把它挪到 .app 的最后一项。
+   不用 position:fixed —— 那会脱离布局、把网页视口盖住一截（webview 是原生层，
+   同层 DOM 的 z-index 挡不住它）。order 只是换了个顺序，仍然占位。
+   边框也要跟着换到上沿，否则底部会凭空多一条线。 */
+.bookmarkbar[data-pos="bottom"] {
+  order: 50;
+  border-bottom: 0;
+  border-top: 1px solid var(--border);
+}
+/* 窄档：底栏已经是窗口最底，收藏夹栏再往下就叠在底栏下面了，退回顶部 */
+[data-layout="mobile"] .bookmarkbar[data-pos="bottom"] { order: 0; border-top: 0; border-bottom: 1px solid var(--border); }
 /* 书签多了横向滚，不换行：换行会把这一行撑高，网页视口跟着矮一截，
    而「这行多高」是用户在设置里点「地址栏下方」时就定下的预期。 */
 .bm-track {
@@ -937,6 +949,34 @@ svg {
   border-radius: 2px;
   background: var(--brand);
 }
+
+/* 竖向列表（侧栏 / 设置页书签列表）的落点：一条品牌色**横线**画在上沿。
+   用错轴的话，竖向列表里会画出一根竖线站在行首 —— 看着就不对。 */
+.bm-side-item.is-dragging,
+.bm-manage-row.is-dragging { opacity: 0.4; }
+.bm-side-item.bm-drop-above,
+.bm-manage-row.bm-drop-above { position: relative; }
+.bm-side-item.bm-drop-above::before,
+.bm-manage-row.bm-drop-above::before {
+  content: "";
+  position: absolute;
+  left: 6px; right: 6px; top: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--brand);
+}
+
+/* 设置页书签列表左侧的拖动手柄：只是视觉提示（整行都能拖），
+   但「这行能拖」不给记号的话，没人会去试。 */
+.bm-grip {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  font-size: 12px;
+  letter-spacing: -2px;
+  cursor: grab;
+  user-select: none;
+}
+.bm-manage-row:active .bm-grip { cursor: grabbing; }
 
 /* 站点图标。没有图标时退回首字母 —— 与标签条同一套降级，不额外去
    猜 favicon.ico 的地址：那等于翻书签就往十来家站点各发一个请求。 */
@@ -1062,16 +1102,22 @@ svg {
 }
 .viewport webview[hidden] { display: none; }
 
-/* ---- 侧边收藏夹（bookmarkBar=side）----
+/* ---- 侧边收藏夹（bookmarkBarPos=left/right）----
    webview 原本 inset:0 + width:100%；这里同时改 right 与 width:auto 才能正确缩窄
    （只改 right 而留着 width:100% 会撑出视口）。它是**占布局**的，不是浮层。 */
-.viewport.bm-side webview { right: 240px; width: auto; }
+.viewport.bm-bar-side webview { right: 240px; width: auto; }
+.viewport.bm-bar-side .bm-side { display: flex; }
+/* 贴左侧：把让位挪到左边，边框也换到右边（否则左右各一条线，看着像画错了） */
+.viewport.bm-bar-side-left webview { left: 240px; right: 0; width: auto; }
+.viewport.bm-bar-side-left .bm-side {
+  left: 0; right: auto;
+  border-left: 0; border-right: 1px solid var(--border);
+}
 .bm-side {
   position: absolute; top: 0; right: 0; bottom: 0; width: 240px;
   display: none; flex-direction: column;
   background: var(--surface); border-left: 1px solid var(--border); z-index: 6;
 }
-.viewport.bm-side .bm-side { display: flex; }
 .bm-side-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border);
@@ -1098,7 +1144,7 @@ svg {
 .bm-side-empty { padding: var(--sp-5) var(--sp-3); color: var(--text-4); font-size: 12px; text-align: center; }
 /* 移动端布局太窄，侧栏不可用：隐藏它并让网页恢复满宽 */
 [data-layout="mobile"] .bm-side { display: none !important; }
-[data-layout="mobile"] .viewport.bm-side webview { right: 0; width: 100%; }
+[data-layout="mobile"] .viewport.bm-bar-side webview { right: 0; width: 100%; }
 
 /* 内核桥接（真·trident/gecko 宿主）：canvas 承接宿主帧，同样铺满视口 */
 .bridge-view { position: absolute; inset: 0; background: #fff; }

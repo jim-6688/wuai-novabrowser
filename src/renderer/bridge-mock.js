@@ -670,6 +670,21 @@ const MOCK_UPDATE = {
         state.settings.bookmarks = state.settings.bookmarks.filter((b) => b.url !== url);
         return state.settings.bookmarks;
       },
+      /* 拖拽排序。与主进程 bookmarks:reorder 同一套语义：按给定顺序重排，
+         表里没提到的条目按原顺序追加在后面（否则拖一次就把别处新加的丢了）。 */
+      reorder: async (urls) => {
+        const cur = state.settings.bookmarks || [];
+        const byUrl = new Map(cur.map((b) => [b.url, b]));
+        const next = [];
+        const seen = new Set();
+        (Array.isArray(urls) ? urls : []).forEach((u) => {
+          const b = byUrl.get(u);
+          if (b && !seen.has(u)) { next.push(b); seen.add(u); }
+        });
+        cur.forEach((b) => { if (!seen.has(b.url)) { next.push(b); seen.add(b.url); } });
+        state.settings.bookmarks = next;
+        return next;
+      },
       /* 改标题 / 网址：与主进程 settings.updateBookmark 同一套返回形状
          （ok / error / bookmarks），预览里也就能试出「改成已有网址」的提示。 */
       update: async (oldUrl, patch) => {

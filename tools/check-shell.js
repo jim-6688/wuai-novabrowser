@@ -75,9 +75,11 @@ const usedIds = new Set([...js.matchAll(/\$\$?\('#([A-Za-z0-9_-]+)'\)/g)].map((m
 const dynamicIds = new Set([
   'dl-url',            // buildDownloads()
   'ext-browsers',      // buildExtensions() 里「从已安装的浏览器导入扩展」那一块，同上
-  'bm-browsers'        // buildBookmarks() 的「从已安装的浏览器导入」那一块；
+  'bm-browsers',       // buildBookmarks() 的「从已安装的浏览器导入」那一块；
                        // 内容还是异步的（detectBrowsers() 回填），所以连它内部的
                        // 那几行也是 JS 生成的
+  'bm-manage-list'     // buildBookmarks() 的书签列表容器（可拖动排序）；
+                       // 拖完由 renderBookmarkManageList() 就地替换，所以也不在 HTML 里
 ]);
 console.log(`  HTML id ${htmlIds.size} 个 / JS 引用 ${usedIds.size} 个`);
 const missingIds = [...usedIds].filter((id) => !htmlIds.has(id) && !dynamicIds.has(id));

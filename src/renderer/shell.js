@@ -2053,21 +2053,69 @@ function navGo(dir) {
  * ------------------------------------------------------------------ */
 
 /**
- * 档位取值。不在表里的一律当常驻 —— 用户不该因为配置文件脏了、
+ * 档位取值（**什么时候露出来**，与「放哪」是两件事）。
+ * 不在表里的一律当常驻 —— 用户不该因为配置文件脏了、
  * 或某个旧版本写过别的字，就凭空少掉一条栏。
+ *
+ * 历史值 'side'：旧版本把「侧边栏」混在这一项里，现在位置归 bookmarkBarPos 管，
+ * 这里把它当成常驻（位置由 bmBarPos 映射成 right）。
  */
 function bmBarMode() {
   const v = state.settings && state.settings.bookmarkBar;
-  return (v === 'ntp' || v === 'hidden' || v === 'side') ? v : 'always';
+  if (v === 'side') return 'always';
+  return (v === 'ntp' || v === 'hidden') ? v : 'always';
 }
 
 /** 档位 → 设置页上的说法。toast 与分段控件共用一份，免得两处各写一遍。 */
 const BM_BAR_LABEL = {
-  always: '地址栏下方',
-  side: '侧边栏',
+  always: '常驻',
   ntp: '仅新标签页',
   hidden: '不显示'
 };
+
+/** 摆放位置的可选值。表外的一律回落 top（同样是不让脏配置弄丢一条栏）。 */
+const BM_POS_VALUES = ['top', 'bottom', 'left', 'right'];
+const BM_POS_LABEL = {
+  top: '顶部（地址栏下方）',
+  bottom: '底部（窗口下沿）',
+  left: '视口左侧',
+  right: '视口右侧'
+};
+
+/** 侧栏宽度。CSS 里 `.bm-side` 是 240px，JS 不重复算尺寸，只在注释里对齐。 */
+function bmBarPos() {
+  const s = state.settings || {};
+  if (BM_POS_VALUES.indexOf(s.bookmarkBarPos) >= 0) return s.bookmarkBarPos;
+  // 旧配置：bookmarkBar === 'side' 表示右侧竖栏
+  return s.bookmarkBar === 'side' ? 'right' : 'top';
+}
+
+/** 是不是竖栏（左右两侧）。移动端太窄，一律退回横栏。 */
+function bmIsSidePos(pos) {
+  return (pos === 'left' || pos === 'right') && state.layout !== 'mobile';
+}
+
+/**
+ * 应用摆放位置：写设置 → 重画那条栏 → 提示。
+ *
+ * <p>外观与「书签」两个分区共用这一个入口 —— 两边各写一份的话，
+ * 迟早出现「在这页改了、那页的选中态还是旧的」。
+ */
+async function applyBmBarPos(pos) {
+  const next = BM_POS_VALUES.indexOf(pos) >= 0 ? pos : 'top';
+  state.settings.bookmarkBarPos = next;
+  // 旧值 'side' 会让 bmBarPos() 一直回落到 right：显式写新字段之后把它归位，
+  // 否则用户从「侧边栏（旧配置）」改成「左侧」时，旧值还会继续盖着新设置。
+  if (state.settings.bookmarkBar === 'side') {
+    state.settings.bookmarkBar = 'always';
+    await bridge.settings.patch({ bookmarkBar: 'always' });
+  }
+  await bridge.settings.patch({ bookmarkBarPos: next });
+  renderBookmarkBar(true);
+  syncQuickBar();
+  refreshCurrent();
+  toast('收藏夹栏位置：' + (BM_POS_LABEL[next] || next));
+}
 
 /**
  * 上一次渲染的内容指纹。
@@ -2310,25 +2358,34 @@ function renderBookmarkBar(force = false) {
 
   const viewport = $('#viewport');
   const sideEl = $('#bm-side');
+  const pos = bmBarPos();
+  const asSide = bmIsSidePos(pos);
 
-  // 侧边栏档：横向栏收起，改在视口右侧竖向显示；webview 让出的 240px 由 CSS 负责
-  if (mode === 'side' && state.layout !== 'mobile') {
-    if (viewport) viewport.classList.add('bm-side');
+  // 竖栏档（左/右）：横向栏收起，改在视口侧边竖向显示；
+  // webview 让出的 240px 由 CSS 负责（.viewport.bm-side webview）
+  if (asSide) {
+    if (viewport) {
+      viewport.classList.add('bm-bar-side');
+      viewport.classList.toggle('bm-bar-side-left', pos === 'left');
+    }
     if (sideEl) sideEl.hidden = false;
     if (!bar.hidden) bar.hidden = true;
     if (track.firstChild) track.innerHTML = '';
     closeBmMenu();
     const list = state.bookmarks || [];
-    const sig = 'side|' + list
+    const sig = 'side|' + pos + '|' + list
       .map((b) => `${b.url}\u0001${b.title || ''}\u0001${hostIcon(b.url)}\u0001${b.favicon || ''}`)
       .join('\u0002');
     if (force || sig !== bmSideSig) { bmSideSig = sig; renderBookmarkSide(list); }
     return;
   }
-  // 非侧栏（或移动端）：把让出的宽度还给网页
-  if (viewport) viewport.classList.remove('bm-side');
+  // 非竖栏（或移动端）：把让出的宽度还给网页
+  if (viewport) viewport.classList.remove('bm-bar-side', 'bm-bar-side-left');
   if (sideEl) sideEl.hidden = true;
   bmSideSig = null;
+
+  // 横栏档：顶部贴顶栏下方、底部贴窗口下沿（靠 CSS 的 order 换位，见 .bookmarkbar[data-pos]）
+  bar.dataset.pos = (pos === 'bottom') ? 'bottom' : 'top';
 
   if (!show) {
     if (!bar.hidden) bar.hidden = true;
@@ -2376,29 +2433,40 @@ function renderBookmarkBar(force = false) {
 }
 
 /**
- * 收藏夹栏拖拽排序。
+ * 收藏夹拖拽排序（三处共用一份实现：横向栏 / 竖向侧栏 / 设置页书签列表）。
  *
  * <p>用原生 HTML5 拖放，不用指针事件：条目是 `<button>`，自己算坐标容易把
  * 「点击打开」也一起吞掉；HTML5 拖放只有按住真的移动了才触发，单击不受影响。
  *
- * <p>拖动过程中只画落点竖线，松手才重排 —— 中途按 Esc 或拖出栏外，
+ * <p>拖动过程中只画落点标记，松手才重排 —— 中途按 Esc 或拖出容器，
  * 书签顺序一点不变，不会出现「拖着拖着就乱了」。
+ *
+ * <p>为什么抽成一份：三处的差别只有「按哪个轴算落点」和「从谁身上取 url」。
+ * 各写一份的话，横栏修好了竖栏还是老样子 —— 而这个功能最容易出的就是
+ * 「某个方向上拖不动」。
+ *
+ * @param {Element} box        承载条目的容器（事件委托挂它身上）
+ * @param {string}  itemSel    条目选择器（要带 data-bm）
+ * @param {'x'|'y'} axis       横向列表按 clientX 算，竖向列表按 clientY 算
  */
-function setupBookmarkBarDrag() {
-  const track = $('#bm-track');
-  if (!track) return;
+function setupBmDrag(box, itemSel, axis, attr) {
+  if (!box || box.__bmDragBound) return;
+  box.__bmDragBound = true;
+  const urlOf = (el) => (el && el.getAttribute(attr || 'data-bm')) || '';
+
   let dragUrl = null;
   let dropIndex = -1;
 
+  const itemsOf = () => $$0(box, itemSel);
   const clearMark = () => {
     dropIndex = -1;
-    $$('#bm-track .bm-item').forEach((el) => el.classList.remove('is-dragging', 'bm-drop-before'));
+    itemsOf().forEach((el) => el.classList.remove('is-dragging', 'bm-drop-before', 'bm-drop-above'));
   };
 
-  track.addEventListener('dragstart', (ev) => {
-    const item = ev.target && ev.target.closest ? ev.target.closest('.bm-item') : null;
+  box.addEventListener('dragstart', (ev) => {
+    const item = ev.target && ev.target.closest ? ev.target.closest(itemSel) : null;
     if (!item) return;
-    dragUrl = item.dataset.bm;
+    dragUrl = urlOf(item);
     item.classList.add('is-dragging');
     // 掐住冒泡：document 上还挂着「拖文件进来装扩展」的监听，
     // 不拦的话拖一个书签会被它当成拖进来一个文件。
@@ -2409,36 +2477,39 @@ function setupBookmarkBarDrag() {
     } catch { /* 写不进 dataTransfer 也不影响拖拽本身 */ }
   });
 
-  track.addEventListener('dragend', () => {
+  box.addEventListener('dragend', () => {
     dragUrl = null;
     clearMark();
   });
 
-  track.addEventListener('dragover', (ev) => {
+  box.addEventListener('dragover', (ev) => {
     if (!dragUrl) return;
     ev.preventDefault();
     ev.stopPropagation();
     if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
-    const items = $$('#bm-track .bm-item');
-    // 落点按「鼠标在谁的中线左边」算：给出的是插入位置的下标，不是被覆盖的那一项
+    const items = itemsOf();
+    // 落点按「鼠标是否越过中线」算：给的是插入位置的下标，不是被覆盖的那一项。
+    // 横向看左半边、竖向看上边半 —— 用错轴就会变成「怎么拖都插到最后」。
     let idx = items.length;
     for (let i = 0; i < items.length; i++) {
       const r = items[i].getBoundingClientRect();
-      if (ev.clientX < r.left + r.width / 2) { idx = i; break; }
+      const mid = axis === 'y' ? r.top + r.height / 2 : r.left + r.width / 2;
+      const cur = axis === 'y' ? ev.clientY : ev.clientX;
+      if (cur < mid) { idx = i; break; }
     }
     dropIndex = idx;
-    items.forEach((el) => el.classList.remove('bm-drop-before'));
-    if (idx < items.length && items[idx].dataset.bm !== dragUrl) {
-      items[idx].classList.add('bm-drop-before');
+    items.forEach((el) => el.classList.remove('bm-drop-before', 'bm-drop-above'));
+    if (idx < items.length && urlOf(items[idx]) !== dragUrl) {
+      items[idx].classList.add(axis === 'y' ? 'bm-drop-above' : 'bm-drop-before');
     }
   });
 
-  track.addEventListener('drop', async (ev) => {
+  box.addEventListener('drop', async (ev) => {
     if (!dragUrl) return;
     ev.preventDefault();
     ev.stopPropagation();
     const dragged = dragUrl;
-    const items = $$('#bm-track .bm-item').map((el) => el.dataset.bm);
+    const items = itemsOf().map(urlOf);
     let to = dropIndex < 0 ? items.length : dropIndex;
     dragUrl = null;
     clearMark();
@@ -2455,11 +2526,28 @@ function setupBookmarkBarDrag() {
 
     try {
       state.bookmarks = await bridge.bookmarks.reorder(next);
+      // 三处一起重画：设置页里拖完，切回网页时那条栏得是同一个顺序
       renderBookmarkBar(true);
+      if ($('#bm-manage-list')) renderBookmarkManageList();
     } catch (e) {
       toast('调整顺序失败：' + String((e && e.message) || e), 4000);
     }
   });
+}
+
+/** 只在容器内查找（不惊动全局），避免同一选择器在多处匹配。 */
+function $$0(root, sel) {
+  return Array.prototype.slice.call(root.querySelectorAll(sel));
+}
+
+/** 横向栏：挂在 #bm-track 上。 */
+function setupBookmarkBarDrag() {
+  setupBmDrag($('#bm-track'), '.bm-item', 'x');
+}
+
+/** 竖向侧栏：挂在 #bm-side-list 上。 */
+function setupBookmarkSideDrag() {
+  setupBmDrag($('#bm-side-list'), '.bm-side-item', 'y');
 }
 
 /**
@@ -2475,7 +2563,7 @@ function syncBookmarkBar() {
 
 /* --- 侧边收藏夹：竖向列表 ---
  * 条目沿用横向栏那套 [data-bm] 委托点击（见 document 上的监听），
- * 所以这里只负责画，不重复绑事件。
+ * 所以这里只负责画，不重复绑事件；拖拽排序走 setupBmDrag（axis='y'）。
  */
 function renderBookmarkSide(list) {
   const box = $('#bm-side-list');
@@ -2487,7 +2575,7 @@ function renderBookmarkSide(list) {
   }
   box.innerHTML = arr.map((b) => {
     const p = bmEntry(b);
-    return `<button class="bm-side-item" data-bm="${esc(b.url)}" title="${esc(p.label)}\n${esc(b.url)}">` +
+    return `<button class="bm-side-item" draggable="true" data-bm="${esc(b.url)}" title="${esc(p.label)}\n${esc(b.url)}">` +
       `<span class="bm-fav">${p.icon}</span>` +
       `<span class="bm-side-title">${esc(p.label)}</span>` +
       `</button>`;
@@ -4109,24 +4197,21 @@ async function mutePwdPromptForSite() {
   } catch { toast('设置没能保存（预览模式）'); }
 }
 
-function buildBookmarks() {
+/** 设置页「书签」分区里的那一列行（可拖动排序）。抽出来是因为拖完要就地重画。 */
+function bmManageRowsHtml() {
   const list = state.bookmarks || [];
-  // 用户在书签页最可能想找的就是「那条栏去哪了」，所以在这一页指一次路。
-  const barNote = `收藏夹栏当前：<b>${esc(BM_BAR_LABEL[bmBarMode()])}</b> —— 换档在「外观」分区，`
-    + '顶栏品牌名右边那个按钮也能一键开合。';
-  return `
-    <h2 class="sv-h2">书签</h2>
-    <div class="sv-lead">共 ${list.length} 条。点一行就在当前标签页打开。<br />${barNote}</div>
-    ${list.length ? `<div class="sv-card">${list.map((b) => {
-      const host = hostOf(b.url);
-      // 与收藏夹栏同一套三层兜底：站点图标缓存 → 书签自带 favicon → 首字母。
-      // 列表行比收藏夹栏宽，所以这里给 20px，图标本身看得清。
-      const src = hostIcon(b.url) || b.favicon || '';
-      const icon = src
-        ? `<img src="${esc(src)}" alt="" onerror="this.remove()" />`
-        : esc((host || 'N').slice(0, 1).toUpperCase());
-      return `
-      <div class="list-row is-click" data-url="${esc(b.url)}">
+  if (!list.length) return '<div class="sv-empty">还没有书签。地址栏右侧的星形按钮可以加入当前页。</div>';
+  return `<div class="sv-card" id="bm-manage-list">${list.map((b) => {
+    const host = hostOf(b.url);
+    // 与收藏夹栏同一套三层兜底：站点图标缓存 → 书签自带 favicon → 首字母。
+    // 列表行比收藏夹栏宽，所以这里给 20px，图标本身看得清。
+    const src = hostIcon(b.url) || b.favicon || '';
+    const icon = src
+      ? `<img src="${esc(src)}" alt="" onerror="this.remove()" />`
+      : esc((host || 'N').slice(0, 1).toUpperCase());
+    return `
+      <div class="list-row is-click bm-manage-row" draggable="true" data-bmorder="${esc(b.url)}" data-url="${esc(b.url)}">
+        <span class="bm-grip" aria-hidden="true">⋮⋮</span>
         <span class="lr-fav">${icon}</span>
         <span class="lr-main">
           <span class="lr-title">${esc(b.title || b.url)}</span>
@@ -4135,7 +4220,49 @@ function buildBookmarks() {
         <button class="btn" data-edit-bm="${esc(b.url)}">编辑</button>
         <button class="btn" data-unbookmark="${esc(b.url)}">删除</button>
       </div>`;
-    }).join('')}</div>` : '<div class="sv-empty">还没有书签。地址栏右侧的星形按钮可以加入当前页。</div>'}
+  }).join('')}</div>`;
+}
+
+/** 拖完就地重画设置页那一列（不整页重渲染，免得把滚动位置也弄丢）。 */
+function renderBookmarkManageList() {
+  const box = $('#bm-manage-list');
+  if (!box) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = bmManageRowsHtml();
+  const next = wrap.firstElementChild;
+  if (!next) { box.remove(); return; }
+  box.replaceWith(next);
+  bindBmManageDrag();
+}
+
+/** 设置页书签列表的拖拽：竖向，落点看鼠标上/下半。 */
+function bindBmManageDrag() {
+  setupBmDrag($('#bm-manage-list'), '.bm-manage-row', 'y', 'data-bmorder');
+}
+
+function buildBookmarks() {
+  const list = state.bookmarks || [];
+  // 用户在书签页最可能想找的就是「那条栏放哪」，所以位置选项就放在这一页
+  // —— 让他为一个开关跑两个分区是没道理的。
+  const barNote = `收藏夹栏：<b>${esc(BM_POS_LABEL[bmBarPos()])}</b> · ${esc(BM_BAR_LABEL[bmBarMode()])}；`
+    + '顶栏品牌名右边那个按钮也能一键开合。';
+  const pos = bmBarPos();
+  return `
+    <h2 class="sv-h2">书签</h2>
+    <div class="sv-lead">共 ${list.length} 条。点一行就在当前标签页打开；<b>按住任意一行可拖动排序</b>。<br />${barNote}</div>
+
+    <div class="panel-label">收藏夹栏摆放位置</div>
+    <div class="panel-section">
+      <div class="segmented" id="set-bmpos-bm">
+        ${BM_POS_VALUES.map((p) => `<button data-bmpos="${p}" class="${pos === p ? 'is-active' : ''}">${esc(BM_POS_LABEL[p])}</button>`).join('')}
+      </div>
+      <div class="muted" style="padding:var(--sp-2) 0 0">
+        左 / 右 是占布局的竖栏，网页会自动缩窄让出 240px；顶部与底部是横向一条。
+        手机上只有横向（窄屏放不下侧栏）。
+      </div>
+    </div>
+
+    ${bmManageRowsHtml()}
     <div class="btn-row">
       <button class="btn btn-primary" data-act="bookmark-current">把当前页加入书签</button>
       <button class="btn" data-act="clear-bookmarks" ${list.length ? '' : 'disabled'}>清空全部书签</button>
@@ -4691,6 +4818,8 @@ function buildAppearance() {
   // 用规整后的档位画选中态，而不是 s.bookmarkBar 的原值 —— 配置里写着
   // 别的字时，界面上显示的应该就是它实际的表现（常驻）。
   const bmbar = bmBarMode();
+  // 同理：位置也按「实际生效的那个」画选中态（旧值 side 会映射成 right）
+  const bmpos = bmBarPos();
   return `
     <h2 class="sv-h2">外观</h2>
     <div class="sv-lead">布局档位决定外壳形态（宽档：顶栏三行 ＋ 收藏夹栏；窄档：底栏 ＋ 标签总览）。收藏夹栏两档都有，差别只在样式宽窄。主题同时写入 Electron 的 nativeTheme。</div>
@@ -4715,18 +4844,27 @@ function buildAppearance() {
       </div>
     </div>
 
-    <div class="panel-label">收藏夹栏位置</div>
+    <div class="panel-label">收藏夹栏摆放位置</div>
+    <div class="panel-section">
+      <div class="segmented" id="set-bmpos">
+        ${BM_POS_VALUES.map((p) => `<button data-bmpos="${p}" class="${bmpos === p ? 'is-active' : ''}">${esc(BM_POS_LABEL[p])}</button>`).join('')}
+      </div>
+      <div class="muted" style="padding:var(--sp-2) 0 0">
+        <b>左 / 右</b>是竖向侧栏，网页会自动缩窄让出 240px；<b>顶 / 底</b>是横向一条。
+        窄屏（手机档）只有横向 —— 屏幕本来就窄，再切掉 240px 就没法看了。
+      </div>
+    </div>
+
+    <div class="panel-label">收藏夹栏显示时机</div>
     <div class="panel-section">
       <div class="segmented" id="set-bmbar">
-        <button data-bmbar="always" class="${bmbar === 'always' ? 'is-active' : ''}">地址栏下方</button>
-        <button data-bmbar="side" class="${bmbar === 'side' ? 'is-active' : ''}">视口右侧</button>
+        <button data-bmbar="always" class="${bmbar === 'always' ? 'is-active' : ''}">常驻</button>
         <button data-bmbar="ntp" class="${bmbar === 'ntp' ? 'is-active' : ''}">仅新标签页</button>
         <button data-bmbar="hidden" class="${bmbar === 'hidden' ? 'is-active' : ''}">不显示</button>
       </div>
       <div class="muted" style="padding:var(--sp-2) 0 0">
-        收藏夹栏可放在<b>地址栏下方</b>（横向）或<b>视口右侧</b>（竖向侧栏，网页会自动缩窄让位）；
-        「仅新标签页」与「不显示」管的是<b>什么时候露出来</b>。
-        当前：${esc(BM_BAR_LABEL[bmbar])}，${(state.bookmarks || []).length} 条书签。
+        「仅新标签页」浏览网页时把这一条的高度还给页面；「不显示」时书签仍在「书签」分区里管。
+        当前：${esc(BM_POS_LABEL[bmpos])} · ${esc(BM_BAR_LABEL[bmbar])}，${(state.bookmarks || []).length} 条书签。
       </div>
     </div>
   `;
@@ -6034,6 +6172,20 @@ function wireActions(root) {
     });
   });
 
+  /* 摆放位置：外观与「书签」两个分区各有一份同名控件（用户在哪一页都该能改）。
+     两处共用 applyBmBarPos，选中态按实际生效的位置画。 */
+  root.querySelectorAll('[data-bmpos]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const pos = b.dataset.bmpos;
+      const group = b.closest('.segmented');
+      if (group) group.querySelectorAll('button').forEach((x) => x.classList.toggle('is-active', x === b));
+      await applyBmBarPos(pos);
+    });
+  });
+
+  // 书签分区的列表可拖动排序（竖向）。每次渲染都要重新绑：那是新的一批节点。
+  bindBmManageDrag();
+
   root.querySelectorAll('#set-search-preset button').forEach((b) => {
     b.addEventListener('click', async () => {
       state.settings.searchTemplate = b.dataset.tpl;
@@ -6577,7 +6729,7 @@ function wireActions(root) {
         const patch = {};
         // bookmarkBar 也在里面：恢复默认做过半截的话，会出现「主题回了浅色、
         // 收藏夹栏却还停在上次手动收起的状态」，而设置页上写着「已恢复默认」。
-        for (const k of ['homepage', 'newTabPage', 'searchTemplate', 'defaultEngine', 'layout', 'theme', 'bookmarkBar', 'restoreSession']) {
+        for (const k of ['homepage', 'newTabPage', 'searchTemplate', 'defaultEngine', 'layout', 'theme', 'bookmarkBar', 'bookmarkBarPos', 'restoreSession']) {
           if (d[k] !== undefined) patch[k] = d[k];
         }
         if (d.adblock) patch.adblock = { enabled: d.adblock.enabled, cosmetic: d.adblock.cosmetic, level: d.adblock.level };
@@ -9042,6 +9194,7 @@ function wireUi() {
   setupSearchBox();
   setupExtQuick();
   setupBookmarkBarDrag();
+  setupBookmarkSideDrag();
   wireCmdPalette();
   wireToolsMenu();
   wireQkBmMenu();

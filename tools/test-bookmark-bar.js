@@ -182,6 +182,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('保存后编辑框关掉', $('#bm-edit').hidden);
 
   // 半截域名自动补协议：收藏时写「zhihu.com」是常事
+  // 先等上一次保存真正落地：那是一次 IPC，回来时会整体覆盖 state.bookmarks，
+  // 抢在它前面 setBms 会被它盖回去（机器忙的时候偶发，见 [J2] 之后那条）。
+  await sleep(120);
   setBms([{ title: '知乎', url: 'https://zhihu.com/' }]);
   Right(items()[0]);
   await sleep(50);
@@ -293,12 +296,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   window.eval('applyLayout()');
   check('切回桌面端后照旧', !bar.hidden && items().length === 1);
 
-  console.log('\n[J] 设置页里的档位控件');
+  console.log('\n[J] 设置页里的显示时机控件');
 
   window.eval("openSettings('appearance')");
   await waitFor(() => $('#set-bmbar'));
   const btns = $$('#set-bmbar button');
-  check('外观分区里有四档（含侧边栏）', btns.length === 4,
+  check('外观分区里有三档（显示时机）', btns.length === 3,
     btns.map((b) => b.textContent.trim()).join(' / '));
   check('默认档落在第一档', btns[0].classList.contains('is-active'),
     btns.find((b) => b.classList.contains('is-active')).textContent.trim());
@@ -313,20 +316,73 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('选中态跟着走（重绘后仍然对）',
     byMode('hidden').classList.contains('is-active') && !byMode('always').classList.contains('is-active'));
 
-  // 侧边栏档：横向栏收起、视口加 bm-side（网页让位）、竖向列表出现
-  byMode('side').click();
-  await sleep(100);
-  check('侧边栏：写进设置', window.eval('state.settings.bookmarkBar') === 'side');
-  check('侧边栏：横向栏收起', bar.hidden);
-  check('侧边栏：视口加上 bm-side（网页让位）', $('#viewport').classList.contains('bm-side'));
-  check('侧边栏：竖向列表有条目', $$('#bm-side-list [data-bm]').length > 0);
-
   byMode('always').click();
   await sleep(80);
-  check('点回「地址栏下方」后恢复', !bar.hidden);
-  check('侧边栏：撤回后视口去掉 bm-side', !$('#viewport').classList.contains('bm-side'));
+  check('点回「常驻」后恢复', !bar.hidden);
   check('设置值也回到 always', window.eval('state.settings.bookmarkBar') === 'always');
+
+  /* 摆放位置在这一版被拆成独立一项（上/下/左/右）。以前「侧边栏」混在档位里，
+     既说不清「放哪」也说不清「露不露」，是两件事混成了一件。 */
+  console.log('\n[J2] 摆放位置（顶部 / 底部 / 左侧 / 右侧）');
+  const posBtns = $$('#set-bmpos button');
+  check('外观分区里有四个摆放位置', posBtns.length === 4,
+    posBtns.map((b) => b.textContent.trim()).join(' / '));
+  const byPos = (p) => $$('#set-bmpos button').find((b) => b.dataset.bmpos === p);
+  check('四个位置齐全', ['top', 'bottom', 'left', 'right'].every((p) => !!byPos(p)));
+  check('默认位置是顶部', window.eval('bmBarPos()') === 'top', window.eval('bmBarPos()'));
+
+  byPos('right').click();
+  await sleep(120);
+  check('右侧：写进设置', window.eval('state.settings.bookmarkBarPos') === 'right');
+  check('右侧：横向栏收起', bar.hidden);
+  check('右侧：视口加 bm-bar-side（网页让位）', $('#viewport').classList.contains('bm-bar-side'));
+  /* 回归：视口上的状态类**不能**叫 bm-side —— 侧栏元素自己就叫 .bm-side，
+     而那条规则里有 display:none。以前两者同名，一切侧栏就把整个视口隐藏了：
+     页面一片空白，用户只能得出「改不了方向」这个结论。 */
+  check('竖栏档没把视口弄没（类名撞车）',
+    window.getComputedStyle($('#viewport')).display !== 'none',
+    window.getComputedStyle($('#viewport')).display);
+  check('视口状态类与侧栏元素类不同名',
+    !$('#viewport').classList.contains('bm-side'));
+  check('右侧：不是左侧', !$('#viewport').classList.contains('bm-bar-side-left'));
+  check('右侧：竖向列表有条目', $$('#bm-side-list [data-bm]').length > 0);
+
+  byPos('left').click();
+  await sleep(120);
+  check('左侧：写进设置', window.eval('state.settings.bookmarkBarPos') === 'left');
+  check('左侧：视口挂上 bm-bar-side-left', $('#viewport').classList.contains('bm-bar-side-left'));
+  check('左侧：仍属竖栏档', $('#viewport').classList.contains('bm-bar-side'));
+
+  byPos('bottom').click();
+  await sleep(120);
+  check('底部：横向栏显示', !bar.hidden);
+  check('底部：栏上打了 data-pos=bottom（CSS 靠它换到窗口下沿）', bar.dataset.pos === 'bottom', bar.dataset.pos);
+  check('底部：视口把侧栏宽度还回去了', !$('#viewport').classList.contains('bm-bar-side'));
+  check('底部：侧栏隐藏', $('#bm-side').hidden);
+
+  byPos('top').click();
+  await sleep(100);
+  check('顶部：data-pos=top', bar.dataset.pos === 'top', bar.dataset.pos);
+
+  // 旧配置兼容：历史上「侧边栏」写在 bookmarkBar 里，升级上来的人不能因此丢栏
+  window.eval("state.settings.bookmarkBar = 'side'; state.settings.bookmarkBarPos = undefined; renderBookmarkBar(true)");
+  await sleep(80);
+  check('旧值 side 仍按右侧竖栏渲染', window.eval('bmBarPos()') === 'right' && $('#viewport').classList.contains('bm-bar-side'));
+  window.eval("state.settings.bookmarkBar = 'always'; state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
+  await sleep(60);
+
+  // 书签分区里也有同一份位置控件（用户在哪一页都该能改）
+  window.eval("openSettings('bookmarks')");
+  await waitFor(() => $('#set-bmpos-bm'));
+  check('书签分区里也有摆放位置控件', $$('#set-bmpos-bm button').length === 4);
+  const bmPosBtn = $$('#set-bmpos-bm button').find((b) => b.dataset.bmpos === 'bottom');
+  bmPosBtn.click();
+  await sleep(120);
+  check('书签分区里改位置同样生效', window.eval('state.settings.bookmarkBarPos') === 'bottom',
+    window.eval('state.settings.bookmarkBarPos'));
+  window.eval("state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
   window.eval('closeSettings()');
+  await sleep(60);
 
   console.log('\n[K] 网页内跳转（不走外壳的 navigate）');
 
@@ -611,10 +667,107 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     + '少了这条，书签格会一直停在首字母上，直到用户下次动书签才碰巧重画',
     window.__calls === 1, `重读 ${window.__calls} 次`);
 
+  /* ---------------------------------------------------------------- *
+   * [Q] 拖拽排序：三处共用一份实现（横栏 / 竖栏 / 设置页列表）
+   *
+   * jsdom 里没有真实的布局，getBoundingClientRect 全是 0 —— 落点会永远算成
+   * 「插到最后」，那样测了等于没测。所以这里给每个条目塞一份假的几何：
+   * 横排 x=0/100/200，竖排 y=0/40/80。落点按「是否越过中线」算，
+   * 用错轴时结果会明显不同（横排拿 clientY、竖排拿 clientX 都会插到最前面），
+   * 正好能把「轴用反了」揪出来。
+   * ---------------------------------------------------------------- */
+  console.log('\n[Q] 拖拽排序（横栏 / 竖栏 / 设置页）');
+
+  const rect = (el, box) => {
+    el.getBoundingClientRect = () => ({
+      left: box.x || 0, top: box.y || 0,
+      width: box.w || 100, height: box.h || 20,
+      right: (box.x || 0) + (box.w || 100),
+      bottom: (box.y || 0) + (box.h || 20),
+      x: box.x || 0, y: box.y || 0
+    });
+  };
+  const drag = (el, type, pt) => {
+    const p = pt || {};
+    el.dispatchEvent(new window.MouseEvent(type, {
+      bubbles: true, cancelable: true, clientX: p.x || 0, clientY: p.y || 0
+    }));
+  };
+  const order = () => (window.eval('state.bookmarks') || []).map((b) => b.url);
+
+  const ABC = [
+    { title: 'A', url: 'https://a.test/' },
+    { title: 'B', url: 'https://b.test/' },
+    { title: 'C', url: 'https://c.test/' }
+  ];
+
+  // --- 横栏：把 A 拖到 B 与 C 之间
+  setBms(ABC);
+  setMode('always');
+  await sleep(60);
+  let hItems = $$('#bm-track .bm-item');
+  check('横栏条目可拖动（draggable）', hItems.length === 3 && hItems.every((el) => el.getAttribute('draggable') === 'true'),
+    String(hItems.length));
+  hItems.forEach((el, i) => rect(el, { x: i * 100, w: 100 }));
+  drag(hItems[0], 'dragstart');
+  drag($('#bm-track'), 'dragover', { x: 240 }); // 越过 C 的左中线(250)? 否 → 插在 C 之前
+  check('横栏 dragover 落下落点标记', !!$('#bm-track .bm-item.bm-drop-before'));
+  drag($('#bm-track'), 'drop', { x: 240 });
+  await sleep(120);
+  check('横栏：A 拖到 B 之后', order().join(',') === 'https://b.test/,https://a.test/,https://c.test/',
+    order().join(','));
+  check('横栏：拖完重画，顺序跟着变', $$('#bm-track .bm-item')[1].dataset.bm === 'https://a.test/');
+
+  // --- 竖栏：把 A 拖到最末（用 clientY 判定；若误用 clientX=0 会插到最前）
+  // 每个用例都先把顺序摆回 A/B/C —— 上一条用例已经把顺序改过了，
+  // 不重置就等于在测一条别的数据。
+  setBms(ABC);
+  window.eval("state.settings.bookmarkBarPos = 'right'; renderBookmarkBar(true)");
+  await sleep(80);
+  let sItems = $$('#bm-side-list .bm-side-item');
+  check('竖栏条目可拖动', sItems.length === 3 && sItems.every((el) => el.getAttribute('draggable') === 'true'));
+  sItems.forEach((el, i) => rect(el, { y: i * 40, h: 40 }));
+  drag(sItems[0], 'dragstart');
+  // 先指到一个「中间落点」看标记（指到最后一项之后时本就不该画标记）
+  drag($('#bm-side-list'), 'dragover', { x: 0, y: 50 });
+  check('竖栏落点用的是横线标记（不是竖线）', !!$('#bm-side-list .bm-side-item.bm-drop-above'));
+  // 落点以**最后一次 dragover** 为准（真实拖拽会连续触发很多次），
+  // 所以挪到末尾要再发一次 —— 只发 drop 不会重新算落点。
+  drag($('#bm-side-list'), 'dragover', { x: 0, y: 999 });
+  drag($('#bm-side-list'), 'drop', { x: 0, y: 999 });
+  await sleep(120);
+  check('竖栏：A 拖到最末（说明按 clientY 算，没串到横轴）',
+    order().join(',') === 'https://b.test/,https://c.test/,https://a.test/', order().join(','));
+
+  // --- 设置页书签列表：同样能拖
+  setBms(ABC);
+  window.eval("state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
+  window.eval("openSettings('bookmarks')");
+  await waitFor(() => $('#bm-manage-list'));
+  let rows = $$('#bm-manage-list .bm-manage-row');
+  check('设置页书签行可拖动', rows.length === 3 && rows.every((el) => el.getAttribute('draggable') === 'true'),
+    String(rows.length));
+  check('设置页每行有拖动手柄记号', $$('#bm-manage-list .bm-grip').length === 3);
+  check('设置页行用的是独立属性（不撞全局 [data-bm] 点击，否则会导航两次）',
+    rows[0].getAttribute('data-bmorder') === rows[0].getAttribute('data-url')
+    && rows[0].getAttribute('data-bm') === null);
+  rows.forEach((el, i) => rect(el, { y: i * 40, h: 40 }));
+  drag(rows[2], 'dragstart');
+  drag($('#bm-manage-list'), 'dragover', { x: 0, y: 10 }); // 越过第一行中线(20)? 是 → 插到最前
+  drag($('#bm-manage-list'), 'drop', { x: 0, y: 10 });
+  await sleep(150);
+  check('设置页：C 拖到最前',
+    order().join(',') === 'https://c.test/,https://a.test/,https://b.test/', order().join(','));
+  check('设置页：拖完就地重画，首行跟着变',
+    $$('#bm-manage-list .bm-manage-row')[0].getAttribute('data-bmorder') === 'https://c.test/');
+  check('设置页：列表只有一个（重画是替换，不是再插一份）', $$('#bm-manage-list').length === 1);
+
+  window.eval('closeSettings()');
+  await sleep(60);
+
   console.log('\n[R] 运行时错误');
 
   check('走完这套全流程仍无异常', errors.length === 0, errors.join(' | ') || '无');
-
   console.log(`\n结果：${pass}/${pass + fail} 通过\n`);
   process.exit(fail ? 1 : 0);
 })().catch((err) => {
