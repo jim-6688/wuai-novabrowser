@@ -64,7 +64,8 @@
     "test:locale": "node tools/test-locale.js",
     "check:authpopup": "electron tools/test-auth-popup-e2e.js",
     "test:heal": "node tools/test-page-heal.js",
-    "check:locale": "electron tools/test-locale-e2e.js"
+    "check:locale": "electron tools/test-locale-e2e.js",
+    "pc:test": "npm run pc:dir && portable-test.bat"
   },
   "build": {
     "appId": "top.wuai.nova",
