@@ -169,11 +169,11 @@ img { max-width: 100%; display: block; }
 }
 
 .hero-grid {
-    display: grid;
-    grid-template-columns: 1.08fr 0.92fr;
-    gap: 48px;
-    align-items: center;
+    display: block;
 }
+
+/* 文字段限宽 —— 标题一栏宽，读起来才不费劲；下面那张整窗图独占整行 */
+.hero-grid > div:first-child { max-width: 780px; }
 
 .eyebrow {
     display: inline-flex;
@@ -241,7 +241,6 @@ img { max-width: 100%; display: block; }
 .stage {
     display: flex;
     justify-content: center;
-    perspective: 1400px;
 }
 
 .phone {
@@ -850,12 +849,6 @@ img { max-width: 100%; display: block; }
 
 .sec-head { max-width: 620px; margin-bottom: 40px; }
 
-.sec-head .kicker {
-    color: var(--accent-strong);
-    font-weight: 700;
-    font-size: 13.5px;
-    letter-spacing: 2px;
-}
 
 .sec-head h2 {
     font-size: clamp(26px, 3.4vw, 36px);
@@ -877,40 +870,14 @@ img { max-width: 100%; display: block; }
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
-    padding: 22px;
+    padding: 18px 20px;
     box-shadow: var(--shadow-sm);
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
 
-.card .fico {
-    width: 42px; height: 42px;
-    border-radius: 12px;
-    display: grid;
-    place-items: center;
-    margin-bottom: 14px;
-    font-size: 18px;
-    color: #fff;
-    background: var(--grad-brand);
-}
 
-.card .fico.g { background: linear-gradient(135deg, #34D399, #00B8A2); }
-
-/* 功能区卡片的「PC」角标。
-   刻意复刻 .honest .tag 的药丸样式与配色，只是作用域不同 ——
-   两处角标长得一样，读者才会把它们当成同一类标记（「这一条有前提」）。 */
-.grid .card h3 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-
-.grid .tag {
-    font-size: 11.5px;
-    font-weight: 700;
-    padding: 2px 9px;
-    border-radius: 999px;
-    background: var(--brand-soft);
-    color: var(--brand);
-    white-space: nowrap;
-}
 
 /* 网格下方的角标说明句。做成居中偏淡的一行 —— 它是图例不是正文，
    抢眼就变成在替正文吆喝了。 */
@@ -1255,4 +1222,68 @@ footer {
     .dl-facts { grid-template-columns: 1fr; }
     .hero { padding: 56px 0 52px; }
     .section { padding: 56px 0; }
+}
+
+
+/* ---------- Hero 里的真实截图 ----------
+   以前这里是一台用 CSS 画出来的假手机 —— 精致，但不是产品本来的样子。
+   现在放电脑版的实际截图：图框 + 一行说明，看起来像文档而不是广告。 */
+.shot-hero {
+    margin: 46px auto 0;
+    width: 100%;
+    max-width: 1080px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+}
+.shot-hero img { display: block; width: 100%; height: auto; }
+.shot-hero figcaption {
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: var(--text-3);
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
+}
+
+/* ---------- 最近更新 ----------
+   按版本倒序的更新日志。写成条目而不是卡片阵列：
+   更新日志是给人读的流水账，不是产品功能。 */
+.rel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 22px 26px;
+    margin-bottom: 14px;
+}
+.rel:last-child { margin-bottom: 0; }
+.rel-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+}
+.rel-head strong { font-size: 17px; color: var(--text); }
+.rel-head span { font-size: 13px; color: var(--text-3); }
+.rel ul { margin: 0; padding-left: 20px; }
+.rel li {
+    margin-bottom: 9px;
+    font-size: 14.5px;
+    line-height: 1.75;
+    color: var(--text-2);
+}
+.rel li b { color: var(--text); }
+.rel li:last-child { margin-bottom: 0; }
+
+@media (max-width: 720px) {
+    .rel { padding: 18px 16px; }
+    .rel li { font-size: 14px; }
+}
+
+@media (max-width: 720px) {
+    .shot-hero { margin-top: 30px; }
+    .shot-hero figcaption { font-size: 12px; }
 }
