@@ -245,7 +245,8 @@ svg {
   border-radius: var(--r-sm);
   display: inline-flex; align-items: center; gap: 4px;
   color: var(--text-3);
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+              transform var(--dur) var(--ease);
 }
 .qk-btn:hover { background: var(--surface-2); color: var(--text); }
 .qk-btn:active { transform: scale(0.94); }
@@ -253,6 +254,22 @@ svg {
 .qk-btn.is-on { color: var(--brand); }
 .qk-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 .qk-label { font-size: 11px; line-height: 1; white-space: nowrap; }
+
+/* ---- 顶栏与工具栏的这几个入口：各自一块淡色底，悬停时加深 ----
+   下载 / 工具 / AI / 菜单 / 主题 / 收藏夹：一块块有颜色的底，
+   扫一眼就知道每个入口是什么，不用逐个认图标。
+   底色用 color-mix 调淡，图标保持饱和 —— 底色负责「这是一块可点的」，
+   图标颜色负责「这是哪个」。 */
+#qk-theme { background: color-mix(in srgb, var(--brand) 13%, transparent); color: var(--brand); }
+#qk-theme:hover { background: color-mix(in srgb, var(--brand) 30%, transparent); color: var(--brand); }
+#qk-bmbar { background: color-mix(in srgb, var(--star) 15%, transparent); color: var(--star); }
+#qk-bmbar:hover { background: color-mix(in srgb, var(--star) 32%, transparent); color: var(--star); }
+#qk-tools { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+#qk-tools:hover { background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--accent); }
+#qk-about { background: color-mix(in srgb, var(--text-3) 12%, transparent); color: var(--text-2); }
+#qk-about:hover { background: color-mix(in srgb, var(--text-3) 26%, transparent); color: var(--text); }
+/* 收藏夹栏开着的时候，那颗按钮就是「点一下能收起来」的实心态 */
+#qk-bmbar.is-on { background: color-mix(in srgb, var(--star) 34%, transparent); color: var(--star); }
 
 /* 工具菜单（顶栏「关于」左面的下拉）。
    .qk-tools-wrap 作下拉的定位锚点 —— 标题栏整条是拖拽区，这一格要 no-drag，
@@ -431,8 +448,23 @@ svg {
   display: grid; place-items: center;
   color: var(--text-2);
   position: relative;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+              transform var(--dur) var(--ease);
 }
+
+/* 工具栏右侧这四个：下载 / 扩展 / AI / 菜单。
+   与顶栏那批同一套语言（淡底 + 悬停加深），配色各归各家：
+   下载品牌蓝、扩展青绿、AI 浅蓝、菜单中性灰（它是纯入口，不该抢戏）。 */
+#btn-downloads { background: color-mix(in srgb, var(--brand) 13%, transparent); color: var(--brand); }
+#btn-downloads:hover { background: color-mix(in srgb, var(--brand) 28%, transparent); color: var(--brand); }
+#btn-ext { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+#btn-ext:hover { background: color-mix(in srgb, var(--accent) 28%, transparent); color: var(--accent); }
+#btn-ai { background: color-mix(in srgb, var(--brand-2) 20%, transparent); color: var(--brand-2); }
+#btn-ai:hover { background: color-mix(in srgb, var(--brand-2) 36%, transparent); color: var(--brand-2); }
+#btn-menu { background: color-mix(in srgb, var(--text-3) 12%, transparent); color: var(--text-2); }
+#btn-menu:hover { background: color-mix(in srgb, var(--text-3) 26%, transparent); color: var(--text); }
+/* 悬停时轻轻放大一点：静态的一排色块，指针扫过去能看出哪个是活的 */
+.qk-btn:hover, #btn-downloads:hover, #btn-ext:hover, #btn-ai:hover, #btn-menu:hover { transform: scale(1.05); }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 .icon-btn:active { transform: scale(0.94); }
 .icon-btn:focus-visible { outline: none; box-shadow: var(--ring); }
@@ -1033,7 +1065,9 @@ body.bm-dragging { cursor: grabbing; }
   width: 1px;
   height: 16px;
   margin: 0 4px;
-  background: var(--border);
+  /* 书签之间的分隔也上一点品牌色：这条栏现在本来就是一排彩色小按钮，
+     中间插一道纯灰线显得断断续续。 */
+  background: color-mix(in srgb, var(--brand) 30%, var(--border));
 }
 
 /* 放不下时才出现的「更多」：它是入口，不该跟书签抢视觉权重 */
