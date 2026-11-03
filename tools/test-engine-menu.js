@@ -214,7 +214,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const m = cssText.match(new RegExp(esc + '\\s*\\{([^}]*)\\}'));
     return m ? m[1].replace(/\s+/g, ' ').trim() : '';
   };
-  check('CSS 定义 .kb-group 下边框', /border-bottom:\s*1px solid var\(--border\)/.test(rule('.kb-group')), rule('.kb-group'));
+  // 分区线用的是 --divider（比 --border 深一档）：卡片描边用 border，分区线用 divider
+  check('CSS 定义 .kb-group 下边框', /border-bottom:\s*1px solid var\(--divider\)/.test(rule('.kb-group')), rule('.kb-group'));
   check('CSS 定义 .kb-arch 胶囊圆角', /border-radius:\s*var\(--r-pill\)/.test(rule('.kb-arch')), rule('.kb-arch'));
   check('CSS 定义 .kb-note 橙色警示左边', /border-left:\s*2px solid var\(--warn\)/.test(rule('.kb-note')), rule('.kb-note'));
   check('CSS 定义 .ok-text / .warn-text 语义色',

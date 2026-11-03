@@ -49,6 +49,12 @@
      比 bg 再深一档：网页是纯白 surface，外壳越暗，
      「上面是浏览器、下面是网页」这条界线越清楚。 */
   --chrome: #E9EEF8;
+  /* 分区之间的分割线。比 border 深一档：卡片描边用 border（含蓄），
+     分区线用 divider（要看得见「这里换了个区」）。 */
+  --divider: #C7D2E6;
+  /* 输入框（地址栏 / 搜索框）的描边。带一点品牌蓝，让「这里是能打字的地方」
+     在一堆灰色分割线里先被认出来。 */
+  --field-border: #B9CBF3;
   --surface: #FFFFFF;
   --surface-2: #EEF1F8;
   --surface-3: #E3E8F4;
@@ -108,6 +114,8 @@
   --engine-chromium: #5B8BFF;
   --bg: #0A0D16;
   --chrome: #0C111C;
+  --divider: #39456B;
+  --field-border: #33456E;
   --surface: #131826;
   --surface-2: #1A2032;
   --surface-3: #232A40;
@@ -178,7 +186,7 @@ svg {
   align-items: center;
   padding-left: var(--sp-3);
   -webkit-app-region: drag;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 
 /* 品牌区同时是设置入口（点一下开设置）。
@@ -309,7 +317,7 @@ svg {
   align-items: flex-end;
   gap: var(--sp-1);
   padding: 0 var(--sp-2);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .tabs { display: flex; align-items: flex-end; gap: 2px; overflow: hidden; max-width: calc(100% - 120px); }
 .tabstrip-fill { flex: 1; }
@@ -412,7 +420,7 @@ svg {
   align-items: center;
   gap: var(--sp-2);
   padding: 0 var(--sp-3);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 
 .nav-group, .tool-group { display: flex; align-items: center; gap: 2px; }
@@ -475,12 +483,15 @@ svg {
   height: 36px;
   padding: 0 var(--sp-1) 0 var(--sp-3);
   border-radius: var(--r-md);
-  background: var(--surface-2);
-  border: 1px solid transparent;
-  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  /* 白底 + 实描边：工具栏现在是淡灰的（--chrome），输入框要能从它上面「浮」出来。
+     以前是无边框的灰底块，整条工具栏糊成一片。 */
+  background: var(--surface);
+  border: 1px solid var(--field-border);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
   min-width: 0;
   position: relative;
 }
+.omnibox:hover { border-color: var(--brand-2); }
 .omnibox:focus-within {
   background: var(--surface);
   border-color: var(--brand);
@@ -559,7 +570,7 @@ svg {
 .qk-bm-pos {
   margin: var(--sp-1) var(--sp-2) var(--sp-1);
   padding-top: var(--sp-2);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
 }
 .qk-bm-pos-cap {
   display: block;
@@ -587,7 +598,7 @@ svg {
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
   margin: 0 var(--sp-2) var(--sp-1);
   padding-top: var(--sp-2);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
 }
 .qk-bm-lock .qk-bm-pos-cap { margin-bottom: 0; }
 
@@ -626,7 +637,7 @@ svg {
 .em-foot {
   margin-top: var(--sp-2);
   padding: var(--sp-2) var(--sp-3) var(--sp-1);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
   font-size: 10.5px; color: var(--text-4); line-height: 1.6;
 }
 /* 右键地址栏弹出的编辑菜单：贴地址栏下沿、按右键落点横向定位。
@@ -766,10 +777,11 @@ svg {
   gap: 6px;
   padding: 0 4px 0 10px;
   border-radius: var(--r-md);
-  background: var(--surface-2);
-  border: 1px solid transparent;
+  background: var(--surface);
+  border: 1px solid var(--field-border);
   transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
 }
+.search-box:hover { border-color: var(--brand-2); }
 .search-box:focus-within {
   background: var(--surface);
   border-color: var(--brand);
@@ -893,7 +905,7 @@ svg {
   border-top: 1px solid var(--border-strong);
 }
 /* 摆放位置＝顶（标签条上方）：它下面是标签条，给一条浅线把它和标签条分开 */
-.bookmarkbar[data-pos="topest"] { border-bottom: 1px solid var(--border); }
+.bookmarkbar[data-pos="topest"] { border-bottom: 1px solid var(--divider); }
 
 /* ---- 整条拖动的把手 ----
    条目自己是拖「顺序」的，这两个把手拖的是「位置」。
@@ -1150,7 +1162,7 @@ body.bm-dragging { cursor: grabbing; }
   gap: var(--sp-2);
   padding: 6px var(--sp-3);
   background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .findbar input {
   flex: 1;
@@ -1195,7 +1207,7 @@ body.bm-dragging { cursor: grabbing; }
   font-size: 12px;
   color: var(--text-2);
   background: color-mix(in srgb, var(--warn) 12%, var(--surface));
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .en-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex: 0 0 6px; }
 .en-text { flex: 1; }
@@ -1241,7 +1253,7 @@ body.bm-dragging { cursor: grabbing; }
 }
 .bm-side-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border);
+  padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--divider);
   font-size: 12.5px; font-weight: 600; flex: 0 0 auto;
 }
 .bm-side-tools { display: flex; gap: 4px; }
@@ -1323,7 +1335,7 @@ body.bm-dragging { cursor: grabbing; }
 .preview-bar {
   height: 34px; display: flex; align-items: center; gap: var(--sp-2);
   padding: 0 var(--sp-4);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
   background: var(--surface-2);
   font-size: 11px; color: var(--text-3);
   font-family: var(--font-mono);
@@ -1365,7 +1377,7 @@ body.bm-dragging { cursor: grabbing; }
   height: 48px; min-height: 48px;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 var(--sp-3) 0 var(--sp-4);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .drawer-head h2 { margin: 0; font-size: 13.5px; font-weight: 600; }
 .drawer-body { flex: 1; overflow-y: auto; padding: var(--sp-3) 0 var(--sp-6); }
@@ -1392,10 +1404,15 @@ body.bm-dragging { cursor: grabbing; }
   /* 不再是 top:0;bottom:0 的整屏侧栏：贴着工具栏下方的小窗，高度由内容与上限决定 */
   height: auto;
   max-height: min(64vh, 520px);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  /* 彩色描边：双层背景做「渐变边框」——padding-box 铺纯底色、border-box 铺品牌渐变，
+     中间留一圈透明边框，透出来的就是那一圈颜色。
+     不用 border-image：它不支持圆角，而这块面板必须保住 --r-lg 的圆角。 */
+  border: 2px solid transparent;
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-3);
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(135deg, var(--brand), var(--accent) 55%, var(--brand-2)) border-box;
+  box-shadow: var(--shadow-3), 0 0 0 1px var(--brand-soft);
   overflow: hidden;
   transform: translateY(-8px);
   opacity: 0;
@@ -1426,7 +1443,7 @@ body.bm-dragging { cursor: grabbing; }
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--sp-2);
   padding: 0 var(--sp-3) 0 var(--sp-4);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .ext-ui-title { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 .ext-ui-icon { width: 20px; height: 20px; border-radius: 4px; object-fit: contain; flex-shrink: 0; }
@@ -1451,7 +1468,7 @@ body.bm-dragging { cursor: grabbing; }
   height: 48px; min-height: 48px;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 var(--sp-3) 0 var(--sp-4);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .ai-head h2 { margin: 0; font-size: 13.5px; font-weight: 600; }
 .ai-head-btns { display: flex; align-items: center; gap: 2px; }
@@ -1472,7 +1489,7 @@ body.bm-dragging { cursor: grabbing; }
 .ai-webview { width: 100%; height: 100%; border: 0; background: var(--bg); }
 /* API 模式：配置区 + 消息列表，铺满 ai-body（webview 此时 display:none） */
 .ai-api { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
-.ai-api-cfg { padding: var(--sp-2) var(--sp-3); display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--border); }
+.ai-api-cfg { padding: var(--sp-2) var(--sp-3); display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--divider); }
 .ai-api-cfg-row { display: flex; gap: 6px; }
 .ai-api-cfg-row .ai-input { flex: 1; min-width: 0; }
 .ai-chat { flex: 1; overflow-y: auto; padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
@@ -1480,7 +1497,7 @@ body.bm-dragging { cursor: grabbing; }
 .ai-msg-me { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 3px; }
 .ai-msg-ai { align-self: flex-start; background: var(--surface-2); color: var(--text); border-bottom-left-radius: 3px; }
 .ai-msg-err { align-self: center; max-width: 96%; text-align: center; background: color-mix(in srgb, #e5484d 14%, transparent); color: #e5484d; font-size: 11.5px; }
-.ai-foot { border-top: 1px solid var(--border); padding: var(--sp-2) var(--sp-3) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
+.ai-foot { border-top: 1px solid var(--divider); padding: var(--sp-2) var(--sp-3) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
 .ai-row { display: flex; gap: var(--sp-2); align-items: center; }
 .ai-select {
   flex: 1; min-width: 0;
@@ -1549,7 +1566,7 @@ body.bm-dragging { cursor: grabbing; }
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
   font-size: 14px;
   font-weight: 600;
 }
@@ -1791,7 +1808,7 @@ body.bm-dragging { cursor: grabbing; }
 .ext-quick {
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .ext-quick-row {
   display: flex;
@@ -1853,7 +1870,7 @@ body.bm-dragging { cursor: grabbing; }
 .ab-pop-sub {
   padding: 8px var(--sp-3) 4px;
   font-size: 11px; color: var(--text-4);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
   margin-top: 4px;
 }
 /* 小窗里 list-row 收紧上下留白，一屏能多看两行 */
@@ -1867,7 +1884,7 @@ body.bm-dragging { cursor: grabbing; }
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .ext-pop-row:last-child { border-bottom: 0; }
 /* 关掉的那一行压暗并灰掉图标：这个窗口里没有位置写「已关闭」三个字，
@@ -1891,7 +1908,7 @@ body.bm-dragging { cursor: grabbing; }
   display: flex; align-items: center; gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
   font-size: 11.5px; color: var(--text-3); cursor: pointer;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
   position: sticky; top: 0; z-index: 1;
   background: var(--surface);
 }
@@ -2122,7 +2139,7 @@ body.bm-dragging { cursor: grabbing; }
 .dl-stat span { font-size: 10px; color: var(--text-4); }
 
 /* 任务卡 */
-.dl-task { padding: var(--sp-3) var(--sp-4) var(--sp-3); border-bottom: 1px solid var(--border); }
+.dl-task { padding: var(--sp-3) var(--sp-4) var(--sp-3); border-bottom: 1px solid var(--divider); }
 .dl-task:last-child { border-bottom: 0; }
 .dl-task-head { display: flex; align-items: center; gap: var(--sp-2); }
 .dl-name {
@@ -2296,7 +2313,7 @@ body.bm-dragging { cursor: grabbing; }
   padding: var(--sp-2) var(--sp-3);
   font-size: 13px;
   font-weight: 600;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .dl-pop-x {
   border: 0;
@@ -2312,12 +2329,12 @@ body.bm-dragging { cursor: grabbing; }
 .dl-pop-list { flex: 1; overflow-y: auto; }
 .dl-pop-empty { padding: var(--sp-5) var(--sp-4); text-align: center; color: var(--text-4); font-size: 12px; }
 /* 小窗里的任务行复用 .dl-task，但去掉它默认的分隔线（外层卡片自己有边） */
-.dl-pop-list .dl-task { border-bottom: 1px solid var(--border); }
+.dl-pop-list .dl-task { border-bottom: 1px solid var(--divider); }
 .dl-pop-foot {
   display: flex;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
   flex-wrap: wrap;
 }
 .dl-pop-foot .btn { flex: 1; }
@@ -2376,7 +2393,7 @@ body.bm-dragging { cursor: grabbing; }
 .sn-stat span { font-size: 10px; color: var(--text-4); }
 
 /* 资源条目 */
-.sn-card .sn-item { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); }
+.sn-card .sn-item { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--divider); }
 .sn-card .sn-item:last-child { border-bottom: 0; }
 .sn-item.is-seg { background: var(--surface-2); }
 
@@ -2479,7 +2496,7 @@ body.bm-dragging { cursor: grabbing; }
 /* 内核二进制一览（设置面板） */
 .kb-group {
   padding: var(--sp-3) var(--sp-4) var(--sp-4);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .kb-group:last-child { border-bottom: 0; }
 .kb-head { display: flex; align-items: baseline; gap: var(--sp-2); }
@@ -2591,7 +2608,7 @@ body.bm-dragging { cursor: grabbing; }
   display: flex; align-items: center; gap: var(--sp-2);
   padding: 0 var(--sp-3);
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .sv-title { margin: 0 0 0 var(--sp-1); font-size: 14px; font-weight: 600; }
 .sv-path {
@@ -2645,7 +2662,7 @@ body.bm-dragging { cursor: grabbing; }
   overflow: hidden;
 }
 .sv-card > .list-row { padding-left: var(--sp-3); padding-right: var(--sp-3); }
-.sv-card > .list-row + .list-row { border-top: 1px solid var(--border); }
+.sv-card > .list-row + .list-row { border-top: 1px solid var(--divider); }
 .sv-card > .field { margin: 0 var(--sp-3) var(--sp-3); }
 .sv-card > .panel-section { padding: 0 var(--sp-3) var(--sp-3); }
 .sv-card > .muted { padding: 0 var(--sp-3) var(--sp-3); }
@@ -2750,7 +2767,7 @@ body.bm-dragging { cursor: grabbing; }
 .cmd-input-row {
   display: flex; align-items: center; gap: var(--sp-2);
   padding: 12px var(--sp-4);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .cmd-search-ico { width: 16px; height: 16px; color: var(--text-4); flex: 0 0 auto; }
 .cmd-search-ico path, .cmd-search-ico circle { fill: none; stroke: currentColor; stroke-width: 1.6; }
@@ -2778,7 +2795,7 @@ body.bm-dragging { cursor: grabbing; }
 .cmd-row .cmd-sub { font-size: 11px; color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmd-row .cmd-hint { flex: 0 0 auto; font-size: 10px; color: var(--text-4); }
 .cmd-empty { padding: var(--sp-6); text-align: center; color: var(--text-4); font-size: 12px; }
-.cmd-foot { font-size: 10.5px; color: var(--text-4); padding: 6px var(--sp-4); border-top: 1px solid var(--border); text-align: right; }
+.cmd-foot { font-size: 10.5px; color: var(--text-4); padding: 6px var(--sp-4); border-top: 1px solid var(--divider); text-align: right; }
 
 /* ------------------------------------------------------------------ *
  * 打印设置
@@ -2814,7 +2831,7 @@ body.bm-dragging { cursor: grabbing; }
   height: 48px; min-height: 48px;
   padding: 0 var(--sp-3);
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .print-title { margin: 0 0 0 var(--sp-1); font-size: 14px; font-weight: 600; flex: 0 0 auto; }
 .print-target {
@@ -2848,7 +2865,7 @@ body.bm-dragging { cursor: grabbing; }
   padding: 0 var(--sp-3);
   font-size: 11px; color: var(--text-4);
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 .print-preview-info { margin-left: auto; font-family: var(--font-mono); }
 /* 页数胶囊：这一屏最想知道的结论就是「一页还是两页」，所以给它单独的色块，
@@ -2962,7 +2979,7 @@ body.bm-dragging { cursor: grabbing; }
   overflow: hidden;
 }
 .print-toggles .list-row { padding-left: var(--sp-3); padding-right: var(--sp-3); }
-.print-toggles .list-row + .list-row { border-top: 1px solid var(--border); }
+.print-toggles .list-row + .list-row { border-top: 1px solid var(--divider); }
 .print-note {
   margin: var(--sp-3) var(--sp-4) 0;
   font-size: 10.5px; line-height: 1.65; color: var(--text-4);
@@ -2970,7 +2987,7 @@ body.bm-dragging { cursor: grabbing; }
 .print-foot {
   display: flex; align-items: center; gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-4);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
   background: var(--surface);
 }
 .print-foot .btn { white-space: nowrap; }
@@ -3100,7 +3117,7 @@ body.bm-dragging { cursor: grabbing; }
   min-height: 54px;
   padding-bottom: env(safe-area-inset-bottom, 0);
   background: var(--surface);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
 }
 [data-layout="mobile"] .mb-btn {
   flex: 1;
@@ -3145,7 +3162,7 @@ body.bm-dragging { cursor: grabbing; }
   display: flex; gap: var(--sp-1);
   overflow-x: auto; overflow-y: hidden;
   padding: var(--sp-2) var(--sp-3);
-  border-right: 0; border-bottom: 1px solid var(--border);
+  border-right: 0; border-bottom: 1px solid var(--divider);
 }
 [data-layout="mobile"] .sv-nav-group { display: none; }
 [data-layout="mobile"] .sv-nav-item {
