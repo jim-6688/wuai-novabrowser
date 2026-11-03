@@ -83,6 +83,12 @@
                 <button type="button" data-bmpos="right" title="视口右侧（竖栏）">右</button>
               </div>
             </div>
+            <!-- 锁：拖书签时手一滑就会把顺序拖乱，而顺序是用户自己一条条排的 -->
+            <div class="qk-bm-lock">
+              <span class="qk-bm-pos-cap">锁定收藏夹栏</span>
+              <button class="switch" id="qk-bm-lock" type="button"
+                      title="锁上后不能拖动排序，也不能改位置；点开书签不受影响"></button>
+            </div>
           </div>
           <!-- 第二视图：检测到的已安装浏览器（点一项直接导入），由 JS 填 -->
           <div id="qk-bm-browsers" hidden></div>

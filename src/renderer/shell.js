@@ -2095,6 +2095,27 @@ function bmIsSidePos(pos) {
   return (pos === 'left' || pos === 'right') && state.layout !== 'mobile';
 }
 
+/** 收藏夹栏是否锁上（锁上不许拖、不许改位置）。 */
+function bmLocked() {
+  return !!(state.settings && state.settings.bookmarkLocked);
+}
+
+/**
+ * 开关「锁定收藏夹栏」。
+ *
+ * <p>锁的是**拖动与改位置**，不是整个功能：点开、加、删都照旧 ——
+ * 连收藏都做不了的锁，没人会开第二次。
+ */
+async function setBmLock(next) {
+  const on = !!next;
+  state.settings.bookmarkLocked = on;
+  await bridge.settings.patch({ bookmarkLocked: on });
+  renderBookmarkBar(true);   // 拖拽手柄跟着显隐
+  renderQkBmMenu();
+  refreshCurrent();          // 设置页里的开关与位置按钮的可用态
+  toast(on ? '收藏夹栏已锁定：拖不动、位置也改不了' : '收藏夹栏已解锁：可以拖动了');
+}
+
 /**
  * 应用摆放位置：写设置 → 重画那条栏 → 提示。
  *
@@ -2102,6 +2123,12 @@ function bmIsSidePos(pos) {
  * 迟早出现「在这页改了、那页的选中态还是旧的」。
  */
 async function applyBmBarPos(pos) {
+  // 锁上了就别让位置被改：三个入口（顶栏下拉 / 外观 / 书签）共用这一道闸，
+  // 少写一处就会出现「从这个入口能改、从那个入口不能」的怪事
+  if (bmLocked()) {
+    toast('收藏夹栏已锁定，先解锁再改位置');
+    return;
+  }
   const next = BM_POS_VALUES.indexOf(pos) >= 0 ? pos : 'top';
   state.settings.bookmarkBarPos = next;
   // 旧值 'side' 会让 bmBarPos() 一直回落到 right：显式写新字段之后把它归位，
@@ -2418,8 +2445,11 @@ function renderBookmarkBar(force = false) {
   // 条目之间插一条细分隔线：纯靠间距太挤，加边框又会把每格框死。
   track.innerHTML = list.map((b, i) => {
     const p = bmEntry(b);
-    const item = `<button class="bm-item" draggable="true" data-bm="${esc(b.url)}"` +
-      ` title="${esc(p.label)}&#10;${esc(b.url)}&#10;右键移出收藏夹栏">` +
+    const locked = bmLocked();
+    const item = `<button class="bm-item${locked ? ' is-locked' : ''}" draggable="${locked ? 'false' : 'true'}" data-bm="${esc(b.url)}"` +
+      ` title="${esc(p.label)}&#10;${esc(b.url)}&#10;${locked ? '收藏夹栏已锁定（解锁后可拖动排序）' : '拖动可排序 · 右键移出收藏夹栏'}">` +
+      // 拖动手柄：不给记号的话没人知道这一格能拖（用户的原话：「拖动按钮还缺少」）
+      (locked ? '' : '<span class="bm-grip bm-grip-x" aria-hidden="true">⋮⋮</span>') +
       `<span class="bm-fav">${p.icon}</span>` +
       `<span class="bm-text">` +
       `<span class="bm-title">${esc(p.label)}</span>` +
@@ -2464,6 +2494,9 @@ function setupBmDrag(box, itemSel, axis, attr) {
   };
 
   box.addEventListener('dragstart', (ev) => {
+    // 锁上了就一步都不许拖。标记那边已经写了 draggable="false"，
+    // 这里是第二道闸：键盘 / 脚本触发的拖拽不认 draggable。
+    if (bmLocked()) { ev.preventDefault(); return; }
     const item = ev.target && ev.target.closest ? ev.target.closest(itemSel) : null;
     if (!item) return;
     dragUrl = urlOf(item);
@@ -2573,9 +2606,11 @@ function renderBookmarkSide(list) {
     box.innerHTML = '<div class="bm-side-empty">还没有书签。<br>地址栏右侧的星形按钮可以把当前页加进来。</div>';
     return;
   }
+  const locked = bmLocked();
   box.innerHTML = arr.map((b) => {
     const p = bmEntry(b);
-    return `<button class="bm-side-item" draggable="true" data-bm="${esc(b.url)}" title="${esc(p.label)}\n${esc(b.url)}">` +
+    return `<button class="bm-side-item${locked ? ' is-locked' : ''}" draggable="${locked ? 'false' : 'true'}" data-bm="${esc(b.url)}" title="${esc(p.label)}\n${esc(b.url)}">` +
+      (locked ? '' : '<span class="bm-grip bm-grip-y" aria-hidden="true">⋮⋮</span>') +
       `<span class="bm-fav">${p.icon}</span>` +
       `<span class="bm-side-title">${esc(p.label)}</span>` +
       `</button>`;
@@ -2749,6 +2784,8 @@ function renderQkBmMenu() {
   if (cnt) cnt.textContent = `${(state.bookmarks || []).length} 条书签`;
   const tg = $('#qk-bm-toggle');
   if (tg) tg.textContent = bmBarMode() === 'hidden' ? '展开收藏夹栏' : '收起收藏夹栏';
+  const lk = $('#qk-bm-lock');
+  if (lk) lk.classList.toggle('is-on', bmLocked());
   syncQkBmPos();
 }
 
@@ -2865,6 +2902,15 @@ function wireQkBmMenu() {
       await applyBmBarPos(b.dataset.bmpos);
       // 位置变了顺带把「收起/展开」那句也刷一遍（旧值 side 会被归一成常驻）
       renderQkBmMenu();
+    });
+  }
+
+  /* 锁：就地下拉里开关，菜单不关（用户多半还要接着改位置或导入）。 */
+  const lk = $('#qk-bm-lock');
+  if (lk) {
+    lk.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      await setBmLock(!bmLocked());
     });
   }
 
@@ -4230,6 +4276,7 @@ async function mutePwdPromptForSite() {
 /** 设置页「书签」分区里的那一列行（可拖动排序）。抽出来是因为拖完要就地重画。 */
 function bmManageRowsHtml() {
   const list = state.bookmarks || [];
+  const locked = bmLocked();
   if (!list.length) return '<div class="sv-empty">还没有书签。地址栏右侧的星形按钮可以加入当前页。</div>';
   return `<div class="sv-card" id="bm-manage-list">${list.map((b) => {
     const host = hostOf(b.url);
@@ -4240,8 +4287,8 @@ function bmManageRowsHtml() {
       ? `<img src="${esc(src)}" alt="" onerror="this.remove()" />`
       : esc((host || 'N').slice(0, 1).toUpperCase());
     return `
-      <div class="list-row is-click bm-manage-row" draggable="true" data-bmorder="${esc(b.url)}" data-url="${esc(b.url)}">
-        <span class="bm-grip" aria-hidden="true">⋮⋮</span>
+      <div class="list-row is-click bm-manage-row${locked ? ' is-locked' : ''}" draggable="${locked ? 'false' : 'true'}" data-bmorder="${esc(b.url)}" data-url="${esc(b.url)}">
+        ${locked ? '' : '<span class="bm-grip" aria-hidden="true">⋮⋮</span>'}
         <span class="lr-fav">${icon}</span>
         <span class="lr-main">
           <span class="lr-title">${esc(b.title || b.url)}</span>
@@ -4289,6 +4336,17 @@ function buildBookmarks() {
       <div class="muted" style="padding:var(--sp-2) 0 0">
         左 / 右 是占布局的竖栏，网页会自动缩窄让出 240px；顶部与底部是横向一条。
         手机上只有横向（窄屏放不下侧栏）。
+      </div>
+    </div>
+
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">锁定收藏夹栏</span>
+          <span class="lr-sub">锁上后拖不动、位置也改不了；点开书签、加书签照常</span>
+        </span>
+        <button class="switch ${bmLocked() ? 'is-on' : ''}" data-bmlock
+                title="防止误拖把顺序弄乱"></button>
       </div>
     </div>
 
@@ -6215,6 +6273,14 @@ function wireActions(root) {
 
   // 书签分区的列表可拖动排序（竖向）。每次渲染都要重新绑：那是新的一批节点。
   bindBmManageDrag();
+
+  // 锁定开关（书签分区）
+  root.querySelectorAll('[data-bmlock]').forEach((sw) => {
+    sw.addEventListener('click', async () => {
+      sw.classList.toggle('is-on', !bmLocked());
+      await setBmLock(!bmLocked());
+    });
+  });
 
   root.querySelectorAll('#set-search-preset button').forEach((b) => {
     b.addEventListener('click', async () => {

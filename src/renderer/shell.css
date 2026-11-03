@@ -45,6 +45,10 @@
   /* 中性（浅色）。底色偏冷、与品牌蓝同向；卡片靠边框与投影分层，
      不靠加深底色，所以 surface 系列之间只差一档。 */
   --bg: #F4F6FB;
+  /* 外壳（标题栏/标签条/工具栏/收藏夹栏）专用底色。
+     比 bg 再深一档：网页是纯白 surface，外壳越暗，
+     「上面是浏览器、下面是网页」这条界线越清楚。 */
+  --chrome: #E9EEF8;
   --surface: #FFFFFF;
   --surface-2: #EEF1F8;
   --surface-3: #E3E8F4;
@@ -103,6 +107,7 @@
   --accent-soft: rgba(43, 217, 190, 0.18);
   --engine-chromium: #5B8BFF;
   --bg: #0A0D16;
+  --chrome: #0C111C;
   --surface: #131826;
   --surface-2: #1A2032;
   --surface-3: #232A40;
@@ -166,13 +171,13 @@ svg {
 
 /* ---------- 3. 标题栏 ---------- */
 .titlebar {
+  background: var(--chrome);
   height: var(--titlebar-h);
   min-height: var(--titlebar-h);
   display: flex;
   align-items: center;
   padding-left: var(--sp-3);
   -webkit-app-region: drag;
-  background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
 
@@ -297,13 +302,13 @@ svg {
 
 /* ---------- 4. 标签条 ---------- */
 .tabstrip {
+  background: var(--chrome);
   height: var(--tabstrip-h);
   min-height: var(--tabstrip-h);
   display: flex;
   align-items: flex-end;
   gap: var(--sp-1);
   padding: 0 var(--sp-2);
-  background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
 .tabs { display: flex; align-items: flex-end; gap: 2px; overflow: hidden; max-width: calc(100% - 120px); }
@@ -400,13 +405,13 @@ svg {
 
 /* ---------- 5. 工具栏 ---------- */
 .toolbar {
+  background: var(--chrome);
   height: var(--toolbar-h);
   min-height: var(--toolbar-h);
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   padding: 0 var(--sp-3);
-  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
@@ -576,6 +581,33 @@ svg {
 .qk-bm-pos-btns button.is-active {
   color: #fff; background: var(--brand); border-color: var(--brand);
 }
+
+/* 「锁定收藏夹栏」那一行：说明在左、开关在右 */
+.qk-bm-lock {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
+  margin: 0 var(--sp-2) var(--sp-1);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+}
+.qk-bm-lock .qk-bm-pos-cap { margin-bottom: 0; }
+
+/* 收藏栏条目的拖动手柄（横栏 / 竖栏）。
+   之前只有设置页那列有手柄，横栏与竖栏都是「看不见能不能拖」——
+   用户的原话是「拖动按钮还缺少」。用与设置页同一个字形（⋮⋮），
+   平时淡、悬停才明显：常驻显眼会把整条栏弄得很吵。 */
+.bm-grip-x, .bm-grip-y {
+  flex: 0 0 auto;
+  font-size: 11px;
+  opacity: 0.55;
+  margin-right: 1px;
+}
+.bm-item:hover .bm-grip-x,
+.bm-side-item:hover .bm-grip-y { opacity: 1; color: var(--text-3); }
+.bm-item:active .bm-grip-x,
+.bm-side-item:active .bm-grip-y { cursor: grabbing; }
+
+/* 锁上之后：手柄由 JS 不渲染，光标也不该再是「可拖」 */
+.bm-item.is-locked, .bm-side-item.is-locked, .bm-manage-row.is-locked { cursor: pointer; }
 .em-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--engine-color); flex: 0 0 8px; }
 .em-main { flex: 1; min-width: 0; }
 .em-name {
@@ -842,6 +874,7 @@ svg {
    border-bottom —— 两行叠在一起读起来才是「一条顶栏的延续」，多一层阴影
    或换个底色就会把它切成一个悬浮条。宽窄两档都在，窄档见下方移动布局段。 */
 .bookmarkbar {
+  background: var(--chrome);
   position: relative;
   display: flex;
   align-items: center;
@@ -849,8 +882,6 @@ svg {
   height: var(--bmbar-h);
   min-height: var(--bmbar-h);
   padding: 0 var(--sp-2);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
 }
 
 /* 摆放位置＝底部：靠 flex 的 order 把它挪到 .app 的最后一项。
@@ -860,7 +891,7 @@ svg {
 .bookmarkbar[data-pos="bottom"] {
   order: 50;
   border-bottom: 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-strong);
 }
 /* 窄档：底栏已经是窗口最底，收藏夹栏再往下就叠在底栏下面了，退回顶部 */
 [data-layout="mobile"] .bookmarkbar[data-pos="bottom"] { order: 0; border-top: 0; border-bottom: 1px solid var(--border); }
@@ -1121,7 +1152,13 @@ svg {
 .en-close:hover { color: var(--text); background: var(--surface-2); }
 
 /* ---------- 7. 视口 ---------- */
-.viewport { flex: 1; position: relative; background: var(--surface); overflow: hidden; }
+.viewport {
+  flex: 1; position: relative; background: var(--surface); overflow: hidden;
+  /* 这条线是整个「外壳 / 网页」的分界。放在 viewport 上是刻意的：
+     border 属于 viewport 自己的盒子，webview 的 inset:0 相对 padding box，
+     盖不到它 —— 换成给上面那行加 border-bottom，那一行隐藏时线就没了。 */
+  border-top: 1px solid var(--border-strong);
+}
 .viewport webview {
   position: absolute;
   inset: 0;
@@ -1140,12 +1177,12 @@ svg {
 .viewport.bm-bar-side-left webview { left: 240px; right: 0; width: auto; }
 .viewport.bm-bar-side-left .bm-side {
   left: 0; right: auto;
-  border-left: 0; border-right: 1px solid var(--border);
+  border-left: 0; border-right: 1px solid var(--border-strong);
 }
 .bm-side {
   position: absolute; top: 0; right: 0; bottom: 0; width: 240px;
   display: none; flex-direction: column;
-  background: var(--surface); border-left: 1px solid var(--border); z-index: 6;
+  background: var(--surface); border-left: 1px solid var(--border-strong); z-index: 6;
 }
 .bm-side-head {
   display: flex; align-items: center; justify-content: space-between;

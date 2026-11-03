@@ -791,6 +791,88 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   window.eval('closeSettings()');
   await sleep(60);
 
+  console.log('\n[S] 锁定收藏夹栏');
+
+  setBms(ABC);
+  setMode('always');
+  window.eval("state.settings.bookmarkLocked = false; state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
+  await sleep(80);
+  check('解锁时横栏每格都有拖动手柄', $$('#bm-track .bm-grip-x').length === 3,
+    String($$('#bm-track .bm-grip-x').length));
+  check('解锁时条目可拖', $$('#bm-track .bm-item').every((el) => el.getAttribute('draggable') === 'true'));
+
+  // 锁上：手柄消失、draggable 关掉
+  window.eval('setBmLock(true)');
+  await sleep(140);
+  check('锁定写进设置', window.eval('state.settings.bookmarkLocked') === true);
+  check('锁定后手柄消失', $$('#bm-track .bm-grip-x').length === 0,
+    String($$('#bm-track .bm-grip-x').length));
+  check('锁定后条目不再是 draggable',
+    $$('#bm-track .bm-item').every((el) => el.getAttribute('draggable') === 'false'));
+
+  // 锁定状态下拖拽必须一步都不动（第二道闸在 dragstart 里）
+  const lkItems = $$('#bm-track .bm-item');
+  lkItems.forEach((el, i) => rect(el, { x: i * 100, w: 100 }));
+  drag(lkItems[0], 'dragstart');
+  drag($('#bm-track'), 'dragover', { x: 240 });
+  drag($('#bm-track'), 'drop', { x: 240 });
+  await sleep(140);
+  check('锁定时拖不动，顺序一点没变',
+    order().join(',') === 'https://a.test/,https://b.test/,https://c.test/', order().join(','));
+
+  // 锁定状态下也不许改位置（三个入口共用 applyBmBarPos 里那道闸）
+  window.eval("applyBmBarPos('left')");
+  await sleep(120);
+  check('锁定时改不了位置', window.eval('state.settings.bookmarkBarPos') === 'top',
+    window.eval('state.settings.bookmarkBarPos'));
+  check('锁定时视口也没被切', !$('#viewport').classList.contains('bm-bar-side'));
+
+  // 解锁：手柄回来、拖拽与改位置都恢复
+  window.eval('setBmLock(false)');
+  await sleep(140);
+  check('解锁后手柄回来了', $$('#bm-track .bm-grip-x').length === 3,
+    String($$('#bm-track .bm-grip-x').length));
+  window.eval("applyBmBarPos('left')");
+  await sleep(140);
+  check('解锁后能改位置', window.eval('state.settings.bookmarkBarPos') === 'left',
+    window.eval('state.settings.bookmarkBarPos'));
+
+  // 竖栏也有手柄
+  window.eval("state.settings.bookmarkBarPos = 'right'; renderBookmarkBar(true)");
+  await sleep(110);
+  check('竖栏条目也有手柄', $$('#bm-side-list .bm-grip-y').length === 3,
+    String($$('#bm-side-list .bm-grip-y').length));
+  window.eval("state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
+  await sleep(80);
+
+  // 顶栏下拉里的锁开关
+  $('#qk-bmbar').click();
+  await sleep(80);
+  const qkLock = $('#qk-bm-lock');
+  check('顶栏下拉里有锁定开关', !!qkLock);
+  check('开关当前是「未锁」', !!qkLock && !qkLock.classList.contains('is-on'));
+  qkLock.click();
+  await sleep(160);
+  check('点一下锁上（设置与开关状态都跟上）',
+    window.eval('state.settings.bookmarkLocked') === true && qkLock.classList.contains('is-on'));
+  qkLock.click();
+  await sleep(160);
+  check('再点一下解锁', window.eval('state.settings.bookmarkLocked') === false);
+  $('#qk-bmbar').click();
+  await sleep(60);
+
+  // 设置页「书签」分区里的锁开关
+  window.eval("openSettings('bookmarks')");
+  await waitFor(() => $('#settings-body [data-bmlock]'));
+  const swLock = $('#settings-body [data-bmlock]');
+  check('书签分区有锁定开关', !!swLock);
+  swLock.click();
+  await sleep(170);
+  check('设置页的开关也真的锁上', window.eval('state.settings.bookmarkLocked') === true);
+  window.eval('setBmLock(false)');
+  window.eval('closeSettings()');
+  await sleep(80);
+
   console.log('\n[R] 运行时错误');
 
   check('走完这套全流程仍无异常', errors.length === 0, errors.join(' | ') || '无');
