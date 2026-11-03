@@ -884,17 +884,72 @@ svg {
   padding: 0 var(--sp-2);
 }
 
-/* 摆放位置＝底部：靠 flex 的 order 把它挪到 .app 的最后一项。
+/* 摆放位置＝下：靠 flex 的 order 把它挪到 .app 的最后一项。
    不用 position:fixed —— 那会脱离布局、把网页视口盖住一截（webview 是原生层，
    同层 DOM 的 z-index 挡不住它）。order 只是换了个顺序，仍然占位。
    边框也要跟着换到上沿，否则底部会凭空多一条线。 */
 .bookmarkbar[data-pos="bottom"] {
-  order: 50;
   border-bottom: 0;
   border-top: 1px solid var(--border-strong);
 }
+/* 摆放位置＝顶（标签条上方）：它下面是标签条，给一条浅线把它和标签条分开 */
+.bookmarkbar[data-pos="topest"] { border-bottom: 1px solid var(--border); }
+
+/* ---- 整条拖动的把手 ----
+   条目自己是拖「顺序」的，这两个把手拖的是「位置」。
+   分开是刻意的：拖条目时想改的从来不是位置。 */
+.bm-bar-grip, .bm-side-grip {
+  flex: 0 0 auto;
+  display: grid; place-items: center;
+  padding: 0;
+  border: 0; border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-4);
+  cursor: grab;
+}
+.bm-bar-grip { width: 18px; height: 24px; margin-right: 2px; }
+.bm-side-grip { width: 20px; height: 20px; margin-right: 4px; }
+.bm-bar-grip:hover, .bm-side-grip:hover { background: var(--surface-2); color: var(--text-2); }
+.bm-bar-grip:active, .bm-side-grip:active { cursor: grabbing; }
+.bm-bar-grip svg, .bm-side-grip svg {
+  width: 14px; height: 14px;
+  fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round;
+}
+
+/* ---- 拖动时的四块落点区 ----
+   拖拽期间 webview 会被临时藏起来（原生层盖得住任何 DOM），
+   否则这两块高亮框只会在空白处出现。 */
+.bm-zones {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(16, 19, 34, 0.14);
+}
+.bm-zone {
+  position: absolute;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 12px; color: var(--text-3);
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  opacity: 0.94;
+}
+.bm-zone b { font-size: 13px; color: var(--text-2); }
+.bm-zone.is-hot {
+  border: 2px solid var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.bm-zone.is-hot b { color: var(--brand); }
+/* 上：地址栏那一条（top/height 由 JS 按真实行高超出来） */
+.bm-zone[data-zone="topest"], .bm-zone[data-zone="top"] { left: 10%; right: 10%; }
+.bm-zone[data-zone="topest"] { top: 6px; height: 30px; }
+.bm-zone[data-zone="top"] { top: 44px; height: 34px; }
+.bm-zone[data-zone="left"] { left: 8px; width: 108px; }
+.bm-zone[data-zone="bottom"] { left: 10%; right: 10%; bottom: 8px; height: 40px; }
+
+body.bm-dragging { cursor: grabbing; }
 /* 窄档：底栏已经是窗口最底，收藏夹栏再往下就叠在底栏下面了，退回顶部 */
-[data-layout="mobile"] .bookmarkbar[data-pos="bottom"] { order: 0; border-top: 0; border-bottom: 1px solid var(--border); }
+/* 窄档的「下」不再特殊处理：位置由 DOM 插入决定（栏会插在底栏之前），
+   边框也沿用 data-pos="bottom" 的那条上沿线。 */
 /* 书签多了横向滚，不换行：换行会把这一行撑高，网页视口跟着矮一截，
    而「这行多高」是用户在设置里点「地址栏下方」时就定下的预期。 */
 .bm-track {

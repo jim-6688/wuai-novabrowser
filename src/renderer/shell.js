@@ -2073,26 +2073,59 @@ const BM_BAR_LABEL = {
   hidden: '不显示'
 };
 
-/** 摆放位置的可选值。表外的一律回落 top（同样是不让脏配置弄丢一条栏）。 */
-const BM_POS_VALUES = ['top', 'bottom', 'left', 'right'];
+/** 摆放位置的可选值（表外的一律回落 top —— 同样是不让脏配置弄丢一条栏）。 */
+const BM_POS_VALUES = ['topest', 'top', 'left', 'bottom'];
 const BM_POS_LABEL = {
-  top: '顶部（地址栏下方）',
-  bottom: '底部（窗口下沿）',
-  left: '视口左侧',
-  right: '视口右侧'
+  topest: '顶（标签条上方）',
+  top: '上（地址栏下方）',
+  left: '左（视口左侧）',
+  bottom: '下（窗口下沿）'
 };
+/** 拖动时落点区上的短标签，与 BM_POS_LABEL 一一对应。 */
+const BM_POS_SHORT = { topest: '顶', top: '上', left: '左', bottom: '下' };
 
-/** 侧栏宽度。CSS 里 `.bm-side` 是 240px，JS 不重复算尺寸，只在注释里对齐。 */
+/**
+ * 当前摆放位置。
+ *
+ * <p>历史值：旧版本把「侧边栏」记在 bookmarkBar 里（'side'），以及早期
+ * bookmarkBarPos 里还有过 'right'（视口右侧）。右面这一版去掉了 ——
+ * 两种旧值都归到「左」，用户的栏不会凭空消失。
+ */
 function bmBarPos() {
   const s = state.settings || {};
-  if (BM_POS_VALUES.indexOf(s.bookmarkBarPos) >= 0) return s.bookmarkBarPos;
-  // 旧配置：bookmarkBar === 'side' 表示右侧竖栏
-  return s.bookmarkBar === 'side' ? 'right' : 'top';
+  const v = s.bookmarkBarPos;
+  if (BM_POS_VALUES.indexOf(v) >= 0) return v;
+  if (v === 'right' || s.bookmarkBar === 'side') return 'left';
+  return 'top';
 }
 
-/** 是不是竖栏（左右两侧）。移动端太窄，一律退回横栏。 */
+/** 是不是竖栏（视口左侧）。移动端太窄，一律退回横栏。 */
 function bmIsSidePos(pos) {
-  return (pos === 'left' || pos === 'right') && state.layout !== 'mobile';
+  return pos === 'left' && state.layout !== 'mobile';
+}
+
+/**
+ * 把横栏挪到对应位置。
+ *
+ * <p>用真实 DOM 插入，而不是 CSS 的 order：栏有四个落点，其中「顶」要插到
+ * 标签条**前面**、「下」要插到底栏前面 —— order 得给每一行都编号才排得对，
+ * 而 DOM 插入只描述「插在谁前面」这一件事，行数以后再加也不受影响。
+ */
+function placeBmBar(pos) {
+  const bar = $('#bookmark-bar');
+  if (!bar) return;
+  const app = bar.parentElement;
+  if (!app) return;
+  // 「上」的锚点依次退让：通知条 → 查找条 → 视口。任一行被移除也不会把栏弄丢
+  const anchor = pos === 'topest' ? $('.tabstrip')
+    : pos === 'bottom' ? $('.mobilebar')
+      : ($('#engine-notice') || $('#findbar') || $('#viewport'));
+  if (anchor && anchor.parentElement === app && anchor !== bar) {
+    app.insertBefore(bar, anchor);
+  } else if (pos === 'bottom') {
+    app.appendChild(bar);
+  }
+  bar.dataset.pos = pos;
 }
 
 /** 收藏夹栏是否锁上（锁上不许拖、不许改位置）。 */
@@ -2396,6 +2429,10 @@ function renderBookmarkBar(force = false) {
       viewport.classList.toggle('bm-bar-side-left', pos === 'left');
     }
     if (sideEl) sideEl.hidden = false;
+    const sideGrip = $('#bm-side-grip');
+    if (sideGrip) sideGrip.hidden = bmLocked();
+    const barGrip0 = $('#bm-bar-grip');
+    if (barGrip0) barGrip0.hidden = bmLocked();
     if (!bar.hidden) bar.hidden = true;
     if (track.firstChild) track.innerHTML = '';
     closeBmMenu();
@@ -2411,8 +2448,12 @@ function renderBookmarkBar(force = false) {
   if (sideEl) sideEl.hidden = true;
   bmSideSig = null;
 
-  // 横栏档：顶部贴顶栏下方、底部贴窗口下沿（靠 CSS 的 order 换位，见 .bookmarkbar[data-pos]）
-  bar.dataset.pos = (pos === 'bottom') ? 'bottom' : 'top';
+  // 横栏档：顶（标签条上方）/ 上（地址栏下方）/ 下（窗口下沿）
+  // 位置靠真实 DOM 插入实现，见 placeBmBar（不用 CSS order：行数一变就得重编号）
+  placeBmBar(pos);
+  // 锁定时连把手都不露：拖不动的把手只会招人乱点
+  const topGrip = $('#bm-bar-grip');
+  if (topGrip) topGrip.hidden = bmLocked();
 
   if (!show) {
     if (!bar.hidden) bar.hidden = true;
@@ -2576,6 +2617,128 @@ function $$0(root, sel) {
 /** 横向栏：挂在 #bm-track 上。 */
 function setupBookmarkBarDrag() {
   setupBmDrag($('#bm-track'), '.bm-item', 'x');
+}
+
+/* ------------------------------------------------------------------ *
+ * 整条拖动：按住把手，拖到四块落点区之一松手
+ *
+ * 为什么不用 HTML5 拖放：网页是 <webview>（原生层），同层 DOM 盖不住它 ——
+ * 落点区要显示在网页上方，就必须在拖拽期间把 webview 临时藏起来，再自己画。
+ * 指针事件比 drag 事件更适合这种「自定义落点区」的场景，也不用和条目拖拽抢事件。
+ * ------------------------------------------------------------------ */
+
+/** 当前高亮的落点（'' = 没落在任何区块上）。 */
+let bmZoneHot = '';
+
+/** 拖拽期间把当前页的 webview 临时藏起来（原生层盖得住任何 DOM 覆盖层）。 */
+function hideActiveWebviewForDrag(hide) {
+  const t = activeTab();
+  const wv = t && t.webview;
+  if (!wv || wv.tagName !== 'WEBVIEW') return;
+  if (hide) {
+    wv.__bmDragHidden = true;
+    wv.hidden = true;
+  } else if (wv.__bmDragHidden) {
+    // 错误页本来就要藏 webview（见 renderPageError），别把提示页又盖回去
+    wv.hidden = !!t.loadError;
+    wv.__bmDragHidden = false;
+  }
+}
+
+/**
+ * 按当前界面把四块落点区摆到「落下去会长在哪」的位置。
+ *
+ * <p>写死像素不行：标题条/标签条/工具栏的高度是令牌控制的，还会随档位变。
+ * 每次拖拽开始时按实际 rect 算一遍，落点位置才对得上眼睛看到的行。
+ */
+function layoutBmZones() {
+  const zones = $$('#bm-zones .bm-zone');
+  const by = {};
+  zones.forEach((z) => { by[z.dataset.zone] = z; });
+  const tabsEl = $('.tabstrip');
+  const toolEl = $('.toolbar');
+  const vpEl = $('#viewport');
+  const tabsR = tabsEl ? tabsEl.getBoundingClientRect() : null;
+  const toolR = toolEl ? toolEl.getBoundingClientRect() : null;
+  const vpR = vpEl ? vpEl.getBoundingClientRect() : null;
+
+  if (by.topest && tabsR) {
+    by.topest.style.top = '6px';
+    by.topest.style.height = Math.max(24, Math.round(tabsR.top - 12)) + 'px';
+  }
+  if (by.top && toolR) {
+    by.top.style.top = Math.round(toolR.top + 3) + 'px';
+    by.top.style.height = Math.max(24, Math.round(toolR.height - 6)) + 'px';
+  }
+  if (by.left && vpR) {
+    by.left.style.top = Math.round(vpR.top + 14) + 'px';
+    by.left.style.height = Math.max(60, Math.round(vpR.height - 14 - 64)) + 'px';
+  }
+  if (by.bottom) by.bottom.style.bottom = '8px';
+}
+
+function paintBmZones(hot) {
+  $$('#bm-zones .bm-zone').forEach((z) => z.classList.toggle('is-hot', z.dataset.zone === hot));
+}
+
+/** 指针落在哪块落点区上（都不在返回空串）。 */
+function bmZoneAt(x, y) {
+  let hit = '';
+  $$('#bm-zones .bm-zone').forEach((z) => {
+    const r = z.getBoundingClientRect();
+    if (!hit && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) hit = z.dataset.zone;
+  });
+  return hit;
+}
+
+function bmDragBegin() {
+  if (bmLocked()) { toast('收藏夹栏已锁定，先解锁再拖动'); return false; }
+  const zones = $('#bm-zones');
+  if (!zones) return false;
+  layoutBmZones();
+  hideActiveWebviewForDrag(true);
+  zones.hidden = false;
+  document.body.classList.add('bm-dragging');
+  bmZoneHot = '';
+  paintBmZones('');
+  return true;
+}
+
+async function bmDragEnd(commit) {
+  const zones = $('#bm-zones');
+  if (zones) zones.hidden = true;
+  document.body.classList.remove('bm-dragging');
+  hideActiveWebviewForDrag(false);
+  const zone = bmZoneHot;
+  bmZoneHot = '';
+  if (!commit || !zone || zone === bmBarPos()) return;
+  await applyBmBarPos(zone);
+}
+
+/** 把两个把手（横栏 / 竖栏）接到同一套拖拽上。 */
+function wireBmBarDrag() {
+  [$('#bm-bar-grip'), $('#bm-side-grip')].filter(Boolean).forEach((grip) => {
+    grip.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0) return;
+      ev.preventDefault();   // 别让浏览器把这次按压当成选择文字
+      if (!bmDragBegin()) return;
+      let moved = false;
+      const onMove = (e) => {
+        moved = true;
+        const z = bmZoneAt(e.clientX, e.clientY);
+        if (z !== bmZoneHot) { bmZoneHot = z; paintBmZones(z); }
+      };
+      const onUp = () => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+        bmDragEnd(moved);
+      };
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
+    });
+  });
 }
 
 /** 竖向侧栏：挂在 #bm-side-list 上。 */
@@ -4334,8 +4497,9 @@ function buildBookmarks() {
         ${BM_POS_VALUES.map((p) => `<button data-bmpos="${p}" class="${pos === p ? 'is-active' : ''}">${esc(BM_POS_LABEL[p])}</button>`).join('')}
       </div>
       <div class="muted" style="padding:var(--sp-2) 0 0">
-        左 / 右 是占布局的竖栏，网页会自动缩窄让出 240px；顶部与底部是横向一条。
-        手机上只有横向（窄屏放不下侧栏）。
+        <b>顶</b>贴在标签条上方、<b>上</b>在地址栏下方、<b>下</b>在窗口下沿，都是横向一条；
+        <b>左</b>是占布局的竖栏，网页会自动缩窄让出 240px。手机上只有横向（窄屏放不下侧栏）。
+        也可以直接按住栏首那个 <b>⋮⋮</b> 把手，拖到窗口边缘松手。
       </div>
     </div>
 
@@ -4938,8 +5102,9 @@ function buildAppearance() {
         ${BM_POS_VALUES.map((p) => `<button data-bmpos="${p}" class="${bmpos === p ? 'is-active' : ''}">${esc(BM_POS_LABEL[p])}</button>`).join('')}
       </div>
       <div class="muted" style="padding:var(--sp-2) 0 0">
-        <b>左 / 右</b>是竖向侧栏，网页会自动缩窄让出 240px；<b>顶 / 底</b>是横向一条。
-        窄屏（手机档）只有横向 —— 屏幕本来就窄，再切掉 240px 就没法看了。
+        <b>顶</b>（标签条上方）、<b>上</b>（地址栏下方）、<b>下</b>（窗口下沿）是横向一条；
+        <b>左</b>是竖向侧栏，网页会自动缩窄让出 240px。窄屏（手机档）只有横向。
+        也可以按住栏首那个把手直接拖到窗口边缘松手。
       </div>
     </div>
 
@@ -9291,6 +9456,7 @@ function wireUi() {
   setupExtQuick();
   setupBookmarkBarDrag();
   setupBookmarkSideDrag();
+  wireBmBarDrag();
   wireCmdPalette();
   wireToolsMenu();
   wireQkBmMenu();

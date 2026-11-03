@@ -77,10 +77,10 @@
             <div class="qk-bm-pos" id="qk-bm-pos">
               <span class="qk-bm-pos-cap">收藏夹栏位置</span>
               <div class="qk-bm-pos-btns">
-                <button type="button" data-bmpos="top" title="地址栏下方（横向）">顶</button>
-                <button type="button" data-bmpos="bottom" title="窗口下沿（横向）">底</button>
-                <button type="button" data-bmpos="left" title="视口左侧（竖栏）">左</button>
-                <button type="button" data-bmpos="right" title="视口右侧（竖栏）">右</button>
+                <button type="button" data-bmpos="topest" title="顶：标签条上方">顶</button>
+                <button type="button" data-bmpos="top" title="上：地址栏下方">上</button>
+                <button type="button" data-bmpos="left" title="左：视口左侧（竖栏）">左</button>
+                <button type="button" data-bmpos="bottom" title="下：窗口下沿">下</button>
               </div>
             </div>
             <!-- 锁：拖书签时手一滑就会把顺序拖乱，而顺序是用户自己一条条排的 -->
@@ -423,6 +423,14 @@
   <!-- 收藏夹栏：条目在 .bm-track 里横向滚；放不下时右侧出现「更多」，
        点开列出全部书签（栏里滚出去的那些也能直接找到）。 -->
   <div class="bookmarkbar" id="bookmark-bar" hidden>
+    <!-- 整条拖拽的把手：按住它拖到窗口某个区域松手，栏就挪到那儿。
+         条目自己是拖「顺序」的，两者不能混在一处操作（拖条目时想改的从来不是位置）。 -->
+    <button class="bm-bar-grip" id="bm-bar-grip" type="button"
+            title="按住拖动，把整条收藏夹栏挪到 顶 / 上 / 左 / 下" aria-label="拖动收藏夹栏">
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M7 4.6h.01M7 10h.01M7 15.4h.01M13 4.6h.01M13 10h.01M13 15.4h.01" />
+      </svg>
+    </button>
     <div class="bm-track" id="bm-track"></div>
     <button class="bm-more" id="bm-more" type="button" title="更多书签" aria-haspopup="menu" aria-expanded="false" hidden>更多</button>
     <div class="bm-menu" id="bm-menu" role="menu" aria-label="全部书签" hidden></div>
@@ -471,6 +479,12 @@
          不是浮层，不会被网页盖住，也不用 JS 算尺寸。 -->
     <aside class="bm-side" id="bm-side" aria-label="收藏夹" hidden>
       <header class="bm-side-head">
+        <button class="bm-side-grip" id="bm-side-grip" type="button"
+                title="按住拖动，把收藏夹栏挪到 顶 / 上 / 左 / 下" aria-label="拖动收藏夹栏">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M7 4.6h.01M7 10h.01M7 15.4h.01M13 4.6h.01M13 10h.01M13 15.4h.01" />
+          </svg>
+        </button>
         <span>收藏夹</span>
         <span class="bm-side-tools">
           <button class="bm-side-btn" id="bm-side-import" title="从文件导入书签">导入</button>
@@ -502,6 +516,16 @@
       <svg viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h12" /></svg><span>菜单</span>
     </button>
   </nav>
+
+  <!-- ============ 拖动收藏夹栏的落点区 ============
+       四块高亮区域，松手落哪块就挪到哪。**拖拽期间会把 webview 临时藏起来**：
+       <webview> 是原生层，同层 DOM 永远盖不住它，不藏就只能在空白处看到高亮框。 -->
+  <div class="bm-zones" id="bm-zones" hidden aria-hidden="true">
+    <div class="bm-zone" data-zone="topest"><b>顶</b><span>标签条上方</span></div>
+    <div class="bm-zone" data-zone="top"><b>上</b><span>地址栏下方</span></div>
+    <div class="bm-zone" data-zone="left"><b>左</b><span>视口左侧</span></div>
+    <div class="bm-zone" data-zone="bottom"><b>下</b><span>窗口下沿</span></div>
+  </div>
 
   <!-- ============ 设置（窗口，左导航 + 右内容） ============
        外层 .settings-view 是定位层兼暗底，内层 .sv-window 才是那扇窗。

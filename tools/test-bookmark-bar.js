@@ -321,21 +321,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('点回「常驻」后恢复', !bar.hidden);
   check('设置值也回到 always', window.eval('state.settings.bookmarkBar') === 'always');
 
-  /* 摆放位置在这一版被拆成独立一项（上/下/左/右）。以前「侧边栏」混在档位里，
-     既说不清「放哪」也说不清「露不露」，是两件事混成了一件。 */
-  console.log('\n[J2] 摆放位置（顶部 / 底部 / 左侧 / 右侧）');
+  /* 摆放位置在这一版被拆成独立一项。以前「侧边栏」混在档位里，
+     既说不清「放哪」也说不清「露不露」，是两件事混成了一件。
+     四个位置：顶（标签条上方）/ 上（地址栏下方）/ 左（视口左侧）/ 下（窗口下沿）。
+     视口右侧这一档按用户要求去掉了。 */
+  console.log('\n[J2] 摆放位置（顶 / 上 / 左 / 下）');
   const posBtns = $$('#set-bmpos button');
   check('外观分区里有四个摆放位置', posBtns.length === 4,
     posBtns.map((b) => b.textContent.trim()).join(' / '));
   const byPos = (p) => $$('#set-bmpos button').find((b) => b.dataset.bmpos === p);
-  check('四个位置齐全', ['top', 'bottom', 'left', 'right'].every((p) => !!byPos(p)));
-  check('默认位置是顶部', window.eval('bmBarPos()') === 'top', window.eval('bmBarPos()'));
+  check('四个位置齐全（顶/上/左/下）', ['topest', 'top', 'left', 'bottom'].every((p) => !!byPos(p)));
+  check('不再提供「右侧」', !byPos('right'));
+  check('默认位置是「上」（地址栏下方）', window.eval('bmBarPos()') === 'top', window.eval('bmBarPos()'));
 
-  byPos('right').click();
+  byPos('left').click();
   await sleep(120);
-  check('右侧：写进设置', window.eval('state.settings.bookmarkBarPos') === 'right');
-  check('右侧：横向栏收起', bar.hidden);
-  check('右侧：视口加 bm-bar-side（网页让位）', $('#viewport').classList.contains('bm-bar-side'));
+  check('左：写进设置', window.eval('state.settings.bookmarkBarPos') === 'left');
+  check('左：横向栏收起', bar.hidden);
+  check('左：视口加 bm-bar-side（网页让位）', $('#viewport').classList.contains('bm-bar-side'));
   /* 回归：视口上的状态类**不能**叫 bm-side —— 侧栏元素自己就叫 .bm-side，
      而那条规则里有 display:none。以前两者同名，一切侧栏就把整个视口隐藏了：
      页面一片空白，用户只能得出「改不了方向」这个结论。 */
@@ -344,31 +347,42 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     window.getComputedStyle($('#viewport')).display);
   check('视口状态类与侧栏元素类不同名',
     !$('#viewport').classList.contains('bm-side'));
-  check('右侧：不是左侧', !$('#viewport').classList.contains('bm-bar-side-left'));
-  check('右侧：竖向列表有条目', $$('#bm-side-list [data-bm]').length > 0);
-
-  byPos('left').click();
-  await sleep(120);
-  check('左侧：写进设置', window.eval('state.settings.bookmarkBarPos') === 'left');
-  check('左侧：视口挂上 bm-bar-side-left', $('#viewport').classList.contains('bm-bar-side-left'));
-  check('左侧：仍属竖栏档', $('#viewport').classList.contains('bm-bar-side'));
+  check('左：贴在视口左边', $('#viewport').classList.contains('bm-bar-side-left'));
+  check('左：竖向列表有条目', $$('#bm-side-list [data-bm]').length > 0);
 
   byPos('bottom').click();
   await sleep(120);
-  check('底部：横向栏显示', !bar.hidden);
-  check('底部：栏上打了 data-pos=bottom（CSS 靠它换到窗口下沿）', bar.dataset.pos === 'bottom', bar.dataset.pos);
-  check('底部：视口把侧栏宽度还回去了', !$('#viewport').classList.contains('bm-bar-side'));
-  check('底部：侧栏隐藏', $('#bm-side').hidden);
+  check('下：横向栏显示', !bar.hidden);
+  check('下：栏上打了 data-pos=bottom', bar.dataset.pos === 'bottom', bar.dataset.pos);
+  check('下：真的挪到了底栏之前（DOM 位置，不是靠 CSS order）',
+    bar.nextElementSibling && bar.nextElementSibling.classList.contains('mobilebar'),
+    bar.nextElementSibling ? bar.nextElementSibling.className : '无后继');
+  check('下：视口把侧栏宽度还回去了', !$('#viewport').classList.contains('bm-bar-side'));
+  check('下：侧栏隐藏', $('#bm-side').hidden);
+
+  byPos('topest').click();
+  await sleep(120);
+  check('顶：data-pos=topest', bar.dataset.pos === 'topest', bar.dataset.pos);
+  check('顶：插到了标签条前面（标签条上方）',
+    bar.nextElementSibling && bar.nextElementSibling.classList.contains('tabstrip'),
+    bar.nextElementSibling ? bar.nextElementSibling.className : '无后继');
 
   byPos('top').click();
-  await sleep(100);
-  check('顶部：data-pos=top', bar.dataset.pos === 'top', bar.dataset.pos);
+  await sleep(120);
+  check('上：data-pos=top', bar.dataset.pos === 'top', bar.dataset.pos);
+  check('上：回到了地址栏下方（通知条之前）',
+    bar.nextElementSibling && bar.nextElementSibling.id === 'engine-notice',
+    bar.nextElementSibling ? (bar.nextElementSibling.id || bar.nextElementSibling.className) : '无后继');
 
-  // 旧配置兼容：历史上「侧边栏」写在 bookmarkBar 里，升级上来的人不能因此丢栏
+  // 旧配置兼容：历史上「侧边栏」写在 bookmarkBar 里（那时还分左右），现在归到左侧
   window.eval("state.settings.bookmarkBar = 'side'; state.settings.bookmarkBarPos = undefined; renderBookmarkBar(true)");
   await sleep(80);
-  check('旧值 side 仍按右侧竖栏渲染', window.eval('bmBarPos()') === 'right' && $('#viewport').classList.contains('bm-bar-side'));
-  window.eval("state.settings.bookmarkBar = 'always'; state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
+  check('旧值 side 归到左侧竖栏', window.eval('bmBarPos()') === 'left' && $('#viewport').classList.contains('bm-bar-side'));
+  // 早期写过的 'right' 也一样归到左侧（右侧这一档已去掉）
+  window.eval("state.settings.bookmarkBar = 'always'; state.settings.bookmarkBarPos = 'right'; renderBookmarkBar(true)");
+  await sleep(80);
+  check('旧值 right 也归到左侧', window.eval('bmBarPos()') === 'left');
+  window.eval("state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
   await sleep(60);
 
   // 书签分区里也有同一份位置控件（用户在哪一页都该能改）
@@ -872,6 +886,76 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   window.eval('setBmLock(false)');
   window.eval('closeSettings()');
   await sleep(80);
+
+  console.log('\n[T] 整条拖动（按住把手拖到落点区松手）');
+
+  setBms(ABC);
+  setMode('always');
+  window.eval("state.settings.bookmarkLocked = false; state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
+  await sleep(90);
+
+  const barGrip = $('#bm-bar-grip');
+  check('横栏上有整条拖动的把手', !!barGrip);
+  check('竖栏头部也有把手', !!$('#bm-side-grip'));
+  check('默认状态下落点区是收起的', $('#bm-zones').hidden);
+
+  // 落点区是 position:fixed，jsdom 里 rect 全是 0 —— 手工给四块各一块地盘，
+  // 否则 bmZoneAt 永远命中第一块（测了等于没测）。
+  const zoneBox = { topest: 0, top: 120, left: 240, bottom: 360 };
+  $$('#bm-zones .bm-zone').forEach((z) => {
+    rect(z, { x: zoneBox[z.dataset.zone], y: 0, w: 100, h: 40 });
+  });
+
+  const pointer = (target, type, x, y) => target.dispatchEvent(new window.MouseEvent(type, {
+    bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y
+  }));
+
+  // 按住把手 → 落点区出现
+  pointer(barGrip, 'pointerdown', 5, 5);
+  await sleep(40);
+  check('按住把手后落点区出现', !$('#bm-zones').hidden);
+  check('拖动期间给 body 打了标记（全局抓手光标）', doc.body.classList.contains('bm-dragging'));
+
+  // 移到「下」那块 → 那一块高亮
+  pointer(doc, 'pointermove', zoneBox.bottom + 10, 10);
+  await sleep(30);
+  check('移到「下」时那一块高亮',
+    $$('#bm-zones .bm-zone').find((z) => z.dataset.zone === 'bottom').classList.contains('is-hot'));
+  check('其它块没有被连坐',
+    !$$('#bm-zones .bm-zone').find((z) => z.dataset.zone === 'top').classList.contains('is-hot'));
+
+  // 松手 → 吸附到「下」
+  pointer(doc, 'pointerup', zoneBox.bottom + 10, 10);
+  await sleep(180);
+  check('松手后落点区收起', $('#bm-zones').hidden);
+  check('松手后 body 标记也撤掉', !doc.body.classList.contains('bm-dragging'));
+  check('落点「下」真的生效', window.eval('state.settings.bookmarkBarPos') === 'bottom',
+    window.eval('state.settings.bookmarkBarPos'));
+  check('栏真的挪到了底栏之前',
+    bar.nextElementSibling && bar.nextElementSibling.classList.contains('mobilebar'),
+    bar.nextElementSibling ? bar.nextElementSibling.className : '无后继');
+
+  // 只按不拖（点一下就松）不该改位置
+  window.eval("state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
+  await sleep(90);
+  pointer($('#bm-bar-grip'), 'pointerdown', 5, 5);
+  pointer(doc, 'pointerup', 5, 5);
+  await sleep(120);
+  check('只按不拖不改位置', window.eval('state.settings.bookmarkBarPos') === 'top',
+    window.eval('state.settings.bookmarkBarPos'));
+  check('只按不拖也会把落点区收起来', $('#bm-zones').hidden);
+
+  // 锁定后：把手不露，按住也起不了拖
+  window.eval('setBmLock(true)');
+  await sleep(120);
+  check('锁定后横栏把手隐藏', $('#bm-bar-grip').hidden);
+  pointer($('#bm-bar-grip'), 'pointerdown', 5, 5);
+  await sleep(60);
+  check('锁定后按住把手起不了拖（落点区不出现）', $('#bm-zones').hidden);
+  window.eval('setBmLock(false)');
+  await sleep(120);
+  window.eval("state.settings.bookmarkBarPos = 'top'; renderBookmarkBar(true)");
+  await sleep(60);
 
   console.log('\n[R] 运行时错误');
 
