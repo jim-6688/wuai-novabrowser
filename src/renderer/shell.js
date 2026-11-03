@@ -2749,6 +2749,21 @@ function renderQkBmMenu() {
   if (cnt) cnt.textContent = `${(state.bookmarks || []).length} 条书签`;
   const tg = $('#qk-bm-toggle');
   if (tg) tg.textContent = bmBarMode() === 'hidden' ? '展开收藏夹栏' : '收起收藏夹栏';
+  syncQkBmPos();
+}
+
+/**
+ * 把顶栏下拉里的位置按钮刷成「当前生效的那一档」。
+ *
+ * <p>必须按 bmBarPos() 而不是 settings.bookmarkBarPos 画：旧配置里
+ * bookmarkBar === 'side' 时前者会回落到 right，后者读出来是 undefined ——
+ * 照原值画就是一个都不亮。
+ */
+function syncQkBmPos() {
+  const pos = bmBarPos();
+  $$('#qk-bm-pos [data-bmpos]').forEach((b) => {
+    b.classList.toggle('is-active', b.dataset.bmpos === pos);
+  });
 }
 
 /** 回到下拉的第一视图（开合 / 导入 / 导出 / 管理）。 */
@@ -2837,6 +2852,21 @@ function wireQkBmMenu() {
 
   const fromBrowser = $('#qk-bm-from-browser');
   if (fromBrowser) fromBrowser.addEventListener('click', () => { showQkBmBrowsers(); });
+
+  /* 摆放位置：菜单里的快捷入口，与设置页共用 applyBmBarPos。
+     点完把菜单收起来 —— 栏一挪位置，用户要看的是「挪到哪了」，不是这个菜单。 */
+  const posBox = $('#qk-bm-pos');
+  if (posBox) {
+    posBox.addEventListener('click', async (ev) => {
+      const b = ev.target.closest('[data-bmpos]');
+      if (!b) return;
+      ev.stopPropagation();
+      closeQkBmMenu();
+      await applyBmBarPos(b.dataset.bmpos);
+      // 位置变了顺带把「收起/展开」那句也刷一遍（旧值 side 会被归一成常驻）
+      renderQkBmMenu();
+    });
+  }
 
   const brow = $('#qk-bm-browsers');
   if (brow) {

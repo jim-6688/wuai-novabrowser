@@ -500,6 +500,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('下拉里有导入 / 导出', !!$('#qk-bm-import') && !!$('#qk-bm-export'));
   check('下拉里有「从其他浏览器导入」', !!$('#qk-bm-from-browser'));
 
+  /* 摆放位置在顶栏下拉里也有一份：用户想挪这条栏时通常正站在它跟前，
+     为此跑一趟设置页是多余的。三个入口（这里 / 外观 / 书签）共用同一份设置。 */
+  const qkPos = $$('#qk-bm-pos [data-bmpos]');
+  check('下拉里有四个摆放位置', qkPos.length === 4,
+    qkPos.map((b) => b.textContent.trim()).join(' / '));
+  check('下拉里的位置按钮默认亮在「顶」',
+    qkPos.find((b) => b.dataset.bmpos === 'top').classList.contains('is-active'));
+  qkPos.find((b) => b.dataset.bmpos === 'left').click();
+  await sleep(150);
+  check('在下拉里点「左」就写进设置', window.eval('state.settings.bookmarkBarPos') === 'left',
+    window.eval('state.settings.bookmarkBarPos'));
+  check('点完菜单自动收起（好让用户看栏挪到哪了）', $('#qk-bm-menu').hidden);
+  check('视口真的挂上了左侧竖栏', $('#viewport').classList.contains('bm-bar-side-left'));
+  // 下次打开菜单，选中态要跟到「左」
+  qkBm.click();
+  await sleep(80);
+  check('再开菜单时选中态跟到「左」',
+    $$('#qk-bm-pos [data-bmpos]').find((b) => b.dataset.bmpos === 'left').classList.contains('is-active'));
+  $$('#qk-bm-pos [data-bmpos]').find((b) => b.dataset.bmpos === 'top').click();
+  await sleep(150);
+  check('点回「顶」恢复横向栏',
+    window.eval('state.settings.bookmarkBarPos') === 'top' && !bar.hidden);
+  qkBm.click();
+  await sleep(60);
+  if ($('#qk-bm-menu').hidden === false) $('#qk-bmbar').click();
+
   // 第二视图：检测已装浏览器（预览模式的 mock 没有这个方法，会退化成「没检测到」，
   // 但视图切换本身必须成立 —— 那才是这里的接线）
   $('#qk-bm-from-browser').click();

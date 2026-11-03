@@ -72,6 +72,17 @@
               <button class="em-item" id="qk-bm-export" role="menuitem">导出书签…</button>
               <button class="em-item" id="qk-bm-manage" role="menuitem">在设置里管理</button>
             </div>
+            <!-- 摆放位置：与「设置 → 书签 / 外观」里那两组是同一件事、同一份设置。
+                 用户想挪这条栏时，多半正站在它跟前 —— 让他为此跑一趟设置页没道理。 -->
+            <div class="qk-bm-pos" id="qk-bm-pos">
+              <span class="qk-bm-pos-cap">收藏夹栏位置</span>
+              <div class="qk-bm-pos-btns">
+                <button type="button" data-bmpos="top" title="地址栏下方（横向）">顶</button>
+                <button type="button" data-bmpos="bottom" title="窗口下沿（横向）">底</button>
+                <button type="button" data-bmpos="left" title="视口左侧（竖栏）">左</button>
+                <button type="button" data-bmpos="right" title="视口右侧（竖栏）">右</button>
+              </div>
+            </div>
           </div>
           <!-- 第二视图：检测到的已安装浏览器（点一项直接导入），由 JS 填 -->
           <div id="qk-bm-browsers" hidden></div>
