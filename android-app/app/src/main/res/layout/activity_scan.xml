@@ -2,6 +2,10 @@
 <!--
   扫码界面：全屏黑底，SurfaceView 铺满做相机预览，中间一个取景框（四角括号）。
   取景框只是视觉引导，解码用的是整帧，不裁剪。
+
+  scanStatus / scanRetry 是 v2 加的：相机起不来时把原因写在屏幕上、并给一个「重试」。
+  旧版失败只弹一个 Toast 就 finish()，用户只看到扫码页一闪而过 —— 既不知道
+  为什么，也没有重试的机会。
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -32,6 +36,43 @@
         android:shadowDx="0"
         android:shadowDy="1"
         android:shadowRadius="3" />
+
+    <!-- 状态 / 错误提示。相机正常时是 GONE。 -->
+    <TextView
+        android:id="@+id/scanStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal|bottom"
+        android:layout_marginBottom="140dp"
+        android:gravity="center"
+        android:paddingLeft="24dp"
+        android:paddingRight="24dp"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:shadowColor="#000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="3"
+        android:visibility="gone" />
+
+    <!-- 失败时才出现。相机被占用 / 权限没给，都靠它再试一次。 -->
+    <TextView
+        android:id="@+id/scanRetry"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_gravity="center_horizontal|bottom"
+        android:layout_marginBottom="96dp"
+        android:gravity="center"
+        android:minWidth="96dp"
+        android:paddingLeft="20dp"
+        android:paddingRight="20dp"
+        android:background="@drawable/bg_scan_retry"
+        android:clickable="true"
+        android:focusable="true"
+        android:text="重试"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/scanClose"

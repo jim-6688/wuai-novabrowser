@@ -3,16 +3,16 @@ package top.wuai.nova;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
-import android.graphics.SurfaceTexture;
+import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.WindowManager;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.BinaryBitmap;
@@ -23,6 +23,7 @@ import com.google.zxing.PlanarYUVLuminanceSource;
 import com.google.zxing.Result;
 import com.google.zxing.common.HybridBinarizer;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -36,18 +37,46 @@ import java.util.Map;
  * 会直接 {@code ActivityNotFoundException} 崩溃。所以我们自己画预览、自己解码，
  * 完全可控，也不引入 androidx/appcompat 依赖。
  *
+ * <h3>相机只能在 Surface 建好之后开（v2 修的就是这条）</h3>
+ * <p>旧版在 {@code onResume()} 里就 {@code Camera.open()} + {@code startPreview()}。
+ * 而 SurfaceView 的生命周期是 {@code onResume()} **之后**才回调 {@code surfaceCreated()}，
+ * 也就是说在那一刻 Surface 还不存在 —— {@code startPreview()} 必抛
+ * {@code RuntimeException: startPreview failed}，被 catch 后 Toast 一下就 {@code finish()}。
+ * 用户看到的现象正是「扫码页一闪、摄像头从来没打开过」。
+ *
+ * <p>所以现在：<b>只有 {@code surfaceCreated()} 才会开相机</b>；{@code onResume()} 只在
+ * Surface 已经就绪时补开（比如从后台回来）。失败也不再直接退出，而是把原因写在屏幕上
+ * 并给一个「重试」——退出等于让用户连重试的机会都没有。
+ *
  * <p>解码跑在独立的 HandlerThread 上，绝不阻塞预览回调与主线程。
  */
 public class ScanActivity extends Activity implements SurfaceHolder.Callback {
     public static final String EXTRA_SCAN = "scan";
 
+    /** 本页自己申请相机权限用的请求码（MainActivity 已经申请过一次，这里是兜底）。 */
+    private static final int REQ_CAMERA = 7201;
+
     private SurfaceView surface;
+    private TextView status;
+    private View retry;
     private Camera camera;
+    private int cameraId = -1;
+    /** Surface 是否已创建。相机只能在这之后开。 */
+    private boolean surfaceReady = false;
     private boolean previewing = false;
     private volatile boolean decoding = false;
+    /** 已经交过结果（解码线程可能连着送来两帧，只认第一帧）。 */
+    private boolean delivered = false;
     private HandlerThread decodeThread;
     private Handler decodeHandler;
     private final MultiFormatReader reader = new MultiFormatReader();
+    /** 预览回调。开预览时才创建（它要用到缓存的帧尺寸）。 */
+    private Camera.PreviewCallback previewCb = null;
+    /** 预览帧尺寸，开预览时缓存下来 —— 回调里每帧都 getParameters() 太贵，某些机型还会抛。 */
+    private int previewW = 0;
+    private int previewH = 0;
+    /** 权限请求已发出、还没回来 —— 防止表面回调连着来几次就弹几次框。 */
+    private boolean permissionPending = false;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -57,8 +86,20 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
         setContentView(R.layout.activity_scan);
 
         surface = findViewById(R.id.scanSurface);
-        TextView close = findViewById(R.id.scanClose);
-        close.setOnClickListener(v -> finish());
+        status = findViewById(R.id.scanStatus);
+        retry = findViewById(R.id.scanRetry);
+
+        findViewById(R.id.scanClose).setOnClickListener(v -> finish());
+        retry.setOnClickListener(v -> {
+            hideStatus();
+            if (!surfaceReady) {
+                // Surface 一直没建起来（极罕见）：重试也没用，如实说
+                showError("界面还没准备好，请退出后重新打开扫一扫");
+                return;
+            }
+            if (!ensurePermission()) return;
+            openCamera();
+        });
         surface.getHolder().addCallback(this);
 
         // 扫码只认 QR：PC 地址栏分享面板那张就是 QR。
@@ -70,97 +111,47 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
         decodeThread = new HandlerThread("scan-decode");
         decodeThread.start();
         decodeHandler = new Handler(decodeThread.getLooper());
+
+        showStatus("正在启动相机…");
+        /* 看门狗：正常情况下 surfaceCreated 几百毫秒内就到了。8 秒还没开成，
+         * 说明卡在了我们看不见的地方（Surface 没建起来 / 相机被别处占着）。
+         * 宁可给一句明确的话 + 重试，也别让用户对着「正在启动相机…」干等。 */
+        new Handler(getMainLooper()).postDelayed(() -> {
+            if (!isFinishing() && camera == null) {
+                showError("相机没有启动，点「重试」再试一次");
+            }
+        }, 8000);
     }
+
+    /* ------------------------------------------------------------------ *
+     * Surface 生命周期
+     * ------------------------------------------------------------------ */
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
-        openCamera(holder);
+        surfaceReady = true;
+        openCamera();
     }
 
     @Override
-    public void surfaceChanged(SurfaceHolder h, int f, int w, int hh) { }
+    public void surfaceChanged(SurfaceHolder h, int format, int w, int hh) {
+        surfaceReady = true;
+        // 尺寸变化（旋屏/分屏）后预览可能已断：相机在但没在预览，就重新挂一次
+        if (camera != null && !previewing) startPreview();
+        else if (camera == null) openCamera();
+    }
 
     @Override
     public void surfaceDestroyed(SurfaceHolder h) {
+        surfaceReady = false;
         releaseCamera();
     }
 
-    private void openCamera(SurfaceHolder holder) {
-        if (camera != null) return;
-        try {
-            camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK);
-            if (camera == null) { fail("无法打开相机"); return; }
-            Camera.Parameters p = camera.getParameters();
-            Camera.Size best = chooseSize(p.getSupportedPreviewSizes(), 1280, 720);
-            if (best != null) p.setPreviewSize(best.width, best.height);
-            List<String> focusModes = p.getSupportedFocusModes();
-            if (focusModes != null
-                    && focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
-                p.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-            }
-            camera.setParameters(p);
-            camera.setDisplayOrientation(90);
-            camera.setPreviewDisplay(holder);
-            camera.setPreviewCallback(previewCb);
-            camera.startPreview();
-            previewing = true;
-        } catch (Exception e) {
-            fail("相机初始化失败：" + e.getMessage());
-        }
-    }
-
-    private final Camera.PreviewCallback previewCb = new Camera.PreviewCallback() {
-        @Override
-        public void onPreviewFrame(byte[] data, Camera cam) {
-            if (data == null || decoding || !previewing) return;
-            decoding = true;
-            Camera.Size s = cam.getParameters().getPreviewSize();
-            decodeHandler.post(() -> {
-                try {
-                    // 竖屏下预览帧是横向的，先顺时针转 90° 成竖向再喂解码。
-                    byte[] rotated = rotateNV21(data, s.width, s.height, 90);
-                    int w = s.height, h = s.width;
-                    PlanarYUVLuminanceSource src = new PlanarYUVLuminanceSource(
-                            rotated, w, h, 0, 0, w, h, false);
-                    BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
-                    Result r = reader.decodeWithState(bmp);
-                    runOnUiThread(() -> deliver(r.getText()));
-                } catch (NotFoundException e) {
-                    // 这一帧没扫到，下一帧继续。
-                } catch (Exception e) {
-                    // 其它解码异常忽略，避免卡住预览。
-                } finally {
-                    decoding = false;
-                }
-            });
-        }
-    };
-
-    private void deliver(String text) {
-        if (text == null) return;
-        Intent i = new Intent();
-        i.putExtra(EXTRA_SCAN, text);
-        setResult(RESULT_OK, i);
-        finish();
-    }
-
-    private void fail(String msg) {
-        runOnUiThread(() -> {
-            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-            finish();
-        });
-    }
-
-    private void releaseCamera() {
-        if (camera != null) {
-            try {
-                camera.setPreviewCallback(null);
-                camera.stopPreview();
-                camera.release();
-            } catch (Exception ignored) { }
-            camera = null;
-        }
-        previewing = false;
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 只有 Surface 已就绪才补开。没有 Surface 时开相机＝必然 startPreview 失败。
+        if (surfaceReady && camera == null) openCamera();
     }
 
     @Override
@@ -170,47 +161,248 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        if (camera == null && surface.getHolder() != null) openCamera(surface.getHolder());
-    }
-
-    @Override
     protected void onDestroy() {
         super.onDestroy();
         releaseCamera();
         if (decodeThread != null) decodeThread.quitSafely();
     }
 
-    private static Camera.Size chooseSize(List<Camera.Size> sizes, int tw, int th) {
-        if (sizes == null || sizes.isEmpty()) return null;
-        Camera.Size best = null;
-        long minDiff = Long.MAX_VALUE;
-        for (Camera.Size s : sizes) {
-            long diff = Math.abs((long) s.width * s.height - (long) tw * th);
-            if (diff < minDiff) { minDiff = diff; best = s; }
+    /* ------------------------------------------------------------------ *
+     * 相机
+     * ------------------------------------------------------------------ */
+
+    /**
+     * 打开相机并开始预览。
+     *
+     * <p>所有「什么时候可以开」的判断都收在这里，调用方只管喊一声 —— 这样
+     * surfaceCreated / surfaceChanged / onResume / 重试按钮四条路不会各写一套守卫。
+     */
+    private void openCamera() {
+        if (camera != null || !surfaceReady) return;
+        if (!ensurePermission()) return;
+
+        Camera c = null;
+        int id = -1;
+        Throwable err = null;
+        // 先试后摄；某些平板/开发板没有后摄，退到「任意可用相机」。
+        for (int candidate : candidateIds()) {
+            try {
+                c = Camera.open(candidate);
+                id = candidate;
+                break;
+            } catch (Throwable e) {
+                err = e;
+                c = null;
+            }
         }
-        return best;
+        if (c == null) {
+            showError(ScanMath.explainFailure(ScanMath.classifyOpenError(err)));
+            return;
+        }
+
+        camera = c;
+        cameraId = id;
+        try {
+            Camera.Parameters p = camera.getParameters();
+            List<Camera.Size> sizes = p.getSupportedPreviewSizes(); // 只问一次，问两次拿的是同一个列表
+            int[] best = ScanMath.choosePreviewSize(widthsOf(sizes), heightsOf(sizes), 1280, 720);
+            if (best != null) p.setPreviewSize(best[0], best[1]);
+            List<String> focusModes = p.getSupportedFocusModes();
+            if (focusModes != null
+                    && focusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+                p.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+            }
+            camera.setParameters(p);
+            // 记下最终生效的帧尺寸：预览回调要用，避免每帧再去问一次 camera
+            Camera.Size ps = p.getPreviewSize();
+            previewW = ps != null ? ps.width : 0;
+            previewH = ps != null ? ps.height : 0;
+            camera.setDisplayOrientation(displayDegrees());
+            startPreview();
+        } catch (Throwable e) {
+            releaseCamera();
+            showError(ScanMath.explainFailure(ScanMath.classifyOpenError(e)));
+        }
     }
 
-    /** NV21 顺时针旋转 90°。相机预览帧是横向的，竖屏下需转成竖向再喂解码。 */
-    private static byte[] rotateNV21(byte[] data, int w, int h, int degree) {
-        if (degree != 90) return data;
-        byte[] out = new byte[data.length];
-        int ySize = w * h;
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                out[x * h + (h - y - 1)] = data[y * w + x];
-            }
+    /** 挂 Surface 并开始预览。Surface 未就绪时什么都不做（等 surfaceChanged 再来）。 */
+    private void startPreview() {
+        if (camera == null || !surfaceReady) return;
+        try {
+            if (previewCb == null) previewCb = newPreviewCallback();
+            camera.setPreviewDisplay(surface.getHolder());
+            camera.setPreviewCallback(previewCb);
+            camera.startPreview();
+            previewing = true;
+            hideStatus();
+        } catch (Throwable e) {
+            previewing = false;
+            releaseCamera();
+            showError(ScanMath.explainFailure(ScanMath.classifyOpenError(e)));
         }
-        for (int y = 0; y < h / 2; y++) {
-            for (int x = 0; x < w / 2; x++) {
-                int src = ySize + (y * w + x) * 2;
-                int dst = ySize + (x * h + (h / 2 - y - 1)) * 2;
-                out[dst] = data[src];
-                out[dst + 1] = data[src + 1];
-            }
+    }
+
+    private int displayDegrees() {
+        try {
+            Camera.CameraInfo info = new Camera.CameraInfo();
+            Camera.getCameraInfo(cameraId, info);
+            return ScanMath.displayOrientation(info.orientation, info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT, 0);
+        } catch (Throwable e) {
+            return 90; // 绝大多数后摄在竖屏下就是 90，取不到就按常见值
         }
+    }
+
+    /** 尝试顺序：后摄 → 其余任意一个。 */
+    private static List<Integer> candidateIds() {
+        List<Integer> ids = new ArrayList<>();
+        int count = 0;
+        try { count = Camera.getNumberOfCameras(); } catch (Throwable e) { count = 0; }
+        int back = -1;
+        for (int i = 0; i < count; i++) {
+            try {
+                Camera.CameraInfo info = new Camera.CameraInfo();
+                Camera.getCameraInfo(i, info);
+                if (info.facing == Camera.CameraInfo.CAMERA_FACING_BACK) { back = i; break; }
+            } catch (Throwable ignored) { }
+        }
+        if (back >= 0) ids.add(back);
+        for (int i = 0; i < count; i++) if (i != back) ids.add(i);
+        if (ids.isEmpty()) ids.add(0); // 连数量都取不到时死马当活马医
+        return ids;
+    }
+
+    private static int[] widthsOf(List<Camera.Size> sizes) {
+        if (sizes == null) return new int[0];
+        int[] out = new int[sizes.size()];
+        for (int i = 0; i < sizes.size(); i++) out[i] = sizes.get(i).width;
         return out;
+    }
+
+    private static int[] heightsOf(List<Camera.Size> sizes) {
+        if (sizes == null) return new int[0];
+        int[] out = new int[sizes.size()];
+        for (int i = 0; i < sizes.size(); i++) out[i] = sizes.get(i).height;
+        return out;
+    }
+
+    private void releaseCamera() {
+        if (camera != null) {
+            try {
+                camera.setPreviewCallback(null);
+                camera.stopPreview();
+            } catch (Throwable ignored) { }
+            try { camera.release(); } catch (Throwable ignored) { }
+            camera = null;
+        }
+        previewing = false;
+        cameraId = -1;
+    }
+
+    /* ------------------------------------------------------------------ *
+     * 权限
+     * ------------------------------------------------------------------ */
+
+    /** 缺权限就申请并返回 false（调用方先别开相机）；已有权限返回 true。 */
+    private boolean ensurePermission() {
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            return true;
+        }
+        if (!permissionPending) {
+            permissionPending = true;
+            requestPermissions(new String[]{android.Manifest.permission.CAMERA}, REQ_CAMERA);
+            showStatus("需要相机权限才能扫码");
+        }
+        return false;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQ_CAMERA) return;
+        permissionPending = false;
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            hideStatus();
+            openCamera();
+        } else {
+            showError("没有相机权限，无法扫码");
+        }
+    }
+
+    /* ------------------------------------------------------------------ *
+     * 解码
+     * ------------------------------------------------------------------ */
+
+    /**
+     * 建预览回调。
+     *
+     * <p>帧尺寸用 {@link #previewW}/{@link #previewH} 缓存，不再每帧 {@code getParameters()}：
+     * 那个调用要跨进程取一整包参数，在预览回调里每帧都做既费电又容易把预览拖卡，
+     * 个别机型还会直接抛 IllegalStateException。
+     */
+    private Camera.PreviewCallback newPreviewCallback() {
+        return new Camera.PreviewCallback() {
+            @Override
+            public void onPreviewFrame(byte[] data, Camera cam) {
+                if (data == null || decoding || !previewing) return;
+                final int fw = previewW, fh = previewH;
+                if (fw <= 0 || fh <= 0) return;
+                decoding = true;
+                decodeHandler.post(() -> {
+                    try {
+                        // 竖屏下预览帧是横向的，先顺时针转 90° 成竖向再喂解码。
+                        byte[] rotated = ScanMath.rotateNV21(data, fw, fh, 90);
+                        int w = fh, h = fw;
+                        PlanarYUVLuminanceSource src = new PlanarYUVLuminanceSource(
+                                rotated, w, h, 0, 0, w, h, false);
+                        BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
+                        Result r = reader.decodeWithState(bmp);
+                        runOnUiThread(() -> deliver(r.getText()));
+                    } catch (NotFoundException e) {
+                        // 这一帧没扫到，下一帧继续。
+                    } catch (Throwable e) {
+                        // 其它解码异常忽略，避免卡住预览。
+                    } finally {
+                        decoding = false;
+                    }
+                });
+            }
+        };
+    }
+
+    private void deliver(String text) {
+        if (text == null || delivered) return;
+        delivered = true; // 解码线程可能连着送来两帧的结果，只认第一帧
+        releaseCamera(); // 别再让后续帧喂进解码线程
+        Intent i = new Intent();
+        i.putExtra(EXTRA_SCAN, text);
+        setResult(RESULT_OK, i);
+        finish();
+    }
+
+    /* ------------------------------------------------------------------ *
+     * 状态提示
+     * ------------------------------------------------------------------ */
+
+    private void showStatus(String msg) {
+        if (status == null) return;
+        status.setText(msg);
+        status.setVisibility(View.VISIBLE);
+        if (retry != null) retry.setVisibility(View.GONE);
+    }
+
+    private void showError(String msg) {
+        if (status == null) {
+            finish();
+            return;
+        }
+        status.setText(msg);
+        status.setVisibility(View.VISIBLE);
+        // 有「重试」按钮，就别再把用户踢出去 —— 退出等于连重试的机会都没有
+        if (retry != null) retry.setVisibility(View.VISIBLE);
+    }
+
+    private void hideStatus() {
+        if (status != null) status.setVisibility(View.GONE);
+        if (retry != null) retry.setVisibility(View.GONE);
     }
 }

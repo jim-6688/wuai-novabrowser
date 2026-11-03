@@ -4425,6 +4425,16 @@ public final class MainActivity extends Activity {
         startActivityForResult(new Intent(this, ScanActivity.class), REQ_SCAN);
     }
 
+    /** 跳到本应用的系统设置页（相机权限被「不再询问」拒掉时的唯一出路）。 */
+    private void openAppSettings() {
+        try {
+            startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:" + getPackageName())));
+        } catch (Throwable e) {
+            toast("请到系统设置里手动开启相机权限");
+        }
+    }
+
     /**
      * 相机权限结果。 granted 才真正起扫；否则提示，不崩溃、不反复弹窗。
      */
@@ -4436,6 +4446,15 @@ public final class MainActivity extends Activity {
             if (grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 launchScanner();
+            } else if (!shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+                /* 勾了「不再询问」之后系统不会再弹框：只说一句「未授予」等于让人
+                 * 转着圈找不到北 —— 这里直接给一个跳到应用设置的入口。 */
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("需要相机权限")
+                        .setMessage("扫一扫要用相机读取二维码。请在「设置 → 权限 → 相机」里允许，然后重新点扫一扫。")
+                        .setPositiveButton("去设置", (d, w) -> openAppSettings())
+                        .setNegativeButton("取消", null)
+                        .show();
             } else {
                 toast("未授予相机权限，无法扫码");
             }
