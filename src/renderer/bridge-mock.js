@@ -545,6 +545,22 @@ const MOCK_UPDATE = {
       noImageCss: 'html.nova-no-image img{background-color:rgba(128,132,140,.16)!important;}',
       noImageJs: "document.documentElement.classList.add('nova-no-image');",
       platform: state.platform,
+      /** 预览模式没有主进程的 locale 模块，给一份同形的选项表（值须与 src/main/locale.js 一致） */
+      locales: [
+        { value: 'auto', label: '跟随系统' },
+        { value: 'zh-CN', label: '简体中文' },
+        { value: 'zh-TW', label: '繁體中文' },
+        { value: 'en-US', label: 'English' },
+        { value: 'ja-JP', label: '日本語' },
+        { value: 'ko-KR', label: '한국어' },
+        { value: 'ru-RU', label: 'Русский' },
+        { value: 'de-DE', label: 'Deutsch' },
+        { value: 'fr-FR', label: 'Français' },
+        { value: 'es-ES', label: 'Español' },
+        { value: 'pt-BR', label: 'Português' }
+      ],
+      systemLocale: 'zh-CN',
+      activeLocale: 'zh-CN',
       appVersion: state.appVersion,
       versions: state.versions,
       allowlist: state.allowlist

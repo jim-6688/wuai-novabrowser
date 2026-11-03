@@ -43,6 +43,21 @@ const DEFAULTS = {
   layout: 'auto',
   theme: 'light',
   /**
+   * 网页语言：'auto' 跟随系统，或具体语言标签（见 src/main/locale.js）。
+   *
+   * 影响 Accept-Language（改完立即生效）与 navigator.language（需重启）。
+   * 系统是英文又想要中文页面时，把它设成 zh-CN 即可，不用改系统区域。
+   */
+  locale: 'auto',
+  /**
+   * 第三方登录弹窗（QQ / 微信 / 微博 …）。
+   *
+   * 这类登录页必须开成**真弹窗**，靠 window.opener 把结果回传给原页面；
+   * 开成标签页就丢了 opener，登录会「点了没反应」。默认开。
+   * 关掉后一律开标签页（旧的、已知会坏的行为），只在排查问题时用。
+   */
+  authPopups: true,
+  /**
    * 自动更新（仅 PC，且只在打包版有意义）。
    *
    *   autoDownload —— 发现新版就自己下（下整包约 78MB，支持不了差分，见 updater.js）

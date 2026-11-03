@@ -1841,6 +1841,22 @@ svg {
 }
 .field:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
 
+/* 设置页的语言下拉：沿用输入框的观感，宽度占满一行（.field 里的 input 规则
+   不覆盖 select，所以这里单独写一份，避免出现一个没样式的原生控件） */
+.set-locale-sel {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2) var(--sp-3);
+  outline: none;
+  cursor: pointer;
+}
+.set-locale-sel:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+
 /* 按钮 */
 .btn {
   height: 30px; padding: 0 var(--sp-4);

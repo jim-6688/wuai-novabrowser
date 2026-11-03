@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
+const locale = require('./locale');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -359,6 +360,10 @@ class Engine {
     ses.webRequest.onBeforeSendHeaders((details, cb) => {
       const headers = Object.assign({}, details.requestHeaders);
       headers['User-Agent'] = ua;
+      /* 语言：**每次请求都现读** locale 模块的当前值，所以设置里改完下一次请求
+       * 就是新语言，不必重启。Electron 一个 session 只能挂一个 onBeforeSendHeaders
+       * 监听器（后挂的会覆盖前面的），所以只能收在这一处，不能另起一个。 */
+      try { headers['Accept-Language'] = locale.activeAccept(); } catch { /* 兜底不写 */ }
       if (hints) {
         headers['Sec-CH-UA'] = `"Chromium";v="${CHROME_MAJOR}", "Not(A:Brand";v="24"`;
         headers['Sec-CH-UA-Mobile'] = hints.mobile;

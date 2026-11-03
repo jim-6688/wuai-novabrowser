@@ -767,6 +767,12 @@ function mountTab(tab) {
     // 顺带踢一次盲探 —— 抓到之后 onFetched 会推 favicon:updated 再回来补。
     resolveTabFavicon(tab);
   });
+  // 主文档加载完成：① 记下「这一页完整加载过一次」，切标签页时据此决定要不要补 resize；
+  // ② 当前页做一次「画出来没有」体检 —— 空白页自动重载一次（见 healIfBlank）。
+  wv.addEventListener('did-finish-load', () => {
+    tab.everLoaded = true;
+    if (activeTab() && activeTab().id === tab.id) healIfBlank(tab);
+  });
   wv.addEventListener('did-navigate', (ev) => {
     tab.url = ev.url;
     // 换了站点：套用该域名记住的缩放（不落盘，只是应用）
@@ -1071,7 +1077,16 @@ function activateTab(id) {
   closeOmniShare(); // 切标签页时分享面板不该还挂在那儿
   closeSniffPopover(); // 嗅探清单按标签页归属，切页了旧清单没有意义
   for (const t of state.tabs) {
-    if (t.webview) t.webview.hidden = t.id !== id;
+    if (!t.webview) continue;
+    const wasHidden = !!t.webview.hidden;
+    t.webview.hidden = t.id !== id;
+    /* 从隐藏变可见：后台加载的页面量到的是 0×0 视口，布局可能算死在错误尺寸上
+       （表现＝「切过去是错的，刷新一下才对」）。补一次 resize 让它重算；
+       顺便体检一下是不是空白的（见 healIfBlank）。 */
+    if (t.id === id && wasHidden) {
+      nudgePageLayout(t);
+      setTimeout(() => { if (state.activeId === t.id) healIfBlank(t); }, 500);
+    }
   }
   // 切到 bridge 标签页：让宿主把对应视图提到前台并校准尺寸（不重新导航）
   const at = activeTab();
@@ -1108,6 +1123,65 @@ function pageErrorReason(err) {
   const m = map[String(err && err.code)];
   const d = err && err.desc ? '（' + err.desc + '）' : '';
   return m ? m + d : (err && err.desc) || '请检查网址或网络后重试';
+}
+
+/**
+ * 「加载完了但页面没画出来」的自愈
+ * ---------------------------------------------------------------------------
+ * 用户的原话：「个别网页加载一般刷新才恢复正常」。
+ *
+ * 已经加载完成（did-finish-load 触发过）却什么都没有 —— 只剩背景色、正文区和
+ * 元素全空，这种页面再点一次刷新多半就好了。与其让用户自己去按 F5，
+ * 不如在这里探一次：真的空就自动重载一次，并告诉他「已自动重新加载」。
+ *
+ * 判定（探针串、空白阈值、冷却窗口）全在 src/renderer/heal.js，那是个双导出模块，
+ * 单测直接 require 它 —— 测的就是这里跑的这一份，不再各写一遍。
+ */
+
+/** 二次兜底：脚本没加载成功时也不至于崩（正常路径永远走 NovaPageHeal）。 */
+const healRules = (typeof NovaPageHeal !== 'undefined') ? NovaPageHeal : null;
+
+function healIfBlank(tab) {
+  const wv = tab && tab.webview;
+  if (!wv || typeof wv.executeJavaScript !== 'function') return;
+  if (!healRules) return;
+  const url = tab.url;
+  if (!healRules.isHealableUrl(url)) return;
+  if (!healRules.shouldHeal({
+    url,
+    lastUrl: tab.healUrl,
+    lastAt: tab.healAt,
+    hasError: !!tab.loadError
+  })) return;
+
+  let probe;
+  try { probe = wv.executeJavaScript(healRules.PROBE, false); } catch { return; }
+  Promise.resolve(probe).then((res) => {
+    if (tab.webview !== wv) return; // 期间换过载体（崩溃重建 / 换内核），这次结果作废
+    if (!healRules.isBlank(healRules.parseProbe(res))) return;
+    tab.healUrl = url;
+    tab.healAt = Date.now();
+    try { wv.reload(); } catch { return; }
+    toast('页面没能渲染出来，已自动重新加载');
+  }).catch(() => { /* 探针跑不了就算了，别打扰用户 */ });
+}
+
+/**
+ * 让页面重新量一次视口。
+ *
+ * <p>后台标签页（hidden）加载时，webview 的实际尺寸是 0×0。有的页面在 DOMContentLoaded
+ * 那一刻就把布局算死了（图表、地图、虚拟列表、按 vh 撑满的容器），等标签页显示出来
+ * 也不会自己重算 —— 表现就是「切过去是错的，刷新一下才对」。切可见时补发一个
+ * resize，等价于 Chrome 在窗口尺寸变化时做的事。
+ */
+function nudgePageLayout(tab) {
+  const wv = tab && tab.webview;
+  if (!wv || typeof wv.executeJavaScript !== 'function') return;
+  if (!tab.everLoaded) return; // 还没加载完，等它自己那次就好
+  try {
+    const p = wv.executeJavaScript('try{window.dispatchEvent(new Event("resize"));}catch(e){}1', false);
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch { /* 未 dom-ready：等下次 */ }
 }
 
 /** 显示/收起「无法打开此网页」提示页（口径=当前标签页的 loadError）。 */
@@ -4505,6 +4579,35 @@ const SEARCH_PRESETS = [
   { label: 'Google', tpl: 'https://www.google.com/search?q=%s' }
 ];
 
+/**
+ * 可选语言表。
+ *
+ * <p>正经来源是主进程的 `app:bootstrap`（payload.locales，源头在 src/main/locale.js）——
+ * 只有一份，界面不再抄。这里留一份极简兜底只为「UI 预览 / 旧主进程」这种
+ * 拿不到 payload 的场合，值必须与 locale.js 一致。
+ */
+function localeOptions() {
+  if (Array.isArray(state.locales) && state.locales.length) return state.locales;
+  return [
+    { value: 'auto', label: '跟随系统' },
+    { value: 'zh-CN', label: '简体中文' },
+    { value: 'zh-TW', label: '繁體中文' },
+    { value: 'en-US', label: 'English' }
+  ];
+}
+
+function localeLabel(tag) {
+  const hit = localeOptions().find((o) => o.value === tag);
+  return hit ? hit.label : (tag || '—');
+}
+
+/** 「当前生效」那句：跟随系统时把系统语言一并显示出来，否则用户不知道自己跟到了什么。 */
+function activeLocaleLabel() {
+  const v = (state.settings && state.settings.locale) || 'auto';
+  if (v === 'auto') return '跟随系统（' + (state.systemLocale || '未知') + '）';
+  return localeLabel(v);
+}
+
 function buildGeneral() {
   const s = state.settings;
   const ntpMode = NovaNtpHost.modeOf(s.newTabPage);
@@ -4545,6 +4648,17 @@ function buildGeneral() {
         ${state.engines.map((e) => `<button data-engine="${e.id}" class="${s.defaultEngine === e.id ? 'is-active' : ''}">${esc(e.label)}</button>`).join('')}
       </div>
       <div class="muted" style="padding:var(--sp-2) 0 0">只影响新建标签页；已有标签页的内核在地址栏右侧单独切换。</div>
+    </div>
+
+    <div class="panel-label">语言与地区</div>
+    <div class="panel-section">
+      <select id="set-locale" class="set-locale-sel">
+        ${localeOptions().map((o) => `<option value="${esc(o.value)}" ${(s.locale || 'auto') === o.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+      </select>
+      <div class="muted" style="padding:var(--sp-2) 0 0">
+        决定网页用哪种语言显示（请求头 <code>Accept-Language</code>），改完下一次请求就生效；
+        <code>navigator.language</code> 需要重启浏览器才变。当前生效：${esc(activeLocaleLabel())}
+      </div>
     </div>
 
     <div class="panel-label">地址栏搜索</div>
@@ -5928,6 +6042,22 @@ function wireActions(root) {
       toast('搜索模板已更新');
     });
   });
+
+  /* 语言与地区：Accept-Language 按请求生效（下一次请求就是新语言），
+     navigator.language 由启动开关决定，只能等重启 —— 提示里说清楚，别让用户
+     以为「选了没反应」。 */
+  const localeSel = root.querySelector('#set-locale');
+  if (localeSel) {
+    localeSel.addEventListener('change', async () => {
+      const v = localeSel.value;
+      state.settings.locale = v;
+      await bridge.settings.patch({ locale: v });
+      refreshCurrent();
+      toast(v === 'auto'
+        ? '网页语言：跟随系统'
+        : `网页语言：${localeLabel(v)}（重启后 navigator.language 同步）`);
+    });
+  }
 
   // 通用布尔配置开关（restoreSession 等）
   root.querySelectorAll('[data-cfg]').forEach((sw) => {
@@ -9180,6 +9310,10 @@ async function init() {
   state.__versions = boot.versions;
   state.appVersion = boot.appVersion || '';
   state.platform = boot.platform;
+  // 语言与地区：选项表只有主进程一份（src/main/locale.js），这里只接收不抄
+  state.locales = boot.locales || null;
+  state.systemLocale = boot.systemLocale || '';
+  state.activeLocale = boot.activeLocale || '';
   state.noMedia = boot.nomedia || null;
   state.noImageCss = boot.noImageCss || '';
   state.noImageJs = boot.noImageJs || '';

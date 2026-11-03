@@ -348,6 +348,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('会话恢复开关存在', !!gen.querySelector('[data-cfg="restoreSession"]'));
   check('默认内核两档', gen.querySelectorAll('#set-engine button').length === 2);
 
+  // 语言与地区：控件存在 + 选项来自主进程下发的表 + 选了真的写进设置
+  const localeSel = gen.querySelector('#set-locale');
+  check('常规分区有「语言与地区」下拉', !!localeSel);
+  check('下拉选项不少于 4 项', !!localeSel && localeSel.options.length >= 4,
+        localeSel ? String(localeSel.options.length) : 'missing');
+  check('选项里含「跟随系统」', !!localeSel && [...localeSel.options].some((o) => o.value === 'auto'));
+  if (localeSel) {
+    localeSel.value = 'en-US';
+    localeSel.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await sleep(60);
+    check('切换语言写进设置', window.eval('state.settings.locale') === 'en-US',
+          window.eval('state.settings.locale'));
+    // 还原：后面还有别的检查，别让这条改动污染它们
+    localeSel.value = 'auto';
+    localeSel.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await sleep(60);
+  }
+
   [...gen.querySelectorAll('#set-search-preset button')].find((b) => b.textContent.trim() === '必应')
     .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   await sleep(50);

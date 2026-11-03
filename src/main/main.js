@@ -44,6 +44,8 @@ const browsersDetect = require('./browsers-detect');
 const browserExtensions = require('./browser-extensions');
 const desktopShortcut = require('./desktop-shortcut');
 const permissions = require('./permissions');
+const authPopup = require('./auth-popup'); // QQ/微信 等第三方登录必须开成真弹窗，见该模块头
+const locale = require('./locale'); // 语言与地区：Accept-Language / navigator.language
 
 const IS_DEV = process.argv.includes('--dev');
 const ROOT = path.join(__dirname, '..', '..');
@@ -117,6 +119,23 @@ const ntpContents = new Set();
 
 app.commandLine.appendSwitch('enable-features', 'WebContentsForceDark:disabled');
 
+/* 语言与地区。
+ *
+ * `--lang` / `--accept-lang` 只能在 ready 之前设置，所以这里读的是**设置文件里
+ * 的值**（settings 模块在 require 时就已加载完，不依赖 app ready）。
+ *
+ * 选「跟随系统」时不加任何开关 —— Chromium 自己就会取系统语言，保持与以前一致；
+ * 真实生效的标签在 ready 之后用 app.getLocale() 校正一次（见 bootstrap，那里
+ * 才能调这个 API），好让请求头里的 Accept-Language 与系统语言一致。 */
+const localeSetting = locale.normalizeLocale(settings.get('locale', 'auto'));
+if (localeSetting !== 'auto') {
+  locale.setActive(localeSetting);
+  app.commandLine.appendSwitch('lang', localeSetting);
+  app.commandLine.appendSwitch('accept-lang', locale.acceptLanguageFor(localeSetting));
+} else {
+  locale.setActive(locale.FALLBACK);
+}
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -167,6 +186,13 @@ if (!gotLock) {
 
 async function bootstrap() {
   settings.init(app.getPath('userData'));
+
+  /* 语言：这里是**唯一**能调 app.getLocale() 的地方（API 要求 ready 之后）。
+   * 选「跟随系统」时用它把 Accept-Language 校正成系统语言；
+   * 选具体语言时保持启动开关指定的那个，不被系统覆盖。 */
+  if (locale.normalizeLocale(settings.get('locale', 'auto')) === 'auto') {
+    locale.setActive(locale.normalizeSystemLocale(app.getLocale()));
+  }
 
   // 站点权限：让主进程随时能读到最新规则（含用户刚改的），并知道往哪个窗口弹询问条
   permissions.configure({
@@ -891,7 +917,7 @@ function wireContents(contents) {
   const engineId = sessionEngineMap.get(contents.session) || 'chromium';
   const engine = registry.get(engineId);
 
-  contents.setWindowOpenHandler(({ url, disposition }) => {
+  contents.setWindowOpenHandler(({ url, disposition, features }) => {
     // ed2k / magnet 不该开成一个标签页 —— 浏览器本身下不了，交给外部客户端
     if (protocolLinks.isExternalDownloadLink(url)) {
       handleExternalDownloadLink(url);
@@ -901,6 +927,31 @@ function wireContents(contents) {
     if (permissions.decidePopupOnOpen(settings.get('permissions', []), permissions.hostOf(url)) === 'block') {
       return { action: 'deny' };
     }
+
+    /* 第三方登录（QQ / 微信 / 微博 / 支付宝 …）必须开成**真弹窗**。
+     *
+     * 这类页面登录成功后靠 `window.opener.postMessage()` 回传结果、或者
+     * `window.close()` 关掉自己。若按旧逻辑开成新标签页，opener 是 null ——
+     * 扫码明明成功了，原页面永远等不到那次回调，用户看到的就是「点了没反应」。
+     *
+     * 判定规则见 src/main/auth-popup.js：登录域名一律弹窗；其余带显式宽高的
+     * window.open 也算弹窗；普通 target=_blank 链接照旧开标签页。 */
+    const popup = authPopup.decide({
+      url,
+      disposition,
+      features,
+      allowAuthPopups: settings.get('authPopups', true) !== false
+    });
+    if (popup.popup) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: authPopup.windowOptions(popup, {
+          session: contents.session,
+          parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
+        })
+      };
+    }
+
     send('tabs:open-request', { url, disposition, background: disposition === 'background-tab' });
     return { action: 'deny' };
   });
@@ -1109,6 +1160,13 @@ function registerIpc() {
     noImageCss: PLACEHOLDER_CSS,
     noImageJs: PLACEHOLDER_JS,
     platform: process.platform,
+    /** 语言与地区：可选语言表 + 系统语言 + 当前生效语言。
+     *
+     * <p>选项表只在 src/main/locale.js 里有一份，界面拿它画下拉；渲染层不再抄一份
+     * （抄了就会两边对不上：主进程加了语言，界面里却选不到）。 */
+    locales: locale.options(),
+    systemLocale: app.getLocale(),
+    activeLocale: locale.activeLocale(),
     /** 应用自身的版本号（package.json 的 version）。
      *
      * <p>此前「关于」面板把版本号**写死成 0.1.0**，而实际早已是 1.0.x ——
@@ -1148,6 +1206,12 @@ function registerIpc() {
       send('mobile:stats', noMedia.snapshot());
     }
     if (partial.theme) nativeTheme.themeSource = partial.theme;
+    /* 语言：Accept-Language 是**按请求**读 locale 模块的当前值，所以改完立刻生效；
+     * navigator.language 由启动开关决定，只能重启才变（设置页里写明了这点）。 */
+    if (partial.locale) {
+      const tag = locale.normalizeLocale(partial.locale);
+      locale.setActive(tag === 'auto' ? locale.normalizeSystemLocale(app.getLocale()) : tag);
+    }
     send('settings:changed', next);
     return next;
   });
