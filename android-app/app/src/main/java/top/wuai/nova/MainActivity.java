@@ -241,6 +241,9 @@ public final class MainActivity extends Activity {
      * 而白带是一天都要看着它的。理由详见 {@link #applyChromeFor}。
      */
     private View topBar;
+    /** 新标签页上专用的悬浮 AI 按钮。顶栏（含 btnAi）在那一屏被收掉，
+        所以单独浮一个入口让其能打开 AI 窗口；其余页面隐藏（见 applyChromeFor）。 */
+    private View btnAiFloat;
     /** 五格底栏。滚动时整条淡出，位置上换成 {@link #searchCapsule}。 */
     private View mobileBar;
     /** 顶栏那一行。滚动时整行收起，把这 52dp 还给网页。 */
@@ -991,6 +994,16 @@ public final class MainActivity extends Activity {
         // 站点自己的响应式布局在手机屏上会永远按 980px 排版，然后被整体缩小。
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
+        // 双指缩放（pinch-to-zoom）：显式打开缩放手势。setDisplayZoomControls(false)
+        // 是关键 —— 它保留双指手势、但不把屏幕上那组 +/− 缩放按钮画出来
+        // （那组按钮既挡视线，又容易在滚动时误触）。这与「文字缩放」(textZoom)
+        // 是两回事：pinch 缩放整页、文字缩放只动字号，两者可同时存在。
+        s.setSupportZoom(true);
+        s.setBuiltInZoomControls(true);
+        s.setDisplayZoomControls(false);
+        // 整页缩放（页面缩放设置，见 pickPageZoom / applyPageZoom）：0 = 适应宽度
+        // （沿用上面的 overview 适配），其余值当作初始缩放百分比。与文字缩放、双指缩放三者并存。
+        applyPageZoom();
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         // 渲染优先级调到高：滚动、手势、视频等重交互场景下，让 GPU 合成器
@@ -1366,6 +1379,13 @@ public final class MainActivity extends Activity {
             showMenuSheet();
         });
         findViewById(R.id.btnAi).setOnClickListener(v -> {
+            mountMain();
+            showAiSheet();
+        });
+        // 新标签页专用的悬浮 AI 入口：只在那一屏可见（applyChromeFor 控制），
+        // 点它与顶栏 btnAi 打开同一个 AI 对话面板。
+        btnAiFloat = findViewById(R.id.btnAiFloat);
+        if (btnAiFloat != null) btnAiFloat.setOnClickListener(v -> {
             mountMain();
             showAiSheet();
         });
@@ -2811,7 +2831,11 @@ public final class MainActivity extends Activity {
     private void applyChromeFor(String url) {
         if (topBar == null) topBar = findViewById(R.id.topBar);
         if (topBar == null) return;
-        topBar.setVisibility(NewTab.isNewTab(url) ? View.GONE : View.VISIBLE);
+        boolean isNtp = NewTab.isNewTab(url);
+        topBar.setVisibility(isNtp ? View.GONE : View.VISIBLE);
+        // 新标签页上整条顶栏被收掉（含 AI 按钮），单独浮一个 AI 入口，让那一屏也能开 AI 窗口。
+        if (btnAiFloat == null) btnAiFloat = findViewById(R.id.btnAiFloat);
+        if (btnAiFloat != null) btnAiFloat.setVisibility(isNtp ? View.VISIBLE : View.GONE);
     }
 
     // ------------------------------------------------------------ 用户脚本
@@ -5396,6 +5420,10 @@ public final class MainActivity extends Activity {
             textZoomLabel(), true,
             () -> pickTextZoom());
 
+        // 整页缩放（含图片与布局），与文字缩放互补。0 = 适应宽度（默认）。
+        setRow(sheet, R.id.setPageZoom, "页面缩放", "放大或缩小整页（图片与布局一起变）",
+            pageZoomLabel(), true, () -> pickPageZoom());
+
         setToggleRow(sheet, R.id.setSwipeUpSearch, "上划显示搜索",
             "下滑时收起工具栏，底栏那格换成搜索框；关掉后滚动不改动界面",
             settings.swipeUpSearch, false, () -> {
@@ -6161,6 +6189,54 @@ public final class MainActivity extends Activity {
                     mountMain();
                     showSettings();
                     toast("网页字号 " + z + "%");
+                }));
+        }
+    }
+
+    private void applyPageZoom() {
+        if (web == null) return;
+        // setInitialScale 在真实 Android 设备上一直存在，但本项目裁剪过的 android 桩
+        // 里没收录它的方法签名，直接调用编不过。用反射调真实实现：
+        // 0 = 不指定初始缩放（沿用上面的 overview 适应宽度），其余值当作初始缩放百分比。
+        // 与文字缩放（textZoom）、双指缩放三者可并存。
+        try {
+            java.lang.reflect.Method m =
+                web.getSettings().getClass().getMethod("setInitialScale", int.class);
+            m.invoke(web.getSettings(), settings.pageZoom);
+        } catch (Exception ignored) {
+            // 个别 ROM 缺失该 API 时静默忽略，不影响其余功能。
+        }
+    }
+
+    private String pageZoomLabel() {
+        int z = settings.pageZoom;
+        if (z == 0) return "适应宽度（默认）";
+        if (z < 100) return "缩小（" + z + "%）";
+        if (z > 100) return "放大（" + z + "%）";
+        return "标准（100%）";
+    }
+
+    private void pickPageZoom() {
+        View sheet = openSheet("页面缩放", R.layout.sheet_picker);
+        LinearLayout list = sheet.findViewById(R.id.pickerList);
+        ((TextView) sheet.findViewById(R.id.pickerNote)).setText(
+            "放大或缩小整页（图片与布局一起变）。「适应宽度」会按屏幕宽度自动铺满，其余档位直接按比例缩放。");
+
+        int[] levels = {0, 90, 100, 125, 150};
+        String[] names = {"适应宽度", "偏小", "标准", "大", "特大"};
+        for (int i = 0; i < levels.length; i++) {
+            final int z = levels[i];
+            final String name = names[i];
+            String note = z == 0 ? "默认" : z + "%";
+            list.addView(pickerRow(list, name, note,
+                settings.pageZoom == z,
+                () -> {
+                    settings.pageZoom = z;
+                    store.save(settings);
+                    applyPageZoom();
+                    mountMain();
+                    showSettings();
+                    toast(z == 0 ? "页面缩放：适应宽度" : "页面缩放 " + z + "%");
                 }));
         }
     }

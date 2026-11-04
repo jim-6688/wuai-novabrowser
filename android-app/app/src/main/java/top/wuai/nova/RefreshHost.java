@@ -134,7 +134,27 @@ public class RefreshHost extends FrameLayout {
                 // DOWN 不抢：用户可能是想横向划、也可能只是想点一个链接
                 return false;
 
+            case MotionEvent.ACTION_POINTER_DOWN:
+                // 第二指落下：这一场不再是单指下拉，放弃拦截，把双指交还 WebView ——
+                // 否则双指缩放（pinch）会被当成「拉」，放大就废了。此刻还没真正接管
+                // （DOWN 不抢），直接放行即可。
+                if (pull.armed() || pull.active()) {
+                    pull.cancel();
+                    render(false);
+                }
+                return false;
+
             case MotionEvent.ACTION_MOVE: {
+                // 多指手势（双指放大等）：任何时候超过一根手指就立刻放手，
+                // 让 WebView 完整接管捏合。否则 armed 状态下 onInterceptTouchEvent
+                // 仍会被调用，下拉刷新的判定可能吃掉 pinch 的前几帧。
+                if (ev.getPointerCount() > 1) {
+                    if (pull.armed() || pull.active()) {
+                        pull.cancel();
+                        render(false);
+                    }
+                    return false;
+                }
                 if (!pull.armed()) return false;
 
                 /*
@@ -174,6 +194,14 @@ public class RefreshHost extends FrameLayout {
                 // 那时若不重新定基准，上一场手势残留的 armed 会让这一场凭空冒出一颗球。
                 beginGesture(ev);
                 return pull.armed();
+
+            case MotionEvent.ACTION_POINTER_DOWN:
+                // 下拉已经接管时又落下第二指（用户想改成双指缩放）：放弃下拉、
+                // 收回指示球，不再继续吃事件。这一场已经归我们，没必要把后续事件
+                // 塞回 WebView，直接收尾即可，让它重新从 DOWN 开始手势。
+                pull.cancel();
+                render(true);
+                return true;
 
             case MotionEvent.ACTION_MOVE:
                 if (!pull.armed()) return false;

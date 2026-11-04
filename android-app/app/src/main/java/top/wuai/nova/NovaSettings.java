@@ -55,6 +55,9 @@ public final class NovaSettings {
     public String layout = "auto";
     /** 网页文字缩放，100 = 不变。走 WebSettings.setTextZoom。 */
     public int textZoom = 100;
+    /** 整页缩放（含图片与布局），0 = 适应宽度（沿用 WebView 的 overview 适配），
+        其余值直接当作初始缩放百分比。与文字缩放（textZoom）、双指缩放三者可并存。 */
+    public int pageZoom = 0;
     /** system | light | dark */
     public String theme = "system";
     /** 主题配色 id（见 {@link ThemeCatalog}），默认蓝。与 theme 的深浅正交。 */
@@ -250,6 +253,7 @@ public final class NovaSettings {
         m.put("customUA", customUA);
         m.put("layout", layout);
         m.put("textZoom", String.valueOf(textZoom));
+        m.put("pageZoom", String.valueOf(pageZoom));
         m.put("loadImages", String.valueOf(loadImages));
         m.put("forceHttps", String.valueOf(forceHttps));
         return m;
@@ -301,6 +305,7 @@ public final class NovaSettings {
         s.clearOnExit = bool(m.get("clearOnExit"), s.clearOnExit);
         if (m.get("customUA") != null) s.customUA = m.get("customUA");
         s.textZoom = clamp(intOf(m.get("textZoom"), s.textZoom), 50, 200);
+        s.pageZoom = clamp(intOf(m.get("pageZoom"), s.pageZoom), 0, 200);
         s.loadImages = bool(m.get("loadImages"), s.loadImages);
         s.forceHttps = bool(m.get("forceHttps"), s.forceHttps);
         return s;
