@@ -1,28 +1,29 @@
 {
-  "version": "1.7.2",
-  "versionCode": 42,
+  "version": "1.7.3",
+  "versionCode": 43,
   "channel": "release",
-  "updatedAt": "2026-11-03",
+  "updatedAt": "2026-11-04",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "扫码修好了：相机此前根本没有打开过 —— 在预览画面创建之前就调用了 startPreview，必然抛异常，于是扫码页一闪而过。这次改成画面就绪再开相机，失败时屏幕上会写明原因并给出重试入口",
-    "扫码入口移到顶栏：位于地址栏右侧、书签按钮左边，从主菜单移出",
-    "收藏可编辑：收藏夹里的条目可以改标题、改网址，改完立刻生效",
-    "地址栏显示中文网站名：网页加载完成后显示站名，点击地址栏才切换为真实网址"
+    "新增双指缩放：在网页上双指张开 / 捏合即可放大缩小，无需借助按钮",
+    "新标签页右上角新增悬浮 AI 入口：那一屏原本收掉了顶栏、开不了 AI，现在右上角浮一个按钮即可唤出 AI 对话",
+    "新增「整页缩放」设置（设置 → 个性化）：可选适应宽度 / 90% / 100% / 125% / 150%，与文字缩放、双指缩放三者并存",
+    "新标签页右上角新增悬浮扫一扫入口：扫码 PC 地址栏分享面板的二维码即可跳转到对应网站",
+    "地址栏改为常驻：滚动网页时地址栏不再收起，阅读时位置固定"
   ],
   "downloads": [
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.2/nova-1.7.2.apk",
-      "size": 744602,
-      "sha256": "ec572e812b10a90cc3fa4efd802fb6a81c863486b76730a5f9a6548dcb4047ea"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.3/nova-1.7.3.apk",
+      "size": 746234,
+      "sha256": "a902d73e4d35716c7a56f5a3c905d47e6dbacfc3a795003c967f181d610f2ad5"
     },
     {
       "label": "官网直链",
-      "url": "download/nova-1.7.2.apk",
-      "size": 744602,
-      "sha256": "ec572e812b10a90cc3fa4efd802fb6a81c863486b76730a5f9a6548dcb4047ea"
+      "url": "download/nova-1.7.3.apk",
+      "size": 746234,
+      "sha256": "a902d73e4d35716c7a56f5a3c905d47e6dbacfc3a795003c967f181d610f2ad5"
     }
   ],
   "pc": {

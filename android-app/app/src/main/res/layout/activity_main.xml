@@ -352,6 +352,26 @@
             android:visibility="gone" />
 
         <!--
+          新标签页专用的悬浮扫一扫入口。整条顶栏（含地址栏旁的 btnScan）在那一屏被
+          收成 GONE，这里单独浮一个扫一扫，排在 AI 浮钮左边（layout_marginEnd 让出一
+          整颗按钮 + 间隙），只在【新标签页】上显示（applyChromeFor 控制）。点它直接
+          startScan()，与地址栏 btnScan 走同一套扫码逻辑。
+        -->
+        <ImageButton
+            android:id="@+id/btnScanFloat"
+            android:layout_width="@dimen/tap_action"
+            android:layout_height="@dimen/tap_action"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="62dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/content_desc_scan"
+            android:scaleType="centerInside"
+            android:padding="7dp"
+            android:src="@drawable/ic_scan"
+            android:visibility="gone" />
+
+        <!--
           强制更新时盖在网页上的遮罩。
 
           为什么需要这一层：「强制」如果只体现在「× 按钮不见了」，用户照样可以
@@ -534,7 +554,7 @@
         </LinearLayout>
 
         <!--
-          滚动态的胶囊搜索框。顶栏整行收起后，搜索入口落到这里。
+          滚动态的胶囊搜索框。地址栏（顶栏）始终常驻，底栏变胶囊是滚动时唯一的界面变化。
 
           刻意用 surface + 品牌色描边（bg_search_capsule），与常态的 omnibox
           （surface_2 灰底无边框）区分开 —— 一眼能看出「现在这一格是搜索状态」。

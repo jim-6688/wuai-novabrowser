@@ -244,6 +244,9 @@ public final class MainActivity extends Activity {
     /** 新标签页上专用的悬浮 AI 按钮。顶栏（含 btnAi）在那一屏被收掉，
         所以单独浮一个入口让其能打开 AI 窗口；其余页面隐藏（见 applyChromeFor）。 */
     private View btnAiFloat;
+    /** 新标签页上专用的悬浮扫一扫按钮。顶栏（含 btnScan）在那屏同样被收掉，
+        这里单独浮一个，点它直接 startScan()；其余页面隐藏（见 applyChromeFor）。 */
+    private View btnScanFloat;
     /** 五格底栏。滚动时整条淡出，位置上换成 {@link #searchCapsule}。 */
     private View mobileBar;
     /** 顶栏那一行。滚动时整行收起，把这 52dp 还给网页。 */
@@ -310,17 +313,6 @@ public final class MainActivity extends Activity {
     private final BottomBarReveal reveal = new BottomBarReveal();
     /** 上一次真正应用到界面上的状态，用来避免每个滚动帧都重复启动动画。 */
     private BottomBarReveal.State shownReveal = BottomBarReveal.State.SHOW_BAR;
-
-    /**
-     * 程序性滚动的静默截止时刻（{@link SystemClock#uptimeMillis}）。
-     *
-     * <p>收起 / 展开顶栏时我们会把页面反向补一段来抵消视觉位移，那一下本身
-     * 也会回调 {@code onScrollChange}（重排后还可能再回吐一次夹取后的位置）。
-     * 这些都不是用户划的，窗口内只把状态机的基准挪过去、不参与判定。
-     */
-    private long revealMuteUntil;
-    /** 静默窗口时长。够吞掉补偿自己 + 紧随其后那一次布局回调，又不至于漏掉用户的手势。 */
-    private static final long REVEAL_MUTE_MS = 120;
 
     // ------------------------------------------------------------ 生命周期
 
@@ -1389,6 +1381,9 @@ public final class MainActivity extends Activity {
             mountMain();
             showAiSheet();
         });
+        // 新标签页专用的悬浮扫一扫入口：只那一屏可见（applyChromeFor 控制），点它直接扫码。
+        btnScanFloat = findViewById(R.id.btnScanFloat);
+        if (btnScanFloat != null) btnScanFloat.setOnClickListener(v -> startScan());
     }
 
     /**
@@ -1534,9 +1529,8 @@ public final class MainActivity extends Activity {
      * <p>WebView 是复用的同一个实例，所以这里重复 set listener 也不会有多份
      * —— set 是覆盖语义，跟 add 不一样。
      *
-     * <p>顶栏收起 / 展开会让网页区高度差 48dp，那带来的视觉位移由
-     * {@link #applyReveal} 里的补偿抵消（见 {@link #compensateTopBarShift}）——
-     * 少了它，用户看到的就是「滑一下就跳一下」。
+     * <p>顶栏（地址栏那一行）始终常驻，不再随滚动收起，所以这里只切换底栏形态、
+     * 不再做顶栏位移补偿（见 2026-11-04 的改动）。
      */
     private void setupScrollReveal() {
         if (web == null) return;
@@ -1545,11 +1539,6 @@ public final class MainActivity extends Activity {
             // 但基准仍要跟着走 —— 否则重新打开开关后，第一个回调会拿一个
             // 过期的基准去算位移，界面凭空切一次滚动态。
             if (!settings.swipeUpSearch) {
-                reveal.syncBaseline(scrollY);
-                return;
-            }
-            // 补偿造成的滚动回调：只挪基准，不作判定（见 revealMuteUntil）。
-            if (SystemClock.uptimeMillis() < revealMuteUntil) {
                 reveal.syncBaseline(scrollY);
                 return;
             }
@@ -1692,13 +1681,12 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 把状态落到界面。一次切换里上下各发生一件事：
+     * 把状态落到界面：滚动时<b>只</b>切换底栏形态（五格 ↔ 胶囊搜索框），
+     * 顶栏（地址栏那一行 {@code topRow}）始终常驻，不再随滚动收起 —— 2026-11-04 起。
      *
      * <ul>
-     *   <li><b>顶栏</b>：滚动时整行收起（{@code topRow} 置 {@link View#GONE}），
-     *       把这 52dp 还给网页。它是整行进出，不做交叉淡入淡出 ——
-     *       收起的目的就是把高度让出去，若只是把内容变透明，那一条空白
-     *       照样横在网页上面，等于没让。</li>
+     *   <li><b>顶栏</b>：固定显示，由 {@link #applyChromeFor} 按当前页面（新标签页隐藏）
+     *       管理，不参与滚动显隐，因此也无需再为它做视觉位移补偿。</li>
      *   <li><b>底栏</b>：五格与胶囊搜索框叠在同一行（布局里的 {@code bottomRow}，
      *       行高恒定 60dp）里交叉淡入淡出。滚动时五格向下滑出、胶囊从下沿滑进来。
      *       两套内容互相覆盖，行高不变，所以网页不会被推一下。</li>
@@ -1710,8 +1698,7 @@ public final class MainActivity extends Activity {
     private void applyReveal(BottomBarReveal.State s, boolean animate) {
         final View bar = mobileBar;
         final View cap = searchCapsule;
-        final View top = topRow;
-        if (bar == null || cap == null || top == null) return;
+        if (bar == null || cap == null) return;
         boolean showBar = s == BottomBarReveal.State.SHOW_BAR;
         int duration = animate ? 300 : 0;
 
@@ -1727,22 +1714,8 @@ public final class MainActivity extends Activity {
         float density = getResources().getDisplayMetrics().density;
         int rowH = bottomRow != null && bottomRow.getHeight() > 0
                 ? bottomRow.getHeight() : Math.round(68 * density);
-        // 顶栏高度同理兜底。48dp = 40dp 按钮 + 上下 padding 6+2，见 activity_main.xml —
-        // 这一行的真实高度决定补偿多少，写错就等于没补（顶栏收起时它已被 GONE，量不到）。
-        int topH = top.getHeight() > 0 ? top.getHeight() : Math.round(48 * density);
-        int topWas = top.getVisibility();
 
         if (showBar) {
-            // 顶栏整行回来。它上一轮是被 GONE 掉的，这里没有 alpha 可播 —— 直接出现。
-            //
-            // 但「顶栏这一行」和「顶栏里的内容」是两件事：内置新标签页上内容该是空的
-            // （见 applyChromeFor），所以紧接着要按当前页面重算一次 —— 少了这一句，
-            // 在新标签页上滚一下再滚回来，地址栏和搜索键就会重新亮出来。
-            top.setVisibility(View.VISIBLE);
-            // 只有真的从「收起」切回来才补偿。装配阶段它本来就是可见的，
-            // 那一下若也补，等于每次重装主界面都把页面平白往下推 48dp。
-            if (topWas != View.VISIBLE) compensateTopBarShift(topH);
-            applyChromeFor(currentUrl());
             // 胶囊向下滑出行外。位移取的是整个「行高」而不是它自己的高度：
             // 它要从本行下沿出去，只移自身高度的话会卡在行里露一条边。
             cap.animate().alpha(0f).translationY(rowH).setDuration(duration)
@@ -1754,9 +1727,6 @@ public final class MainActivity extends Activity {
             bar.setTranslationY(rowH);
             bar.animate().alpha(1f).translationY(0f).setDuration(duration).start();
         } else {
-            // 顶栏整行收起，把这一行的高度让给网页
-            top.setVisibility(View.GONE);
-            if (topWas != View.GONE) compensateTopBarShift(-topH);
             cap.setVisibility(View.VISIBLE);
             // 先摆到行外，再滑进来。少了这一步，第一帧它已经在终点上，
             // 看起来是「啪」一下出现，而不是滑进来。
@@ -1809,36 +1779,6 @@ public final class MainActivity extends Activity {
         if (shownReveal != expected) return;
         v.setVisibility(hideAs);
         if (hideAs == View.GONE) v.setTranslationY(0f);
-    }
-
-    /**
-     * 顶栏收起 / 展开后，把网页反向滚一段，抵消它带来的视觉位移。
-     *
-     * <p>顶栏是竖直 LinearLayout 里的流式兄弟节点（见 activity_main.xml）：它一
-     * {@code GONE}，网页区就既长高 48dp、又整体上移 48dp —— WebView 被 resize，
-     * 同一段内容在屏幕上凭空挪了一整条地址栏的高度，读起来就是「滑动时跳一下」，
-     * 展开时反向再跳一次。这不是动画或阈值的问题，是布局本身动了。
-     *
-     * <p>补的方向：顶栏收起时把页面往回滚（{@code scrollY - topH}），展开时往前滚
-     * （{@code + topH}）。内容相对视口下移 topH，正好抵消视口上沿上移 topH ——
-     * 用户在读的那一段停在原处，多出来的那一块从下方补进来。桌面浏览器收起工具栏后
-     * 是同一个手感：走掉的是「原本被挡住的那一条」，不是你正在看的内容。
-     *
-     * <p>滚到页面尽头不必担心越界：浏览器会把位置夹回合法范围，这一下会被夹成空操作，
-     * 与「什么都不做」等价。也不会出现「在顶部把位置滚成负数」—— 顶栏只在向下累计
-     * 超过 120px 之后才收起（见 {@link BottomBarReveal} 的阈值）。
-     *
-     * <p>补完之后立刻做两件收尾，否则这一下会被当成用户手势：把状态机的基准对齐到
-     * 真实位置（免得下一个回调拿过期基准算出位移），再开一个短静默窗口吞掉紧随
-     * 重排而来的那一次回调。两件都要，理由见 {@link #revealMuteUntil}。
-     *
-     * @param scrollDeltaPx 要补的位移；正 = 往前滚（顶栏回来），负 = 往回滚（顶栏收起）
-     */
-    private void compensateTopBarShift(int scrollDeltaPx) {
-        if (web == null || scrollDeltaPx == 0) return;
-        revealMuteUntil = SystemClock.uptimeMillis() + REVEAL_MUTE_MS;
-        web.scrollBy(0, scrollDeltaPx);
-        reveal.syncBaseline(web.getScrollY());
     }
 
     /**
@@ -2833,9 +2773,11 @@ public final class MainActivity extends Activity {
         if (topBar == null) return;
         boolean isNtp = NewTab.isNewTab(url);
         topBar.setVisibility(isNtp ? View.GONE : View.VISIBLE);
-        // 新标签页上整条顶栏被收掉（含 AI 按钮），单独浮一个 AI 入口，让那一屏也能开 AI 窗口。
+        // 新标签页上整条顶栏被收掉（含 AI 按钮、扫一扫），单独浮一组入口，让那一屏也能开 AI 窗口、扫码。
         if (btnAiFloat == null) btnAiFloat = findViewById(R.id.btnAiFloat);
         if (btnAiFloat != null) btnAiFloat.setVisibility(isNtp ? View.VISIBLE : View.GONE);
+        if (btnScanFloat == null) btnScanFloat = findViewById(R.id.btnScanFloat);
+        if (btnScanFloat != null) btnScanFloat.setVisibility(isNtp ? View.VISIBLE : View.GONE);
     }
 
     // ------------------------------------------------------------ 用户脚本
@@ -5425,7 +5367,7 @@ public final class MainActivity extends Activity {
             pageZoomLabel(), true, () -> pickPageZoom());
 
         setToggleRow(sheet, R.id.setSwipeUpSearch, "上划显示搜索",
-            "下滑时收起工具栏，底栏那格换成搜索框；关掉后滚动不改动界面",
+            "滚动时底栏变成搜索框；关掉后滚动不改动界面（地址栏始终常驻）",
             settings.swipeUpSearch, false, () -> {
                 settings.swipeUpSearch = !settings.swipeUpSearch;
                 store.save(settings);
