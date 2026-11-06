@@ -4,10 +4,12 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -51,6 +53,7 @@ import java.util.Map;
  * <p>解码跑在独立的 HandlerThread 上，绝不阻塞预览回调与主线程。
  */
 public class ScanActivity extends Activity implements SurfaceHolder.Callback {
+    private static final String TAG = "NovaScan";
     public static final String EXTRA_SCAN = "scan";
 
     /** 本页自己申请相机权限用的请求码（MainActivity 已经申请过一次，这里是兜底）。 */
@@ -77,6 +80,8 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
     private int previewH = 0;
     /** 权限请求已发出、还没回来 —— 防止表面回调连着来几次就弹几次框。 */
     private boolean permissionPending = false;
+    /** 连续「解码抛异常」的帧数（正常没扫到不计）。用来把静默失败暴露给用户。 */
+    private volatile int decodeFailures = 0;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -92,6 +97,7 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
         findViewById(R.id.scanClose).setOnClickListener(v -> finish());
         retry.setOnClickListener(v -> {
             hideStatus();
+            decodeFailures = 0;
             if (!surfaceReady) {
                 // Surface 一直没建起来（极罕见）：重试也没用，如实说
                 showError("界面还没准备好，请退出后重新打开扫一扫");
@@ -106,6 +112,9 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
         Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
         hints.put(DecodeHintType.POSSIBLE_FORMATS,
                 Collections.singletonList(BarcodeFormat.QR_CODE));
+        // 手机屏幕上的二维码、或光照不均/略模糊的打印码，默认单遍解码容易漏。
+        // TRY_HARDER 让 ZXing 多试几轮阈值与方向，识别率明显更高。
+        hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
         reader.setHints(hints);
 
         decodeThread = new HandlerThread("scan-decode");
@@ -204,6 +213,14 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
         cameraId = id;
         try {
             Camera.Parameters p = camera.getParameters();
+            // 显式锁 NV21：Camera1 默认就是它，但个别机型会回 YV12，
+            // 那会让下面的 rotateNV21 / PlanarYUVLuminanceSource 全盘读错。
+            try {
+                List<Integer> formats = p.getSupportedPreviewFormats();
+                if (formats == null || formats.contains(ImageFormat.NV21)) {
+                    p.setPreviewFormat(ImageFormat.NV21);
+                }
+            } catch (Throwable ignored) { }
             List<Camera.Size> sizes = p.getSupportedPreviewSizes(); // 只问一次，问两次拿的是同一个列表
             int[] best = ScanMath.choosePreviewSize(widthsOf(sizes), heightsOf(sizes), 1280, 720);
             if (best != null) p.setPreviewSize(best[0], best[1]);
@@ -346,21 +363,33 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
                 if (data == null || decoding || !previewing) return;
                 final int fw = previewW, fh = previewH;
                 if (fw <= 0 || fh <= 0) return;
+                // Camera 的回调 buffer 在 onPreviewFrame 返回后随时可能被复用/覆盖，
+                // 而解码在另一个线程上跑 —— 必须先拷一份，否则解的是半新半旧的帧。
+                final byte[] frame = data.clone();
                 decoding = true;
                 decodeHandler.post(() -> {
                     try {
                         // 竖屏下预览帧是横向的，先顺时针转 90° 成竖向再喂解码。
-                        byte[] rotated = ScanMath.rotateNV21(data, fw, fh, 90);
+                        byte[] rotated = ScanMath.rotateNV21(frame, fw, fh, 90);
                         int w = fh, h = fw;
                         PlanarYUVLuminanceSource src = new PlanarYUVLuminanceSource(
                                 rotated, w, h, 0, 0, w, h, false);
                         BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
                         Result r = reader.decodeWithState(bmp);
+                        decodeFailures = 0;
                         runOnUiThread(() -> deliver(r.getText()));
                     } catch (NotFoundException e) {
-                        // 这一帧没扫到，下一帧继续。
+                        // 这一帧没扫到，属于正常路径，下一帧继续。
+                        decodeFailures = 0;
                     } catch (Throwable e) {
-                        // 其它解码异常忽略，避免卡住预览。
+                        /* 不能再静默吞掉：解码链路一旦坏了，用户只会看到「相机正常
+                         * 却永远扫不出」，完全无从判断坏在哪一环（rotateNV21 越界
+                         * 就是这样藏了一整个版本）。写日志 + 连续失败给一句可见提示。 */
+                        Log.e(TAG, "解码帧失败", e);
+                        if (++decodeFailures == 10) {
+                            runOnUiThread(() ->
+                                showError("识别组件出现异常，点「重试」再试一次"));
+                        }
                     } finally {
                         decoding = false;
                     }

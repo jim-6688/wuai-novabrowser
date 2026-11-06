@@ -91,7 +91,8 @@ if (typeof window !== 'undefined' && !window.nova) {
     session: { tabs: [], activeIndex: 0 },
     download: { takeOver: true, threads: 8, maxConcurrent: 3, dir: '' },
     sniffer: { enabled: true, minSizeKB: 0, showSegments: false, autoProbe: true },
-    mobile: { noImage: 'off', autoPage: false, autoPageMax: 10 }
+    mobile: { noImage: 'off', autoPage: false, autoPageMax: 10 },
+    localNetworkAccess: 'ask'
   };
 
   /* 格式注册表规模 —— 与 src/main/sniffer.js 实际算出来的一致，写死是为了
@@ -339,7 +340,7 @@ if (typeof window !== 'undefined' && !window.nova) {
         marginType: 'default', marginTop: 10, marginBottom: 10, marginLeft: 10, marginRight: 10,
         scale: 100, copies: 1, printBackground: true, headerFooter: false, deviceName: ''
       },
-      passwords: { promptSave: true, neverFor: [] },
+      passwords: { promptSave: true, autofill: true, autoUpdate: true, neverFor: [] },
       adblock: {
         enabled: true, cosmetic: true, level: 'standard', allowlist: [], userLists: [],
         sources: { adtchrome: true, abp: true, builtin: true }

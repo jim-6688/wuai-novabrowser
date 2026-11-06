@@ -162,10 +162,15 @@ const DEFAULTS = {
    *   autofill   —— 打开已保存密码的网站时，是否直接把账号密码填进登录框。
    *                 缺省视为开：这是「保存密码」这件事在用户眼里的本义。
    *                 关掉后仍可从设置里手动「填充到当前页」。
+   *   autoUpdate —— 本站已存过密码、后来用新密码登录（或在站内改了密码）时，
+   *                 直接把那条记录更新掉，不再弹「更新」让用户再点一次。
+   *                 只更新已存在的记录，绝不借改密 / 注册表单新建记录。
+   *                 缺省视为开；关掉后退回原来的「弹气泡问一次」。
    */
   passwords: {
     promptSave: true,
     autofill: true,
+    autoUpdate: true,
     neverFor: []
   },
   /**
@@ -199,6 +204,16 @@ const DEFAULTS = {
    * 会话内对「询问」的选择会记住一次（不落盘），要持久化就在这里显式写规则。
    */
   permissions: [],
+  /**
+   * 本地网络访问（Chromium 142+ 的 LNA）：公网页面连本机 / 内网地址的全局档位。
+   *   'ask'   按站点规则走（默认）—— 未设规则的站点放行，需要时弹权限条
+   *   'allow' 所有站点都允许，不再询问
+   *   'block' 所有站点都禁止
+   * 微信 / QQ 的「快捷登录」要连本机客户端监听的 localhost 端口，靠这项放行。
+   * 默认不能用 'block'：Electron 没有 chrome://flags 与「网站设置」界面，
+   * 同步权限 check 一旦落到 Chromium 默认就是拒绝，用户在本浏览器里无从开启。
+   */
+  localNetworkAccess: 'ask',
   /**
    * 收藏夹栏摆放位置：top | bottom | left | right。
    *

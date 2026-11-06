@@ -108,6 +108,58 @@ public class ScanMathTest {
     }
 
     @Test
+    public void 真实预览尺寸旋转不会越界() {
+        // 回归：旧实现在 UV 循环里用整幅的 w/h 当步长，真实尺寸下索引冲出数组末尾，
+        // 每帧抛 AIOOBE 又被 ScanActivity 静默吞掉 —— 表现就是「相机正常但永远扫不出」。
+        // 2x2 的玩具数据碰巧不会越界，所以必须用真机常见的分辨率钉住。
+        int[][] sizes = {{1280, 720}, {640, 480}, {1920, 1080}, {800, 600}, {352, 288}};
+        for (int[] s : sizes) {
+            int w = s[0], h = s[1];
+            byte[] data = new byte[w * h * 3 / 2];
+            for (int i = 0; i < data.length; i++) data[i] = (byte) (i & 0x7f);
+            try {
+                byte[] out = ScanMath.rotateNV21(data, w, h, 90);
+                assertEquals("长度变了: " + w + "x" + h, data.length, out.length);
+            } catch (ArrayIndexOutOfBoundsException e) {
+                throw new AssertionError(w + "x" + h + " 旋转越界", e);
+            }
+        }
+    }
+
+    @Test
+    public void 旋转后亮度平面按顺时针90度映射() {
+        int w = 8, h = 4;
+        byte[] data = new byte[w * h * 3 / 2];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                data[y * w + x] = (byte) (1 + y * w + x);
+        byte[] out = ScanMath.rotateNV21(data, w, h, 90);
+        // 新图宽 h、高 w；新 (nx, ny) 的像素来自原 (ny, h-1-nx)
+        for (int ny = 0; ny < w; ny++)
+            for (int nx = 0; nx < h; nx++)
+                assertEquals("新(" + nx + "," + ny + ")",
+                        data[(h - 1 - nx) * w + ny], out[ny * h + nx]);
+    }
+
+    @Test
+    public void 旋转后色度平面用半分辨率步长() {
+        int w = 8, h = 4;
+        int ySize = w * h;
+        int uvW = w / 2, uvH = h / 2; // UV 是 2x2 子采样：4x2 个采样点、每点 2 字节
+        byte[] data = new byte[ySize + uvW * uvH * 2];
+        for (int i = ySize; i < data.length; i++) data[i] = (byte) (100 + i - ySize);
+        byte[] out = ScanMath.rotateNV21(data, w, h, 90);
+        for (int y = 0; y < uvH; y++) {
+            for (int x = 0; x < uvW; x++) {
+                int src = ySize + (y * uvW + x) * 2;
+                int dst = ySize + (x * uvH + (uvH - y - 1)) * 2;
+                assertEquals("UV(" + x + "," + y + ") 首字节", data[src], out[dst]);
+                assertEquals("UV(" + x + "," + y + ") 次字节", data[src + 1], out[dst + 1]);
+            }
+        }
+    }
+
+    @Test
     public void 非90度原样返回() {
         byte[] data = {1, 2, 3, 4, 5, 6};
         assertSame(data, ScanMath.rotateNV21(data, 2, 2, 0));

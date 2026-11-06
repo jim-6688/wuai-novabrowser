@@ -68,24 +68,36 @@ public final class ScanMath {
      *
      * <p>只实现 90°：扫码界面锁竖屏，只有这一种角度会用到；别的角度原样返回，
      * 避免写一堆没被测过的分支。
+     *
+     * <p><b>色度平面必须按「半分辨率」算步长。</b>NV21 的 UV 是 2×2 子采样：
+     * 整幅 {@code w×h} 对应 {@code (w/2)×(h/2)} 个采样点、每点 2 字节（VU）。
+     * 早期版本在这里用了整幅的 {@code w}/{@code h}，src 和 dst 都会算到数组末尾之外，
+     * 于是在真机分辨率下每一帧都抛 {@code ArrayIndexOutOfBoundsException}；
+     * 而 {@link ScanActivity} 把解码异常吞掉了，结果就是「相机正常、画面正常、永远扫不出码」。
+     * 2×2 的玩具数据恰好不会越界，所以只有用真实分辨率的单测才能钉住这个 bug。
      */
     public static byte[] rotateNV21(byte[] data, int w, int h, int degree) {
         if (data == null || w <= 0 || h <= 0) return data;
         if (degree != 90) return data;
-        int need = w * h * 3 / 2;
+        int ySize = w * h;
+        int uvW = w / 2, uvH = h / 2;
+        // 用子采样后的尺寸算所需长度，奇数宽高也不会多要一个字节
+        int need = ySize + uvW * uvH * 2;
         if (data.length < need) return data; // 帧不完整就别转了，转了也是垃圾
 
         byte[] out = new byte[data.length];
-        int ySize = w * h;
+        // 亮度平面：原 (x,y) → 旋转后 (h-1-y, x)，新图宽 h、高 w。
+        // ZXing 的 PlanarYUVLuminanceSource 只读这一段。
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 out[x * h + (h - y - 1)] = data[y * w + x];
             }
         }
-        for (int y = 0; y < h / 2; y++) {
-            for (int x = 0; x < w / 2; x++) {
-                int src = ySize + (y * w + x) * 2;
-                int dst = ySize + (x * h + (h / 2 - y - 1)) * 2;
+        // 色度平面：旋转后新宽 uvH、新高 uvW，步长一律用子采样后的尺寸。
+        for (int y = 0; y < uvH; y++) {
+            for (int x = 0; x < uvW; x++) {
+                int src = ySize + (y * uvW + x) * 2;
+                int dst = ySize + (x * uvH + (uvH - y - 1)) * 2;
                 out[dst] = data[src];
                 out[dst + 1] = data[src + 1];
             }

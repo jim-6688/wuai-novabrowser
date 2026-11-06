@@ -676,17 +676,23 @@ async function autofillLogin(tab, payload) {
   if (!wv || typeof wv.send !== 'function') return;   // UI 预览模式没有真 webview
 
   try {
-    if (!state.credentials) {
-      const list = await bridge.credentials.list();
-      state.credentials = Array.isArray(list) ? list : [];
-    }
+    // 每次都重读一次：密码可能刚在气泡里保存、刚从 Edge 导入、或刚在设置里
+    // 手动添加过。只用 state.credentials 缓存会拿到旧表，表现就是「明明存了
+    // 密码，重新打开这个站还是不填」。cred:list 只是读一份本地 JSON，很轻。
+    let list = null;
+    try { list = await bridge.credentials.list(); } catch { list = null; }
+    state.credentials = Array.isArray(list) ? list : (state.credentials || []);
     const mine = state.credentials.filter((c) => String(c.origin).toLowerCase() === origin.toLowerCase());
     if (!mine.length) return;
     // 最近保存的那条在前（cred:list 按保存顺序倒序，这里再排一次以防万一）
     mine.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    const r = await bridge.credentials.reveal(mine[0].id);
+    // 页面常会预填「记住的用户名」：优先匹配同账号那条，别把别人的密码填错；
+    // 没有线索才退回最近保存的一条。
+    const hint = String(payload.username || '').trim();
+    const pick = (hint && mine.find((c) => (c.username || '') === hint)) || mine[0];
+    const r = await bridge.credentials.reveal(pick.id);
     if (!r || !r.ok) return;
-    wv.send('nova-cred-fill', { username: mine[0].username || '', password: r.password });
+    wv.send('nova-cred-fill', { username: pick.username || '', password: r.password });
   } catch { /* 填不进去不影响浏览 */ }
 }
 
@@ -4250,9 +4256,11 @@ async function buildPasswords() {
   const pwdPromptOn = !(state.settings.passwords && state.settings.passwords.promptSave === false);
   // 自动带入：保存过的密码，下次打开这个站点直接填进登录框
   const autofillOn = !(state.settings.passwords && state.settings.passwords.autofill === false);
+  // 改密自动更新：本站已存过的那条，用新密码登录时静默覆盖，不再问一次
+  const autoUpdateOn = !(state.settings.passwords && state.settings.passwords.autoUpdate === false);
   return `
     <h2 class="sv-h2">密码 / 登录凭证</h2>
-    <div class="sv-lead">Nova 自己保存账号密码：<b>只存本机、系统加密、不上传</b>。到网站后可点「填充到当前页」自动填入登录框。</div>
+    <div class="sv-lead">Nova 自己保存账号密码：<b>只存本机、系统加密、不上传</b>。保存过后再打开本站会自动填入登录框；改了密码也会自动更新，不用再点一次「更新」。</div>
     <div class="sv-card">
       <div class="list-row">
         <span class="lr-main">
@@ -4267,6 +4275,13 @@ async function buildPasswords() {
           <span class="lr-sub">只填本站已保存的那一条，且不覆盖已经在输入的内容</span>
         </span>
         <button class="switch ${autofillOn ? 'is-on' : ''}" data-act="autofill-toggle" title="自动填入账号密码"></button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">改密后自动更新已保存的密码</span>
+          <span class="lr-sub">用新密码登录或在站内改密时静默更新那条记录；不会借注册表单新建</span>
+        </span>
+        <button class="switch ${autoUpdateOn ? 'is-on' : ''}" data-act="pwd-autoupdate-toggle" title="改密后自动更新"></button>
       </div>
     </div>
     <div class="btn-row" style="padding-top:0">
@@ -4362,11 +4377,41 @@ async function findSavedCredential(origin, username) {
   return list.find((c) => String(c.origin).toLowerCase() === o && (c.username || '') === (username || '')) || null;
 }
 
+/**
+ * 改密表单（多个密码框）里通常没有用户名框：这时按 origin 找要更新的那条。
+ * 只有本站恰好存了一条才敢动；存了多个账号就不猜 —— 猜错等于把别人的
+ * 密码覆盖掉。表单里带了用户名则按用户名精确匹配。
+ */
+async function findChangeTarget(origin, username) {
+  let list = null;
+  try { list = await bridge.credentials.list(); } catch { list = null; }
+  if (!Array.isArray(list)) list = state.credentials || [];
+  state.credentials = list;
+  const mine = list.filter((c) => String(c.origin).toLowerCase() === origin.toLowerCase());
+  if (!mine.length) return null;
+  if (username) return mine.find((c) => (c.username || '') === username) || null;
+  return mine.length === 1 ? mine[0] : null;
+}
+
+/** 静默写回一条已存在的记录（改密自动更新）。成功顺手把缓存刷成最新。 */
+async function autoSaveCredential(wcId, username, password) {
+  let r = null;
+  try { r = await bridge.credentials.saveFromPage(wcId, username, password); }
+  catch { r = null; }
+  if (r && r.ok) {
+    toast('密码已自动更新（设置 → 密码 可查看）');
+    try { state.credentials = await bridge.credentials.list(); } catch { /* 列表刷新失败不影响已更新 */ }
+    return true;
+  }
+  toast((r && r.error) || '密码自动更新失败');
+  return false;
+}
+
 async function onLoginSubmitted(tab, payload) {
   if (!tab || !payload || !payload.password) return;
   const cfg = (state.settings && state.settings.passwords) || {};
-  // 缺省视为开启：老配置里没有这个键，不该因为升级就少了提示
-  if (cfg.promptSave === false) return;
+  // 改密表单（多个密码框）走另一套匹配：它常常没有用户名框
+  const isChange = payload.kind === 'change';
 
   const origin = originOf(tab.url);
   if (!origin) return;   // about:blank / file: 之类没有可归档的站点
@@ -4375,7 +4420,16 @@ async function onLoginSubmitted(tab, payload) {
   if (never.some((x) => String(x).toLowerCase() === origin.toLowerCase())) return;
 
   const username = String(payload.username || '');
-  const saved = await findSavedCredential(origin, username);
+  const saved = isChange
+    ? await findChangeTarget(origin, username)
+    : await findSavedCredential(origin, username);
+
+  let wcId = tab.wcId;
+  if (wcId == null && tab.webview && typeof tab.webview.getWebContentsId === 'function') {
+    try { wcId = tab.webview.getWebContentsId(); } catch { wcId = null; }
+  }
+  if (wcId == null) return;
+
   if (saved) {
     // 密码没变就别问 —— 这是「记住我」自动登录的常态，不是新登录
     let same = false;
@@ -4384,13 +4438,22 @@ async function onLoginSubmitted(tab, payload) {
       same = !!(r && r.ok && r.password === payload.password);
     } catch { same = false; }
     if (same) return;
+
+    // 改过密码：直接把已存的那条更新掉，不再让用户点一次「更新」。
+    // 用记录里的用户名作 key（改密表单常常不带用户名），保证覆盖的是同一条，
+    // 而不是新建一条「没有用户名的重复记录」。
+    if (cfg.autoUpdate !== false) {
+      await autoSaveCredential(wcId, saved.username || '', payload.password);
+      return;
+    }
   }
 
-  let wcId = tab.wcId;
-  if (wcId == null && tab.webview && typeof tab.webview.getWebContentsId === 'function') {
-    try { wcId = tab.webview.getWebContentsId(); } catch { wcId = null; }
-  }
-  if (wcId == null) return;
+  // 改密表单没有可对应的已存记录时直接放过：绝不能借它弹「保存密码」，
+  // 更不能凭一张注册表单新建记录。
+  if (isChange) return;
+
+  // 缺省视为开启：老配置里没有这个键，不该因为升级就少了提示
+  if (cfg.promptSave === false) return;
 
   pwdPending = { wcId, origin, username, password: payload.password };
   const site = $('#pwd-site');
@@ -5602,11 +5665,13 @@ const PERM_CATS = [
   { key: 'notifications', label: '通知' },
   { key: 'camera', label: '摄像头' },
   { key: 'microphone', label: '麦克风' },
-  { key: 'popups', label: '弹出窗口' }
+  { key: 'popups', label: '弹出窗口' },
+  { key: 'localNetwork', label: '本地网络访问' }
 ];
 
 function buildPermissions() {
   const rules = (state.settings && state.settings.permissions) || [];
+  const lnaMode = (state.settings && state.settings.localNetworkAccess) || 'ask';
   return `
     <h2 class="sv-h2">站点权限</h2>
     <div class="sv-lead">
@@ -5615,6 +5680,22 @@ function buildPermissions() {
       没列出的站点走浏览器默认（通常是「访问时询问」）。
     </div>
 
+    <div class="panel-label">本地网络访问</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">微信 / QQ 快捷登录、内网应用</span>
+          <span class="lr-sub">这类登录要连本机客户端监听的 localhost 端口。Chromium 142+ 默认拦截「公网页面 → 本机 / 内网」的请求，网页因此会提示「浏览器已屏蔽了本地网络访问权限」。本浏览器没有 chrome://flags 和网站设置入口，请在这里选档位，或在下方给具体域名单独设定允许 / 禁止。</span>
+        </span>
+        <select class="perm-cat-sel" id="perm-lna-mode" title="本地网络访问全局档位">
+          <option value="ask" ${lnaMode === 'ask' ? 'selected' : ''}>按站点询问</option>
+          <option value="allow" ${lnaMode === 'allow' ? 'selected' : ''}>始终允许</option>
+          <option value="block" ${lnaMode === 'block' ? 'selected' : ''}>始终禁止</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="panel-label">按站点规则</div>
     ${rules.length
       ? `<div class="sv-card perm-card-list">${rules.map((r) => `
           <div class="perm-rule">
@@ -5645,6 +5726,7 @@ function buildPermissions() {
     <div class="muted" style="padding:var(--sp-2) 0 0">
       选「询问」= 该站点下次访问若用到此权限会再弹条问你；选「允许 / 禁止」则不再问。
       仅当前会话内的选择（不写到这里）刷新页面后失效，要长期生效请在此显式设定。
+      本地网络访问默认按站点询问；设「始终禁止」会连微信 / QQ 快捷登录一起挡掉。
     </div>
   `;
 }
@@ -6916,6 +6998,11 @@ function wireActions(root) {
         state.settings = await bridge.settings.patch({ passwords: { autofill: !cur } });
         renderSettingsSection('passwords');
         toast(!cur ? '已关闭自动填入，仍可手动点「填充到当前页」' : '已开启自动填入');
+      } else if (act === 'pwd-autoupdate-toggle') {
+        const cur = !(state.settings.passwords && state.settings.passwords.autoUpdate === false);
+        state.settings = await bridge.settings.patch({ passwords: { autoUpdate: !cur } });
+        renderSettingsSection('passwords');
+        toast(!cur ? '已关闭自动更新，改密时会再问一次' : '已开启改密自动更新');
       } else if (act === 'cred-add') {
         const g = (id) => { const el = root.querySelector('#' + id); return el ? el.value : ''; };
         const r = await bridge.credentials.add({
@@ -7102,6 +7189,15 @@ function wireActions(root) {
    * 因为 select 不是 click 型的 data-act，且每次重画都要能继续响应。
    * 改完直接 patch，不必整页重绘 —— select 自己已经反映了新值，重绘反而闪。 */
   root.addEventListener('change', async (ev) => {
+    // 本地网络访问的全局档位复用了 perm-cat-sel 的样式，但它没有 host / cat，
+    // 必须在按站点下拉之前分流，否则会被当成一条站点规则去找 host。
+    if (ev.target && ev.target.id === 'perm-lna-mode') {
+      const val = ev.target.value;
+      state.settings.localNetworkAccess = val;
+      await bridge.settings.patch({ localNetworkAccess: val });
+      toast(val === 'block' ? '已禁止所有站点访问本地网络' : val === 'allow' ? '已允许所有站点访问本地网络' : '已改为按站点询问');
+      return;
+    }
     const sel = ev.target.closest('.perm-cat-sel');
     if (!sel) return;
     const host = sel.dataset.host;

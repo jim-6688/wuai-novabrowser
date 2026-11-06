@@ -33,6 +33,9 @@ check('geolocation -> geolocation', P.normalizePermission('geolocation') === 'ge
 check('notifications -> notifications', P.normalizePermission('notifications') === 'notifications');
 check('media -> media', P.normalizePermission('media') === 'media');
 check('openExternal -> openExternal', P.normalizePermission('openExternal') === 'openExternal');
+check('local-network -> localNetwork', P.normalizePermission('local-network') === 'localNetwork');
+check('local-network-access -> localNetwork（旧名）', P.normalizePermission('local-network-access') === 'localNetwork');
+check('loopback-network -> localNetwork', P.normalizePermission('loopback-network') === 'localNetwork');
 check('未知权限 -> null', P.normalizePermission('someWeirdThing') === null);
 
 console.log('\n[C] matchHostRule（精确主机 → 逐级父域）');
@@ -67,6 +70,20 @@ check('父域 block 对子域生效', P.decidePopup(rules, new Map(), 'www.popup
 
 console.log('\n[G] CATEGORY_LABEL');
 check('分类有中文标签', P.CATEGORY_LABEL.camera === '摄像头' && P.CATEGORY_LABEL.geolocation === '位置信息');
+check('本地网络访问有中文标签', P.CATEGORY_LABEL.localNetwork === '本地网络访问');
+
+console.log('\n[H] decideLocalNetwork（本地网络访问：全局档位 + 按站点规则）');
+const lnaRules = [
+  { host: 'open.weixin.qq.com', rules: { localNetwork: 'allow' } },
+  { host: 'blocked.example.com', rules: { localNetwork: 'block' } }
+];
+check('默认 ask + 无规则 -> ask', P.decideLocalNetwork([], new Map(), 'foo.com', 'ask') === 'ask');
+check('全局 allow 覆盖站点 block', P.decideLocalNetwork(lnaRules, new Map(), 'blocked.example.com', 'allow') === 'allow');
+check('全局 block 覆盖站点 allow', P.decideLocalNetwork(lnaRules, new Map(), 'open.weixin.qq.com', 'block') === 'block');
+check('ask 下站点规则 allow 生效', P.decideLocalNetwork(lnaRules, new Map(), 'open.weixin.qq.com', 'ask') === 'allow');
+check('ask 下站点规则 block 生效', P.decideLocalNetwork(lnaRules, new Map(), 'blocked.example.com', 'ask') === 'block');
+check('ask 下父域规则对子域生效', P.decideLocalNetwork(lnaRules, new Map(), 'api.open.weixin.qq.com', 'ask') === 'allow');
+check('ask 下会话内拒绝被记住', P.decideLocalNetwork([], new Map([['foo.com localNetwork', false]]), 'foo.com', 'ask') === 'block');
 
 console.log(`\n结果：${pass}/${pass + fail} 通过\n`);
 process.exit(fail ? 1 : 0);

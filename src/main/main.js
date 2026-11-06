@@ -197,6 +197,7 @@ async function bootstrap() {
   // 站点权限：让主进程随时能读到最新规则（含用户刚改的），并知道往哪个窗口弹询问条
   permissions.configure({
     getPermissions: () => settings.get('permissions', []),
+    getLocalNetworkMode: () => settings.get('localNetworkAccess', 'ask'),
     getMainWindow: () => mainWindow
   });
 

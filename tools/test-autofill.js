@@ -7,11 +7,13 @@
  * 覆盖用户报过的问题：「网页密码可以提示保存，但再次打开该网站时还要输入密码」。
  * 保存了却每次手输，等于保存只做了一半。
  *
- *   [A] 设置里两个开关（提示保存 / 自动带入）都在，缺省都开
+ *   [A] 设置里三个开关（提示保存 / 自动带入 / 改密自动更新）都在，缺省都开
  *   [B] 宿主侧核对：问的是不是本标签页当前地址的 origin
  *   [C] 命中一条就回填（webview.send → 页面 preload 填框）
  *   [D] 同一站点存了多个账号时不猜，取最近保存的那条
  *   [E] 解密失败（换过 Windows 账户）时安静放过，不打扰用户
+ *   [F] 页面预填了用户名时优先匹配同账号那条，不把别人的密码填错
+ *   [G] 每次重读凭证表：刚保存 / 导入 / 手动添加后立刻就能填
  *
  * 页面侧那段在 src/preload/webview-preload.js，它要 ipcRenderer，jsdom 里跑不动；
  * 两端接线由 tools/check-shell.js 的静态断言钉住。
@@ -75,7 +77,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   /* ================================================================ *
    * [A] 设置里的两个开关
    * ================================================================ */
-  console.log('\n[A] 密码设置里的两个开关');
+  console.log('\n[A] 密码设置里的三个开关');
   window.eval("openSettings(); renderSettingsSection('passwords')");
   await sleep(200);
   const rows = $$('[data-act]');
@@ -83,6 +85,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('有「打开网站时自动填入」开关', rows.some((b) => b.dataset.act === 'autofill-toggle'));
   check('自动填入默认是开的',
     !!$('[data-act="autofill-toggle"]') && $('[data-act="autofill-toggle"]').classList.contains('is-on'));
+  check('有「改密后自动更新」开关', rows.some((b) => b.dataset.act === 'pwd-autoupdate-toggle'));
+  check('自动更新默认也是开的',
+    !!$('[data-act="pwd-autoupdate-toggle"]') && $('[data-act="pwd-autoupdate-toggle"]').classList.contains('is-on'));
 
   // 点一下关掉，再点开：patch 要落到 settings 里，不然下一次进来又是开着的
   click($('[data-act="autofill-toggle"]'));
@@ -154,6 +159,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   sent.length = 0;
   await window.eval('autofillLogin')(tab, { origin: 'https://site.test' });
   check('解不开密码时什么都不填', sent.length === 0);
+
+  /* ================================================================ *
+   * [F] 页面预填了用户名 → 优先匹配同账号那条
+   * ================================================================ */
+  console.log('\n[F] 多账号时按页面用户名匹配，不把别人的密码填错');
+  window.nova.credentials.reveal = async (id) => ({ ok: true, password: 'pw-' + id });
+  sent.length = 0;
+  await window.eval('autofillLogin')(tab, { origin: 'https://site.test', username: 'work' });
+  check('填的是同账号那条（不是最近保存的那条）',
+    sent.length === 1 && sent[0].msg.username === 'work' && sent[0].msg.password === 'pw-c2',
+    JSON.stringify(sent[0] && sent[0].msg));
+
+  /* ================================================================ *
+   * [G] 每次重读凭证表：刚保存 / 刚导入 / 刚手动添加也能立刻填
+   * ================================================================ */
+  console.log('\n[G] 不用旧缓存，每次都读最新的凭证表');
+  const fresh = [{ id: 'c9', origin: 'https://site.test', username: 'new', ts: 999 }];
+  window.nova.credentials.list = async () => fresh;
+  window.eval('state').credentials = list.slice();   // 故意摆一份过期缓存
+  sent.length = 0;
+  await window.eval('autofillLogin')(tab, { origin: 'https://site.test' });
+  check('用的是最新列表而不是旧缓存',
+    sent.length === 1 && sent[0].msg.password === 'pw-c9', JSON.stringify(sent[0] && sent[0].msg));
 
   window.nova.credentials.list = realList;
   window.nova.credentials.reveal = realReveal;

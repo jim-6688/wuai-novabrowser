@@ -771,17 +771,46 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /function autofillLogin/.test(js)
       && /originOf\(tab\.url\)/.test(js)
       && /origin\.toLowerCase\(\) !== asked\.toLowerCase\(\)/.test(js)],
-  ['页面里只问一次、密码框非空不问（不覆盖用户正在输入的内容）',
+  ['同一个密码框只问一次、密码框非空不问（不覆盖用户正在输入的内容）',
     /let asked = false/.test(fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8'))
       && /if \(pw\.value \|\| filled\.has\(pw\)\) return null/.test(
         fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8'))],
   ['cred:list 带上 ts（同一站点多个账号要能取最近保存的那条）',
     /cred:list'[\s\S]{0,200}?ts: x\.ts/.test(mainMod)],
+
+  /* 用户报过「您的浏览器已屏蔽了本地网络访问权限，可能会影响微信快捷登录」：
+     Chromium 142+ 的 LNA。Electron 没有 chrome://flags / 网站设置入口，
+     得在主进程权限处理器里接管，且同步 check 不能返回 undefined。 */
+  ['三种 LNA 权限名统一归到 localNetwork',
+    /case 'local-network':\s*case 'local-network-access':\s*case 'loopback-network': return 'localNetwork'/
+      .test(fs.readFileSync(P('src/main/permissions.js'), 'utf8'))],
+  ['LNA 同步 check 只有显式禁止才拒绝（undefined 在 Electron 里等于拒绝）',
+    /return decideLocalNetwork\(getPermissionsRef\(\), sessionChoices, host, getLocalNetworkModeRef\(\)\) !== 'block'/
+      .test(fs.readFileSync(P('src/main/permissions.js'), 'utf8'))],
+  ['LNA 全局档位从设置读到主进程、设置页有三态开关',
+    /getLocalNetworkMode: \(\) => settings.get\('localNetworkAccess', 'ask'\)/.test(mainMod)
+      && /id="perm-lna-mode"/.test(js) && /localNetworkAccess = val/.test(js)
+      && /key: 'localNetwork'/.test(js)],
   ['已存过的密码不再重复问（记住我自动提交表单的常态）',
     /function findSavedCredential/.test(js) && /r\.password === payload\.password/.test(js)],
   ['保存密码时 origin 由主进程反查，渲染层传不进去',
     /handle\('cred:save-from-page', \(wcId, username, password\)/.test(mainMod)
       && /new URL\(wc\.getURL\(\)\)/.test(mainMod)],
+
+  /* --- 保存后重新访问自动填 + 改密后静默更新（用户要的完整闭环）--- */
+  ['改密后自动更新已存记录，不再弹「更新」让用户点一次',
+    /autoUpdate !== false/.test(js) && /function autoSaveCredential/.test(js)
+      && /data-act="pwd-autoupdate-toggle"/.test(js)
+      && /autoUpdate: true/.test(fs.readFileSync(P('src/main/settings.js'), 'utf8'))],
+  ['改密表单按 kind:change 上报，且只更新已有记录（注册页不会被存下来）',
+    /kind = 'change'/.test(fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8'))
+      && /payload\.kind === 'change'/.test(js)
+      && /function findChangeTarget/.test(js) && /if \(isChange\) return/.test(js)],
+  ['登录框异步渲染也能触发自动带入（MutationObserver + 按元素去重）',
+    /MutationObserver/.test(fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8'))
+      && /askedFor\.has\(f\.pw\)/.test(fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8'))],
+  ['自动带入每次重读凭证表，并按页面预填的用户名优先匹配',
+    /bridge\.credentials\.list\(\)/.test(js) && /payload\.username/.test(js)],
 
   /* --- 打印设置（左侧配置 / 右侧真实预览）--- */
   ['打印设置窗口是左栏配置 + 右栏预览',
