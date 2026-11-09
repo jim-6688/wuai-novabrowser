@@ -183,6 +183,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('用的是最新列表而不是旧缓存',
     sent.length === 1 && sent[0].msg.password === 'pw-c9', JSON.stringify(sent[0] && sent[0].msg));
 
+  /* ================================================================ *
+   * [H] 保存用 wc.getURL()、填充却用 tab.url 的口径不一致：
+   *     302 跳转 / SPA 换地址后，旧口径会把本该填上的记录全挡掉
+   * ================================================================ */
+  console.log('\n[H] 页面真实地址与外壳记下的地址不一致');
+  window.nova.credentials.list = async () => [
+    { id: 'c7', origin: 'https://passport.site.test', username: 'me', ts: 10 }
+  ];
+  window.nova.credentials.reveal = async () => ({ ok: true, password: 'pw-c7' });
+  tab.url = 'https://site.test/login';   // 外壳还停在跳转前的地址
+  tab.webview = {
+    tagName: 'WEBVIEW',
+    send: (ch, msg) => sent.push({ ch, msg }),
+    getURL: () => 'https://passport.site.test/signin'   // guest 真实地址
+  };
+  sent.length = 0;
+  await window.eval('autofillLogin')(tab, { origin: 'https://passport.site.test' });
+  check('按 webview 真实地址命中记录并回填',
+    sent.length === 1 && sent[0].msg.password === 'pw-c7', JSON.stringify(sent));
+  sent.length = 0;
+  await window.eval('autofillLogin')(tab, { origin: 'https://evil.test' });
+  check('跨站 iframe 仍拿不到别人的记录', sent.length === 0, JSON.stringify(sent));
+
   window.nova.credentials.list = realList;
   window.nova.credentials.reveal = realReveal;
   window.eval('closeSettings()');

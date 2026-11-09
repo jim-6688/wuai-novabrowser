@@ -241,12 +241,15 @@ public final class MainActivity extends Activity {
      * 而白带是一天都要看着它的。理由详见 {@link #applyChromeFor}。
      */
     private View topBar;
-    /** 新标签页上专用的悬浮 AI 按钮。顶栏（含 btnAi）在那一屏被收掉，
-        所以单独浮一个入口让其能打开 AI 窗口；其余页面隐藏（见 applyChromeFor）。 */
-    private View btnAiFloat;
-    /** 新标签页上专用的悬浮扫一扫按钮。顶栏（含 btnScan）在那屏同样被收掉，
-        这里单独浮一个，点它直接 startScan()；其余页面隐藏（见 applyChromeFor）。 */
-    private View btnScanFloat;
+    /**
+     * 页面缩放档位当前实际作用到 WebView 上的倍数。
+     *
+     * <p>{@code zoomBy} 是「在当前缩放上再乘一个倍数」，不是「设成绝对值」。
+     * 所以切档位必须用「目标 / 上次」补差，否则 100% → 150% → 100% 会一路乘上去。
+     * 每次主文档开始加载时归一为 1：新文档的缩放会回到默认值，这笔账也得清零，
+     * 再由 onPageFinished 按当前档位重新打一次。
+     */
+    private float appliedZoomFactor = 1f;
     /** 五格底栏。滚动时整条淡出，位置上换成 {@link #searchCapsule}。 */
     private View mobileBar;
     /** 顶栏那一行。滚动时整行收起，把这 52dp 还给网页。 */
@@ -993,9 +996,13 @@ public final class MainActivity extends Activity {
         s.setSupportZoom(true);
         s.setBuiltInZoomControls(true);
         s.setDisplayZoomControls(false);
-        // 整页缩放（页面缩放设置，见 pickPageZoom / applyPageZoom）：0 = 适应宽度
-        // （沿用上面的 overview 适配），其余值当作初始缩放百分比。与文字缩放、双指缩放三者并存。
-        applyPageZoom();
+        // 页面缩放档位**不在这里打**：setupWebView 会被 mountMain 反复调用，
+        // 而那时新页面可能还没加载，缩放落在空文档上等于白打，还会把
+        // appliedZoomFactor 的账记乱。统一由 onPageFinished 打一次；
+        // 用户在设置里切档位时再由 applyPageZoom() 即时补差。
+        //
+        // 另外，站点自己写的 viewport（user-scalable=no / maximum-scale=1）
+        // 会反过来把上面这组双指手势禁掉 —— 解锁脚本见 injectZoomSupport()。
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         // 渲染优先级调到高：滚动、手势、视频等重交互场景下，让 GPU 合成器
@@ -1087,6 +1094,10 @@ public final class MainActivity extends Activity {
                 // 重置本页资源统计与 SSL 状态。
                 resImages = 0; resCss = 0; resScripts = 0; resOthers = 0;
                 pageSslOk = true; pageSslError = "";
+                // 新文档会把 WebView 的缩放打回默认值，页面缩放这笔账要跟着清零，
+                // 否则 onPageFinished 看到 appliedZoomFactor 还是上一页的值，
+                // 补差算成 1（不打缩放），换页之后档位就悄悄丢了。
+                appliedZoomFactor = 1f;
                 // 只更新地址栏，不动 tab.url —— 后者是「这个标签本来要去哪」，
                 // 被页面内的跳转改写，会让会话恢复直接跳进广告落地页。
                 syncUrlBar(url);
@@ -1149,6 +1160,15 @@ public final class MainActivity extends Activity {
                 // 底栏压在网页上，所以每条页面都要补一条让位空白（见 injectBarInset）。
                 injectBarInset();
                 maybeInjectAutoPage();
+                // 站点自己写在 viewport 里的 user-scalable=no / maximum-scale=1
+                // 会把 WebSettings 上开好的双指缩放禁掉，先解锁；
+                // 再按当前档位给这一页打一次缩放（新文档的缩放已回默认值）。
+                injectZoomSupport(url);
+                // 延一帧再打档位缩放：页面刚 finish 时 overview 还在做
+                // 「铺满宽度」的最后一次缩放调整，同步 zoomBy 会被它盖掉。
+                // 这里在 WebViewClient 的匿名类里，this 是那个回调对象；
+                // 必须显式写 MainActivity.this，否则方法引用绑错对象、编不过。
+                view.post(MainActivity.this::applyPageZoom);
                 updateStarState();
             }
 
@@ -1374,16 +1394,8 @@ public final class MainActivity extends Activity {
             mountMain();
             showAiSheet();
         });
-        // 新标签页专用的悬浮 AI 入口：只在那一屏可见（applyChromeFor 控制），
-        // 点它与顶栏 btnAi 打开同一个 AI 对话面板。
-        btnAiFloat = findViewById(R.id.btnAiFloat);
-        if (btnAiFloat != null) btnAiFloat.setOnClickListener(v -> {
-            mountMain();
-            showAiSheet();
-        });
-        // 新标签页专用的悬浮扫一扫入口：只那一屏可见（applyChromeFor 控制），点它直接扫码。
-        btnScanFloat = findViewById(R.id.btnScanFloat);
-        if (btnScanFloat != null) btnScanFloat.setOnClickListener(v -> startScan());
+        // 新标签页上的 AI 与扫一扫已经长在页面里（newtab.html 的 AI 提问框、
+        // 搜索框内的扫一扫按钮），各自回传 nova:// 命令；两枚悬浮按钮随之撤掉。
     }
 
     /**
@@ -2506,6 +2518,27 @@ public final class MainActivity extends Activity {
             // 没真改动（这家本来就不在候选里）就不用重载 —— 否则一次误触
             // 会让页面白闪一下
             if (!store.ntpRemove(cmd.get("url"))) return;
+        } else if (NewTab.OP_AI.equals(cmd.op)) {
+            // 新标签页内嵌的 AI 提问框：带着问题打开对话面板。
+            // aiPending 与面板底部「发送」共用同一条暂存通道，由对话 WebView
+            // 在 onPageFinished 时把问题注入页面的输入框。
+            // 赋值放在 showAiSheet 之后：mountMain / 开关弹层都会清 aiPending，
+            // 而 loadUrl 是异步的，页面完成回调不可能赶在这行同步赋值之前。
+            String q = cmd.get("q").trim();
+            if (q.isEmpty()) return;
+            // 这里还在 shouldOverrideUrlLoading 的导航回调里，此刻换整棵视图树
+            // （mountMain → setContentView）属于重入；丢到下一帧再做。
+            web.post(() -> {
+                mountMain();
+                showAiSheet();
+                aiPending = q;
+            });
+            return;
+        } else if (NewTab.OP_SCAN.equals(cmd.op)) {
+            // 搜索框里的扫一扫：与地址栏 btnScan 走完全同一条扫码路径。
+            // 同样避开导航回调重入。
+            web.post(this::startScan);
+            return;
         } else if (NewTab.OP_SEARCH.equals(cmd.op)) {
             // 内置主页的搜索框回传。与下滑胶囊共用同一个搜索目标（navSearch），
             // 保证两处「搜索」跳的是同一个链接，不会一边搜 52ta 一边搜别的。
@@ -2773,11 +2806,8 @@ public final class MainActivity extends Activity {
         if (topBar == null) return;
         boolean isNtp = NewTab.isNewTab(url);
         topBar.setVisibility(isNtp ? View.GONE : View.VISIBLE);
-        // 新标签页上整条顶栏被收掉（含 AI 按钮、扫一扫），单独浮一组入口，让那一屏也能开 AI 窗口、扫码。
-        if (btnAiFloat == null) btnAiFloat = findViewById(R.id.btnAiFloat);
-        if (btnAiFloat != null) btnAiFloat.setVisibility(isNtp ? View.VISIBLE : View.GONE);
-        if (btnScanFloat == null) btnScanFloat = findViewById(R.id.btnScanFloat);
-        if (btnScanFloat != null) btnScanFloat.setVisibility(isNtp ? View.VISIBLE : View.GONE);
+        // 那一屏的 AI 提问框与搜索框里的扫一扫是页面自带的控件，
+        // 不随顶栏一起消失，也就不必再在这里补一组悬浮入口。
     }
 
     // ------------------------------------------------------------ 用户脚本
@@ -6135,20 +6165,85 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /**
+     * 按当前档位把整页缩放打到 WebView 上，**立即生效**。
+     *
+     * <p>原来用的是 WebSettings 的「初始缩放」接口，那条路有两个致命前提，
+     * 都不成立：一是它只在「下一次加载文档」时生效，而设置里切档位走的
+     * {@link #mountMain()} 复用同一个 WebView、根本不重新加载，于是选完
+     * 100% → 150% 屏幕上一动不动（这就是「手动缩放没生效」的根因）；
+     * 二是页面自己写的 viewport（绝大多数站点都有 {@code initial-scale=1}）
+     * 会把它直接覆盖掉。
+     *
+     * <p>改成 {@code WebView.zoomBy()}：浏览器级的即时缩放，不受页面
+     * viewport 影响，也不要求重载。但它是「在当前缩放上乘一个倍数」而不是
+     * 「设成绝对值」，所以要用 {@code 目标 / appliedZoomFactor} 补差 —— 少了
+     * 这一步，100% → 150% → 100% 会一路乘上去、再也回不来。
+     *
+     * <p>0（适应宽度）与 100（标准）都不额外缩放：在当前 overview 配置下
+     * 两者本就落在同一档，真正有区别的档位是 90 / 125 / 150。
+     */
     private void applyPageZoom() {
         if (web == null) return;
-        // setInitialScale 在真实 Android 设备上一直存在，但本项目裁剪过的 android 桩
-        // 里没收录它的方法签名，直接调用编不过。用反射调真实实现：
-        // 0 = 不指定初始缩放（沿用上面的 overview 适应宽度），其余值当作初始缩放百分比。
-        // 与文字缩放（textZoom）、双指缩放三者可并存。
+        int z = settings.pageZoom;
+        float target = (z <= 0 || z == 100) ? 1f : z / 100f;
+        float delta = target / appliedZoomFactor;
+        if (Math.abs(delta - 1f) < 0.001f) return;
+        appliedZoomFactor = target;
+        zoomWebViewBy(delta);
+    }
+
+    /** 反射调 zoomBy：本项目的 android 桩没收录这个签名，直接调用编不过。 */
+    private void zoomWebViewBy(float factor) {
         try {
-            java.lang.reflect.Method m =
-                web.getSettings().getClass().getMethod("setInitialScale", int.class);
-            m.invoke(web.getSettings(), settings.pageZoom);
-        } catch (Exception ignored) {
-            // 个别 ROM 缺失该 API 时静默忽略，不影响其余功能。
+            java.lang.reflect.Method m = WebView.class.getMethod("zoomBy", float.class);
+            m.invoke(web, factor);
+        } catch (Throwable e) {
+            // 不静默吞：这一带吃过一次「反射失败但界面毫无反应」的亏。
+            android.util.Log.w("Nova", "整页缩放不可用：" + e);
         }
     }
+
+    /**
+     * 解锁站点的双指缩放。
+     *
+     * <p>WebSettings 上把 setSupportZoom / setBuiltInZoomControls 都打开，
+     * 只代表「浏览器允许缩放」；页面在 viewport 里写一句
+     * {@code user-scalable=no} 或 {@code maximum-scale=1} 就能把它关掉，
+     * 而国内站点这么写的相当多。表现是「双指捏合完全没反应」，看起来
+     * 像是我们没实现，其实是页面把权限收走了。
+     *
+     * <p>这里只改缩放相关的三个属性，**保留页面原有的 width / initial-scale** ——
+     * 动 width 会把人家的响应式布局改成另一套。运行时改 viewport meta 的
+     * content 会被 WebView 重新读取；注入由宿主发起，不受页面 CSP 限制。
+     *
+     * <p>页面压根没写 viewport meta 时**一个字都不动**：那种页面本来就没有
+     * user-scalable=no，双指缩放是通的；凭空塞一条 width=device-width 反而
+     * 会把老式 PC 页从 980px 排版改成移动版排版，属于帮倒忙。
+     * 内置新标签页 / about:blank 是自己的界面，也不参与。
+     */
+    private void injectZoomSupport(String url) {
+        if (web == null || url == null) return;
+        String low = url.toLowerCase(java.util.Locale.ROOT);
+        if (!low.startsWith("http://") && !low.startsWith("https://")) return;
+        web.evaluateJavascript(JS_UNLOCK_ZOOM, null);
+    }
+
+    /** 见 {@link #injectZoomSupport(String)}。整段包在 try 里，注入失败不能影响页面。 */
+    private static final String JS_UNLOCK_ZOOM = "(function(){try{"
+        + "var ms=document.querySelectorAll('meta'),m=null;"
+        + "for(var i=0;i<ms.length;i++){"
+        + "if((ms[i].getAttribute('name')||'').toLowerCase()==='viewport'){m=ms[i];break;}}"
+        + "if(!m)return 'no-meta';"
+        + "var before=m.getAttribute('content')||'';"
+        + "var c=before.replace(/user-scalable\\s*=\\s*[^,\\s;]+/gi,'user-scalable=yes')"
+        + ".replace(/maximum-scale\\s*=\\s*[^,\\s;]+/gi,'maximum-scale=5')"
+        + ".replace(/minimum-scale\\s*=\\s*[^,\\s;]+/gi,'minimum-scale=0.25');"
+        + "if(!/user-scalable/i.test(c))c+=', user-scalable=yes';"
+        + "if(!/maximum-scale/i.test(c))c+=', maximum-scale=5';"
+        + "if(!/minimum-scale/i.test(c))c+=', minimum-scale=0.25';"
+        + "if(c!==before)m.setAttribute('content',c);"
+        + "return 'ok';}catch(e){return 'err';}})()";
 
     private String pageZoomLabel() {
         int z = settings.pageZoom;
@@ -6162,7 +6257,7 @@ public final class MainActivity extends Activity {
         View sheet = openSheet("页面缩放", R.layout.sheet_picker);
         LinearLayout list = sheet.findViewById(R.id.pickerList);
         ((TextView) sheet.findViewById(R.id.pickerNote)).setText(
-            "放大或缩小整页（图片与布局一起变）。「适应宽度」会按屏幕宽度自动铺满，其余档位直接按比例缩放。");
+            "放大或缩小整页（图片与布局一起变），选完立即生效，不必刷新。网页里也可以随时双指捏合缩放。");
 
         int[] levels = {0, 90, 100, 125, 150};
         String[] names = {"适应宽度", "偏小", "标准", "大", "特大"};
@@ -6175,8 +6270,12 @@ public final class MainActivity extends Activity {
                 () -> {
                     settings.pageZoom = z;
                     store.save(settings);
-                    applyPageZoom();
+                    // 即时生效：缩放直接落在当前 WebView 上，不必重载页面 ——
+                    // 滚动位置、表单内容、正在播放的媒体都不丢。mountMain 只是
+                    // 把主界面装回来（设置面板是整屏换掉的），它复用同一个
+                    // WebView 实例，缩放状态不会被冲掉。
                     mountMain();
+                    applyPageZoom();
                     showSettings();
                     toast(z == 0 ? "页面缩放：适应宽度" : "页面缩放 " + z + "%");
                 }));

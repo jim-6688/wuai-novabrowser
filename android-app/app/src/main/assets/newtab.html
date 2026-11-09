@@ -163,6 +163,108 @@ body {
 
 .s-go:active { opacity: .85; }
 
+/* ------------------------------------------------- 扫一扫（搜索框内，仅手机宿主） */
+/* 为什么不单摆一个悬浮按钮：扫一扫是「我要输入一个网址/关键词」这条路径的
+   替代输入法，和搜索框是同一件事。放进框里，手不用从输入区挪到屏幕角上。
+   默认 hidden，挂载脚本按 UA 判断是安卓才放开 —— 桌面端共用这一份源，
+   它的命令通道不认 scan，放出来只会点了没反应。 */
+.s-scan {
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-3);
+    cursor: pointer;
+}
+
+.s-scan:active { background: var(--surface-2); color: var(--brand); }
+
+.s-scan svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* display:grid 会盖掉 [hidden] 的 display:none，补一条显式规则 */
+.s-scan[hidden] { display: none; }
+
+/* ------------------------------------------------------- AI 提问（仅手机宿主） */
+/* 整页共用一份源，但这一块只有安卓宿主有对应命令通道（nova://shortcut/ai）。
+   渐变薄边框用「外层 1.5px padding + 内层实色」做，而不是 border-image：
+   border-image 与 border-radius 不能共存，硬凑会出直角。 */
+.ai-box {
+    display: block;
+    margin: 0 0 22px;
+    padding: 1.5px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--nova-grad);
+    box-shadow: 0 6px 18px rgba(45, 107, 245, .12);
+}
+
+.ai-box[hidden] { display: none; }
+
+.ai-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 41px;
+    padding: 0 5px 0 10px;
+    border-radius: 14.5px;
+    background: var(--surface);
+}
+
+.ai-mark {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    background: var(--nova-grad);
+    color: #fff;
+    font-size: 13px;
+    line-height: 1;
+}
+
+.ai-inner input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.ai-inner input::placeholder { color: var(--text-4); }
+
+.ai-go {
+    flex: 0 0 auto;
+    height: 31px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--nova-grad);
+    color: #fff;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.ai-go:active { opacity: .85; }
+
 /* ---------------------------------------------------------------- 品牌区 */
 /* 尺寸不是照抄官网宣传图的像素值。
    那张 mockup 的手机只有 262px 宽（屏内 244px），它是一个**缩略示意**，
@@ -310,6 +412,7 @@ body.editing .qk:active .thumb i { transform: none; }
     .ntp { max-width: min(1040px, 90vw); padding: 0 32px; }
     .brand svg { width: 104px; height: 104px; margin-bottom: 18px; }
     .search { max-width: 560px; margin: 0 auto 26px; height: 46px; }
+    .ai-box { max-width: 560px; margin: 0 auto 22px; }
     .quicks {
         grid-template-columns: repeat(auto-fill, 96px);
         justify-content: center;
@@ -469,7 +572,28 @@ body.editing .qk:active .thumb i { transform: none; }
         </span>
         <input id="q" type="text" name="q" spellcheck="false"
                placeholder="搜索或输入网址" aria-label="搜索或输入网址" />
+        <!-- 扫一扫在搜索框里：它是「输入一个网址」的替代输入法，和这一行是同一件事。
+             默认 hidden，挂载脚本只在安卓宿主上放开；必须是 type=button，
+             写成 submit 会把空关键词当搜索发出去。 -->
+        <button type="button" class="s-scan" id="s-scan" aria-label="扫一扫" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" />
+                <path d="M3 12h18" />
+            </svg>
+        </button>
         <button type="submit" class="s-go">转到</button>
+    </form>
+
+    <!-- AI 提问框：真正长在新标签页界面里，不是浮在角上的一枚按钮。
+         同样只给安卓宿主（桌面端共用这份源，但没有 ai 这条命令通道）。
+         提交回传 nova://shortcut/ai?q=…，宿主带着问题打开 AI 对话面板。 -->
+    <form class="ai-box" id="ai" autocomplete="off" hidden>
+        <div class="ai-inner">
+            <span class="ai-mark" aria-hidden="true">✦</span>
+            <input id="ai-q" type="text" spellcheck="false"
+                   placeholder="向 AI 提问…" aria-label="向 AI 提问" />
+            <button type="submit" class="ai-go">提问</button>
+        </div>
     </form>
 
     <nav class="quicks" id="quicks" aria-label="快捷方式"></nav>
@@ -956,6 +1080,38 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
             var q = (input.value || '').trim();
             if (!q) { input.focus(); return; }
             location.href = NovaNtp.cmdUrl('search', { q: q });
+        });
+    })();
+
+    /* 手机宿主专属的两条入口：搜索框里的扫一扫、以及内嵌的 AI 提问框。
+     *
+     * 这一页桌面端与安卓端共用同一份源，但桌面宿主的命令通道只认
+     * add / remove / extstore / search。这两个元素默认 hidden，只在
+     * UA 带 Android 时放开 —— 放出来却没人接，比不放出来更糟。
+     *
+     * AI 也走 form + submit：手机上虚拟键盘的回车触发的是 submit，
+     * 只听按钮 click 会让「打完字按回车」什么都不发生。 */
+    (function () {
+        if (!NovaNtp.isMobileHost()) return;
+
+        var scan = document.getElementById('s-scan');
+        if (scan) {
+            scan.hidden = false;
+            scan.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                location.href = NovaNtp.cmdUrl('scan', {});
+            });
+        }
+
+        var ai = document.getElementById('ai');
+        var aq = document.getElementById('ai-q');
+        if (!ai || !aq) return;
+        ai.hidden = false;
+        ai.addEventListener('submit', function (ev) {
+            ev.preventDefault();
+            var q = (aq.value || '').trim();
+            if (!q) { aq.focus(); return; }
+            location.href = NovaNtp.cmdUrl('ai', { q: q });
         });
     })();
 

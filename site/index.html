@@ -65,8 +65,8 @@
                     <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
                 </div>
                 <div class="hero-meta">
-                    <span id="verLatest">最新版本 1.7.4（44）</span>
-                    <span id="verDate">更新于 2026-11-06</span>
+                    <span id="verLatest">最新版本 1.7.5（45）</span>
+                    <span id="verDate">更新于 2026-11-09</span>
                     <span><i></i>Windows 10 及以上 · Android 7.0 及以上</span>
                     <span><i></i>手机版不内置内核 · 零个 .so</span>
                 </div>
@@ -78,7 +78,7 @@
                 <figure class="shot shot-hero">
                     <img src="assets/img/shots/01-shell-desktop.png" width="1080" height="675"
                          alt="吾爱Nova 电脑版界面：顶栏、标签条、地址栏与收藏夹栏" decoding="async">
-                    <figcaption>电脑版 2.0.6 实际界面</figcaption>
+                    <figcaption>电脑版 2.0.7 实际界面</figcaption>
                 </figure>
             </div>
         </div>
@@ -170,6 +170,35 @@
                 <h2>最近更新</h2>
                 <p>每次发布写明改动与原因，修复的缺陷也照实列出。</p>
             </div>
+
+            <article class="rel">
+                <div class="rel-head">
+                    <strong>电脑版 2.0.7</strong>
+                    <span>2026-11-09</span>
+                </div>
+                <ul>
+                    <li><b>修复：保存的账号密码不自动填入</b>。旧写法直接改输入框的值，React / Vue 这类受控表单会判定「值没变」，下一次渲染又把它清空。现在改用框架能感知的写入方式，并派发真实的输入事件。</li>
+                    <li><b>认得出多种登录页</b>：注册框、蜜罐框、「显示密码」切换框并存时，只挑带 <code>current-password</code> 语义的那一组；页面异步重绘、异步出现的表单也能接住。</li>
+                    <li><b>保存与填充统一站点口径</b>：都按网页真实地址核对，登录后重定向不再失配；跨站 iframe 仍取不到别站的记录。</li>
+                    <li><b>新增「GitHub 加速」</b>：设置里可选整站镜像与 raw / Release / 源码包镜像，附「检测哪个节点能用」并发实测并自动选最快可用节点。默认关闭；登录页、<code>api.github.com</code>、非 GET 请求一律直连官方。</li>
+                    <li><b>能力边界照实写明</b>：浏览器没有出口节点，无法给任意 Cloudflare 站点提速，也绕不过 5 秒盾 / Turnstile。镜像服务自身用 CF 分发，与「给 CF 站点加速」不是一回事。</li>
+                    <li>顶栏 AI 图标换成品牌渐变彩色，与手机版造型统一；深浅主题自动切换端点色。</li>
+                </ul>
+            </article>
+
+            <article class="rel">
+                <div class="rel-head">
+                    <strong>手机版 1.7.5</strong>
+                    <span>2026-11-09</span>
+                </div>
+                <ul>
+                    <li><b>页面缩放即时生效</b>：设置里切 90 / 100 / 125 / 150% 当前页立刻变大变小，不用刷新；切回 100% 能准确复原。旧版只在下一次加载文档时起作用，选完档位屏幕一动不动。</li>
+                    <li><b>双指缩放不再被网页禁掉</b>：站点写了 <code>user-scalable=no</code> / <code>maximum-scale=1</code> 也能捏合；注入只放开缩放属性，保留网页原有的宽度与排版。</li>
+                    <li><b>新标签页内嵌 AI 提问框</b>：输入问题回车即带着问题打开 AI 对话，问题自动填进输入框。</li>
+                    <li><b>扫一扫移进搜索框</b>：「转到」左侧一点即起相机；撤掉原来浮在右上角的两个小按钮。</li>
+                    <li><b>修正新标签页资源同步</b>：上一版部分安装包里的 AI 提问框与扫码键可能缺失，这一版已补齐。</li>
+                </ul>
+            </article>
 
             <article class="rel">
                 <div class="rel-head">
@@ -537,7 +566,7 @@
                 <div class="cmp-col">
                     <div class="cmp-hd">
                         <span class="cmp-os">Windows</span>
-                        <strong>电脑版 · v2.0.6</strong>
+                        <strong>电脑版 · v2.0.7</strong>
                         <span class="cmp-size">约 102 MB</span>
                     </div>
                     <ul class="cmp-list">
@@ -553,7 +582,7 @@
                 <div class="cmp-col">
                     <div class="cmp-hd">
                         <span class="cmp-os">Android</span>
-                        <strong>手机版 · v1.7.4</strong>
+                        <strong>手机版 · v1.7.5</strong>
                         <span class="cmp-size">约 800 KB</span>
                     </div>
                     <ul class="cmp-list">
@@ -684,19 +713,19 @@
                 <h3 class="dl-os">Android 手机版</h3>
                 <div class="dl-box">
                     <div class="dl-version">
-                        <strong id="dlVer">v1.7.4</strong>
-                        <span id="dlStamp">更新于 2026-11-06</span>
+                        <strong id="dlVer">v1.7.5</strong>
+                        <span id="dlStamp">更新于 2026-11-09</span>
                         <span class="dl-count" id="dlCountAndroid" hidden></span>
                     </div>
                     <p class="dl-note" id="dlNote">安装包大小约 800 KB。安装前请在系统设置中允许来自此来源的应用。</p>
                     <div class="dl-list" id="dlBtns">
-                        <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.4/nova-1.7.4.apk" data-dl="android" download>Gitee Releases · v1.7.4</a>
-                        <a class="btn btn-ghost btn-lg" href="download/nova-1.7.4.apk" data-dl="android" download>官网直链 · v1.7.4</a>
+                        <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.5/nova-1.7.5.apk" data-dl="android" download>Gitee Releases · v1.7.5</a>
+                        <a class="btn btn-ghost btn-lg" href="download/nova-1.7.5.apk" data-dl="android" download>官网直链 · v1.7.5</a>
                     </div>
                     <ul class="dl-facts" id="dlFacts">
-                        <li><span>版本</span><span>1.7.4</span></li>
-                        <li><span>版本码</span><span>44</span></li>
-                        <li><span>更新日期</span><span>2026-11-06</span></li>
+                        <li><span>版本</span><span>1.7.5</span></li>
+                        <li><span>版本码</span><span>45</span></li>
+                        <li><span>更新日期</span><span>2026-11-09</span></li>
                     </ul>
                 </div>
             </div>
@@ -708,7 +737,7 @@
                 <h3 class="dl-os">Windows 电脑版</h3>
                 <div class="dl-box">
                     <div class="dl-version">
-                        <strong id="dlPcVer">v2.0.6</strong>
+                        <strong id="dlPcVer">v2.0.7</strong>
                         <span>Windows x64</span>
                         <span class="dl-count" id="dlCountPc" hidden></span>
                     </div>
@@ -716,10 +745,10 @@
                        部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示，选择「保留」即可。
                        安装程序未做代码签名，首次运行时 Windows 可能提示「未知发布者」——这是自签包的固有现象，不是文件损坏。</p>
                     <div class="dl-list">
-                        <a class="btn btn-primary btn-lg" href="https://download.52ta.top/nova-pc-2.0.6-win-x64-setup.exe" data-dl="pc" download>下载 · EXE 安装程序（102 MB）</a>
+                        <a class="btn btn-primary btn-lg" href="https://download.52ta.top/nova-pc-2.0.7-win-x64-setup.exe" data-dl="pc" download>下载 · EXE 安装程序（102 MB）</a>
                     </div>
                     <ul class="dl-facts">
-                        <li><span>版本</span><span>2.0.6</span></li>
+                        <li><span>版本</span><span>2.0.7</span></li>
                         <li><span>内核</span><span>Chromium 156</span></li>
                         <li><span>平台</span><span>Windows x64</span></li>
                         <li><span>大小</span><span>约 102 MB</span></li>

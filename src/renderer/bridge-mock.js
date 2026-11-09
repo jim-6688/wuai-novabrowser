@@ -92,7 +92,8 @@ if (typeof window !== 'undefined' && !window.nova) {
     download: { takeOver: true, threads: 8, maxConcurrent: 3, dir: '' },
     sniffer: { enabled: true, minSizeKB: 0, showSegments: false, autoProbe: true },
     mobile: { noImage: 'off', autoPage: false, autoPageMax: 10 },
-    localNetworkAccess: 'ask'
+    localNetworkAccess: 'ask',
+    github: { enabled: false, siteMirror: 'https://bgithub.xyz', assetMirror: 'https://gh-proxy.com/' }
   };
 
   /* 格式注册表规模 —— 与 src/main/sniffer.js 实际算出来的一致，写死是为了
@@ -333,6 +334,8 @@ if (typeof window !== 'undefined' && !window.nova) {
       download: { takeOver: true, threads: 8, maxConcurrent: 3, dir: '' },
       sniffer: { enabled: true, minSizeKB: 0, showSegments: false, autoProbe: true },
       mobile: { noImage: 'image', autoPage: true, autoPageMax: 10 },
+      localNetworkAccess: 'ask',
+      github: { enabled: false, siteMirror: 'https://bgithub.xyz', assetMirror: 'https://gh-proxy.com/' },
       // 与真实配置的初值对齐（见 src/main/settings.js 的 DEFAULTS）：
       // 预览里的打印设置与保存密码开关要和装好第一次打开时是同一个样子
       print: {
@@ -580,6 +583,14 @@ const MOCK_UPDATE = {
         setTimeout(() => emit('settings:changed', state.settings), 0);
         return state.settings;
       }
+    },
+
+    github: {
+      // 预览模式一个网络请求都不发。返回「不可用」而不是编几个 ✓，
+      // 免得截图里出现一批根本没测过的绿色节点。
+      probe: async ({ urls } = {}) => (urls || []).map((url) => ({
+        url, ok: false, status: 0, ms: 0, note: '预览模式不发网络请求'
+      }))
     },
 
     engines: {

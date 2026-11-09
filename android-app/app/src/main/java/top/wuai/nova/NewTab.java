@@ -43,6 +43,10 @@ public final class NewTab {
     public static final String OP_ADD = "add";
     public static final String OP_REMOVE = "remove";
     public static final String OP_SEARCH = "search";
+    /** 新标签页内嵌的 AI 提问框回传（带 q），宿主收到后带着问题开 AI 对话面板。 */
+    public static final String OP_AI = "ai";
+    /** 搜索框里的扫一扫按钮回传（无参数），宿主收到后起相机扫码。 */
+    public static final String OP_SCAN = "scan";
 
     /** 一次最多送多少条候选过去。页面只显示 7 格，送 30 条是为了让「按访问次数排序」
         真的有意义 —— 只送最近几条的话，一个很久以前被访问过上百次的站点永远进不了视野。 */
@@ -365,7 +369,8 @@ public final class NewTab {
             query = rest.substring(q + 1);
         }
         op = op.trim();
-        if (!OP_ADD.equals(op) && !OP_REMOVE.equals(op) && !OP_SEARCH.equals(op)) return null;
+        if (!OP_ADD.equals(op) && !OP_REMOVE.equals(op) && !OP_SEARCH.equals(op)
+            && !OP_AI.equals(op) && !OP_SCAN.equals(op)) return null;
 
         Map<String, String> params = new LinkedHashMap<>();
         if (query != null) {

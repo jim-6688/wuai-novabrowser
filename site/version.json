@@ -1,42 +1,45 @@
 {
-  "version": "1.7.4",
-  "versionCode": 44,
+  "version": "1.7.5",
+  "versionCode": 45,
   "channel": "release",
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-09",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复扫码：相机能打开、预览也正常，却一直识别不出二维码 —— 旋转预览帧时色度平面步长算错，真机分辨率下每帧都抛异常，而异常被静默吞掉，界面上看不到任何报错",
-    "扫码现在会明确报错：连续识别失败时给出提示与「重试」入口，不再无声无息",
-    "识别率加固：预览帧格式固定为 NV21、启用更强的解码策略、解码前复制帧数据避免复用串扰"
+    "页面缩放即时生效：设置里切 90 / 100 / 125 / 150% 当前页立刻变大变小，不用刷新，切回 100% 能准确复原",
+    "双指缩放不再被网页禁掉：站点写了 user-scalable=no / maximum-scale=1 也能捏合；注入只放开缩放属性，保留网页原有宽度与排版",
+    "新标签页内嵌 AI 提问框：输入问题回车即带着问题打开 AI 对话，问题自动填进输入框",
+    "扫一扫移进搜索框（「转到」左侧），撤掉原来浮在右上角的两个小按钮",
+    "修正新标签页资源同步：上一版部分安装包里的 AI 提问框与扫码键可能缺失，这一版已补齐"
   ],
   "downloads": [
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.4/nova-1.7.4.apk",
-      "size": 746762,
-      "sha256": "7f5fa807a12d1ab6a46e118d5e4f4d916df8b4a93e49067054efd1cf7785b651"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.5/nova-1.7.5.apk",
+      "size": 748654,
+      "sha256": "c40c68884d58dde6788566a25dc232ec3c40fb1e48eefef269be530b2113a7a9"
     },
     {
       "label": "官网直链",
-      "url": "download/nova-1.7.4.apk",
-      "size": 746762,
-      "sha256": "7f5fa807a12d1ab6a46e118d5e4f4d916df8b4a93e49067054efd1cf7785b651"
+      "url": "download/nova-1.7.5.apk",
+      "size": 748654,
+      "sha256": "c40c68884d58dde6788566a25dc232ec3c40fb1e48eefef269be530b2113a7a9"
     }
   ],
   "pc": {
-    "version": "2.0.6",
+    "version": "2.0.7",
     "changelog": [
-      "保存过密码的网站，重新打开时自动填入账号密码：能认出异步 / 晚出现的登录框，同站多账号按页面里的用户名优先匹配",
-      "改密后自动更新：站内换密码、或用新密码再登录一次，静默覆盖已保存的旧密码，不用再点气泡确认",
-      "设置 → 密码 新增「改密后自动更新已保存的密码」开关，缺省开启；首次保存仍会问一句",
-      "修复本地网络访问被屏蔽：微信 / QQ 快捷登录等需要访问本机服务的场景，不再提示「您的浏览器已屏蔽了本地网络访问权限」",
-      "设置 → 站点权限 新增「本地网络访问」全局档位（询问 / 始终允许 / 始终禁止）和按站点规则一列，默认按站点询问"
+      "修复保存的账号密码不能自动填入：改用框架能感知的写入方式并派发真实输入事件，React / Vue 登录页不会被下一次渲染清空",
+      "认得出多种登录页：注册框、蜜罐框、显示密码框并存时只填带 current-password 语义的那一组；异步出现与 SPA 重绘的表单也能接住",
+      "保存与填充统一按网页真实地址核对，登录后重定向不再失配；跨站 iframe 仍取不到别站的记录",
+      "新增「GitHub 加速」设置分区：整站镜像 + raw / Release / 源码包镜像，附「检测哪个节点能用」并发实测自动择优；默认关闭",
+      "安全边界：登录页、api.github.com、非 GET 请求一律直连官方；浏览器无出口节点，无法给任意 Cloudflare 站点提速或绕过 5 秒盾",
+      "顶栏 AI 图标改为品牌渐变彩色，与手机版造型统一，深浅主题自动切换端点色"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://download.52ta.top/nova-pc-2.0.6-win-x64-setup.exe",
-    "size": 107092373,
-    "sha256": "0d60744a7dbada510a161eced89512472574da25028bcffc50c6777315aaf5c0",
-    "updatedAt": "2026-11-06"
+    "url": "https://download.52ta.top/nova-pc-2.0.7-win-x64-setup.exe",
+    "size": 107102818,
+    "sha256": "8fc6c96a1c2b22919ba5097bd8e7557ab07b105320d9d2783c1592c2b30187fb",
+    "updatedAt": "2026-11-09"
   }
 }

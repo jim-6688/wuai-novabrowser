@@ -15,7 +15,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard, safeStorage, Menu, webContents } = require('electron');
+const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipboard, safeStorage, Menu, webContents, net } = require('electron');
 const QRCode = require('qrcode'); // 本地生成二维码（分享用），不把网址丢第三方二维码接口
 const creds = require('./credentials'); // 从 Edge 导入已存密码（本地解密）
 const { installPrintHook } = require('./print-hook'); // 网页里 window.print() 的接管（主世界注入）
@@ -46,6 +46,7 @@ const desktopShortcut = require('./desktop-shortcut');
 const permissions = require('./permissions');
 const authPopup = require('./auth-popup'); // QQ/微信 等第三方登录必须开成真弹窗，见该模块头
 const locale = require('./locale'); // 语言与地区：Accept-Language / navigator.language
+const githubMirror = require('./github-mirror'); // GitHub 访问加速（镜像改写，纯决策模块）
 
 const IS_DEV = process.argv.includes('--dev');
 const ROOT = path.join(__dirname, '..', '..');
@@ -545,8 +546,11 @@ function pushAdblockStats() {
  * ------------------------------------------------------------------ */
 
 /**
- * 一条闸门管两件事：无图模式与广告拦截。判定顺序与「为什么必须合成一条」的
- * 说明都在 request-gate.js 里；这里只负责把主进程这边的依赖接上去。
+ * 一条闸门管三件事：无图模式、广告拦截、GitHub 镜像改道。判定顺序与
+ * 「为什么必须合成一条」的说明都在 request-gate.js 里；这里只负责把主进程
+ * 这边的依赖接上去。
+ *
+ * 配置按请求实时读 settings.get：设置页一改就生效，不用重装 hook、也不用重启。
  */
 function wireRequestGate(ses) {
   installRequestGate(ses, {
@@ -556,7 +560,8 @@ function wireRequestGate(ses) {
     onAdblockHit: (hit, details) => {
       send('adblock:hit', { url: details.url, rule: hit.raw, type: details.resourceType });
     },
-    onNoMediaHit: () => queueNoMediaStats()
+    onNoMediaHit: () => queueNoMediaStats(),
+    githubRewrite: (details) => githubMirror.rewrite(details, settings.get('github', {}))
   });
 }
 
@@ -798,9 +803,25 @@ function maybeFallbackToChromium(snap) {
   try { ses.downloadURL(snap.url); } catch (err) { console.warn('[downloads] 回退失败', err.message); }
 }
 
+/**
+ * 下载链接改写：Nova 的多线程下载引擎走 Node 的网络栈，不经过
+ * session.webRequest，请求闸门那一步管不到它，得在入队前过一遍同一份规则。
+ * 页面触发的下载通常已经被 webRequest 改过（那时 rewrite 返回 null，
+ * 这里原样返回，不会二次改写），这条主要是兜住「手动粘贴链接」以及任何
+ * 绕过闸门的下载路径。规则只有一份，见 github-mirror.js。
+ */
+function mirrorDownloadUrl(url) {
+  const to = githubMirror.rewrite(
+    { url, method: 'GET', resourceType: 'other' },
+    settings.get('github', {})
+  );
+  return to || url;
+}
+
 function wireDownloads(ses, engineId) {
   ses.on('will-download', (e, item) => {
     const url = item.getURL();
+    const target = mirrorDownloadUrl(url);
     const filename = item.getFilename();
     const savePath = item.getSavePath();
 
@@ -815,12 +836,13 @@ function wireDownloads(ses, engineId) {
       // 比 item.cancel() 干净（后者会让 done 事件带一条 cancelled 记录）。
       e.preventDefault();
       const id = dlManager.enqueue({
-        url,
+        url: target,
         filename,
         savePath,
         engineId,
         source: 'page'
       });
+      // 界面上显示原始 GitHub 地址（用户认得），实际下载走 target。
       send('download:taken-over', { id, url, filename });
       return;
     }
@@ -1215,6 +1237,62 @@ function registerIpc() {
     }
     send('settings:changed', next);
     return next;
+  });
+
+  /**
+   * 探测一个镜像节点在用户当前网络里能不能连通。
+   *
+   * 用 Electron 的 net.request 而不是 Node 的 https：前者走 Chromium 网络栈与
+   * 系统代理，和用户真正在 webview 里打开这个节点时的路径一致；Node 的 https
+   * 默认不读系统代理，探测结果会骗人 —— 公共镜像的可用性本来就因线路而异，
+   * 拿一个跟浏览器不同的出口去测没有意义。
+   *
+   * 只要响应头就够了：拿到状态码立刻 abort，不把首页整个下下来。
+   */
+  function probeMirror(url) {
+    return new Promise((resolve) => {
+      const t0 = Date.now();
+      let done = false;
+      let timer = null;
+      const finish = (ok, status, note) => {
+        if (done) return;
+        done = true;
+        if (timer) clearTimeout(timer);
+        resolve({ url, ok, status: status || 0, ms: Date.now() - t0, note: note || '' });
+      };
+      let req;
+      try {
+        req = net.request({ url: String(url), method: 'GET', redirect: 'follow' });
+      } catch {
+        finish(false, 0, '地址无效');
+        return;
+      }
+      timer = setTimeout(() => {
+        try { req.abort(); } catch { /* 已经结束 */ }
+        finish(false, 0, '连接超时');
+      }, 4500);
+      req.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+      req.setHeader('Range', 'bytes=0-0');
+      req.on('response', (res) => {
+        const code = res.statusCode || 0;
+        finish(code >= 200 && code < 400, code, '');
+        try { req.abort(); } catch { /* 只要状态码 */ }
+        res.on('data', () => {});
+        res.on('end', () => {});
+        res.on('error', () => {});
+      });
+      req.on('error', (err) => finish(false, 0, String((err && err.message) || '连接失败').slice(0, 60)));
+      try { req.end(); } catch { finish(false, 0, '请求发起失败'); }
+    });
+  }
+
+  /** 一次探完全部候选，并发；结果按传入顺序返回，界面自己按耗时挑最快的。 */
+  handle('github:probe', async (arg) => {
+    const urls = ((arg && Array.isArray(arg.urls)) ? arg.urls : [])
+      .map((u) => String(u || '').trim())
+      .filter((u) => /^https?:\/\//i.test(u))
+      .slice(0, 24);
+    return Promise.all(urls.map(probeMirror));
   });
 
   /**
@@ -1857,8 +1935,9 @@ function registerIpc() {
   handle('download:list', () => dlManager.list());
   handle('download:stats', () => dlManager.stats());
   handle('download:new', ({ url, filename, engineId } = {}) => {
-    const target = String(url || '').trim();
-    if (!/^https?:\/\//i.test(target)) return { error: '只支持 http / https 地址' };
+    const raw = String(url || '').trim();
+    if (!/^https?:\/\//i.test(raw)) return { error: '只支持 http / https 地址' };
+    const target = mirrorDownloadUrl(raw);
     const id = dlManager.enqueue({
       url: target,
       filename: filename ? String(filename) : '',

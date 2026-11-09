@@ -102,8 +102,10 @@ document.addEventListener('submit', (event) => {
  *
  * 安全边界：
  *   - 只问、不存。这个文件碰不到密码库，也发不出任何请求。
- *   - 表单里**恰好一个**密码框且它是空的才问：两个以上是注册/改密码；非空
- *     说明页面自己带了值或用户已经在打，覆盖用户的输入是最讨厌的事。
+ *   - 挑一个可见、且没标 new-password 的密码框，它为空才问：登录页常同时
+ *     挂着注册框 / 显示密码用的第二框 / 蜜罐框，硬性要求「只有一个」会让
+ *     这些站点永远问不出口；非空说明页面自己带了值或用户已经在打，覆盖
+ *     用户的输入是最讨厌的事。
  *   - origin 由页面自己读 location.origin（这里是 guest 自己的 origin，
  *     不是宿主的地址），宿主那侧还会再拿标签页真实地址核一遍。
  *
@@ -119,34 +121,83 @@ document.addEventListener('submit', (event) => {
   const askedFor = new WeakSet();
   /** 这一份文档至少问过一次（宿主回填时要确认是自己先开的口） */
   let asked = false;
+  /** 成功填过一次就收手：框架重渲染可能把值清空，别跟着再填第二轮 */
+  let done = false;
+  /** 最近一次开口时看到的那一对输入框（SPA 常在这期间把 DOM 整个换掉） */
+  let lastPair = null;
   /** DOM 变化探测：登录表单晚到也能接住 */
   let observer = null;
+  /** 没等到回填时的补偿重发：一次性消息若赶上宿主还没挂好监听，就永久丢了 */
+  let retryTimer = null;
+  let retryLeft = 0;
+
+  /**
+   * 可见性只用来「从多个密码框里挑一个」，不是硬门槛 —— 判不准时宁可全留着，
+   * 也别像从前那样「有两个密码框就整个不填」。
+   */
+  function visible(el) {
+    if (!el || el.disabled || el.readOnly || el.hidden || el.type === 'hidden') return false;
+    try {
+      const s = getComputedStyle(el);
+      if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') return false;
+      const r = el.getBoundingClientRect();
+      // jsdom / 页面还没布局时矩形全是 0，这时只靠样式判断，别把所有框都判成隐藏
+      if (r.width === 0 && r.height === 0 && document.documentElement.offsetWidth > 0) return false;
+    } catch { /* 取不到样式就当可见 */ }
+    return true;
+  }
+
+  /** 登录页常同时挂着注册框、显示密码用的第二个框、蜜罐框：挑真正那个 */
+  function pickPassword(pws) {
+    const all = Array.prototype.slice.call(pws || []);
+    if (!all.length) return null;
+    const bad = (p) => p.disabled || p.readOnly || p.hidden
+      || /new-password/i.test(p.getAttribute('autocomplete') || '');
+    const vis = all.filter((p) => !bad(p) && visible(p));
+    const pool = vis.length ? vis : all.filter((p) => !bad(p));
+    const list = pool.length ? pool : all;
+    return list.find((p) => (p.getAttribute('autocomplete') || '').toLowerCase() === 'current-password')
+      || list[0] || null;
+  }
+
+  /** 用户名框按语义打分，避开验证码 / 搜索 / 隐藏域；不再只认第一个 text */
+  function pickUser(form) {
+    let inputs;
+    try { inputs = Array.prototype.slice.call(form.querySelectorAll('input')); } catch { return null; }
+    const bad = /(captcha|verify|vcode|otp|search|keyword|query)/i;
+    const score = (i) => {
+      const ac = (i.getAttribute('autocomplete') || '').toLowerCase();
+      const t = (i.type || '').toLowerCase();
+      const n = ((i.name || '') + ' ' + (i.id || '') + ' ' + (i.placeholder || '')).toLowerCase();
+      if (ac === 'username' || ac === 'email') return 100;
+      if (t === 'email' || /e-?mail/.test(n)) return 90;
+      if (/user|account|login|acct|uname|phone|mobile|tel/.test(n)) return 80;
+      if (t === 'tel') return 70;
+      return (t === 'text' || !t) ? 10 : 0;
+    };
+    const usable = inputs.filter((i) => i && i.type !== 'password' && i.type !== 'hidden'
+      && i.type !== 'submit' && i.type !== 'button' && i.type !== 'checkbox'
+      && i.type !== 'radio' && i.type !== 'file' && visible(i)
+      && !bad.test((i.name || '') + ' ' + (i.id || '') + ' ' + (i.autocomplete || '')));
+    const scored = usable.map((i) => ({ i, s: score(i) })).filter((x) => x.s > 0)
+      .sort((a, b) => b.s - a.s);
+    return scored.length ? scored[0].i : null;
+  }
 
   /** 当前文档里那个「能填」的登录表单；没有返回 null */
   function findLoginForm() {
     let pws;
     try { pws = document.querySelectorAll('input[type="password"]'); } catch { return null; }
-    if (!pws || pws.length !== 1) return null;
-    const pw = pws[0];
+    if (!pws || !pws.length) return null;
+    const pw = pickPassword(pws);
+    if (!pw) return null;
     // DOM 是共享的：主世界（或页面脚本）已经填过就别插手
     if (pw.value || filled.has(pw)) return null;
     const form = pw.form || document;
-    const q = (sel) => { try { return form.querySelector(sel); } catch { return null; } };
-    const ue = q('input[autocomplete="username"]')
-      || q('input[type="email"]')
-      || q('input[name*="user" i]')
-      || q('input[id*="user" i]')
-      || q('input[type="tel"]')
-      || q('input[type="text"]')
-      || q('input:not([type])');
-    return { ue: ue || null, pw };
+    return { ue: pickUser(form), pw };
   }
 
-  function askHost() {
-    const f = findLoginForm();
-    if (!f || askedFor.has(f.pw)) return;
-    askedFor.add(f.pw);
-    asked = true;
+  function sendAsk(f) {
     try {
       ipcRenderer.sendToHost('nova-cred-ask', {
         origin: location.origin,
@@ -157,27 +208,73 @@ document.addEventListener('submit', (event) => {
     } catch { /* 宿主已销毁 */ }
   }
 
+  /**
+   * 补偿重发。按「密码框元素」去重是对的（不反复打扰宿主），但代价是同一条
+   * 消息只有一次机会：宿主那一刻若在重建 webview / 刚挂监听 / 凭证还在写入，
+   * 这次静默失败之后就再也不会填了。这里给同一条消息最多补两次，收到回填
+   * 或用户自己开始输入就停。重复到达的回填由 done 拦住，不会覆盖第二遍。
+   */
+  function scheduleRetry() {
+    if (retryTimer) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      if (done || !lastPair || lastPair.pw.value || retryLeft <= 0) return;
+      retryLeft--;
+      sendAsk(lastPair);
+      scheduleRetry();
+    }, 1500);
+  }
+
+  function askHost() {
+    if (done) return;
+    const f = findLoginForm();
+    if (!f || askedFor.has(f.pw)) return;
+    askedFor.add(f.pw);
+    asked = true;
+    lastPair = f;
+    sendAsk(f);
+    retryLeft = 2;
+    scheduleRetry();
+  }
+
+  /**
+   * 写值必须绕开框架在实例上装的 value 拦截器：React / Vue 会劫持 input.value，
+   * 直接赋值只更新了它的 value tracker，框架据此认为「值没变」而不派 onChange，
+   * 下一次渲染又把 state 里的空值写回来 —— 用户看到的就是「填了又没了」。
+   * 用原型上那个原生 setter 赋值，再派 input / change，框架才认这个变化。
+   */
   function setValue(el, v) {
     if (!el || !v) return;
     try {
       el.focus();
-      el.value = v;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
+      const proto = typeof HTMLInputElement !== 'undefined' ? HTMLInputElement.prototype : null;
+      const desc = proto && Object.getOwnPropertyDescriptor(proto, 'value');
+      if (desc && desc.set) desc.set.call(el, v);
+      else el.value = v;
+      const input = (typeof InputEvent === 'function')
+        ? new InputEvent('input', { bubbles: true, data: v, inputType: 'insertText' })
+        : new Event('input', { bubbles: true });
+      el.dispatchEvent(input);
       el.dispatchEvent(new Event('change', { bubbles: true }));
-      el.blur();
     } catch { /* 控件没了就算了 */
     }
   }
 
   /** 宿主回一条账号密码。已经要过才填，防止页面脚本伪造这条消息乱填。 */
   ipcRenderer.on('nova-cred-fill', (_e, payload) => {
-    if (!asked || !payload || !payload.password) return;
-    const f = findLoginForm();
-    if (!f) return;
+    if (!asked || done || !payload || !payload.password) return;
+    let f = lastPair;
+    // 记住的框可能已被 SPA 换掉：仍挂在文档上且还是空的才用，否则重新找
+    if (!f || !f.pw || !f.pw.isConnected || f.pw.value) f = findLoginForm() || f;
+    if (!f || !f.pw) return;
     setValue(f.ue, String(payload.username || ''));
     setValue(f.pw, String(payload.password));
     if (f.ue) filled.add(f.ue);
     filled.add(f.pw);
+    done = true;
+    lastPair = null;
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    try { if (observer) observer.disconnect(); } catch { /* ignore */ }
   });
 
   // 新增节点 / type 被改成 password 时都补问一次。有 askedFor 去重，

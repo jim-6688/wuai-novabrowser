@@ -331,45 +331,11 @@
             android:visibility="gone" />
 
         <!--
-          新标签页专用的悬浮 AI 按钮。
-          内置新标签页会把整条顶栏（含 AI 按钮 btnAi）收掉（见 MainActivity#applyChromeFor），
-          那一屏因此完全开不了 AI 窗口。这里单独浮一个 AI 入口：只在【新标签页】上显示、
-          其余页面隐藏（applyChromeFor 控制），不制造白条、不挡视线。
-          点它打开与顶栏 btnAi 同一个 AI 对话面板。
+          AI 与扫一扫已经做进新标签页界面本身（newtab.html 里的 AI 提问框、
+          搜索框内的扫一扫按钮），原来浮在右上角的这两枚按钮一并撤掉。
+          同一件事留两个入口只会让人不知道该点哪个；而浮钮本来就是
+          「顶栏被收掉」的补丁，不是那一屏的界面。
         -->
-        <ImageButton
-            android:id="@+id/btnAiFloat"
-            android:layout_width="@dimen/tap_action"
-            android:layout_height="@dimen/tap_action"
-            android:layout_gravity="top|end"
-            android:layout_marginTop="14dp"
-            android:layout_marginEnd="14dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/content_desc_ai"
-            android:scaleType="centerInside"
-            android:padding="7dp"
-            android:src="@drawable/ic_ai"
-            android:visibility="gone" />
-
-        <!--
-          新标签页专用的悬浮扫一扫入口。整条顶栏（含地址栏旁的 btnScan）在那一屏被
-          收成 GONE，这里单独浮一个扫一扫，排在 AI 浮钮左边（layout_marginEnd 让出一
-          整颗按钮 + 间隙），只在【新标签页】上显示（applyChromeFor 控制）。点它直接
-          startScan()，与地址栏 btnScan 走同一套扫码逻辑。
-        -->
-        <ImageButton
-            android:id="@+id/btnScanFloat"
-            android:layout_width="@dimen/tap_action"
-            android:layout_height="@dimen/tap_action"
-            android:layout_gravity="top|end"
-            android:layout_marginTop="14dp"
-            android:layout_marginEnd="62dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/content_desc_scan"
-            android:scaleType="centerInside"
-            android:padding="7dp"
-            android:src="@drawable/ic_scan"
-            android:visibility="gone" />
 
         <!--
           强制更新时盖在网页上的遮罩。

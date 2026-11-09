@@ -295,8 +295,20 @@ svg {
 #qk-about { --btn-hue: var(--brand-strong); } /* 关于：深一档的蓝（次要入口） */
 #btn-downloads { --btn-hue: var(--brand); }    /* 下载：品牌蓝 */
 #btn-ext { --btn-hue: var(--accent); }        /* 扩展：与工具同色（都是「装东西」） */
-#btn-ai { --btn-hue: var(--brand-2); }        /* AI：浅蓝 */
+#btn-ai { --btn-hue: var(--brand-2); }        /* AI：浅蓝（按钮底），图标另走彩色渐变 */
 #btn-menu { --btn-hue: var(--brand-strong); } /* 菜单：深一档的蓝 */
+
+/* AI 图标：这一排里唯一的多色图标。与手机版 ic_ai.xml、新标签页 logo
+   共用蓝 → 青绿这组品牌端点，中间色由两者混出来，不另引第三种色。
+   端点用变量而不是写死色值 —— [data-theme="dark"] 会换成亮一档的
+   --brand / --accent，渐变自动跟着变亮，深底上不会发闷。
+   字母到 17px 会略挤，单独放到 19px；hover 时稍微提一点饱和与亮度，
+   让这颗唯一的彩色图标在指针扫过时有回馈。 */
+#btn-ai .ai-grad-a { stop-color: var(--brand); }
+#btn-ai .ai-grad-m { stop-color: color-mix(in srgb, var(--brand) 50%, var(--accent)); }
+#btn-ai .ai-grad-b { stop-color: var(--accent); }
+#btn-ai .ai-ico { width: 19px; height: 19px; transition: filter var(--dur) var(--ease); }
+#btn-ai:hover .ai-ico { filter: saturate(1.18) brightness(1.06); }
 /* 收藏夹栏开着的时候，那颗按钮是「点一下能收起来」的实心态 */
 #qk-bmbar.is-on {
   background: color-mix(in srgb, var(--star) 34%, transparent);

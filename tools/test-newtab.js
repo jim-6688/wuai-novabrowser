@@ -877,6 +877,35 @@ function manyHosts(n) {
       /NewTab\.OP_SEARCH\.equals\(cmd\.op\)/.test(main));
   }
 
+  /* ── 手机端内嵌的 AI 提问框 / 搜索框里的扫一扫 ── */
+  {
+    const page = fs.readFileSync(P('src/renderer/newtab.html'), 'utf8');
+    check('扫一扫长在搜索框里面（不是游离在角上的按钮）',
+      /<form class="search"[\s\S]*?id="s-scan"[\s\S]*?<\/form>/.test(page));
+    check('AI 提问框是页面里的表单，位置在搜索与宫格之间',
+      /<form class="ai-box"[\s\S]*?<\/form>\s*<nav class="quicks"/.test(page));
+    check('两个入口默认隐藏、只由安卓宿主放开（桌面宿主没有这两条命令通道）',
+      /id="s-scan"[^>]*hidden/.test(page)
+      && /<form class="ai-box"[^>]*hidden/.test(page)
+      && /isMobileHost\(\)/.test(page));
+    check('两个入口都回传 nova:// 命令',
+      /cmdUrl\('scan'/.test(page) && /cmdUrl\('ai'/.test(page));
+
+    const java = fs.readFileSync(
+      P('android-app/app/src/main/java/top/wuai/nova/NewTab.java'), 'utf8');
+    check('安卓侧认得 ai / scan 两个操作',
+      /OP_AI = "ai"/.test(java) && /OP_SCAN = "scan"/.test(java)
+      && /OP_AI\.equals\(op\)/.test(java) && /OP_SCAN\.equals\(op\)/.test(java));
+    const main = fs.readFileSync(
+      P('android-app/app/src/main/java/top/wuai/nova/MainActivity.java'), 'utf8');
+    check('安卓侧真的处理这两个命令（不是只解析了却没人用）',
+      /NewTab\.OP_AI\.equals\(cmd\.op\)/.test(main)
+      && /NewTab\.OP_SCAN\.equals\(cmd\.op\)/.test(main));
+    check('页面缩放改走即时 zoomBy 并补差，另有 viewport 解锁（双指缩放）',
+      /zoomBy/.test(main) && /appliedZoomFactor/.test(main)
+      && /injectZoomSupport/.test(main) && /user-scalable/.test(main));
+  }
+
   console.log(`\n${fail === 0 ? '全部通过' : '有失败项'}：${pass} 通过 / ${fail} 失败`);
   process.exit(fail === 0 ? 0 : 1);
 })();

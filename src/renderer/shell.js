@@ -658,8 +658,10 @@ function handleWebviewIpc(tab, ev) {
  * 保存这件事就只完成了一半。
  *
  * <p>三条边界：
- *  1. origin 必须是**这个标签页当前地址**的 origin。页面里读到的 origin 只当
- *     线索，宿主拿真实地址核一遍 —— 否则跨站 iframe 一句 ask 就能拿去别人的记录。
+ *  1. origin 必须是**这个标签页真实地址**的 origin。页面里读到的 origin 只当
+ *     线索，宿主拿 webview 自己的 URL 核一遍 —— 否则跨站 iframe 一句 ask 就能
+ *     拿去别人的记录。用 guest 真实地址而不是外壳记下的 tab.url，是为了和
+ *     保存时主进程 wc.getURL() 的口径一致（302 / SPA 换地址后两者会不一样）。
  *  2. 只填一条。同一站点存了多个账号时不猜：把口令乱填进别人的账号上，比不填更糟。
  *     选最近保存的那条（settings 里也能手动「填充到当前页」逐个填）。
  *  3. 解密失败（换过 Windows 账户）就安静放过，不打扰用户。
@@ -668,12 +670,23 @@ async function autofillLogin(tab, payload) {
   if (!tab || !payload) return;
   const cfg = (state.settings && state.settings.passwords) || {};
   if (cfg.autofill === false) return;
-  const origin = originOf(tab.url);
-  const asked = String(payload.origin || '');
-  if (!origin || !asked || origin.toLowerCase() !== asked.toLowerCase()) return;
 
   const wv = tab.webview;
   if (!wv || typeof wv.send !== 'function') return;   // UI 预览模式没有真 webview
+
+  // 保存时主进程取的是 wc.getURL()（guest 真实地址），这里若只认 tab.url
+  // （外壳记下的导航地址），遇到 302 跳转 / SPA 换 URL 就对不上，表现就是
+  // 「密码存了、页面也问了，宿主却一声不吭」。优先问 webview 自己的地址，
+  // 拿不到再退回 tab.url；两个口径都不等于页面报来的 origin 仍然拒绝，
+  // 跨站 iframe 照样拿不到别人的记录。
+  let liveOrigin = '';
+  try { if (typeof wv.getURL === 'function') liveOrigin = originOf(wv.getURL()); } catch { }
+  const tabOrigin = originOf(tab.url);
+  const asked = String(payload.origin || '');
+  if (!asked) return;
+  const origin = (liveOrigin && liveOrigin.toLowerCase() === asked.toLowerCase())
+    ? liveOrigin : tabOrigin;
+  if (!origin || origin.toLowerCase() !== asked.toLowerCase()) return;
 
   try {
     // 每次都重读一次：密码可能刚在气泡里保存、刚从 Edge 导入、或刚在设置里
@@ -5937,6 +5950,7 @@ const SETTINGS_NAV = [
   { group: '系统', items: [
     { id: 'passwords', label: '密码', icon: 'key', count: () => (state.credentials || []).length },
     { id: 'permissions', label: '站点权限', icon: 'globe' },
+    { id: 'github', label: 'GitHub 加速', icon: 'bolt', count: () => (githubCfg().enabled ? '开' : '') },
     { id: 'privacy', label: '隐私与数据', icon: 'lock' },
     { id: 'about', label: '关于吾爱Nova', icon: 'info' }
   ] }
@@ -5956,7 +5970,8 @@ const NAV_ICONS = {
   lock: '<path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/>',
   key: '<circle cx="7" cy="13" r="3"/><path d="M9.1 11.1L16 4.2M13.9 4.2h2.4v2.4"/>',
   info: '<circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/>',
-  globe: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.4 2 2.4 12 0 14M10 3c-2.4 2-2.4 12 0 14"/>'
+  globe: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.4 2 2.4 12 0 14M10 3c-2.4 2-2.4 12 0 14"/>',
+  bolt: '<path d="M11.5 2.5L5 11.2h4.1L8.5 17.5 15 8.8h-4.1z"/>'
 };
 
 /** 分区 id → 构建函数。构建函数可以返回字符串，也可以返回 Promise<string>。 */
@@ -5974,6 +5989,7 @@ const SECTION_BUILDERS = {
   privacy: buildPrivacy,
   passwords: buildPasswords,
   permissions: buildPermissions,
+  github: buildGithub,
   about: buildAbout
 };
 
@@ -6361,6 +6377,142 @@ function buildPrivacy() {
       本版没有做的东西，这里如实写明：站点级 Cookie 策略开关（<code>relaxThirdParty</code> 字段已在配置里，
       但没有接到 Electron 的 session 策略上，所以不给一个点了没反应的按钮）、代理设置、证书管理。
       第三方 Cookie 目前完全由 Chromium 默认策略决定。
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ *
+ * GitHub 访问加速
+ * ------------------------------------------------------------------ */
+
+/*
+ * 镜像候选这里只放「给下拉看」的说明，改写规则一份都不在渲染层 ——
+ * 那在主进程 src/main/github-mirror.js。渲染层拿不到主进程模块（preload
+ * 是白名单），所以清单在这里再列一遍；两处的 URL 必须逐字一致，
+ * check-shell.js 的静态断言会比对，改一处记得同步另一处。
+ */
+const GH_SITE_MIRRORS = [
+  ['https://bgithub.xyz', '界面简洁、响应快'],
+  ['https://kkgithub.com', 'Markdown 渲染好'],
+  ['https://github.ur1.fun', '加载快']
+];
+const GH_ASSET_MIRRORS = [
+  ['https://gh-proxy.com/', 'Cloudflare 多节点，推荐'],
+  ['https://ghproxy.net/', '支持断点续传'],
+  ['https://mirror.ghproxy.com/', '官方备用'],
+  ['https://gh.llkk.cc/', '国内 CDN'],
+  ['https://hub.gitmirror.com/', '大体积 Release'],
+  ['https://moeyy.cn/gh-proxy/', '带路径的公共镜像'],
+  ['https://github.akams.cn/', '支持 API / Gist']
+];
+
+/** 「检测节点」的一次性快照。重绘要保留，但不落盘、也不该跟 bootstrap 走。 */
+const ghProbeState = { busy: false, results: null };
+
+/** 缺省视为关闭：老配置里没有 github 这个键，不该因为升级就静默开启第三方中转。 */
+function githubCfg() {
+  const g = (state.settings && state.settings.github) || {};
+  return {
+    enabled: g.enabled === true,
+    siteMirror: g.siteMirror || GH_SITE_MIRRORS[0][0],
+    assetMirror: g.assetMirror || GH_ASSET_MIRRORS[0][0]
+  };
+}
+
+const ghHostLabel = (u) => String(u || '').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+
+/**
+ * 一组「下拉选节点 + 输入框看 / 填当前生效地址」。
+ * 两个控件始终同时可见：下拉选中候选项会把值同步进输入框，选「自定义…」
+ * 则聚焦输入框，输入框失焦或回车时提交。不用 hidden 切换，重绘后也不丢状态。
+ */
+function ghMirrorRow(kind, title, sub, mirrors, current) {
+  const isCustom = !mirrors.some(([u]) => u === current);
+  return `
+    <div class="panel-label">${esc(title)}</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">选择节点</span>
+          <span class="lr-sub">${esc(sub)}</span>
+        </span>
+        <select class="perm-cat-sel" id="gh-${kind}-sel" title="${esc(title)}节点">
+          ${mirrors.map(([u, note]) => `<option value="${esc(u)}" ${current === u ? 'selected' : ''}>${esc(ghHostLabel(u))} · ${esc(note)}</option>`).join('')}
+          <option value="__custom__" ${isCustom ? 'selected' : ''}>自定义…</option>
+        </select>
+      </div>
+      <div class="dl-new" style="padding-top:var(--sp-2)">
+        <input id="gh-${kind}-custom" class="ai-input" value="${esc(current)}" placeholder="https://镜像域名/" spellcheck="false" />
+        <span class="muted" style="white-space:nowrap">当前生效地址</span>
+      </div>
+    </div>`;
+}
+
+/** 检测结果按两组分别列出，可用 / 不可用一眼能分清，不编造绿色状态。 */
+function ghProbeHtml() {
+  const p = ghProbeState;
+  if (p.busy) return '<div class="sv-empty">正在按你当前的网络逐一检测节点，最多约 5 秒…</div>';
+  if (!p.results) return '';
+  const group = (title, list) => `
+    <div class="panel-label">${esc(title)}</div>
+    <div class="sv-card">
+      ${list.map((r) => `
+        <div class="list-row">
+          <span class="lr-main">
+            <span class="lr-title">${r.ok ? '✓' : '✗'} ${esc(ghHostLabel(r.url))}</span>
+            <span class="lr-sub">${esc(r.note || (r.status ? 'HTTP ' + r.status : '未响应'))}</span>
+          </span>
+          <span class="muted" style="white-space:nowrap">${r.ok ? r.ms + ' ms · 可用' : '不可用'}</span>
+        </div>`).join('')}
+    </div>`;
+  return group('整站镜像检测结果', p.results.site) + group('资源镜像检测结果', p.results.asset);
+}
+
+function buildGithub() {
+  const g = githubCfg();
+  return `
+    <h2 class="sv-h2">GitHub 访问加速</h2>
+    <div class="sv-lead">没有代理节点时，浏览器把 GitHub 请求改道到公共镜像：网页走整站镜像，raw 文件 / Release 下载 / 源码包走资源镜像。改动即时生效，不用重启。</div>
+
+    <div class="panel-label">总开关</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">启用 GitHub 镜像加速</span>
+          <span class="lr-sub">默认关闭。镜像是第三方中转，开启前请先读下方安全说明</span>
+        </span>
+        <button class="switch ${g.enabled ? 'is-on' : ''}" data-act="gh-toggle" title="启用 GitHub 镜像加速"></button>
+      </div>
+    </div>
+
+    ${ghMirrorRow('site', '① 整站镜像', 'github.com 的仓库页 / 代码 / 搜索换成这个域名，路径原样保留', GH_SITE_MIRRORS, g.siteMirror)}
+    ${ghMirrorRow('asset', '② 资源镜像', 'raw 文件、Release 附件、源码包与 codeload 子域，把原始完整链接拼在它后面', GH_ASSET_MIRRORS, g.assetMirror)}
+
+    <div class="panel-label">选节点 / 验证</div>
+    <div class="sv-card" style="padding:var(--sp-3)">
+      <div class="btn-row" style="padding:0">
+        <button class="btn btn-primary" data-act="gh-probe" ${ghProbeState.busy ? 'disabled' : ''}>检测哪个节点能用</button>
+        <button class="btn" data-act="gh-try">打开一个仓库页试试</button>
+        <button class="btn" data-act="gh-try-raw">打开一个 raw 文件试试</button>
+      </div>
+      <div class="muted" style="padding-top:var(--sp-2)">按你当前网络实测每个候选节点，自动选中响应最快且可用的那个。公共镜像时好时坏，慢了就再测一次。</div>
+    </div>
+    ${ghProbeHtml()}
+
+    <div class="sv-note">
+      <b>安全说明：</b>镜像由第三方运营，请求会经过对方服务器，可能记录访问日志。
+      <b>只用来访问公开仓库与公开文件，不要用镜像站登录 GitHub，不要带 Token / Cookie。</b>
+      登录路径、<code>api.github.com</code>、gist 页面、非 GET 请求，以及网页自己的
+      XHR / fetch 一律直连官方，不经过镜像；头像等图片 CDN 也直连。
+      <br><br>
+      <b>关于 Cloudflare 加速：</b>默认的 <code>gh-proxy.com</code> 自身跑在 Cloudflare
+      多区域边缘节点上，下载会走它的 CF / Fastly 线路 —— 这是镜像服务自带的加速。
+      浏览器没有出口节点时，<b>无法给任意 Cloudflare 背后的网站提速</b>，也没有办法
+      绕过 CF 的 5 秒盾 / Turnstile 人机验证；那需要自备代理节点，走「按域名分流」。
+      <br><br>
+      <b>已知边界：</b>公共镜像随时可能失效、限速或关停，哪个打不开就在上面换一个；
+      整站镜像页面里若有链接指回 github.com，会被再次改道。开启期间收藏或记进历史的
+      会是镜像域名，关掉加速后这些记录需要手动改回官方地址。
     </div>
   `;
 }
@@ -7003,6 +7155,52 @@ function wireActions(root) {
         state.settings = await bridge.settings.patch({ passwords: { autoUpdate: !cur } });
         renderSettingsSection('passwords');
         toast(!cur ? '已关闭自动更新，改密时会再问一次' : '已开启改密自动更新');
+      } else if (act === 'gh-toggle') {
+        const cur = githubCfg().enabled;
+        state.settings = await bridge.settings.patch({ github: { enabled: !cur } });
+        renderSettingsSection('github');
+        toast(!cur ? 'GitHub 加速已开启，改动即时生效' : 'GitHub 加速已关闭，恢复直连官方');
+      } else if (act === 'gh-probe') {
+        if (ghProbeState.busy) return;
+        ghProbeState.busy = true;
+        renderSettingsSection('github');
+        let res = null;
+        try {
+          res = await bridge.github.probe({
+            urls: [...GH_SITE_MIRRORS, ...GH_ASSET_MIRRORS].map(([u]) => u)
+          });
+        } catch { res = null; }
+        ghProbeState.busy = false;
+        if (!res || !Array.isArray(res)) {
+          ghProbeState.results = { site: [], asset: [] };
+          renderSettingsSection('github');
+          toast('节点检测没跑起来，请稍后再试');
+          return;
+        }
+        const byUrl = new Map(res.map((x) => [x.url, x]));
+        const pick = (list) => list.map(([u]) => byUrl.get(u)
+          || { url: u, ok: false, status: 0, ms: 0, note: '未检测' });
+        const site = pick(GH_SITE_MIRRORS);
+        const asset = pick(GH_ASSET_MIRRORS);
+        ghProbeState.results = { site, asset };
+        const fastest = (list) => list.filter((x) => x.ok).sort((a, b) => a.ms - b.ms)[0];
+        const bestSite = fastest(site);
+        const bestAsset = fastest(asset);
+        const patch = {};
+        if (bestSite) patch.siteMirror = bestSite.url;
+        if (bestAsset) patch.assetMirror = bestAsset.url;
+        // 一个都没连上就保持原配置不动，别拿不可用的地址覆盖用户填过的自定义节点。
+        if (Object.keys(patch).length) state.settings = await bridge.settings.patch({ github: patch });
+        renderSettingsSection('github');
+        if (!bestSite && !bestAsset) toast('当前网络下这些节点都没连上，可以填一个自定义镜像');
+        else toast('已选中可用节点：' + [bestSite && ghHostLabel(bestSite.url), bestAsset && ghHostLabel(bestAsset.url)].filter(Boolean).join(' / '));
+      } else if (act === 'gh-try' || act === 'gh-try-raw') {
+        if (!githubCfg().enabled) { toast('请先在上面打开总开关'); return; }
+        const url = act === 'gh-try'
+          ? 'https://github.com/tensorflow/tensorflow'
+          : 'https://raw.githubusercontent.com/tensorflow/tensorflow/master/README.md';
+        createTab(url, state.settings.defaultEngine);
+        toast('已打开测试链接，看地址栏是否跳到镜像域名');
       } else if (act === 'cred-add') {
         const g = (id) => { const el = root.querySelector('#' + id); return el ? el.value : ''; };
         const r = await bridge.credentials.add({
@@ -7198,6 +7396,41 @@ function wireActions(root) {
       toast(val === 'block' ? '已禁止所有站点访问本地网络' : val === 'allow' ? '已允许所有站点访问本地网络' : '已改为按站点询问');
       return;
     }
+
+    /* GitHub 加速的两个下拉 + 两个自定义地址输入框。必须排在权限下拉之前
+     * 分流：它们复用了 .perm-cat-sel 样式，落到下面会被当成站点规则找 host。 */
+    if (ev.target && /^gh-(site|asset)-(sel|custom)$/.test(ev.target.id)) {
+      const id = ev.target.id;
+      const isSite = id.indexOf('site') >= 0;
+      const kind = isSite ? 'site' : 'asset';
+      const key = isSite ? 'siteMirror' : 'assetMirror';
+      const mirrors = isSite ? GH_SITE_MIRRORS : GH_ASSET_MIRRORS;
+      const selEl = root.querySelector('#gh-' + kind + '-sel');
+      const inputEl = root.querySelector('#gh-' + kind + '-custom');
+
+      if (id.endsWith('-sel')) {
+        // 选「自定义…」只把焦点交给输入框，不落盘 —— 否则会把 "__custom__"
+        // 当成镜像地址存下来，主进程规整不出来就会整条链路直连。
+        if (ev.target.value === '__custom__') { if (inputEl) inputEl.focus(); return; }
+        const v = ev.target.value;
+        if (inputEl) inputEl.value = v;
+        state.settings = await bridge.settings.patch({ github: { [key]: v } });
+        toast('已切换' + (isSite ? '整站' : '资源') + '镜像节点');
+        return;
+      }
+
+      const v = String(ev.target.value || '').trim();
+      if (!v) {
+        toast('请填写镜像地址');
+        if (inputEl) inputEl.value = githubCfg()[key];
+        return;
+      }
+      state.settings = await bridge.settings.patch({ github: { [key]: v } });
+      if (selEl) selEl.value = mirrors.some(([u]) => u === v) ? v : '__custom__';
+      toast('已保存自定义' + (isSite ? '整站' : '资源') + '镜像');
+      return;
+    }
+
     const sel = ev.target.closest('.perm-cat-sel');
     if (!sel) return;
     const host = sel.dataset.host;

@@ -215,6 +215,22 @@ const DEFAULTS = {
    */
   localNetworkAccess: 'ask',
   /**
+   * GitHub 访问加速（镜像改写，规则见 src/main/github-mirror.js）。
+   *
+   * 默认关闭：镜像是第三方中转，请求会经过别人家的服务器，不该在用户
+   * 不知情时把流量交出去 —— 必须自己在设置页打开。
+   *   enabled     —— 总开关
+   *   siteMirror  —— 替换 github.com 域名，用于浏览仓库 / 代码 / 搜索
+   *   assetMirror —— 拼在原始完整 URL 前面，用于 raw 文件 / Release 下载 / 源码包
+   * 两项都能在设置页切换内置候选或填自定义地址。登录页、api.github.com、
+   * 非 GET 请求与页面自己的 XHR 一律直连官方，不经过镜像。
+   */
+  github: {
+    enabled: false,
+    siteMirror: 'https://bgithub.xyz',
+    assetMirror: 'https://gh-proxy.com/'
+  },
+  /**
    * 收藏夹栏摆放位置：top | bottom | left | right。
    *
    *   top    —— 贴顶栏下方，横向一行（默认）

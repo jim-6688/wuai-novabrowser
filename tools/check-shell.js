@@ -21,7 +21,7 @@ const jsFiles = [
   'src/main/settings.js', 'src/main/engines.js', 'src/main/adblock.js',
   'src/main/adblock-lists.js', 'src/main/extensions.js', 'src/main/main.js',
   'src/main/downloader.js', 'src/main/sniffer.js', 'src/main/sniffer-wire.js',
-  'src/main/nomedia.js', 'src/main/request-gate.js', 'src/main/favicon-cache.js',
+  'src/main/nomedia.js', 'src/main/request-gate.js', 'src/main/github-mirror.js', 'src/main/favicon-cache.js',
   'src/main/desktop-shortcut.js', 'src/main/ext-store.js',
   'src/preload/preload.js', 'src/renderer/bridge-mock.js',
   'src/renderer/autopage.js', 'src/renderer/shell.js', 'tools/preview.js'
@@ -40,6 +40,24 @@ console.log('\n[2] DOM id 引用');
 const html = fs.readFileSync(P('src/renderer/shell.html'), 'utf8');
 const js = fs.readFileSync(P('src/renderer/shell.js'), 'utf8');
 const css = fs.readFileSync(P('src/renderer/shell.css'), 'utf8');
+const gateMod = fs.readFileSync(P('src/main/request-gate.js'), 'utf8');
+const mirrorMod = fs.readFileSync(P('src/main/github-mirror.js'), 'utf8');
+const preMod = fs.readFileSync(P('src/preload/webview-preload.js'), 'utf8');
+
+/* GitHub 镜像候选在渲染层（画下拉）和主进程（默认值）各列了一份。
+ * 两边 URL 必须逐字一致且顺序相同 —— 否则下拉里选了 A、默认却是 B，
+ * 用户从界面上完全看不出来。这里把两份清单里的 URL 抽出来直接比。 */
+function mirrorUrls(src, varName) {
+  const start = src.indexOf('const ' + varName + ' = [');
+  if (start < 0) return [];
+  const end = src.indexOf('];', start);
+  if (end < 0) return [];
+  const block = src.slice(start, end);
+  return [...block.matchAll(/url: '(https?:\/\/[^']+)'|\['(https?:\/\/[^']+)'/g)]
+    .map((m) => m[1] || m[2]);
+}
+const sameMirrorList = (a, b) => a.length > 0 && a.length === b.length
+  && a.every((u, i) => u === b[i]);
 
 /* 取「挂在 document 上、处理设置项按钮的那个 click 委托」这一段。
  *
@@ -812,6 +830,23 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['自动带入每次重读凭证表，并按页面预填的用户名优先匹配',
     /bridge\.credentials\.list\(\)/.test(js) && /payload\.username/.test(js)],
 
+  /* 用户又报「保存的用户名和密码不能自动填充」：四个根因都在页面侧 / 口径上，
+     这里钉住修复，行为回归交给 tools/test-cred-preload.js。 */
+  ['回填绕开框架的 value 拦截器（原型 setter + InputEvent），受控表单 onChange 才收得到',
+    /Object\.getOwnPropertyDescriptor\(proto, 'value'\)/.test(preMod)
+      && /desc\.set\.call\(el, v\)/.test(preMod)
+      && /new InputEvent\('input'/.test(preMod)],
+  ['不再要求「恰好一个密码框」，注册框 / 显示密码框 / 蜜罐框不会让整页问不出口',
+    /function pickPassword/.test(preMod) && !/pws\.length !== 1/.test(preMod)
+      && /new-password/.test(preMod) && /function pickUser/.test(preMod)],
+  ['记住开口时那一对输入框，SPA 重绘后仍能回填；填过一次就收手',
+    /lastPair/.test(preMod) && /isConnected/.test(preMod) && /done = true/.test(preMod)],
+  ['填充与保存同口径：优先取 webview 真实 URL，tab.url 只作回退',
+    /wv\.getURL\(\)/.test(js) && /liveOrigin/.test(js) && /originOf\(tab\.url\)/.test(js)],
+  ['没等到回填时有限次补偿重发，宿主那一刻没准备好也不会永久丢消息',
+    /function scheduleRetry/.test(preMod) && /sendAsk\(lastPair\)/.test(preMod)
+      && /clearTimeout\(retryTimer\)/.test(preMod)],
+
   /* --- 打印设置（左侧配置 / 右侧真实预览）--- */
   ['打印设置窗口是左栏配置 + 右栏预览',
     /id="print-pane"/.test(html) && /id="print-preview"/.test(html)
@@ -846,6 +881,65 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['有网页右键菜单与选区迷你条',
     /addEventListener\('context-menu'/.test(js) && /bridge\.webview\.contextMenu/.test(js)
       && /function injectSelectionBar/.test(js) && /injectSelectionBar\(tab\)/.test(js)],
+
+  /* --- GitHub 访问加速（镜像改写）--- */
+  ['改写规则是独立纯函数模块，主进程实时读配置喂给唯一那条 onBeforeRequest',
+    /require\('\.\/github-mirror'\)/.test(mainMod)
+      && /githubRewrite: \(details\) => githubMirror\.rewrite\(details, settings\.get\('github', \{\}\)\)/.test(mainMod)
+      && /const to = githubRewrite\(details\)/.test(gateMod)
+      && /redirectURL: to/.test(gateMod)],
+  ['改写排在广告拦截之后（规则看到的仍是原始 URL，不会被镜像域名带偏）',
+    gateMod.indexOf('if (githubRewrite)') > gateMod.indexOf('if (adblock)')],
+  ['下载引擎不经过 webRequest，两条入队路径都单独改过一遍',
+    /function mirrorDownloadUrl/.test(mainMod)
+      && /const target = mirrorDownloadUrl\(raw\)/.test(mainMod)
+      && /const target = mirrorDownloadUrl\(url\)/.test(mainMod)
+      && /url: target/.test(mainMod)],
+  ['默认关闭：不主动开启就不能把流量交给第三方',
+    /github: \{[\s\S]{0,220}?enabled: false/.test(stMod)
+      && /enabled: false/.test(fs.readFileSync(P('src/renderer/bridge-mock.js'), 'utf8'))],
+  ['设置页有独立分区、总开关、两组节点下拉与自定义输入',
+    /id: 'github', label: 'GitHub 加速'/.test(js) && /github: buildGithub/.test(js)
+      && /data-act="gh-toggle"/.test(js)
+      && /id="gh-\$\{kind\}-sel"/.test(js) && /id="gh-\$\{kind\}-custom"/.test(js)
+      && /\^gh-\(site\|asset\)-\(sel\|custom\)\$/.test(js)],
+  ['安全边界写在规则里：非幂等请求、XHR、API 一律不改写',
+    /method !== 'GET' && method !== 'HEAD'/.test(mirrorMod)
+      && /NO_REWRITE_TYPES/.test(mirrorMod)
+      && /api\.github\.com/.test(mirrorMod)
+      && /PRIVATE_FIRST_SEGMENTS/.test(mirrorMod)],
+  ['渲染层与主进程的两份镜像候选清单逐字一致（含顺序）',
+    sameMirrorList(mirrorUrls(js, 'GH_SITE_MIRRORS'), mirrorUrls(mirrorMod, 'SITE_MIRRORS'))
+      && sameMirrorList(mirrorUrls(js, 'GH_ASSET_MIRRORS'), mirrorUrls(mirrorMod, 'ASSET_MIRRORS'))],
+  ['节点自检全链路接通：preload → 主进程 net.request → 设置页按钮 / 预览桥',
+    /probe: \(urls\) => ipcRenderer\.invoke\('github:probe'/.test(fs.readFileSync(P('src/preload/preload.js'), 'utf8'))
+      && /handle\('github:probe'/.test(mainMod) && /net\.request\(/.test(mainMod)
+      && /data-act="gh-probe"/.test(js) && /bridge\.github\.probe/.test(js)
+      && /probe: async \(\{ urls \} = \{\}\)/.test(mockJs)],
+  ['自检走 Chromium 网络栈且只取响应头（Node https 不读系统代理，测出来会骗人）',
+    /net\.request\(\{ url: String\(url\), method: 'GET', redirect: 'follow' \}\)/.test(mainMod)
+      && /req\.abort\(\)/.test(mainMod) && /4500/.test(mainMod)],
+  ['预览模式不编造可用节点（截图里不该出现没测过的绿色状态）',
+    /ok: false, status: 0, ms: 0, note: '预览模式不发网络请求'/.test(mockJs)],
+
+  /* --- AI 助手图标：彩色渐变，且与手机版同款 --- */
+  ['AI 按钮是多色渐变图标，不再是单色星形',
+    /linearGradient id="aiIconGrad"/.test(html)
+      && (html.match(/url\(#aiIconGrad\)/g) || []).length >= 2
+      && /<stop class="ai-grad-a" offset="0"/.test(html)
+      && !/M10 2\.5l1\.7 3\.9/.test(html)],
+  ['渐变端点取明暗主题变量，深色下自动换成亮一档（不写死色值）',
+    /#btn-ai \.ai-grad-a \{ stop-color: var\(--brand\)/.test(css)
+      && /#btn-ai \.ai-grad-b \{ stop-color: var\(--accent\)/.test(css)
+      && /color-mix\(in srgb, var\(--brand\) 50%, var\(--accent\)\)/.test(css)],
+  ['PC 与手机版 ic_ai 造型逐条一致（字母 A / I ＋ 右上小星）',
+    (() => {
+      const d = fs.readFileSync(P('android-app/app/src/main/res/drawable/ic_ai.xml'), 'utf8');
+      const norm = (s) => s.replace(/[\s,]+/g, ' ').trim();
+      const paths = [...d.matchAll(/android:pathData="([^"]+)"/g)].map((m) => norm(m[1]));
+      const h = norm(html);
+      return paths.length === 3 && paths.every((p) => h.includes(p));
+    })()],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

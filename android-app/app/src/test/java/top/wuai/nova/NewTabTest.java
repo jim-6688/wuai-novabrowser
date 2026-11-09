@@ -322,6 +322,22 @@ public class NewTabTest {
     }
 
     @Test
+    public void 解析AI提问命令() {
+        NewTab.Cmd c = NewTab.parse("nova://shortcut/ai?q=%E4%BD%A0%E5%A5%BD%20Nova");
+        assertNotNull(c);
+        assertEquals(NewTab.OP_AI, c.op);
+        assertEquals("你好 Nova", c.get("q"));
+    }
+
+    @Test
+    public void 解析扫一扫命令() {
+        NewTab.Cmd c = NewTab.parse("nova://shortcut/scan");
+        assertNotNull(c);
+        assertEquals(NewTab.OP_SCAN, c.op);
+        assertEquals("", c.get("q"));
+    }
+
+    @Test
     public void 不是新标签页命令的一律返回空() {
         assertNull(NewTab.parse(null));
         assertNull(NewTab.parse(""));

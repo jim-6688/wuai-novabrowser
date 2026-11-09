@@ -110,6 +110,11 @@ contextBridge.exposeInMainWorld('nova', {
     patch: (partial) => ipcRenderer.invoke('settings:patch', partial)
   },
 
+  /* --- GitHub 加速：探测当前网络里哪些镜像节点真的可达 --- */
+  github: {
+    probe: (urls) => ipcRenderer.invoke('github:probe', { urls })
+  },
+
   /* --- 内核 --- */
   engines: {
     list: () => ipcRenderer.invoke('engine:list'),
