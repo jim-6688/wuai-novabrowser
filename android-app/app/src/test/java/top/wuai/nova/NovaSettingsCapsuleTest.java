@@ -70,7 +70,7 @@ public class NovaSettingsCapsuleTest {
     public void 搜吾爱导航不会把中文标签误判成域名() {
         // 「吾爱导航」是无点号的纯中文，必须走搜索而不是被当成域名补 https://
         String out = new NovaSettings().resolveInput("吾爱导航");
-        assertTrue(out.startsWith("https://so.qq.com/search?query="));
+        assertTrue(out.startsWith("https://so.qq.com/isearch?query="));
     }
 
     @Test

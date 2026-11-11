@@ -136,7 +136,7 @@ public class NovaSettingsTest {
     public void 不像网址就走搜索() {
         NovaSettings s = new NovaSettings();
         String out = s.resolveInput("今天天气怎么样");
-        assertTrue(out.startsWith("https://so.qq.com/search?query="));
+        assertTrue(out.startsWith("https://so.qq.com/isearch?query="));
         assertTrue(out.contains("%"));
     }
 
@@ -151,7 +151,7 @@ public class NovaSettingsTest {
     public void 含空格的当搜索词() {
         // "hello world" 含空格，不能被当成域名
         assertTrue(new NovaSettings().resolveInput("hello world")
-            .startsWith("https://so.qq.com/search?query="));
+            .startsWith("https://so.qq.com/isearch?query="));
     }
 
     // ------------------------------------------------------------ 搜索模板

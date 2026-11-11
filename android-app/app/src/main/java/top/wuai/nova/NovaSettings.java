@@ -172,7 +172,7 @@ public final class NovaSettings {
 
     public static SearchTemplate[] templates() {
         return new SearchTemplate[]{
-            new SearchTemplate("yuanbao", "元宝", "https://so.qq.com/search?query=%s"),
+            new SearchTemplate("yuanbao", "元宝", "https://so.qq.com/isearch?query=%s"),
             new SearchTemplate("baidu", "百度", "https://www.baidu.com/s?wd=%s"),
             new SearchTemplate("bing", "必应", "https://www.bing.com/search?q=%s"),
             new SearchTemplate("google", "Google", "https://www.google.com/search?q=%s"),

@@ -211,7 +211,7 @@ function timeAgo(ts) {
 }
 
 function searchUrl(q) {
-  const tpl = state.settings.searchTemplate || 'https://so.qq.com/search?query=%s';
+  const tpl = state.settings.searchTemplate || 'https://so.qq.com/isearch?query=%s';
   return tpl.replace('%s', encodeURIComponent(q));
 }
 
@@ -5162,7 +5162,7 @@ function renderKernelBinaries() {
 
 /** 预设搜索引擎 —— 值就是 searchTemplate，界面上按模板反查当前项 */
 const SEARCH_PRESETS = [
-  { label: '元宝', tpl: 'https://so.qq.com/search?query=%s' },
+  { label: '元宝', tpl: 'https://so.qq.com/isearch?query=%s' },
   { label: '百度', tpl: 'https://www.baidu.com/s?wd=%s' },
   { label: '必应', tpl: 'https://www.bing.com/search?q=%s' },
   { label: 'Google', tpl: 'https://www.google.com/search?q=%s' }
@@ -5643,7 +5643,7 @@ async function showPageImages() {
 function injectSelectionBar(tab) {
   const wv = tab.webview;
   if (!wv || typeof wv.executeJavaScript !== 'function') return;
-  const tpl = state.settings.searchTemplate || 'https://so.qq.com/search?query=%s';
+  const tpl = state.settings.searchTemplate || 'https://so.qq.com/isearch?query=%s';
   const script = '(function(){'
     + 'if(window.__novaSelBar)return "already";'
     + 'var TPL=' + JSON.stringify(tpl) + ';'
@@ -6898,7 +6898,7 @@ function wireActions(root) {
   const search = root.querySelector('#set-search');
   if (search) {
     search.addEventListener('change', async () => {
-      const v = search.value.trim() || 'https://so.qq.com/search?query=%s';
+      const v = search.value.trim() || 'https://so.qq.com/isearch?query=%s';
       state.settings.searchTemplate = v;
       await bridge.settings.patch({ searchTemplate: v });
       refreshCurrent();

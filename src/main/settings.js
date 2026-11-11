@@ -26,7 +26,7 @@ const DEFAULTS = {
    * 语义与移动端 NovaSettings.newTabPage 对齐。
    */
   newTabPage: 'start',
-  searchTemplate: 'https://so.qq.com/search?query=%s',
+  searchTemplate: 'https://so.qq.com/isearch?query=%s',
   defaultEngine: 'chromium',
   /**
    * 按站点自动切换内核。数组便于整体替换：
@@ -299,6 +299,14 @@ const DEFAULTS = {
    */
   bookmarkFix: 0,
   /**
+   * 搜索引擎模板修订标记：0 没修过，1 修过了（见 fixSearchTemplate）。
+   * 2.1.0 把元宝搜索默认模板错写成了 so.qq.com/search?query=%s，
+   * 那是 Next.js 的客户端路由，直接加载会被 302 回首页（「跳官网」bug）。
+   * 正确且可直链的地址是 so.qq.com/isearch?query=%s。
+   * 老用户本地已把错误地址持久化，光改 DEFAULTS 改不到他，所以做一次迁移。
+   */
+  searchTemplateFix: 0,
+  /**
    * 桌面快捷方式补建标记：0 没补过，1 补过了。
    *
    * 只有免安装（绿色版）这条路用得上 —— 走安装包进来的用户，图标是 NSIS 安装器
@@ -431,6 +439,26 @@ function fixBookmarkUrls() {
   scheduleFlush();
 }
 
+/**
+ * 元宝搜索模板的纠错迁移（见 DEFAULTS.searchTemplateFix 的说明）。
+ *
+ * 只认**精确的旧错误串**才改：用户若自己显式填过别的地址，一律不动。
+ * 改完打标，下次启动不再碰 —— 与 fixBookmarkUrls 同一条「做一次」原则。
+ */
+const SEARCH_TPL_FIXES = [
+  ['https://so.qq.com/search?query=%s', 'https://so.qq.com/isearch?query=%s']
+];
+
+function fixSearchTemplate() {
+  if (!cache || (cache.searchTemplateFix | 0) >= 1) return;
+  if (typeof cache.searchTemplate !== 'string') { cache.searchTemplateFix = 1; scheduleFlush(); return; }
+  for (const [wrong, right] of SEARCH_TPL_FIXES) {
+    if (cache.searchTemplate === wrong) cache.searchTemplate = right;
+  }
+  cache.searchTemplateFix = 1;
+  scheduleFlush();
+}
+
 function init(userDataDir) {
   filePath = path.join(userDataDir, 'nova-settings.json');
   try {
@@ -444,6 +472,7 @@ function init(userDataDir) {
   // 修订对他是个空操作；老用户补种早就用掉了，靠修订把存下来的错地址改过来。
   seedBookmarks();
   fixBookmarkUrls();
+  fixSearchTemplate();
   return cache;
 }
 
