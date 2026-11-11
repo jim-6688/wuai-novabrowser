@@ -6074,7 +6074,7 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 settings.customSearch = v;
-                settings.searchTemplateId = v.isEmpty() ? "baidu" : "custom";
+                settings.searchTemplateId = v.isEmpty() ? "yuanbao" : "custom";
                 store.save(settings);
                 mountMain();
                 toast("已保存");

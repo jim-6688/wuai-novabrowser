@@ -343,9 +343,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('默认档位不是「跟随主页」，所以那个按钮可用',
         gen.querySelector('[data-act="newtab-same"]').disabled === false);
   check('搜索模板回填当前值',
-        gen.querySelector('#set-search').value === 'https://www.baidu.com/s?wd=%s',
+        gen.querySelector('#set-search').value === 'https://so.qq.com/search?query=%s',
         gen.querySelector('#set-search').value);
-  check('搜索预设 3 档', gen.querySelectorAll('#set-search-preset button').length === 3);
+  check('搜索预设 4 档', gen.querySelectorAll('#set-search-preset button').length === 4);
   check('会话恢复开关存在', !!gen.querySelector('[data-cfg="restoreSession"]'));
   check('默认内核两档', gen.querySelectorAll('#set-engine button').length === 2);
 

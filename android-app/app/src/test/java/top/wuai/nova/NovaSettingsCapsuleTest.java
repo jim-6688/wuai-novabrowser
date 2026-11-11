@@ -70,7 +70,7 @@ public class NovaSettingsCapsuleTest {
     public void 搜吾爱导航不会把中文标签误判成域名() {
         // 「吾爱导航」是无点号的纯中文，必须走搜索而不是被当成域名补 https://
         String out = new NovaSettings().resolveInput("吾爱导航");
-        assertTrue(out.startsWith("https://www.baidu.com/s?wd="));
+        assertTrue(out.startsWith("https://so.qq.com/search?query="));
     }
 
     @Test
@@ -79,7 +79,7 @@ public class NovaSettingsCapsuleTest {
     }
 
     @Test
-    public void 默认搜索引擎仍是百度() {
-        assertEquals("baidu", new NovaSettings().searchTemplate().id);
+    public void 默认搜索引擎仍是元宝() {
+        assertEquals("yuanbao", new NovaSettings().searchTemplate().id);
     }
 }

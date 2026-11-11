@@ -26,7 +26,7 @@ const DEFAULTS = {
    * 语义与移动端 NovaSettings.newTabPage 对齐。
    */
   newTabPage: 'start',
-  searchTemplate: 'https://www.baidu.com/s?wd=%s',
+  searchTemplate: 'https://so.qq.com/search?query=%s',
   defaultEngine: 'chromium',
   /**
    * 按站点自动切换内核。数组便于整体替换：

@@ -1,41 +1,36 @@
 {
-  "version": "2.0.0",
-  "versionCode": 46,
+  "version": "2.1.0",
+  "versionCode": 47,
   "channel": "release",
   "updatedAt": "2026-11-11",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "修复每次打开网页都自动进入地址栏编辑态：根因是初始焦点落在地址栏输入框上，现在由顶栏容器接管初始焦点",
-    "导航前、页面重建后、顶栏由隐藏切回显示时都会主动清焦点并收起联想浮层，扫码返回、新标签页、书签历史切换也不会误触发",
-    "清单声明 stateHidden，软键盘启动行为与页面加载解耦；延后的清理任务可被「主动聚焦地址栏」取消，不跟用户抢焦点"
+    "搜索引擎预设新增「元宝」（腾讯 AI 搜索，so.qq.com），并已设为地址栏默认搜索引擎"
   ],
   "downloads": [
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v2.0.0-android/nova-2.0.0.apk",
-      "size": 748966,
-      "sha256": "ba1f98c4e70a964b57f93961c4eee67bad2ca005bc3448b74cbfcd3346bd5d4d"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v2.1.0-android/nova-2.1.0.apk",
+      "size": 749022,
+      "sha256": "3e1651880e045c953fb2e2889437671931605c2e0154c730a95b07b9d09f02b7"
     },
     {
       "label": "官网直链",
-      "url": "download/nova-2.0.0.apk",
-      "size": 748966,
-      "sha256": "ba1f98c4e70a964b57f93961c4eee67bad2ca005bc3448b74cbfcd3346bd5d4d"
+      "url": "download/nova-2.1.0.apk",
+      "size": 749022,
+      "sha256": "3e1651880e045c953fb2e2889437671931605c2e0154c730a95b07b9d09f02b7"
     }
   ],
   "pc": {
-    "version": "3.0.0",
+    "version": "3.1.0",
     "changelog": [
-      "新增官网插件商店：设置 → 扩展里直接浏览官方精选插件，点安装即可，不用再自己找 .crx 拖进来；首批收录篡改猴、uBlock Origin、Dark Reader",
-      "目录只有一个源：官网 / Gitee / GitHub 三处自动回退，任一处挂掉仍能拉到列表；官网「插件商店」板块与浏览器内商店读同一份清单，不会各说各话",
-      "安装复用既有扩展装载链路：已安装判重、下载失败、地址不合法都有明确反馈；清单字段做了白名单与兜底，目录写错也不会把浏览器带跑偏",
-      "能力边界照实写明：官网目前只托管目录，扩展包本体仍取自 Chrome 应用店国内镜像；清单已预留自托管字段，以后改包来源只改一个字段"
+      "搜索引擎预设新增「元宝」（腾讯 AI 搜索，so.qq.com），并已设为地址栏默认搜索引擎"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://download.52ta.top/nova-pc-3.0.0-win-x64-setup.exe",
-    "size": 107105977,
-    "sha256": "49493eabf8580d7f3cdbfd5ed31d1ff36a4e4544b375855de80ff72017ffc505",
+    "url": "https://download.52ta.top/nova-pc-3.1.0-win-x64-setup.exe",
+    "size": 107106135,
+    "sha256": "e80dc43dd3747ecf5ab1a74ee6b8d7dfcb4cd8f6b98b3368163d1baef1625341",
     "updatedAt": "2026-11-11"
   }
 }

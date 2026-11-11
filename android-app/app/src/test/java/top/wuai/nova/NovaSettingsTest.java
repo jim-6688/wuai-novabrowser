@@ -136,7 +136,7 @@ public class NovaSettingsTest {
     public void 不像网址就走搜索() {
         NovaSettings s = new NovaSettings();
         String out = s.resolveInput("今天天气怎么样");
-        assertTrue(out.startsWith("https://www.baidu.com/s?wd="));
+        assertTrue(out.startsWith("https://so.qq.com/search?query="));
         assertTrue(out.contains("%"));
     }
 
@@ -151,7 +151,7 @@ public class NovaSettingsTest {
     public void 含空格的当搜索词() {
         // "hello world" 含空格，不能被当成域名
         assertTrue(new NovaSettings().resolveInput("hello world")
-            .startsWith("https://www.baidu.com/s?wd="));
+            .startsWith("https://so.qq.com/search?query="));
     }
 
     // ------------------------------------------------------------ 搜索模板
@@ -161,11 +161,12 @@ public class NovaSettingsTest {
         NovaSettings.SearchTemplate[] t = NovaSettings.templates();
         // 本轮新增了「吾爱导航」一档：它既能被用户选作地址栏搜索引擎，
         // 也是底部胶囊搜索框固定使用的模板。
-        assertEquals(4, t.length);
-        assertEquals("baidu", t[0].id);
-        assertEquals("bing", t[1].id);
-        assertEquals("google", t[2].id);
-        assertEquals("nav52ta", t[3].id);
+        assertEquals(5, t.length);
+        assertEquals("yuanbao", t[0].id);
+        assertEquals("baidu", t[1].id);
+        assertEquals("bing", t[2].id);
+        assertEquals("google", t[3].id);
+        assertEquals("nav52ta", t[4].id);
         for (NovaSettings.SearchTemplate x : t) {
             assertTrue(x.id + " 模板里没有 %s", x.url.contains("%s"));
         }
@@ -183,8 +184,8 @@ public class NovaSettingsTest {
 
     @Test
     public void 新增模板不改变默认搜索引擎() {
-        // 默认仍是 baidu；加模板不能顺手把默认值改了
-        assertEquals("baidu", new NovaSettings().searchTemplate().id);
+        // 默认仍是 yuanbao（元宝）；加模板不能顺手把默认值改了
+        assertEquals("yuanbao", new NovaSettings().searchTemplate().id);
     }
 
     @Test
@@ -202,7 +203,7 @@ public class NovaSettingsTest {
         NovaSettings s = new NovaSettings();
         s.searchTemplateId = "custom";
         s.customSearch = "";
-        assertEquals("baidu", s.searchTemplate().id);
+        assertEquals("yuanbao", s.searchTemplate().id);
     }
 
     @Test

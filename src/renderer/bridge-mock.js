@@ -82,7 +82,7 @@ if (typeof window !== 'undefined' && !window.nova) {
     // 预览里看到的默认档位就跟真机不一样了。
     newTabPage: 'start',
     ntpShortcuts: { added: [], removed: [] },
-    searchTemplate: 'https://www.baidu.com/s?wd=%s',
+    searchTemplate: 'https://so.qq.com/search?query=%s',
     defaultEngine: 'chromium',
     layout: 'auto',
     theme: 'light',
@@ -324,7 +324,7 @@ if (typeof window !== 'undefined' && !window.nova) {
       homepage: 'https://52ta.top/',
       newTabPage: 'start',
       ntpShortcuts: { added: [], removed: [] },
-      searchTemplate: 'https://www.baidu.com/s?wd=%s',
+      searchTemplate: 'https://so.qq.com/search?query=%s',
       defaultEngine: 'chromium',
       layout: 'auto',
       bookmarkBar: 'always',

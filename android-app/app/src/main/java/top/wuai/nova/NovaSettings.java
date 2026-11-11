@@ -93,7 +93,7 @@ public final class NovaSettings {
     public String noImage = "off";
     public boolean autoPage = false;
     public int autoPageMax = AutoPage.DEFAULT_MAX_PAGES;
-    public String searchTemplateId = "baidu";
+    public String searchTemplateId = "yuanbao";
     public String customSearch = "";
 
     // ---- 新增：下载
@@ -172,6 +172,7 @@ public final class NovaSettings {
 
     public static SearchTemplate[] templates() {
         return new SearchTemplate[]{
+            new SearchTemplate("yuanbao", "元宝", "https://so.qq.com/search?query=%s"),
             new SearchTemplate("baidu", "百度", "https://www.baidu.com/s?wd=%s"),
             new SearchTemplate("bing", "必应", "https://www.bing.com/search?q=%s"),
             new SearchTemplate("google", "Google", "https://www.google.com/search?q=%s"),
@@ -191,8 +192,8 @@ public final class NovaSettings {
      * 站点改了只改这里。
      *
      * <p>注意：把 {@code NAV_52TA} 放进 {@link #templates()} 并<b>不</b>改变默认值 ——
-     * {@code searchTemplateId} 默认仍是 {@code baidu}，而 {@link #searchTemplate()}
-     * 的兜底取的是 {@code templates()[0]}，也就是百度。
+     * {@code searchTemplateId} 默认是 {@code yuanbao}，而 {@link #searchTemplate()}
+     * 的兜底取的是 {@code templates()[0]}，也就是元宝。
      */
     public static final SearchTemplate NAV_52TA =
         new SearchTemplate("nav52ta", "吾爱导航", "https://52ta.top/all/?q=%s");
