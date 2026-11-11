@@ -66,8 +66,8 @@
                     <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
                 </div>
                 <div class="hero-meta">
-                    <span id="verLatest">最新版本 1.7.5（45）</span>
-                    <span id="verDate">更新于 2026-11-09</span>
+                    <span id="verLatest">最新版本 2.0.0（46）</span>
+                    <span id="verDate">更新于 2026-11-11</span>
                     <span><i></i>Windows 10 及以上 · Android 7.0 及以上</span>
                     <span><i></i>手机版不内置内核 · 零个 .so</span>
                 </div>
@@ -79,7 +79,7 @@
                 <figure class="shot shot-hero">
                     <img src="assets/img/shots/01-shell-desktop.png" width="1080" height="675"
                          alt="吾爱Nova 电脑版界面：顶栏、标签条、地址栏与收藏夹栏" decoding="async">
-                    <figcaption>电脑版 2.0.7 实际界面</figcaption>
+                    <figcaption>电脑版 3.0.0 实际界面</figcaption>
                 </figure>
             </div>
         </div>
@@ -171,6 +171,31 @@
                 <h2>最近更新</h2>
                 <p>每次发布写明改动与原因，修复的缺陷也照实列出。</p>
             </div>
+
+            <article class="rel">
+                <div class="rel-head">
+                    <strong>电脑版 3.0.0</strong>
+                    <span>2026-11-11</span>
+                </div>
+                <ul>
+                    <li><b>新增官网插件商店</b>：设置 → 扩展里直接浏览官方精选插件，点「安装」即可，不用再自己找 .crx 拖进来。首批收录篡改猴、uBlock Origin、Dark Reader。</li>
+                    <li><b>目录只有一个源</b>：官网、Gitee、GitHub 三处自动回退，任一处挂掉仍能拉到列表；官网「插件商店」板块和浏览器内商店读的是同一份清单，不会各说各话。</li>
+                    <li><b>安装链路复用既有能力</b>：已安装判重、下载失败、地址不合法都有明确反馈；清单字段做了白名单与兜底，目录写错也不会把浏览器带跑偏。</li>
+                    <li><b>能力边界照实写明</b>：官网目前只托管目录，扩展包本体仍取自 Chrome 应用店国内镜像。清单已预留自托管字段，以后把包放进官网或对象存储，改一个字段即可切换。</li>
+                </ul>
+            </article>
+
+            <article class="rel">
+                <div class="rel-head">
+                    <strong>手机版 2.0.0</strong>
+                    <span>2026-11-11</span>
+                </div>
+                <ul>
+                    <li><b>修复：每次打开网页都自动进入地址栏编辑态</b>。根因是初始焦点落在地址栏输入框上，一进页面就弹键盘；现在由顶栏容器接管初始焦点。</li>
+                    <li><b>三处兜底收起</b>：导航前、页面重建后、顶栏由隐藏切回显示时都会主动清焦点、收联想与浮层；扫码返回、新标签页、书签历史切换也不会误触发。</li>
+                    <li>清单声明 <code>stateHidden</code>，软键盘启动行为与页面加载解耦；延后的清理任务可被「主动聚焦地址栏」取消，不会跟你抢焦点。</li>
+                </ul>
+            </article>
 
             <article class="rel">
                 <div class="rel-head">
@@ -567,7 +592,7 @@
                 <div class="cmp-col">
                     <div class="cmp-hd">
                         <span class="cmp-os">Windows</span>
-                        <strong>电脑版 · v2.0.7</strong>
+                        <strong>电脑版 · v3.0.0</strong>
                         <span class="cmp-size">约 102 MB</span>
                     </div>
                     <ul class="cmp-list">
@@ -583,7 +608,7 @@
                 <div class="cmp-col">
                     <div class="cmp-hd">
                         <span class="cmp-os">Android</span>
-                        <strong>手机版 · v1.7.5</strong>
+                        <strong>手机版 · v2.0.0</strong>
                         <span class="cmp-size">约 800 KB</span>
                     </div>
                     <ul class="cmp-list">
@@ -759,19 +784,19 @@
                 <h3 class="dl-os">Android 手机版</h3>
                 <div class="dl-box">
                     <div class="dl-version">
-                        <strong id="dlVer">v1.7.5</strong>
-                        <span id="dlStamp">更新于 2026-11-09</span>
+                        <strong id="dlVer">v2.0.0</strong>
+                        <span id="dlStamp">更新于 2026-11-11</span>
                         <span class="dl-count" id="dlCountAndroid" hidden></span>
                     </div>
                     <p class="dl-note" id="dlNote">安装包大小约 800 KB。安装前请在系统设置中允许来自此来源的应用。</p>
                     <div class="dl-list" id="dlBtns">
-                        <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.5/nova-1.7.5.apk" data-dl="android" download>Gitee Releases · v1.7.5</a>
-                        <a class="btn btn-ghost btn-lg" href="download/nova-1.7.5.apk" data-dl="android" download>官网直链 · v1.7.5</a>
+                        <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v2.0.0-android/nova-2.0.0.apk" data-dl="android" download>Gitee Releases · v2.0.0</a>
+                        <a class="btn btn-ghost btn-lg" href="download/nova-2.0.0.apk" data-dl="android" download>官网直链 · v2.0.0</a>
                     </div>
                     <ul class="dl-facts" id="dlFacts">
-                        <li><span>版本</span><span>1.7.5</span></li>
-                        <li><span>版本码</span><span>45</span></li>
-                        <li><span>更新日期</span><span>2026-11-09</span></li>
+                        <li><span>版本</span><span>2.0.0</span></li>
+                        <li><span>版本码</span><span>46</span></li>
+                        <li><span>更新日期</span><span>2026-11-11</span></li>
                     </ul>
                 </div>
             </div>
@@ -783,7 +808,7 @@
                 <h3 class="dl-os">Windows 电脑版</h3>
                 <div class="dl-box">
                     <div class="dl-version">
-                        <strong id="dlPcVer">v2.0.7</strong>
+                        <strong id="dlPcVer">v3.0.0</strong>
                         <span>Windows x64</span>
                         <span class="dl-count" id="dlCountPc" hidden></span>
                     </div>
@@ -791,10 +816,10 @@
                        部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示，选择「保留」即可。
                        安装程序未做代码签名，首次运行时 Windows 可能提示「未知发布者」——这是自签包的固有现象，不是文件损坏。</p>
                     <div class="dl-list">
-                        <a class="btn btn-primary btn-lg" href="https://download.52ta.top/nova-pc-2.0.7-win-x64-setup.exe" data-dl="pc" download>下载 · EXE 安装程序（102 MB）</a>
+                        <a class="btn btn-primary btn-lg" href="https://download.52ta.top/nova-pc-3.0.0-win-x64-setup.exe" data-dl="pc" download>下载 · EXE 安装程序（102 MB）</a>
                     </div>
                     <ul class="dl-facts">
-                        <li><span>版本</span><span>2.0.7</span></li>
+                        <li><span>版本</span><span>3.0.0</span></li>
                         <li><span>内核</span><span>Chromium 156</span></li>
                         <li><span>平台</span><span>Windows x64</span></li>
                         <li><span>大小</span><span>约 102 MB</span></li>

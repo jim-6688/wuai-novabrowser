@@ -1,45 +1,41 @@
 {
-  "version": "1.7.5",
-  "versionCode": 45,
+  "version": "2.0.0",
+  "versionCode": 46,
   "channel": "release",
-  "updatedAt": "2026-11-09",
+  "updatedAt": "2026-11-11",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "页面缩放即时生效：设置里切 90 / 100 / 125 / 150% 当前页立刻变大变小，不用刷新，切回 100% 能准确复原",
-    "双指缩放不再被网页禁掉：站点写了 user-scalable=no / maximum-scale=1 也能捏合；注入只放开缩放属性，保留网页原有宽度与排版",
-    "新标签页内嵌 AI 提问框：输入问题回车即带着问题打开 AI 对话，问题自动填进输入框",
-    "扫一扫移进搜索框（「转到」左侧），撤掉原来浮在右上角的两个小按钮",
-    "修正新标签页资源同步：上一版部分安装包里的 AI 提问框与扫码键可能缺失，这一版已补齐"
+    "修复每次打开网页都自动进入地址栏编辑态：根因是初始焦点落在地址栏输入框上，现在由顶栏容器接管初始焦点",
+    "导航前、页面重建后、顶栏由隐藏切回显示时都会主动清焦点并收起联想浮层，扫码返回、新标签页、书签历史切换也不会误触发",
+    "清单声明 stateHidden，软键盘启动行为与页面加载解耦；延后的清理任务可被「主动聚焦地址栏」取消，不跟用户抢焦点"
   ],
   "downloads": [
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v1.7.5/nova-1.7.5.apk",
-      "size": 748654,
-      "sha256": "c40c68884d58dde6788566a25dc232ec3c40fb1e48eefef269be530b2113a7a9"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v2.0.0-android/nova-2.0.0.apk",
+      "size": 748966,
+      "sha256": "ba1f98c4e70a964b57f93961c4eee67bad2ca005bc3448b74cbfcd3346bd5d4d"
     },
     {
       "label": "官网直链",
-      "url": "download/nova-1.7.5.apk",
-      "size": 748654,
-      "sha256": "c40c68884d58dde6788566a25dc232ec3c40fb1e48eefef269be530b2113a7a9"
+      "url": "download/nova-2.0.0.apk",
+      "size": 748966,
+      "sha256": "ba1f98c4e70a964b57f93961c4eee67bad2ca005bc3448b74cbfcd3346bd5d4d"
     }
   ],
   "pc": {
-    "version": "2.0.7",
+    "version": "3.0.0",
     "changelog": [
-      "修复保存的账号密码不能自动填入：改用框架能感知的写入方式并派发真实输入事件，React / Vue 登录页不会被下一次渲染清空",
-      "认得出多种登录页：注册框、蜜罐框、显示密码框并存时只填带 current-password 语义的那一组；异步出现与 SPA 重绘的表单也能接住",
-      "保存与填充统一按网页真实地址核对，登录后重定向不再失配；跨站 iframe 仍取不到别站的记录",
-      "新增「GitHub 加速」设置分区：整站镜像 + raw / Release / 源码包镜像，附「检测哪个节点能用」并发实测自动择优；默认关闭",
-      "安全边界：登录页、api.github.com、非 GET 请求一律直连官方；浏览器无出口节点，无法给任意 Cloudflare 站点提速或绕过 5 秒盾",
-      "顶栏 AI 图标改为品牌渐变彩色，与手机版造型统一，深浅主题自动切换端点色"
+      "新增官网插件商店：设置 → 扩展里直接浏览官方精选插件，点安装即可，不用再自己找 .crx 拖进来；首批收录篡改猴、uBlock Origin、Dark Reader",
+      "目录只有一个源：官网 / Gitee / GitHub 三处自动回退，任一处挂掉仍能拉到列表；官网「插件商店」板块与浏览器内商店读同一份清单，不会各说各话",
+      "安装复用既有扩展装载链路：已安装判重、下载失败、地址不合法都有明确反馈；清单字段做了白名单与兜底，目录写错也不会把浏览器带跑偏",
+      "能力边界照实写明：官网目前只托管目录，扩展包本体仍取自 Chrome 应用店国内镜像；清单已预留自托管字段，以后改包来源只改一个字段"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://download.52ta.top/nova-pc-2.0.7-win-x64-setup.exe",
-    "size": 107102818,
-    "sha256": "8fc6c96a1c2b22919ba5097bd8e7557ab07b105320d9d2783c1592c2b30187fb",
-    "updatedAt": "2026-11-09"
+    "url": "https://download.52ta.top/nova-pc-3.0.0-win-x64-setup.exe",
+    "size": 107105977,
+    "sha256": "49493eabf8580d7f3cdbfd5ed31d1ff36a4e4544b375855de80ff72017ffc505",
+    "updatedAt": "2026-11-11"
   }
 }
