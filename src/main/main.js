@@ -32,6 +32,7 @@ const { EngineRegistry } = require('./engines');
 const { adblock } = require('./adblock');
 const { ExtensionManager, isExtensionFile } = require('./extensions');
 const extStore = require('./ext-store');
+const extCatalog = require('./ext-catalog'); // 官网插件目录（只读清单，不碰安装链路）
 const { DownloadManager } = require('./downloader');
 const { Sniffer, FORMAT_STATS } = require('./sniffer');
 const { wireSniffer: wireSnifferSession } = require('./sniffer-wire');
@@ -1719,6 +1720,9 @@ function registerIpc() {
     settings.patch({ extensions: recs });
     return r;
   });
+
+  /* --- 官网插件商店：主进程拉目录，安装仍复用下面 ext:store-install --- */
+  handle('ext:catalog', () => extCatalog.load());
 
   /* --- 从 Edge 加载项商店装（模块头解释了为什么必须由外壳自己取包） --- */
 

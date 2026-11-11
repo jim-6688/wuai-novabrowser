@@ -2058,6 +2058,112 @@ body.bm-dragging { cursor: grabbing; }
 }
 .store-title { font-size: 12px; font-weight: 600; color: var(--text); }
 .store-sub { margin-top: 4px; font-size: 10.5px; line-height: 1.7; color: var(--text-3); }
+
+/* 官网插件商店目录：与下面「粘贴地址安装」同属一个 store-box，
+   中间用一条 .store-divider 分开，读起来是「先逛目录，再手动装」。 */
+.store-divider {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+  color: var(--text-4);
+}
+.cat-box {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.cat-head { display: flex; align-items: flex-start; gap: var(--sp-3); }
+.cat-head-main { flex: 1; min-width: 0; }
+.cat-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.cat-tag {
+  margin-left: var(--sp-2);
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  font-size: 9.5px; font-weight: 600;
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+.cat-sub { margin-top: 3px; font-size: 10px; line-height: 1.6; color: var(--text-3); }
+.cat-filters { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+.cat-filter {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 10.5px; color: var(--text-2); cursor: pointer;
+  transition: border-color var(--dur-fast), color var(--dur-fast);
+}
+.cat-filter:hover { border-color: var(--brand); color: var(--brand); }
+.cat-filter.is-on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.cat-card {
+  display: flex; flex-direction: column;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  transition: border-color var(--dur-fast);
+}
+.cat-card:hover { border-color: var(--border-strong); }
+.cat-card-top { display: flex; align-items: center; gap: var(--sp-2); }
+.cat-mark {
+  /* 默认色在这里声明一份：卡片上的内联 style="--cat-accent:…" 会覆盖它，
+     同时静态门禁也认得这个变量是「有定义的」。 */
+  --cat-accent: var(--brand);
+  width: 28px; height: 28px; flex: 0 0 28px;
+  border-radius: var(--r-xs);
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+  background: var(--cat-accent);
+}
+.cat-card-head { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cat-card-head b {
+  font-size: 11.5px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cat-card-head i { font-style: normal; font-size: 9.5px; color: var(--text-4); }
+.cat-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px; font-weight: 600;
+  color: var(--ok, #14B87A);
+  background: color-mix(in srgb, var(--ok, #14B87A) 14%, transparent);
+}
+.cat-desc {
+  flex: 1;
+  margin-top: var(--sp-2);
+  font-size: 10.5px; line-height: 1.65; color: var(--text-2);
+}
+.cat-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: var(--sp-2); }
+.cat-chip {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  font-size: 9.5px; color: var(--text-3);
+  background: var(--surface);
+}
+.cat-card-foot {
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+}
+.cat-source { flex: 1; min-width: 0; font-size: 9.5px; color: var(--text-4); }
+.cat-empty {
+  margin-top: var(--sp-3);
+  padding: var(--sp-4);
+  text-align: center;
+  font-size: 11px; color: var(--text-3);
+}
 .store-open-row { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-3); }
 .store-open {
   display: flex; align-items: center; gap: var(--sp-3);

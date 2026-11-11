@@ -63,6 +63,17 @@ const state = {
    * 用户刚粘进去的地址会没。与下载页的 dlDraft 同一个道理。
    */
   extStore: { draft: '', busy: false, detail: null, error: '' },
+  /**
+   * 官网插件商店目录（主进程读 site/extensions.json 后下发）。
+   *
+   * loading / loaded 两个闸不能省：afterSectionRender 每次重绘都会跑，
+   * 而拉完目录又要 refreshCurrent 重绘 —— 只有一个标记就会自己把自己
+   * 递归点着。状态全放这里，重绘不会把筛选与安装中状态冲掉。
+   */
+  extCatalog: {
+    items: [], updatedAt: '', error: '',
+    loading: false, loaded: false, busyId: '', filter: '全部'
+  },
   bookmarks: [],
   /**
    * 站点图标表：主机名 → data: URI。由主进程按站点抓取并落盘（见
@@ -3806,6 +3817,126 @@ const STORE_LINKS = [
   }
 ];
 
+/* ------------------------------------------------------------------ *
+ * 官网插件商店：目录从官网 extensions.json 来，安装仍走 storeInstall
+ *
+ * 这里刻意不新增一条安装链路。清单只提供「装什么」，取包、判重、落盘、
+ * 重启恢复全部复用 ext:store-install —— 两条链路一旦分开维护，
+ * 「已经装过」的判断迟早会对不上。
+ * ------------------------------------------------------------------ */
+
+/** 只在扩展分区可见时重绘，别让后台拉目录把用户正在看的别的页面刷掉。 */
+function refreshExtIfVisible() {
+  if (state.settingsSection !== 'extensions') return;
+  const view = $('#settings-view');
+  if (view && !view.hidden) refreshCurrent();
+}
+
+function catalogCard(it) {
+  const busy = state.extCatalog.busyId === it.id;
+  const disabled = busy || state.isPreview;
+  return `
+    <div class="cat-card">
+      <div class="cat-card-top">
+        <span class="cat-mark" style="--cat-accent:${esc(it.accent || '#3D6BFF')}">${esc(it.mark || 'E')}</span>
+        <span class="cat-card-head">
+          <b>${esc(it.name)}</b>
+          <i>${esc(it.developer)} · ${esc(it.category)}</i>
+        </span>
+        ${it.featured ? '<span class="cat-badge">推荐</span>' : ''}
+      </div>
+      <div class="cat-desc">${esc(it.description || '')}</div>
+      ${(it.tags && it.tags.length)
+        ? `<div class="cat-tags">${it.tags.map((t) => `<span class="cat-chip">${esc(t)}</span>`).join('')}</div>`
+        : ''}
+      <div class="cat-card-foot">
+        <span class="cat-source">来源 ${esc(it.source)}</span>
+        <button class="btn btn-primary btn-sm" data-act="catalog-install" data-ext-id="${esc(it.id)}"
+                ${disabled ? `disabled title="UI 预览模式"` : ''}>${busy ? '安装中…' : '安装'}</button>
+      </div>
+    </div>`;
+}
+
+function catalogBox() {
+  const c = state.extCatalog;
+  const cats = ['全部'];
+  c.items.forEach((x) => { if (!cats.includes(x.category)) cats.push(x.category); });
+  const list = c.items.filter((x) => c.filter === '全部' || x.category === c.filter);
+  const empty = c.loading && !c.items.length
+    ? '正在读取官网插件目录…'
+    : (c.items.length ? '这一分类还没有插件。' : '目录里暂时没有可安装的插件。');
+
+  return `
+    <div class="cat-box">
+      <div class="cat-head">
+        <div class="cat-head-main">
+          <div class="cat-title">官网插件商店 <span class="cat-tag">nova.52ta.top</span></div>
+          <div class="cat-sub">目录来自官网 <code>extensions.json</code>${c.updatedAt ? ` · 更新于 ${esc(c.updatedAt)}` : ''}。
+            点「安装」由浏览器自己取包、解包、装载；网页不参与安装过程。</div>
+        </div>
+        <button class="btn" data-act="catalog-refresh" ${c.loading ? 'disabled' : ''}>${c.loading ? '读取中…' : '刷新目录'}</button>
+      </div>
+      <div class="cat-filters">
+        ${cats.map((cat) => `<button class="cat-filter${c.filter === cat ? ' is-on' : ''}"
+          data-act="catalog-filter" data-cat="${esc(cat)}">${esc(cat)}</button>`).join('')}
+      </div>
+      ${c.error ? `<div class="store-err">${esc(c.error)}</div>` : ''}
+      ${list.length
+        ? `<div class="cat-grid">${list.map(catalogCard).join('')}</div>`
+        : `<div class="cat-empty">${empty}</div>`}
+    </div>
+  `;
+}
+
+/** 拉一次官网目录。force 只给「刷新目录」按钮用；重绘路径永远走惰性分支。 */
+async function loadExtCatalog(force) {
+  const c = state.extCatalog;
+  if (c.loading) return;
+  if (c.loaded && !force) return;
+  c.loading = true;
+  c.error = '';
+  if (!c.items.length) refreshExtIfVisible();
+
+  let r = null;
+  try { r = await bridge.extensions.catalog(); } catch { r = null; }
+
+  c.loading = false;
+  c.loaded = true;
+  if (r && r.ok) {
+    c.items = Array.isArray(r.items) ? r.items : [];
+    c.updatedAt = r.updatedAt || '';
+    c.error = '';
+  } else {
+    c.items = [];
+    c.error = (r && r.error) || '官网插件目录读取失败，稍后再试';
+  }
+  refreshExtIfVisible();
+}
+
+/** 目录卡片的「安装」：把清单里的地址交给既有的 ext:store-install 链路。 */
+async function runCatalogInstall(id) {
+  const c = state.extCatalog;
+  const it = c.items.find((x) => x.id === id);
+  if (!it || c.busyId) return;
+
+  c.busyId = id;
+  c.error = '';
+  refreshExtIfVisible();
+
+  let r = null;
+  try { r = await bridge.extensions.storeInstall(it.installUrl); } catch { r = null; }
+
+  c.busyId = '';
+  if (!r) c.error = `「${it.name}」安装失败，稍后再试`;
+  else if (r.error) c.error = `「${it.name}」${r.error}`;
+  else if (r.already) toast(`已经装过「${r.name || it.name}」了`);
+  else if (r.installed) {
+    state.extensions = await bridge.extensions.list();
+    toast(`已装好「${r.installed.name || it.name}」`);
+  }
+  refreshExtIfVisible();
+}
+
 /** 商店那一块。查询结果与错误都在这里长出来，不另开弹层。 */
 function storeBox(st) {
   const d = st.detail;
@@ -3821,7 +3952,9 @@ function storeBox(st) {
 
   return `
     <div class="store-box">
-      <div class="store-title">扩展商店</div>
+      <div class="store-title">插件商店</div>
+      ${catalogBox()}
+      <div class="store-divider">手动安装 · 粘贴地址</div>
       <div class="store-sub">
         支持 Chromium 扩展（.crx / 已解包目录）与火狐扩展（.xpi）。火狐扩展会经过
         清单归一化与 <code>browser.* → chrome.*</code> 桥接后装载，依赖 Gecko 专有 API
@@ -6080,6 +6213,9 @@ function afterSectionRender(id) {
     return;
   }
   if (id === 'mobile') syncMobileFromMain();
+  // 官网插件目录属于「进这一页才知道」的信息：惰性拉一次。
+  // loadExtCatalog 自带 loading / loaded 双闸，重绘不会反复请求。
+  if (id === 'extensions') loadExtCatalog();
 }
 
 /**
@@ -7117,6 +7253,13 @@ function wireActions(root) {
         await runStoreQuery();
       } else if (act === 'store-install') {
         await runStoreInstall();
+      } else if (act === 'catalog-refresh') {
+        await loadExtCatalog(true);
+      } else if (act === 'catalog-filter') {
+        state.extCatalog.filter = b.dataset.cat || '全部';
+        refreshCurrent();
+      } else if (act === 'catalog-install') {
+        await runCatalogInstall(b.dataset.extId);
       } else if (act === 'install-ext') {
         await installExtensionsFromDisk();
       } else if (act === 'clear-history') {

@@ -35,10 +35,25 @@
       屏幕上就是状态栏下方横着一条 48dp 的白带（内容什么都不剩，只剩底色）。
       背景跟着「真的有内容的那一行」走，才不会留下一块没有主人的底色。
     -->
+    <!--
+      focusableInTouchMode + FOCUS_BEFORE_DESCENDANTS：这一层自己接住系统分配的
+      「初始焦点」，不让 urlBar 抢到。
+
+      不设的话，每次 setContentView 重新装载主界面（从菜单/书签/历史返回）、
+      以及新标签页跳网页时 topBar 从 GONE 变 VISIBLE，系统都会把默认焦点给
+      布局里第一个 focusableInTouchMode 的控件 —— 正好是地址栏那个 EditText。
+      一聚焦就连锁触发：selectAllOnFocus 全选、showUrlActions 弹「复制/分享」
+      浮层、软键盘弹起。用户看到的就是「打开一个网页，地址栏自己开了」。
+
+      只影响**自动**焦点分配：用户点地址栏、focusOmnibox() 主动 requestFocus，
+      以及网页内输入框拿焦点，走的是子 View 自己的 requestFocus，不受此限。
+    -->
     <FrameLayout
         android:id="@+id/topRow"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:focusableInTouchMode="true"
+        android:descendantFocusability="beforeDescendants">
 
         <!--
           这里原来有一条 1dp 的硬分隔线（@color/border）。撤掉，改由 elevation 的

@@ -669,7 +669,33 @@ const MOCK_UPDATE = {
           }
         };
       },
-      storeInstall: async () => ({ error: 'UI 预览模式下不可安装扩展' })
+      storeInstall: async () => ({ error: 'UI 预览模式下不可安装扩展' }),
+      /* 预览是网页，读不到官网清单 —— 喂两份与真目录同形状的样例，
+         好让「官网插件商店」的卡片、分类与按钮在评审时照样看得见。 */
+      catalog: async () => ({
+        ok: true,
+        updatedAt: '2026-11-11',
+        url: '',
+        error: '',
+        items: [
+          {
+            id: 'tampermonkey', name: '篡改猴 Tampermonkey', developer: 'Jan Biniok',
+            category: '效率工具', mark: '猴', accent: '#0A84C6',
+            description: '用户脚本管理器。给网页加按钮、去广告墙、改排版，脚本生态最完整的一个。',
+            installUrl: 'dhdgffkkebhmkfjojejmpbldmpobfkfo',
+            source: 'Chrome 应用店国内镜像', homepage: '',
+            tags: ['用户脚本', '官方推荐'], featured: true
+          },
+          {
+            id: 'ublock-origin', name: 'uBlock Origin', developer: 'Raymond Hill',
+            category: '隐私与拦截', mark: 'U', accent: '#D64545',
+            description: '轻量高效的开源广告与跟踪器拦截器，按过滤清单工作。',
+            installUrl: 'cjpalhdlnbpafiamejdnhcphjbkeiagm',
+            source: 'Chrome 应用店国内镜像', homepage: '',
+            tags: ['广告拦截', '隐私'], featured: true
+          }
+        ]
+      })
     },
 
     bookmarks: {

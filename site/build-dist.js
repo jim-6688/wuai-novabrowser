@@ -18,7 +18,7 @@
  * 语法，也不依赖远端是哪种 shell —— 这些坑一次性全绕开。
  *
  * <p><b>拷贝哪几样也是定死的</b>：官网只需要 assets / download / index.html /
- * version.json 这四样，源码、工具脚本、SYNC.json 之类一律不进产物
+ * version.json / extensions.json 这几样，源码、工具脚本、SYNC.json 之类一律不进产物
  * （下面用白名单而非「排除」写法：新增文件默认不会被带上去）。
  */
 
@@ -30,7 +30,9 @@ const OUT = path.join(ROOT, 'dist');
 
 /** 要拷进产物的目录 / 文件。想再加一样，改这里就行。 */
 const DIRS = ['assets', 'download'];
-const FILES = ['index.html', 'version.json'];
+// extensions.json 是官网插件商店模块与 PC 端共用的目录源；漏掉它，
+// 官网会显示「目录暂时读不到」，而浏览器内商店会退回空列表。
+const FILES = ['index.html', 'version.json', 'extensions.json'];
 
 function main() {
   // recursive+force：dist 已存在时先清掉，否则上一次残留的文件会混进新产物

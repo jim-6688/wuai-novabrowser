@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "title": "吾爱Nova浏览器 · 插件商店",
+  "updatedAt": "2026-11-11",
+  "note": "本清单是官网「插件商店」模块与 PC 版「设置 → 扩展 → 官网插件商店」共用的唯一目录源，两端都不内置一份副本。installUrl 可以是 32 位扩展 ID、扩展详情页地址，或 .crx/.zip/.xpi 直链（交给浏览器端既有的解析与取包链路）。当前三款均由 Chrome 应用店国内镜像取包，官网只维护目录、不托管包本体；以后若改为官网自托管，把包放进 download/ext/ 并填 packageUrl（优先于 installUrl）即可。",
+  "items": [
+    {
+      "id": "tampermonkey",
+      "name": "篡改猴 Tampermonkey",
+      "developer": "Jan Biniok",
+      "category": "效率工具",
+      "mark": "猴",
+      "accent": "#0A84C6",
+      "description": "用户脚本管理器。给网页加按钮、去广告墙、改排版、自动填表，脚本生态最完整的一个；装上它之后才能用脚本猫里的脚本。",
+      "installUrl": "dhdgffkkebhmkfjojejmpbldmpobfkfo",
+      "source": "Chrome 应用店国内镜像",
+      "homepage": "https://www.tampermonkey.net/",
+      "tags": ["用户脚本", "官方推荐"],
+      "featured": true
+    },
+    {
+      "id": "ublock-origin",
+      "name": "uBlock Origin",
+      "developer": "Raymond Hill",
+      "category": "隐私与拦截",
+      "mark": "U",
+      "accent": "#D64545",
+      "description": "轻量高效的开源广告与跟踪器拦截器。按过滤清单工作，占用远低于同类扩展；与浏览器自带的广告拦截可同时开，也可只留一个。",
+      "installUrl": "cjpalhdlnbpafiamejdnhcphjbkeiagm",
+      "source": "Chrome 应用店国内镜像",
+      "homepage": "https://github.com/gorhill/uBlock",
+      "tags": ["广告拦截", "隐私"],
+      "featured": true
+    },
+    {
+      "id": "dark-reader",
+      "name": "Dark Reader",
+      "developer": "Dark Reader Team",
+      "category": "外观",
+      "mark": "D",
+      "accent": "#4B4BD6",
+      "description": "给任意网页生成深色模式，可逐站调整亮度、对比度与 sepia。适合夜里看文档、论坛这类没有自带夜间模式的站点。",
+      "installUrl": "eimadpbcbfnmbkopoojfekhnkhdbieeh",
+      "source": "Chrome 应用店国内镜像",
+      "homepage": "https://darkreader.org/",
+      "tags": ["深色模式", "护眼"],
+      "featured": false
+    }
+  ]
+}

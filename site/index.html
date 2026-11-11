@@ -39,6 +39,7 @@
             <a href="#updates">最近更新</a>
             <a href="#screens">界面</a>
             <a href="#pc-shots">电脑版</a>
+            <a href="#extensions">插件商店</a>
             <a href="#honest">先说清楚</a>
             <a href="#download">下载</a>
             <a href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">源码</a>
@@ -655,6 +656,51 @@
         </div>
     </section>
 
+    <!-- ======================== 插件商店 ========================
+         目录不写在 HTML 里：assets/js/app.js 读 extensions.json 后渲染卡片。
+         同一份清单也被 PC 版「设置 → 扩展 → 官网插件商店」读取，
+         所以上架 / 下架只改那一个 JSON，官网和浏览器不会出现两份说法。 -->
+    <section class="section" id="extensions">
+        <div class="wrap">
+            <div class="sec-head ext-head">
+                <h2>插件商店</h2>
+                <p>一份由官网维护的精选扩展目录。PC 版「设置 → 扩展 → 官网插件商店」读的是同一个清单，
+                   在浏览器里点「安装」即可，不用自己找地址；这里也可以复制安装链接，粘进扩展面板安装。</p>
+            </div>
+
+            <div class="ext-store">
+                <div class="ext-bar">
+                    <span class="ext-count" id="extStoreCount">正在读取插件目录…</span>
+                    <div class="ext-filters" id="extFilters"></div>
+                </div>
+                <div class="ext-grid" id="extGrid">
+                    <div class="ext-empty">正在读取官网插件目录 extensions.json …</div>
+                </div>
+                <p class="ext-foot" id="extStoreFoot"></p>
+            </div>
+
+            <div class="grid ext-how">
+                <div class="card">
+                    <h3>在浏览器里装</h3>
+                    <p>PC 版打开 <b>设置 → 扩展 → 官网插件商店</b>，在卡片上点「安装」：
+                       浏览器自己取包、解包、装载，装完出现在「已安装」里，可随时开关或移除。</p>
+                </div>
+                <div class="card">
+                    <h3>网页为什么不能直接装</h3>
+                    <p>网页没有操作本地扩展的权限，第三方外壳也不是 Chrome 应用店，
+                       商店页上的「获取」按钮点了不会有反应。所以官网只做目录与入口，
+                       <b>安装动作一律由浏览器自己完成</b>。</p>
+                </div>
+                <div class="card">
+                    <h3>包的来源如实标注</h3>
+                    <p>下面几款走 Chrome 应用店国内镜像（Google 官方域名在国内连不上），卡片上标了来源。
+                       <b>官网目前不托管扩展包本体</b>，只维护目录；以后若改为自托管，
+                       清单会改用 <code>download/ext/</code> 下的直链。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- ======================== 诚实条款 ======================== -->
     <section class="section" id="honest">
         <div class="wrap">
@@ -770,6 +816,6 @@
     </div>
 </footer>
 
-<script src="assets/js/app.js?v=2.0.0"></script>
+<script src="assets/js/app.js?v=2.1.0"></script>
 </body>
 </html>

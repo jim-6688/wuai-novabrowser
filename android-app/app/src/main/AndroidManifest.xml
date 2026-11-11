@@ -59,12 +59,16 @@
              一半中文站点至今仍是 http，不开这个等于把它们全挡在门外。
              这不是「不安全就放开」，而是浏览器类产品本来就该让用户自己选，
              真正的防护在页面的 https 锁与 HSTS 上。 -->
+        <!-- windowSoftInputMode 里的 stateHidden：只压住「Activity 一进前台就
+             自动弹键盘」这一件事。用户真去点地址栏 / 页内输入框时，
+             focusOmnibox 的 showSoftInput 和系统的点击聚焦照常生效，不受影响。
+             配合布局里的焦点接管，防止任何残留路径把地址栏顶成编辑态。 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density|fontScale"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize|stateHidden">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

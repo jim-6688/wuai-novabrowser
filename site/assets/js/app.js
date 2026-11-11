@@ -211,6 +211,200 @@
         if (!mobileFirst && ip > ia) wrap.insertBefore(p, a);
     }
 
+    /* ---------- 插件商店（extensions.json） ----------
+       目录与卡片都不写死在 HTML 里：官网和 PC 端「设置 → 扩展 → 官网插件商店」
+       读的是同一份 extensions.json，上架 / 下架只改那一个文件。
+       网页没有操作本地扩展的权限，所以这里只做展示与「复制安装地址」，
+       真正的安装动作由浏览器端完成。 */
+
+    var EXT_URL = 'extensions.json';
+    var extItems = [];
+    var extFilter = '全部';
+
+    function extText(v, fallback) {
+        return (typeof v === 'string' && v.trim()) ? v.trim() : (fallback || '');
+    }
+
+    function el(tag, cls, text) {
+        var n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text !== undefined && text !== null) n.textContent = text;
+        return n;
+    }
+
+    /** 只收能装的条目（必须有安装地址）；字段一律兜底，清单写错也不至于整页空掉。 */
+    function normalizeExt(data) {
+        if (!data || !Array.isArray(data.items)) throw new Error('清单格式不对');
+        return data.items.filter(function (it) {
+            return it && typeof it.id === 'string'
+                && (typeof it.installUrl === 'string' || typeof it.packageUrl === 'string');
+        }).slice(0, 60).map(function (it) {
+            return {
+                id: extText(it.id),
+                name: extText(it.name, '未命名扩展'),
+                developer: extText(it.developer, '未知开发者'),
+                category: extText(it.category, '其它'),
+                mark: extText(it.mark, 'E').slice(0, 2),
+                accent: /^#[0-9a-fA-F]{6}$/.test(it.accent || '') ? it.accent : '#3D6BFF',
+                description: extText(it.description),
+                installUrl: extText(it.packageUrl) || extText(it.installUrl),
+                source: extText(it.source, '来源未标注'),
+                tags: Array.isArray(it.tags)
+                    ? it.tags.filter(function (t) { return typeof t === 'string'; }).slice(0, 4)
+                    : [],
+                featured: !!it.featured
+            };
+        });
+    }
+
+    function extCard(it) {
+        var card = el('article', 'ext-card');
+        var top = el('div', 'ext-card-top');
+        var mark = el('span', 'ext-mark', it.mark);
+        // 走 CSSOM 而不是 setAttribute('style')：将来若给站点加 CSP，
+        // 内联 style 属性会被挡，CSSOM 赋值不会。
+        mark.style.background = it.accent;
+        top.appendChild(mark);
+
+        var head = el('div', 'ext-card-head');
+        head.appendChild(el('h3', '', it.name));
+        head.appendChild(el('span', 'ext-byline', it.developer + ' · ' + it.category));
+        top.appendChild(head);
+        if (it.featured) top.appendChild(el('span', 'ext-badge', '推荐'));
+        card.appendChild(top);
+
+        if (it.description) card.appendChild(el('p', 'ext-desc', it.description));
+
+        if (it.tags.length) {
+            var tags = el('div', 'ext-tags');
+            it.tags.forEach(function (t) { tags.appendChild(el('span', 'ext-tag', t)); });
+            card.appendChild(tags);
+        }
+
+        var foot = el('div', 'ext-card-foot');
+        foot.appendChild(el('span', 'ext-source', '来源：' + it.source));
+        var btn = el('button', 'btn btn-ghost btn-sm', '复制安装地址');
+        btn.type = 'button';
+        btn.setAttribute('data-ext-copy', it.id);
+        foot.appendChild(btn);
+        card.appendChild(foot);
+        return card;
+    }
+
+    function renderExtFilters() {
+        var box = $('extFilters');
+        if (!box) return;
+        box.innerHTML = '';
+        var cats = ['全部'];
+        extItems.forEach(function (it) {
+            if (cats.indexOf(it.category) < 0) cats.push(it.category);
+        });
+        cats.forEach(function (c) {
+            var b = el('button', 'ext-filter' + (c === extFilter ? ' is-on' : ''), c);
+            b.type = 'button';
+            b.setAttribute('data-ext-filter', c);
+            box.appendChild(b);
+        });
+    }
+
+    function renderExtGrid() {
+        var grid = $('extGrid');
+        if (!grid) return;
+        grid.innerHTML = '';
+        var list = extItems.filter(function (it) {
+            return extFilter === '全部' || it.category === extFilter;
+        });
+        if (!list.length) {
+            grid.appendChild(el('div', 'ext-empty', '这一分类还没有上架插件。'));
+            return;
+        }
+        list.forEach(function (it) { grid.appendChild(extCard(it)); });
+    }
+
+    function extFail(err) {
+        var grid = $('extGrid');
+        if (grid) {
+            grid.innerHTML = '';
+            grid.appendChild(el('div', 'ext-empty',
+                '插件目录暂时读取不到。可到 PC 版「设置 → 扩展」里粘贴扩展地址安装，或稍后重试。'));
+        }
+        var count = $('extStoreCount');
+        if (count) count.textContent = '目录读取失败';
+        if (window.console) console.warn('[Nova] extensions.json 读取失败：', err);
+    }
+
+    function legacyCopy(text) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok;
+        } catch (e) { return false; }
+    }
+
+    function copyExtAddress(btn, id) {
+        var it = null;
+        for (var i = 0; i < extItems.length; i++) {
+            if (extItems[i].id === id) { it = extItems[i]; break; }
+        }
+        if (!it) return;
+        function done(ok) {
+            var old = btn.textContent;
+            btn.textContent = ok ? '已复制' : '复制失败';
+            setTimeout(function () { btn.textContent = old; }, 1600);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(it.installUrl)
+                .then(function () { done(true); }, function () { done(legacyCopy(it.installUrl)); });
+        } else {
+            done(legacyCopy(it.installUrl));
+        }
+    }
+
+    function loadExtensions() {
+        if (!window.fetch) { extFail('浏览器不支持 fetch'); return; }
+        fetch(EXT_URL, { cache: 'no-store' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (data) {
+                extItems = normalizeExt(data);
+                var count = $('extStoreCount');
+                if (count) count.textContent = '共 ' + extItems.length + ' 款 · 更新于 '
+                    + (data.updatedAt || '未知');
+                var foot = $('extStoreFoot');
+                if (foot) foot.textContent = '目录文件 extensions.json 与 PC 版「设置 → 扩展 → 官网插件商店」同源。'
+                    + '安装地址（扩展 ID 或直链）可复制后粘进 Nova 的扩展面板，网页本身不会触发安装。';
+                renderExtFilters();
+                renderExtGrid();
+            })
+            .catch(extFail);
+    }
+
+    // 卡片是动态渲染的，复制与分类筛选都用事件委托
+    document.addEventListener('click', function (ev) {
+        var node = ev.target;
+        while (node && node.getAttribute) {
+            var id = node.getAttribute('data-ext-copy');
+            if (id) { copyExtAddress(node, id); return; }
+            var cat = node.getAttribute('data-ext-filter');
+            if (cat) {
+                extFilter = cat;
+                renderExtFilters();
+                renderExtGrid();
+                return;
+            }
+            node = node.parentNode;
+        }
+    }, false);
+
     /* ---------- 初始化 ---------- */
 
     orderPlatforms();
@@ -231,6 +425,7 @@
     }, false);
 
     loadStats();
+    loadExtensions();
 
     fetch(VERSION_URL, { cache: 'no-store' })
         .then(function (r) {

@@ -1287,3 +1287,136 @@ footer {
     .shot-hero { margin-top: 30px; }
     .shot-hero figcaption { font-size: 12px; }
 }
+
+/* ---------- 插件商店 ----------
+   卡片由 assets/js/app.js 从 extensions.json 渲染，HTML 里只有容器。
+   刻意不做成「下载按钮」：网页装不了扩展，官网只负责把目录和来源说清楚，
+   真正的安装交给 PC 版「设置 → 扩展 → 官网插件商店」。 */
+.ext-head { max-width: 760px; }
+
+.ext-store {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 22px;
+    box-shadow: var(--shadow-sm);
+}
+.ext-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 16px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+}
+.ext-count { font-size: 14px; font-weight: 600; color: var(--text); }
+.ext-filters { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.ext-filter {
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text-2);
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.ext-filter:hover { border-color: var(--brand); color: var(--brand); }
+.ext-filter.is-on { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+.ext-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.ext-empty {
+    grid-column: 1 / -1;
+    padding: 36px 16px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 14px;
+}
+.ext-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 18px;
+    background: var(--surface);
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+.ext-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--brand-soft);
+    box-shadow: var(--shadow-md);
+}
+.ext-card-top { display: flex; align-items: center; gap: 12px; }
+.ext-mark {
+    flex: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 17px;
+    box-shadow: 0 2px 8px rgba(16, 23, 40, 0.14);
+}
+.ext-card-head { min-width: 0; flex: 1; }
+.ext-card-head h3 {
+    font-size: 15.5px;
+    line-height: 1.4;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ext-byline { display: block; font-size: 12px; color: var(--text-3); }
+.ext-badge {
+    flex: none;
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--green-soft);
+    color: #12864A;
+}
+.ext-desc {
+    margin: 14px 0 0;
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: var(--text-2);
+    flex: 1;
+}
+.ext-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.ext-tag {
+    font-size: 11.5px;
+    padding: 2px 9px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--text-3);
+}
+.ext-card-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+.ext-source { font-size: 12px; color: var(--text-3); flex: 1; min-width: 120px; }
+.btn-sm { padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
+.ext-foot { margin-top: 16px; font-size: 12.5px; color: var(--text-3); }
+.ext-how { margin-top: 22px; }
+.ext-how .card p { font-size: 13.5px; }
+
+@media (max-width: 960px) {
+    .ext-grid { grid-template-columns: repeat(2, 1fr); }
+    .ext-filters { margin-left: 0; }
+}
+@media (max-width: 560px) {
+    .ext-grid { grid-template-columns: 1fr; }
+    .ext-store { padding: 16px; }
+}

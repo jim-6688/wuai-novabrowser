@@ -289,6 +289,13 @@ public final class MainActivity extends Activity {
     /** 输入防抖 + 丢弃过期响应都靠它。 */
     private final Handler omniHandler = new Handler(Looper.getMainLooper());
     /**
+     * 延后一帧执行的「退出地址栏编辑态」。提成字段是为了能取消：
+     * 用户若在那一帧里主动点了地址栏，focusOmnibox 得把排队中的这一次撤掉，
+     * 否则刚 requestFocus 就被清掉，看起来像「点地址栏没反应」。
+     * 两处 post 都走同一个 Handler，removeCallbacks 才收得干净。
+     */
+    private final Runnable releaseOmniboxTask = this::releaseOmnibox;
+    /**
      * 请求代次。每次输入变化 +1，联网结果回来时对不上就丢弃 ——
      * 否则用户连打几个字，先发的慢请求后到，反而把新结果盖掉。
      */
@@ -963,6 +970,11 @@ public final class MainActivity extends Activity {
         renderUpdate();
 
         mainViewMounted = true;
+
+        // 每次 setContentView 都会重新 inflate 一棵新视图树，系统随之重新分配
+        // 一次初始焦点。等这一帧布局走完再收一遍，确保从任意弹层 / 扫码 /
+        // 书签返回时，地址栏都是「展示网址」而不是「等我输入」。
+        main.post(releaseOmniboxTask);
     }
 
     /**
@@ -1410,6 +1422,10 @@ public final class MainActivity extends Activity {
      */
     private void focusOmnibox() {
         if (!mainViewMounted) mountMain();
+        // mountMain / applyChromeFor 都会排一次「延后退出编辑态」，那是为了收拾
+        // 系统自动塞进来的焦点。这里是用户主动要输入，得把排队的清理撤掉，
+        // 否则刚拿到的焦点下一帧就没了，看起来像「点地址栏没反应」。
+        main.removeCallbacks(releaseOmniboxTask);
         if (urlBar == null) return;
         urlBar.requestFocus();
         InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
@@ -2211,8 +2227,9 @@ public final class MainActivity extends Activity {
         if (TextUtils.isEmpty(raw)) return;
         // 已经导航走了，浮层说的还是上一页的地址。这里必须收 ——
         // 点「首页」这一类按钮不会让地址栏失焦，浮层自己不会消失。
-        dismissUrlActions();
-        hideSuggest();
+        // releaseOmnibox 顺带把地址栏拉回展示态：新标签页 / 胶囊的搜索框是
+        // 页面内 input，键盘替它弹着，不收就会一路留到新打开的网页上。
+        releaseOmnibox();
         String url = applyHttps(raw);
         Tab t = current();
         if (t != null) t.url = url;
@@ -2805,7 +2822,13 @@ public final class MainActivity extends Activity {
         if (topBar == null) topBar = findViewById(R.id.topBar);
         if (topBar == null) return;
         boolean isNtp = NewTab.isNewTab(url);
+        boolean wasHidden = topBar.getVisibility() != View.VISIBLE;
         topBar.setVisibility(isNtp ? View.GONE : View.VISIBLE);
+        // 从内置新标签页跳到普通网页时，整行刚从 GONE 变 VISIBLE：系统会在
+        // 这一次布局里重新挑一个可聚焦控件，最常见的落点就是 urlBar。XML 的
+        // FOCUS_BEFORE_DESCENDANTS 挡的是「初始焦点」，挡不住这一次重新分配，
+        // 所以等布局走完再收一遍编辑态（只在这一种切换上做，不干扰正常浏览）。
+        if (wasHidden && !isNtp) main.post(releaseOmniboxTask);
         // 那一屏的 AI 提问框与搜索框里的扫一扫是页面自带的控件，
         // 不随顶栏一起消失，也就不必再在这里补一组悬浮入口。
     }
@@ -6647,6 +6670,47 @@ public final class MainActivity extends Activity {
             imm.hideSoftInputFromWindow(urlBar.getWindowToken(), 0);
         }
         if (urlBar != null) urlBar.clearFocus();
+    }
+
+    /**
+     * 打开网页时，把地址栏从「编辑态」拉回「展示态」。
+     *
+     * <p><b>修的是什么</b>：Android 会把「初始焦点」自动发给布局里第一个
+     * {@code focusableInTouchMode} 的控件，也就是 {@link #urlBar}。两种情况下
+     * 它都会发生：① {@link #mountMain()} 每次 {@code setContentView} 重新
+     * inflate 主界面（从书签 / 历史 / 菜单 / 扫码返回时都会走）；
+     * ② 从内置新标签页跳到网页，{@link #applyChromeFor} 把 {@code topBar}
+     * 从 {@code GONE} 变回 {@code VISIBLE}，系统重新给新出现的控件分焦点。
+     * 一旦 urlBar 拿到焦点，{@code selectAllOnFocus} 全选网址、
+     * {@link #showUrlActions()} 弹出「复制/分享」浮层、软键盘跟着起来 ——
+     * 用户看到的就是「每打开一个网页，地址栏自己开了」。
+     *
+     * <p>XML 里的 {@code FOCUS_BEFORE_DESCENDANTS} 挡住的是「自动分配」这一层；
+     * 这里补的是<b>导航瞬间</b>：新标签页的搜索框是页面内的 HTML input，
+     * 键盘是替它弹的，提交后焦点并不在 urlBar 上，光 {@code clearFocus()}
+     * 收不掉。所以无条件用窗口 token 收一次键盘，再把焦点交给网页区，
+     * 不给系统留「没人拿焦点、下次布局再挑一个 EditText」的空档。
+     *
+     * <p>只作用于「开始导航」与「重建主界面」这两个时刻，不碰用户在网页里
+     * 正常点输入框的行为。
+     */
+    private void releaseOmnibox() {
+        dismissUrlActions();
+        hideSuggest();
+        if (urlBar != null) urlBar.clearFocus();
+        if (capsuleInput != null) capsuleInput.clearFocus();
+        // 焦点交给 topRow（布局里特意设了 focusableInTouchMode 的容器），别落在
+        // 任何输入框上。刻意不给 web：不少登录页带 autofocus，WebView 一拿到
+        // 焦点就会顺势把刚收起来的键盘再弹回来，等于白修。
+        if (mainViewMounted) {
+            View sink = findViewById(R.id.topRow);
+            if (sink != null) sink.requestFocus();
+        }
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            android.os.IBinder token = getWindow().getDecorView().getWindowToken();
+            if (token != null) imm.hideSoftInputFromWindow(token, 0);
+        }
     }
 
     private void toast(String msg) {

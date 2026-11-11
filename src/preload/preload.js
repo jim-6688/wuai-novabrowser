@@ -154,7 +154,9 @@ contextBridge.exposeInMainWorld('nova', {
     // Edge 加载项商店：先查详情（让用户看清装的是什么），再取包装上。
     // 商店页上那个「获取」按钮在第三方外壳里点不动，所以绕到这两条上。
     storeInfo: (input) => ipcRenderer.invoke('ext:store-info', input),
-    storeInstall: (input) => ipcRenderer.invoke('ext:store-install', input)
+    storeInstall: (input) => ipcRenderer.invoke('ext:store-install', input),
+    /** 官网插件目录：外壳的 CSP 不放开外域 fetch，由主进程读 extensions.json */
+    catalog: () => ipcRenderer.invoke('ext:catalog')
   },
 
   /* --- 书签 / 历史 --- */
