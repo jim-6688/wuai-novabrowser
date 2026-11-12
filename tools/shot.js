@@ -279,8 +279,10 @@ app.whenReady().then(async () => {
       ['浏览器', 'https://nova.52ta.top/'],
       ['百度', 'https://www.baidu.com/'],
       ['DeepSeek', 'https://chat.deepseek.com/'],
-      ['一个名字特别长的站点', 'https://very-long-hostname.example.com/']
-    ].map((r, i) => `${r[0]}\t${r[1]}\t${9 - i}\t${i >= 6 ? '-' : 'f'}`).join('\n');
+      // 内置七条要一条不缺地喂进来，否则截图里宫格少一格，
+      // 与真实界面不符（ranking 会把非内置、非 pin 的候选丢掉）。
+      ['吾爱装机助手', 'https://assistant.52ta.top/']
+    ].map((r, i) => `${r[0]}\t${r[1]}\t${9 - i}\tf`).join('\n');
     const page = `${PORT}/src/renderer/newtab.html`
       + `?theme=light&store=1&data=${encodeURIComponent(rows)}`;
 

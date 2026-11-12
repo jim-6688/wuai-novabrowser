@@ -922,23 +922,23 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['预览模式不编造可用节点（截图里不该出现没测过的绿色状态）',
     /ok: false, status: 0, ms: 0, note: '预览模式不发网络请求'/.test(mockJs)],
 
-  /* --- AI 助手图标：彩色渐变，且与手机版同款 --- */
-  ['AI 按钮是多色渐变图标，不再是单色星形',
-    /linearGradient id="aiIconGrad"/.test(html)
-      && (html.match(/url\(#aiIconGrad\)/g) || []).length >= 2
-      && /<stop class="ai-grad-a" offset="0"/.test(html)
+  /* --- AI 助手图标 ---
+     Nova 2026 把顶栏 AI 从「渐变彩色字母 A/I」换成「纯白星芒压在品牌蓝方块上」。
+     换的理由：工具栏那一排现在是彩色实心方块，图标若自己还带渐变，
+     一块蓝底上再叠一层蓝绿渐变等于同色叠同色，远看只剩一团。
+     所以这条也从「必须是多色渐变」改成「必须是纯白、且不再引用渐变」。 */
+  ['AI 按钮是白色星芒，不再引用渐变（同色叠同色会糊成一团）',
+    /class="ai-ico"/.test(html)
+      && /M8\.6 2\.4c\.55 3\.35/.test(html)
+      && !/linearGradient id="aiIconGrad"/.test(html)
       && !/M10 2\.5l1\.7 3\.9/.test(html)],
-  ['渐变端点取明暗主题变量，深色下自动换成亮一档（不写死色值）',
-    /#btn-ai \.ai-grad-a \{ stop-color: var\(--brand\)/.test(css)
-      && /#btn-ai \.ai-grad-b \{ stop-color: var\(--accent\)/.test(css)
-      && /color-mix\(in srgb, var\(--brand\) 50%, var\(--accent\)\)/.test(css)],
-  ['PC 与手机版 ic_ai 造型逐条一致（字母 A / I ＋ 右上小星）',
+  ['方块里的图标统一纯白（饱和底上深色图标几乎看不见）',
+    /\.icon-btn\.tb-sq \{[\s\S]{0,320}color: #fff;/.test(css)
+      && /#btn-ai \.ai-ico \{ width: 20px/.test(css)],
+  ['手机版 ic_ai 保持渐变字母造型，两端刻意不同（PC 换星芒，手机不动）',
     (() => {
       const d = fs.readFileSync(P('android-app/app/src/main/res/drawable/ic_ai.xml'), 'utf8');
-      const norm = (s) => s.replace(/[\s,]+/g, ' ').trim();
-      const paths = [...d.matchAll(/android:pathData="([^"]+)"/g)].map((m) => norm(m[1]));
-      const h = norm(html);
-      return paths.length === 3 && paths.every((p) => h.includes(p));
+      return (d.match(/android:pathData=/g) || []).length === 3;
     })()],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 

@@ -42,31 +42,76 @@
   --warn: #FF9F0A;
   --danger: #FF4D4F;
 
-  /* 中性（浅色）。底色偏冷、与品牌蓝同向；卡片靠边框与投影分层，
-     不靠加深底色，所以 surface 系列之间只差一档。 */
-  --bg: #F4F6FB;
-  /* 外壳（标题栏/标签条/工具栏/收藏夹栏）专用底色。
-     比 bg 再深一档：网页是纯白 surface，外壳越暗，
-     「上面是浏览器、下面是网页」这条界线越清楚。 */
-  --chrome: #E9EEF8;
-  /* 分区之间的分割线。比 border 深一档：卡片描边用 border（含蓄），
-     分区线用 divider（要看得见「这里换了个区」）。 */
-  --divider: #C7D2E6;
+  /* 中性（浅色）· Nova 2026 暖纸底。
+     换了色相：从「冷灰蓝」改为「暖米白」。理由写在设计稿里 ——
+     外壳要和彩色实心图标拉开温度差，否则那堆高饱和色块压在中性色上
+     会显脏；暖底一垫，色块就「浮」起来了。
+     外壳四层各差一档，靠色阶而不是投影区分层次（值取自设计稿三个画框）。 */
+  --bg: #F7F7F2;
+  /* 外壳专用底色。标题栏 / 标签条 / 工具栏 / 收藏夹栏各一个变量 ——
+     设计稿里它们是四个略不同的值，统一成一个会丢掉那条「工具栏最亮」的层次。 */
+  --chrome-title: #EDEDE7;
+  --chrome-tabs: #EFEFE9;
+  --chrome-toolbar: #FFFFFF;
+  --chrome-bm: #FAFAF6;
+  --chrome: var(--chrome-tabs); /* 兼容旧引用 */
+  /* 分区之间的分割线。带一点暖调，和底色同族。 */
+  --divider: #DCDCD2;
   /* 输入框（地址栏 / 搜索框）的描边。带品牌蓝，比中性灰明显一档 ——
      一堆灰色分割线里，「这里是能打字的地方」要先被认出来。 */
   --field-border: #8FB2F8;
   --surface: #FFFFFF;
-  --surface-2: #EEF1F8;
-  --surface-3: #E3E8F4;
-  --border: #E4E8F2;
-  --border-strong: #CFD6E6;
-  --text: #101322;
-  --text-2: #464E63;
-  --text-3: #6A7288;
-  --text-4: #9BA3B7;
-  --shadow-1: 0 1px 2px rgba(16, 19, 34, 0.06), 0 1px 1px rgba(16, 19, 34, 0.04);
-  --shadow-2: 0 10px 28px rgba(16, 19, 34, 0.10), 0 2px 6px rgba(16, 19, 34, 0.06);
-  --shadow-3: 0 28px 64px rgba(16, 19, 34, 0.20);
+  --surface-2: #F0F0EA;
+  --surface-3: #E9E9E3;
+  --border: #D2D2C8;
+  --border-strong: #C8C8BD;
+  --text: #1A1A1E;
+  --text-2: #4A4A50;
+  --text-3: #6B6B72;
+  --text-4: #9A9AA0;
+  --shadow-1: 0 1px 2px rgba(40, 38, 30, 0.06), 0 1px 1px rgba(40, 38, 30, 0.04);
+  --shadow-2: 0 10px 28px rgba(40, 38, 30, 0.10), 0 2px 6px rgba(40, 38, 30, 0.06);
+  --shadow-3: 0 28px 64px rgba(40, 38, 30, 0.20);
+
+  /* 彩色实心图标底 · Nova 2026 语义色板
+     每个入口一个固定色，不随主题变（深色模里也照用，只是底更暗）。
+     取色见设计稿「DS / 功能语义色板」与「DS / 彩色实心图标组件库」。
+     语义绑定是刻意的：下载=青绿、拦截=橙、媒体/扩展=紫、AI=品牌蓝、
+     收藏/书签=金、主题=玫红、菜单/设置=石墨、搜索/新标签=天蓝。 */
+  --ic-ai: #2D6BF5;
+  --ic-download: #00A88F;
+  --ic-tools: #00A88F;
+  --ic-block: #F2762E;
+  --ic-media: #8B5CF6;
+  --ic-ext: #8B5CF6;
+  --ic-theme: #EC4478;
+  --ic-bookmark: #E79A0B;
+  --ic-menu: #475569;
+  --ic-settings: #475569;
+  --ic-history: #64748B;
+  --ic-search: #0B93D6;
+  --ic-newtab: #0B93D6;
+  --ic-scan: #12A97A;
+  --ic-core: #1D52D6;
+  --ic-about: #8B5CF6;
+
+  /* 彩色图标的尺寸与圆角。设计稿里工具方块是 48/14、标题栏色点是 18/5、
+     书签与标签的小色块是 16/4 —— 三档不是随手写的，是「越大越圆」的
+     视觉重量递进，改动时要成组调。 */
+  --ic-size-lg: 48px;
+  --ic-radius-lg: 14px;
+  --ic-size-sm: 18px;
+  --ic-radius-sm: 5px;
+  --ic-size-xs: 16px;
+  --ic-radius-xs: 4px;
+
+  /* 两个「由调用方按元素覆盖」的变量，在这里给默认值。
+     不写默认值的话，样式检查（tools/check-shell.js）会把它们当成拼错的变量名 ——
+     这条规则本来是防「写错变量名 → 静默失效」的，值得留着；
+     而这两个确实是有意让每个元素自己传色：顶栏色点传 --dot、
+     书签 chip 传 --bm-hue，全局默认只是兜底。 */
+  --dot: var(--brand);
+  --bm-hue: var(--brand);
 
   /* 尺幅 */
   --r-xs: 6px;
@@ -85,13 +130,16 @@
   --sp-8: 32px;
   --sp-10: 40px;
 
-  --titlebar-h: 36px;
-  --tabstrip-h: 40px;
-  --toolbar-h: 48px;
-  /* 收藏夹栏。32px 是这一行的下限：书签项高 24px，上下各留 4px 呼吸。
-     再压就要么项高掉到 24 以下（悬停底色贴着字），要么整行与下方网页
-     糊在一起读不出这是一条独立的栏。Chrome 的同类栏也是 32。 */
-  --bmbar-h: 32px;
+  /* 四层高度 · Nova 2026。整体比上一版各加 4~16px：
+     44/44/64/42（旧 36/40/48/32）。加高是彩色实心图标的直接代价 ——
+     48px 方块塞不进 48px 的工具栏，而把方块缩到 32 就失去「实心色块」
+     这个识别点。收藏夹栏 42 同样是为了装下单行 30px 胶囊 chip。 */
+  --titlebar-h: 44px;
+  --tabstrip-h: 44px;
+  --toolbar-h: 64px;
+  /* 收藏夹栏。42px = 30px 胶囊 chip + 上下各 6px 呼吸。
+     条目从「两行文字」改成「单行胶囊」后，高度不再由文字行数决定。 */
+  --bmbar-h: 42px;
   --row-h: 36px;
 
   --font: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system,
@@ -112,19 +160,25 @@
   --accent: #2BD9BE;
   --accent-soft: rgba(43, 217, 190, 0.18);
   --engine-chromium: #5B8BFF;
-  --bg: #0A0D16;
-  --chrome: #0C111C;
-  --divider: #39456B;
-  --field-border: #4E6DB8;
-  --surface: #131826;
-  --surface-2: #1A2032;
-  --surface-3: #232A40;
-  --border: #232A40;
-  --border-strong: #333C57;
-  --text: #F2F5FC;
-  --text-2: #C4CBDE;
-  --text-3: #939CB4;
-  --text-4: #6C7590;
+  /* 深色·Nova 2026。底色从「深空蓝」改为「中性碳黑」——
+     理由同浅色模：彩色图标要在中性底上才不偏色。 */
+  --bg: #121216;
+  --chrome-title: #171719;
+  --chrome-tabs: #1E1E22;
+  --chrome-toolbar: #171719;
+  --chrome-bm: #171719;
+  --chrome: var(--chrome-tabs);
+  --divider: #2E2E35;
+  --field-border: #505058;
+  --surface: #1E1E22;
+  --surface-2: #26262B;
+  --surface-3: #303037;
+  --border: #3E3E46;
+  --border-strong: #414148;
+  --text: #F5F5F6;
+  --text-2: #C7C7CE;
+  --text-3: #9A9AA2;
+  --text-4: #6E6E76;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.40);
   --shadow-2: 0 10px 30px rgba(0, 0, 0, 0.50);
   --shadow-3: 0 28px 70px rgba(0, 0, 0, 0.60);
@@ -255,65 +309,115 @@ svg {
 .qk-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
 .qk-label { font-size: 11.5px; line-height: 1; white-space: nowrap; }
 
-/* ---- 顶栏与工具栏的入口按钮：统一一套「淡底 + 外边框 + 饱和图标」 ----
-   主题 / 收藏夹 / 工具 / 关于 / 下载 / 扩展 / AI / 菜单 八个入口，
-   处理方式完全一致（同一个规则），只有色相不同 —— 用 --btn-hue 传进去：
-   底色 = 色相 12%，外边框 = 色相 30%，图标 = 纯色相；悬停时底色与边框一起加深。
-   外边框是必要的：淡底挨着淡底的 chrome，不描边就只剩一个颜色影子。
-
-   配色：统一在「蓝 + 青绿 + 琥珀」三色里，**不再用中性灰** ——
-   灰色按钮看着像禁用状态。关于与菜单（次要入口）用深一档的蓝表示层级，
-   而不是退成灰。 */
-#qk-theme,
-#qk-bmbar,
-#qk-tools,
-#qk-about,
-#btn-downloads,
-#btn-ext,
-#btn-ai,
-#btn-menu {
-  background: color-mix(in srgb, var(--btn-hue) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--btn-hue) 32%, transparent);
-  color: var(--btn-hue);
+/* ---- 顶栏入口：彩色色点 + 文字（Nova 2026） ----
+   和工具栏的彩色方块**不是**同一套，别再合并：
+   顶栏是「文字为主、颜色只做索引」，所以色块只有 18×18、点在文字前面，
+   按钮本身保持透明；工具栏是「颜色为主、没有文字」，方块才有 48×48 的实心底。
+   两套混用会得到一排大小不一的高饱和色块，看着像没对齐。 */
+.qk-dot {
+  width: var(--ic-size-sm); height: var(--ic-size-sm);
+  flex: 0 0 var(--ic-size-sm);
+  border-radius: var(--ic-radius-sm);
+  background: var(--dot, var(--brand));
+  /* 暖底上纯色块边缘会「毛」，压一圈 5% 的暗描边把它钉住 */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
-#qk-theme:hover,
-#qk-bmbar:hover,
-#qk-tools:hover,
-#qk-about:hover,
-#btn-downloads:hover,
-#btn-ext:hover,
-#btn-ai:hover,
-#btn-menu:hover {
-  background: color-mix(in srgb, var(--btn-hue) 26%, transparent);
-  border-color: color-mix(in srgb, var(--btn-hue) 60%, transparent);
-  color: var(--btn-hue);
+/* 顶栏入口不再有底色 —— 颜色已经由色点承担，按钮再上底色会有两层色 */
+#qk-theme, #qk-bmbar, #qk-tools, #qk-about {
+  background: transparent;
+  border: 0;
+  color: var(--text-2);
 }
-/* 各入口的色相 */
-#qk-theme { --btn-hue: var(--brand); }        /* 主题：品牌蓝 */
-#qk-bmbar { --btn-hue: var(--star); }         /* 收藏夹：琥珀，与地址栏星标同色 */
-#qk-tools { --btn-hue: var(--accent); }       /* 工具：青绿 */
-#qk-about { --btn-hue: var(--brand-strong); } /* 关于：深一档的蓝（次要入口） */
-#btn-downloads { --btn-hue: var(--brand); }    /* 下载：品牌蓝 */
-#btn-ext { --btn-hue: var(--accent); }        /* 扩展：与工具同色（都是「装东西」） */
-#btn-ai { --btn-hue: var(--brand-2); }        /* AI：浅蓝（按钮底），图标另走彩色渐变 */
-#btn-menu { --btn-hue: var(--brand-strong); } /* 菜单：深一档的蓝 */
+#qk-theme:hover, #qk-bmbar:hover, #qk-tools:hover, #qk-about:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
 
-/* AI 图标：这一排里唯一的多色图标。与手机版 ic_ai.xml、新标签页 logo
-   共用蓝 → 青绿这组品牌端点，中间色由两者混出来，不另引第三种色。
-   端点用变量而不是写死色值 —— [data-theme="dark"] 会换成亮一档的
-   --brand / --accent，渐变自动跟着变亮，深底上不会发闷。
-   字母到 17px 会略挤，单独放到 19px；hover 时稍微提一点饱和与亮度，
-   让这颗唯一的彩色图标在指针扫过时有回馈。 */
-#btn-ai .ai-grad-a { stop-color: var(--brand); }
-#btn-ai .ai-grad-m { stop-color: color-mix(in srgb, var(--brand) 50%, var(--accent)); }
-#btn-ai .ai-grad-b { stop-color: var(--accent); }
-#btn-ai .ai-ico { width: 19px; height: 19px; transition: filter var(--dur) var(--ease); }
-#btn-ai:hover .ai-ico { filter: saturate(1.18) brightness(1.06); }
-/* 收藏夹栏开着的时候，那颗按钮是「点一下能收起来」的实心态 */
+/* 顶栏分组线：整组两侧 2×20（粗），组内 1×16（细）。
+   粗细两档是设计稿里的原样 —— 全是细线时四个入口会连成一条，
+   全是粗线又会把「主题/收藏夹/工具/关于」切得太碎。 */
+.qk-line {
+  width: 1px; height: 16px; flex: 0 0 1px;
+  background: var(--border);
+  border-radius: 0.5px;
+}
+.qk-line-lg {
+  width: 2px; flex-basis: 2px; height: 20px;
+  background: var(--border-strong);
+  border-radius: 1px;
+}
+
+/* ---- 工具栏方块：彩色实心 48×48、圆角 14、纯图标（Nova 2026） ----
+   这是整套界面里唯一的「重」元素：底色饱和、图标纯白、不描边、不带文字。
+   一排六个靠颜色分类（下载青绿 / 拦截橙 / 媒体紫 / 扩展紫 / AI 蓝 / 菜单石墨），
+   认的是位置和颜色，不是读字 —— 所以文字标签在这里是纯负担。 */
+.tb-sq {
+  width: var(--ic-size-lg); height: var(--ic-size-lg);
+  border-radius: var(--ic-radius-lg);
+  color: #fff;
+  background: var(--sq-bg, var(--brand));
+  border: 0;
+}
+.tb-sq svg { width: 22px; height: 22px; }
+/* 悬停压暗一档而不是变亮：白图标压在饱和底上，提亮只会让图标糊进底色 */
+.tb-sq:hover {
+  background: color-mix(in srgb, var(--sq-bg) 84%, #000);
+  color: #fff;
+  transform: scale(1.04);
+}
+.tb-sq:active { transform: scale(0.96); }
+.tb-sq:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--sq-bg) 40%, transparent); }
+/* 「开着」的态：一圈同色外晕。实心块不能靠变底色表示选中 —— 底色是身份，不能改 */
+.tb-sq.is-on { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sq-bg) 38%, transparent); }
+
+.tb-sq-dl { --sq-bg: var(--ic-download); }
+.tb-sq-block { --sq-bg: var(--ic-block); }
+.tb-sq-media { --sq-bg: var(--ic-media); }
+.tb-sq-ext { --sq-bg: var(--ic-ext); }
+.tb-sq-ai { --sq-bg: var(--ic-ai); }
+.tb-sq-menu { --sq-bg: var(--ic-menu); }
+.tb-sq-update { --sq-bg: var(--ic-search); }
+
+/* AI 方块右上角的小角标。设计稿里是「AI」两个字压在方块右下 ——
+   这颗按钮的图标本身是字母 AI，角标只用来在 22px 下再强调一次「这是对话」，
+   所以做得很小、白底蓝字，不抢主图标。 */
+.sq-tag {
+  position: absolute; right: 3px; bottom: 3px;
+  font-style: normal; font-size: 8px; font-weight: 800; line-height: 1;
+  padding: 2px 3px; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ic-ai);
+  letter-spacing: 0.2px;
+}
+
+/* 工具栏分组线：工具之间 2×28（粗），AI 两侧 1×24（细） */
+.tb-sep {
+  width: 2px; height: 28px; flex: 0 0 2px;
+  background: var(--border-strong);
+  border-radius: 1px;
+}
+.tb-sep-thin {
+  width: 1px; flex-basis: 1px; height: 24px;
+  background: var(--border);
+  border-radius: 0.5px;
+}
+
+/* AI 图标：Nova 2026 起是**白图标压在品牌蓝方块**上，
+   不再走蓝→青绿渐变 —— 方块底已经是品牌蓝，渐变图标压上去几乎看不见。
+   三个 stop 都改成白色，path 与 stroke 不用动（它们引用的是同一个渐变 id）。
+   尺寸放到 20px：22px 的方块里，AI 两个字母比其它单形图标更吃空间。 */
+#btn-ai .ai-grad-a,
+#btn-ai .ai-grad-m,
+#btn-ai .ai-grad-b { stop-color: #fff; }
+#btn-ai .ai-ico { width: 20px; height: 20px; transition: filter var(--dur) var(--ease); }
+#btn-ai:hover .ai-ico { filter: brightness(1.08); }
+/* 收藏夹栏开着的时候，那颗按钮是「点一下能收起来」的实心态。
+   Nova 2026 里顶栏按钮默认透明，开态就给一层淡金底 + 金色文字，
+   与色点同色系，不用再描边（顶栏没有其它描边元素与之对齐）。 */
 #qk-bmbar.is-on {
-  background: color-mix(in srgb, var(--star) 34%, transparent);
-  border-color: color-mix(in srgb, var(--star) 62%, transparent);
-  color: var(--star);
+  background: color-mix(in srgb, var(--ic-bookmark) 16%, transparent);
+  border-color: transparent;
+  color: var(--ic-bookmark);
 }
 
 /* 工具菜单（顶栏「关于」左面的下拉）。
@@ -3688,3 +3792,263 @@ body.bm-dragging { cursor: grabbing; }
         即使某个引擎对 !important 处理不规范，也会退回 UA 的 display:none。
    ========================================================================== */
 [hidden] { display: none !important; }
+
+/* ==========================================================================
+   Nova 2026 · 外壳四层
+   ---------------------------------------------------------------------------
+   这一段是「整层重绘」，不参与上面的组件微调：标题栏 44 / 标签条 44 /
+   工具栏 64 / 收藏夹栏 42 四层的高度、底色、描边、圆角与图标形态，
+   全部按设计稿（Ardot 746012117058560）的四个画框改。
+   放在文件末尾是有意的：靠源码顺序压住上面的旧规则，而不是逐条去改 ——
+   旧的那套「冷灰蓝 + 淡底描边按钮」整条链路要一起退场，
+   一条条删容易漏，漏一处就是两代视觉混在一屏里。
+
+   三档彩色尺寸（对应设计稿的三档视觉重量）：
+     · 48/14  工具栏方块（颜色为主，没有文字）
+     · 18/5   标题栏色点（文字为主，颜色只做索引）
+     · 16/4   标签与书签的小色块（附图标的陪衬）
+   ========================================================================== */
+
+/* ---------- 1. 标题栏 ---------- */
+.titlebar {
+  background: var(--chrome-title);
+  border-bottom: 1px solid var(--divider);
+  padding: 0 var(--sp-4);
+  gap: var(--sp-3);
+}
+.brand-mark {
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  /* 设计稿里品牌标识是**纯品牌蓝**，不带渐变。渐变留给新标签页的大 logo ——
+     24px 上的渐变看不出方向，只剩一层脏色。 */
+  background: var(--ic-ai);
+}
+.brand-name { font-size: 13px; font-weight: 600; letter-spacing: 0.1px; }
+.brand-tag {
+  display: inline-flex; align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ic-ai);
+  font-size: 11px;
+  font-weight: 600;
+}
+[data-theme="dark"] .brand-tag { background: var(--surface); color: var(--brand); }
+
+/* 快捷入口整组贴到窗口键左侧（设计稿的位置）。tb-drag 已经 flex:1，
+   这里再给一个 auto 外边距，是为了在极窄窗口下也不让它压到品牌名。 */
+.tb-quick { gap: 6px; margin-left: auto; }
+.qk-btn { height: 28px; padding: 0 8px; border-radius: 7px; gap: 6px; }
+.qk-label { font-size: 11.5px; }
+
+/* 窗口键：设计稿里是 72×18 的一排细线图标，不是三个大按钮 */
+.tb-win { gap: 0; }
+.winbtn { width: 26px; height: 22px; border-radius: 5px; }
+.winbtn svg { width: 11px; height: 11px; }
+
+/* ---------- 2. 标签条 ---------- */
+.tabstrip {
+  background: var(--chrome-tabs);
+  padding: 0 var(--sp-3);
+  gap: 6px;
+}
+.tab {
+  height: 36px;
+  max-width: 220px;
+  min-width: 132px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  gap: var(--sp-2);
+  border-radius: 10px 10px 0 0;
+  color: var(--text-2);
+  background: transparent;
+}
+.tab:hover { background: color-mix(in srgb, var(--surface-3) 70%, transparent); color: var(--text); }
+/* 激活标签＝白色浮起卡片，顶部一条 3px 内核色。 */
+.tab.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 3px 0 var(--tab-accent, var(--brand));
+}
+/* 旧版是在**底部**画一条内核色。新版内核色跑到了顶部，
+   底部那条留着会和下方工具栏的分割线重叠成双线。 */
+.tab.is-active::after { display: none; }
+.tab-favicon {
+  width: var(--ic-size-xs); height: var(--ic-size-xs);
+  flex: 0 0 var(--ic-size-xs);
+  border-radius: var(--ic-radius-xs);
+  background: var(--ic-newtab);
+  color: #fff;
+}
+.tab-engine {
+  border: 0;
+  border-radius: 4px;
+  padding: 0 4px;
+  background: color-mix(in srgb, var(--tab-accent, var(--brand)) 14%, transparent);
+  opacity: 1;
+}
+/* 新建标签：蓝色圆角方块（设计稿里是整排里唯一一个实心蓝块） */
+.tab-new {
+  width: 26px; height: 26px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  background: var(--ic-newtab);
+  color: #fff;
+}
+.tab-new:hover { background: color-mix(in srgb, var(--ic-newtab) 84%, #000); color: #fff; }
+.tab-new:active { transform: scale(0.94); }
+.tab-list-btn { margin-bottom: 4px; }
+
+/* ---------- 3. 工具栏 ---------- */
+.toolbar {
+  background: var(--chrome-toolbar);
+  border-bottom: 1px solid var(--border-strong);
+  padding: 0 var(--sp-4);
+  gap: 10px;
+}
+/* 导航键：36×34 的圆角块，底色比工具栏深一档 —— 它们是「一个控件的四段」，
+   所以彼此贴紧、只留 8px 缝，和右边那些互相独立的彩色方块区分开。 */
+.nav-group { gap: 8px; }
+.nav-group .icon-btn {
+  width: 36px; height: 34px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+.nav-group .icon-btn:hover { background: var(--border-strong); color: var(--text); }
+.nav-group .icon-btn:active { background: var(--border-strong); }
+
+/* 工具区：一排彩色方块，间距 8px */
+.tool-group { gap: 8px; }
+.ext-cluster { gap: 8px; }
+
+/* 地址栏：44 高、圆角 12、浅蓝描边，星标与内核胶囊都在内部右端 */
+.omnibox {
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--field-border);
+  background: var(--surface);
+  padding: 0 var(--sp-2) 0 14px;
+  gap: 10px;
+}
+[data-theme="dark"] .omnibox { border-color: var(--field-border); }
+/* 收藏星标：金底白星的小方块 */
+.ow-btn.ow-star {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: var(--ic-bookmark);
+  color: #fff;
+}
+.ow-btn.ow-star svg { width: 15px; height: 15px; fill: currentColor; }
+.ow-btn.ow-star:hover { background: color-mix(in srgb, var(--ic-bookmark) 84%, #000); color: #fff; }
+.ow-btn.ow-star.is-on { background: var(--ic-bookmark); color: #fff; }
+/* 内核胶囊：蓝底白字，「CR · Chromium」 */
+.ow-engine {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--ic-ai);
+  color: #fff;
+  gap: 0;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ow-engine:hover { background: color-mix(in srgb, var(--ic-ai) 86%, #000); color: #fff; }
+.ow-engine-name { font-weight: 600; color: rgba(255, 255, 255, 0.82); }
+.ow-engine .ow-caret { stroke: #fff; opacity: 0.9; }
+/* 专用搜索框与地址栏同高同圆角，但描边走中性色 —— 两个都亮蓝描边的话，
+   一进工具栏会看到两个「要我打字」的框，主次全丢。 */
+.search-box {
+  height: 44px;
+  border-radius: 12px;
+}
+
+/* ---------- 4. 收藏夹栏 ---------- */
+.bookmarkbar {
+  background: var(--chrome-bm);
+  border-bottom: 1px solid var(--border-strong);
+  padding: 0 var(--sp-4);
+  gap: var(--sp-2);
+}
+[data-pos="bottom"].bookmarkbar { border-top: 1px solid var(--border-strong); border-bottom: 0; }
+/* 书签＝单行胶囊 chip：白底、细描边、16px 色块 + 名称。
+   唯一的硬约束是**单行** —— 标题与域名两行在 42px 的栏里必然截断，
+   而截断的那一行恰恰是「这条书签指向哪」的补充信息，截了就白放。 */
+.bm-item {
+  height: 30px;
+  max-width: 220px;
+  padding: 0 12px 0 8px;
+  gap: 7px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.bm-item:hover { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
+.bm-fav {
+  width: var(--ic-size-xs); height: var(--ic-size-xs);
+  flex: 0 0 var(--ic-size-xs);
+  border-radius: var(--ic-radius-xs);
+  background: var(--bm-hue, var(--brand));
+  color: #fff;
+  font-size: 9px; font-weight: 800;
+}
+.bm-text { flex-direction: row; align-items: center; }
+/* 域名那一行整条退场：单行 chip 里放不下，也不再需要它 ——
+   悬停 tooltip 仍然是「标题 + 完整网址」，该有的信息一点没少。 */
+.bm-host { display: none; }
+/* chip 自带描边，条目之间的竖线就多余了 */
+.bm-sep { display: none; }
+/* 拖动手柄收窄成一条贴在左沿的细纹，平时几乎看不见（设计稿里没有这个元素，
+   但「能拖」这件事必须留个记号，否则用户永远不知道能排序）。 */
+.bm-item .bm-grip { margin-right: -2px; opacity: 0.35; }
+.bm-item:hover .bm-grip { opacity: 1; }
+
+/* 方块尺寸的最终裁决 —— 必须放在这里。
+   .tb-sq 的底色与圆角写在上面那套规则里，但 .icon-btn（34×34、--r-md）
+   在文件更后面，同特异度下后者胜出，方块会被压回 34px 的普通图标按钮。
+   实测过：只把颜色写上去、尺寸没跟上，出来的是一排 34px 的小色块堆在
+   64px 的工具栏中间，上下各空一大截。 */
+.tool-group .tb-sq,
+.icon-btn.tb-sq {
+  width: var(--ic-size-lg);
+  height: var(--ic-size-lg);
+  border-radius: var(--ic-radius-lg);
+  padding: 0;
+  /* color 也必须在这里再声明一次。.icon-btn 是同特异度、且在文件更后面，
+     var(--text-2) 会把白图标压回深灰 —— 结果就是一排彩色方块上顶着六个
+     几乎看不见的深色图标。底色（background）不受影响，因为 .icon-btn 不设它，
+     但 color 设了，所以只有图标会「变黑」这一个症状。 */
+  color: #fff;
+}
+
+/* 地址栏内的常驻操作（复制 / 编辑 / 二维码）：设计稿里地址栏只有星标与内核胶囊，
+   这三颗是后来加的便捷入口。功能保留（点地址栏弹出的快捷面板里也有一份），
+   但降成无底的静音图标 —— 不降的话它们在 44px 的输入框里像三颗小彩片，
+   把星标那一点金色强调彻底盖掉。 */
+.ow-btn.ow-act {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-3);
+}
+.ow-btn.ow-act:hover { background: var(--surface-2); color: var(--text); }
+.ow-btn.ow-act svg { width: 15px; height: 15px; }
+
+/* 收藏夹按钮的「开态」：设计稿里顶栏按钮一律无底，开态靠色点与文字加深表示。
+   给一层 10% 的金底已经足够读出来，再重就把标题栏拉回旧版那种「一排彩色药丸」。 */
+#qk-bmbar.is-on { background: color-mix(in srgb, var(--ic-bookmark) 12%, transparent); }
+
+/* 方块里的图标：22 → 24px。
+   48px 的方块配 22px 图标，四周留白 13px，看着像「贴纸没贴满」；
+   设计稿里图标占方块约一半（24/48），视觉重心才落在方块中间。 */
+.tb-sq svg { width: 24px; height: 24px; }
+
+/* 收藏夹开态：只把文字与色点染成金色，**不给底色**。
+   设计稿里顶栏四个入口一律透明，给底色会让它单独长成一个彩色药丸，
+   与旁边三个裸文字入口不成排。开态靠「栏在不在」本身就看得出来。 */
+#qk-bmbar.is-on { background: transparent; }
+/* 文字也保持正常色：设计稿里这四个入口的文字是同一档深灰，
+   只有前面的色点区分身份。把开态那一项染成金色，四颗字里就有一颗不齐。 */

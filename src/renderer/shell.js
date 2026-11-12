@@ -399,6 +399,10 @@ function syncEngineUi() {
   badge.style.setProperty('--engine-color', e.accent);
   badge.classList.toggle('is-compat', e.mode === 'compat');
   $('#omni-engine-short').textContent = e.short;
+  // 胶囊里的全名跟着内核走。单独一个节点而不是拼进 #omni-engine-short：
+  // 那个节点的文本被单测钉成纯缩写（CR / FF / IE），拼进去会把断言弄坏。
+  const en = $('#omni-engine-name');
+  if (en) en.textContent = ` · ${e.label}`;
   // 左上角这格原来写「Chromium · 原生内核」——「原生内核/兼容层」是状态不是信息，
   // 而用户在这里更想知道的是「现在跑的是哪个版本的内核」。模式仍留在 title 里，
   // 悬停可见；真正的兼容层提示还有引擎条和地址栏的橙色标记，不靠这一格。
@@ -409,8 +413,12 @@ function syncEngineUi() {
   const ver = cm ? cm[1] : (fm ? fm[1] : (rm ? rm[1] : ''));
   const btag = $('#brand-tag');
   if (btag) {
-    btag.textContent = ver ? `${e.label} ${ver}` : e.label;
-    btag.title = e.modeLabel;
+    // Nova 2026：徽标写成「Chromium · 已激活」，版本号退到 title 里。
+    // 理由：这枚胶囊在标题栏里只有 22px 高，放「Chromium 156」这种
+    // 带版本号的写法会把整组快捷入口往右顶；而版本号是「查的时候才要」的信息，
+    // 挂在 tooltip 上够用。预览模式仍由 boot 里单独改写。
+    btag.textContent = `${e.label} · 已激活`;
+    btag.title = ver ? `${e.modeLabel} · ${ver}` : e.modeLabel;
     // 预览模式在 boot 里给这格写过内联的橙色（color / borderColor）。这里的赋值
     // 会把文字盖掉、却留下那圈橙边，看着像内核出问题 —— 一起清掉。
     btag.style.color = '';
@@ -2284,7 +2292,28 @@ function bmEntry(b) {
   const icon = src
     ? `<img src="${esc(src)}" alt="" onerror="this.remove()" />`
     : esc((host || 'N').slice(0, 1).toUpperCase());
-  return { host, label, icon, hostLine: (host || '').replace(/^www\./, '') };
+  return { host, label, icon, hue: bmHue(host), hostLine: (host || '').replace(/^www\./, '') };
+}
+
+/**
+ * 书签色块的颜色 —— 按主机名取一个**稳定**的颜色。
+ *
+ * <p>为什么按主机名而不是按顺序：顺序会变（拖动排序、增删书签），
+ * 颜色跟着顺序变等于每次整理完颜色全换一遍，反而更难认。同一台主机
+ * 永远同一个色，用久了就成了这家的「记认色」。
+ *
+ * <p>为什么不抓站点主色：要发请求、要解析图片、还可能抓到一片白。
+ * 从语义色板里取一档，够区分、又不引入设计系统之外的色。
+ */
+const BM_HUES = [
+  'var(--ic-ai)', 'var(--ic-tools)', 'var(--ic-theme)', 'var(--ic-block)',
+  'var(--ic-bookmark)', 'var(--ic-media)', 'var(--ic-search)', 'var(--ic-scan)'
+];
+function bmHue(host) {
+  const s = String(host || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return BM_HUES[Math.abs(h) % BM_HUES.length];
 }
 
 function renderBmMenu() {
@@ -2518,6 +2547,7 @@ function renderBookmarkBar(force = false) {
     const p = bmEntry(b);
     const locked = bmLocked();
     const item = `<button class="bm-item${locked ? ' is-locked' : ''}" draggable="${locked ? 'false' : 'true'}" data-bm="${esc(b.url)}"` +
+      ` style="--bm-hue:${p.hue}"` +
       ` title="${esc(p.label)}&#10;${esc(b.url)}&#10;${locked ? '收藏夹栏已锁定（解锁后可拖动排序）' : '拖动可排序 · 右键移出收藏夹栏'}">` +
       // 拖动手柄：不给记号的话没人知道这一格能拖（用户的原话：「拖动按钮还缺少」）
       (locked ? '' : '<span class="bm-grip bm-grip-x" aria-hidden="true">⋮⋮</span>') +
@@ -4184,10 +4214,8 @@ function renderExtPopover() {
   const list = $('#ext-pop-list');
   const title = $('#ext-pop-title');
   if (!list) return;
-  // 内置工具入口（广告拦截 / 媒体嗅探）只在「已装扩展」视图露出：
-  // 导入视图是一条独立流程，混着两行无关入口会让人以为也能导入它们。
-  const quick = $('#ext-quick');
-  if (quick) quick.hidden = state.extPopView === 'import';
+  // 内置工具入口（广告拦截 / 媒体嗅探）已经回到顶栏，不再是这个小窗里的两行，
+  // 所以这里也不再需要按视图切换它们的显隐。
   // 两种视图：默认「已装扩展」（就地开关），导入视图「从浏览器导入」。
   // 都在这一个小窗里完成，不用为了导入专门跳去设置页 —— 那正是用户
   // 反馈「探测还是打开设置界面」要解决的：探测/导入就该在点开的这个窗里。
@@ -8304,10 +8332,22 @@ function setupSearchBox() {
  * 三个小窗共用 .ext-cluster 这一个锚点，同时显示会叠在同一个位置。
  */
 function setupExtQuick() {
+  // 这两个入口现在是顶栏的常驻方块（Nova 2026），所以行为要从「点一行打开」
+  // 改成「点一下开、再点一下收」—— 常驻按钮不给自己留收起的路，用户只能点空白处。
   const ab = $('#ext-ab-row');
-  if (ab) ab.addEventListener('click', () => { closeExtPopover(); openAdblockPopover(); });
+  if (ab) ab.addEventListener('click', () => {
+    const pop = $('#ab-popover');
+    const wasOpen = pop && !pop.hidden;
+    closeExtPopover();
+    if (wasOpen) closeAdblockPopover(); else openAdblockPopover();
+  });
   const sn = $('#ext-sniff-row');
-  if (sn) sn.addEventListener('click', () => { closeExtPopover(); openSniffPopover(); });
+  if (sn) sn.addEventListener('click', () => {
+    const pop = $('#sniff-pop');
+    const wasOpen = pop && !pop.hidden;
+    closeExtPopover();
+    if (wasOpen) closeSniffPopover(); else openSniffPopover();
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -10129,6 +10169,23 @@ function wireBridgeEvents() {
     } else if (cmd.op === NovaNtpHost.OP_STORE) {
       // 内置新标签页的「插件商店」入口：直接打开扩展面板（含商店），不重导这一屏。
       openPanel('extensions');
+      return;
+    } else if (cmd.op === NovaNtpHost.OP_AI) {
+      /* 新标签页那条 AI 提问条（Nova 2026）。
+       *
+       * 打开面板、把问题暂存进去，**不重载新标签页** —— 面板是浮在这一屏上面的，
+       * 关掉之后用户还应该回到原来的新标签页，而不是被清成空白再重画一遍。
+       *
+       * 两种模式分开喂：网页模式靠 state.aiPending 注入对话页的输入框
+       * （openAiPanel 里会等 webview 就绪再送），API 模式没有那个输入框，
+       * 直接填底栏的 textarea。 */
+      const q = String(cmd.get('q') || '').trim();
+      if (q) {
+        state.aiPending = q;
+        openAiPanel();
+        const ta = $('#ai-text');
+        if (aiIsApiMode() && ta) ta.value = q;
+      }
       return;
     } else if (cmd.op === NovaNtpHost.OP_SEARCH) {
       /* 新标签页中间那个搜索框。

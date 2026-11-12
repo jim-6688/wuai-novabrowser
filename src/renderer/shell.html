@@ -36,29 +36,30 @@
         </svg>
       </span>
       <span class="brand-name">吾爱Nova</span>
-      <span class="brand-tag" id="brand-tag">多内核</span>
+      <span class="brand-tag" id="brand-tag">Chromium · 已激活</span>
     </div>
+
+    <!-- 弹性空白。放在品牌与右侧快捷组之间（Nova 2026 把快捷组贴到窗口键左侧），
+         标题栏整条可拖窗口，这一格是主要的拖拽落点。 -->
+    <div class="tb-drag"></div>
 
     <!-- 品牌名右边的快捷开关。这一格过去是死空白（弹性拖拽区把余量全吃了），
          放两个「要开一眼才知道状态、改起来却得进设置点三层」的开关：主题与
-         收藏夹栏。标题栏整条是窗口拖拽区，所以这组按钮要单独标 no-drag。 -->
+         收藏夹栏。标题栏整条是窗口拖拽区，所以这组按钮要单独标 no-drag。
+
+         Nova 2026 改法：每个入口前面放一枚 18×18 彩色小色块（不是描边图标），
+         入口之间用 1px 细线、整组左右用 2px 分组线隔开。色块只表示「这是哪一类」，
+         不表示状态 —— 状态靠文字与点开后的面板。 -->
     <div class="tb-quick">
+      <span class="qk-line qk-line-lg" aria-hidden="true"></span>
       <button class="qk-btn" id="qk-theme" title="主题">
-        <svg class="qk-sun" viewBox="0 0 20 20" aria-hidden="true">
-          <circle cx="10" cy="10" r="3.6" />
-          <path d="M10 2.6v2M10 15.4v2M2.6 10h2M15.4 10h2M4.8 4.8l1.4 1.4M13.8 13.8l1.4 1.4M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4" />
-        </svg>
-        <svg class="qk-moon" viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M16.2 12.4A6.6 6.6 0 0 1 7.6 3.8a6.8 6.8 0 1 0 8.6 8.6z" />
-        </svg>
+        <span class="qk-dot" style="--dot: var(--ic-theme)" aria-hidden="true"></span>
         <span class="qk-label">主题</span>
       </button>
+      <span class="qk-line" aria-hidden="true"></span>
       <div class="qk-tools-wrap">
         <button class="qk-btn" id="qk-bmbar" title="收藏夹 · 导入 / 导出" aria-haspopup="menu" aria-expanded="false">
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M6.2 3.5h7.6v8.6l-3.8-2.9-3.8 2.9z" />
-            <path d="M3.4 16.5h13.2" />
-          </svg>
+          <span class="qk-dot" style="--dot: var(--ic-bookmark)" aria-hidden="true"></span>
           <span class="qk-label">收藏夹</span>
         </button>
         <!-- 收藏夹下拉：开合栏 + 导入 / 导出 + 进设置。导入导出与设置页、侧栏共用同一套逻辑。 -->
@@ -98,12 +99,10 @@
       <!-- 工具菜单：把新增的功能（命令面板 / 站点权限 / 分享 / 密码 / 插件商店…）
            收在一个下拉里速达，摆在「关于」左面。按钮包一层 .qk-tools-wrap 作为
            下拉的定位锚点（标题栏整条是拖拽区，这一组要 no-drag）。 -->
+      <span class="qk-line" aria-hidden="true"></span>
       <div class="qk-tools-wrap">
         <button class="qk-btn" id="qk-tools" title="工具 · 新功能速达" aria-haspopup="menu" aria-expanded="false">
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M12.6 3.2a3.7 3.7 0 0 0-4.8 4.6l-4.3 4.3 1.6 1.6 4.3-4.3a3.7 3.7 0 0 0 4.6-4.8l-2.1 2.1-1.6-1.6z" />
-            <path d="M4.2 14.2l1.4 1.4" />
-          </svg>
+          <span class="qk-dot" style="--dot: var(--ic-tools)" aria-hidden="true"></span>
           <span class="qk-label">工具</span>
         </button>
         <div class="tools-menu" id="tools-menu" role="menu" aria-label="工具" hidden>
@@ -112,15 +111,13 @@
           <div class="em-foot">也可在命令面板（Ctrl+K）里直接搜这些功能</div>
         </div>
       </div>
+      <span class="qk-line" aria-hidden="true"></span>
       <button class="qk-btn" id="qk-about" title="关于吾爱Nova浏览器">
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <circle cx="10" cy="10" r="7.2" />
-          <path d="M10 8.9v4.4M10 6.3v.01" />
-        </svg>
+        <span class="qk-dot" style="--dot: var(--ic-about)" aria-hidden="true"></span>
         <span class="qk-label">关于</span>
       </button>
+      <span class="qk-line qk-line-lg" aria-hidden="true"></span>
     </div>
-    <div class="tb-drag"></div>
     <div class="tb-win">
       <button class="winbtn" data-win="minimize" title="最小化">
         <svg viewBox="0 0 12 12"><path d="M2 6h8" /></svg>
@@ -172,7 +169,7 @@
       </span>
       <input id="omni-input" class="ow-input" type="text" spellcheck="false"
              autocomplete="off" placeholder="搜索或输入网址" />
-      <button class="ow-btn" id="omni-star" title="加入书签">
+      <button class="ow-btn ow-star" id="omni-star" title="加入书签">
         <svg viewBox="0 0 18 18"><path d="M9 2.5l1.9 3.9 4.3.6-3.1 3 .7 4.3L9 12.3 5.2 14.3l.7-4.3-3.1-3 4.3-.6z" /></svg>
       </button>
 
@@ -189,9 +186,11 @@
 
       <span class="ow-divider"></span>
 
-      <!-- 内核选择：地址栏右侧 -->
+      <!-- 内核选择：地址栏右侧。Nova 2026 里是蓝底白字的「CR · Chromium」胶囊 ——
+           缩写是主标识（必须留着：#omni-engine-short 的单测断言它就是 CR/FF/IE），
+           全名跟在后面用一档浅色，扫一眼知道是哪个内核、又不用记缩写。 -->
       <button class="ow-engine" id="omni-engine" title="选择内核" aria-haspopup="menu" aria-expanded="false">
-        <b id="omni-engine-short">CR</b>
+        <b id="omni-engine-short">CR</b><span class="ow-engine-name" id="omni-engine-name"> · Chromium</span>
         <svg class="ow-caret" viewBox="0 0 12 12"><path d="M3 4.6L6 7.6l3-3" /></svg>
       </button>
 
@@ -300,10 +299,12 @@
 
     <!-- 下载：地址栏右侧的常驻入口。有下载时弹出一个贴在地址栏旁的小窗，
          展示进行中的任务、进度与暂停/取消/打开等操作；点图标收起或展开。 -->
+    <!-- 地址栏与工具区之间的分组线（设计稿是 2×28 的粗线）：
+         左边是「输入」，右边是「动作」，这条线是两者的分界。 -->
+    <span class="tb-sep" aria-hidden="true"></span>
     <div class="dl-cluster">
-      <button class="icon-btn has-badge has-label" id="btn-downloads" title="下载">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0l-3.6-3.6M10 12l3.6-3.6M4 15.6h12" /></svg>
-        <span class="ib-label">下载</span>
+      <button class="icon-btn has-badge tb-sq tb-sq-dl" id="btn-downloads" title="下载">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.6v8.2m0 0l-3.4-3.4M10 11.8l3.4-3.4M4.4 15.8h11.2" /></svg>
         <i class="badge" id="dl-count" hidden>0</i>
       </button>
       <div class="dl-popover" id="dl-popover" role="dialog" aria-label="下载" hidden>
@@ -332,30 +333,31 @@
            位置与样式复用下载小窗（.dl-popover）：同一套「贴在按钮下面」的
            交互，两处长得一样才对。 -->
       <div class="ext-cluster">
-        <button class="icon-btn has-label" id="btn-ext" title="扩展" aria-expanded="false" aria-haspopup="dialog">
+        <!-- 广告拦截 / 媒体浮窗：Nova 2026 起重新常驻顶栏，各自一格彩色方块。
+             它们的小窗仍挂在 .ext-cluster 这一个定位锚点上（三个小窗互斥，
+             同时显示会叠在同一处），只是入口从「扩展小窗里的一行」回到了顶栏。
+             按钮 id 沿用 ext-ab-row / ext-sniff-row —— 位移不改契约，
+             已有的开合逻辑与「点外面收起」的白名单都还认这两个 id。 -->
+        <button class="icon-btn has-badge tb-sq tb-sq-block" id="ext-ab-row" type="button"
+                title="广告拦截" aria-haspopup="dialog">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z" /><path d="M7.6 10l1.8 1.8 3.2-3.2" /></svg>
+          <i class="badge" id="shield-count">0</i>
+        </button>
+        <button class="icon-btn has-badge tb-sq tb-sq-media" id="ext-sniff-row" type="button"
+                title="媒体浮窗" aria-haspopup="dialog">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5" width="9" height="8" rx="1.4" /><path d="M5.5 8.5l2.4 1.5-2.4 1.5z" /><path d="M14 8a3.2 3.2 0 0 1 0 5" /><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4" /></svg>
+          <i class="badge" id="sniff-count">0</i>
+        </button>
+        <button class="icon-btn tb-sq tb-sq-ext" id="btn-ext" title="扩展" aria-expanded="false" aria-haspopup="dialog">
           <svg viewBox="0 0 20 20"><path d="M8 3.5a2 2 0 1 1 4 0h3v3a2 2 0 1 0 0 4v3h-3a2 2 0 1 0-4 0H5v-3a2 2 0 1 0 0-4V3.5z" /></svg>
-          <span class="ib-label">扩展</span>
         </button>
         <div class="dl-popover ext-popover" id="ext-popover" role="dialog" aria-label="扩展" hidden>
           <div class="dl-pop-head">
             <span id="ext-pop-title">扩展</span>
             <button class="dl-pop-x" id="ext-pop-close" title="收起">×</button>
           </div>
-          <!-- 内置工具入口：广告拦截 / 媒体嗅探从顶栏搬到这里。
-               点一行就关掉扩展小窗、打开对应面板（锚点相同，视觉上像换了一页）。
-               计数 badge 沿用原 id，JS 那边的更新逻辑不用改。 -->
-          <div class="ext-quick" id="ext-quick">
-            <button class="ext-quick-row" id="ext-ab-row" type="button">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5l6 2v5.2c0 3.6-2.5 6.6-6 7.8-3.5-1.2-6-4.2-6-7.8V4.5z" /></svg>
-              <span class="eq-label">广告拦截</span>
-              <i class="badge" id="shield-count">0</i>
-            </button>
-            <button class="ext-quick-row" id="ext-sniff-row" type="button">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5" width="9" height="8" rx="1.4" /><path d="M5.5 8.5l2.4 1.5-2.4 1.5z" /><path d="M14 8a3.2 3.2 0 0 1 0 5" /><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4" /></svg>
-              <span class="eq-label">媒体嗅探</span>
-              <i class="badge" id="sniff-count">0</i>
-            </button>
-          </div>
+          <!-- 内置工具入口已回到顶栏（广告拦截 / 媒体浮窗各占一格彩色方块），
+               小窗里不再重复放一份 —— 同一个入口出现两次只会让人猜哪个才是真的。 -->
           <div class="dl-pop-list" id="ext-pop-list"></div>
           <div class="dl-pop-foot">
             <button class="btn btn-sm" id="ext-pop-install">从文件安装</button>
@@ -395,24 +397,18 @@
            渐变端点的颜色刻意写在 shell.css 里、取 --brand / --accent：
            深色主题下这两个变量会换成亮一档，图标得跟着一起亮，写死色值会发闷。
            这里只声明渐变几何与 path，不放任何颜色字面量。 -->
-      <button class="icon-btn has-label" id="btn-ai" title="AI 助手">
+      <!-- AI 与工具区分组：一条 1px 细线（设计稿里 AI 两侧的线比工具之间细一档），
+           AI 是「对话入口」而不是「工具开关」，分组线把这件事说清楚。 -->
+      <span class="tb-sep tb-sep-thin" aria-hidden="true"></span>
+      <button class="icon-btn tb-sq tb-sq-ai" id="btn-ai" title="AI 助手">
+        <!-- Nova 2026：方块里是白色星芒（两颗四角星），不再画「AI」两个字母 ——
+             右下角的角标已经写了 AI，图标再写一遍是同一句话说两遍，
+             而且 22px 里塞两个字母会糊成一团。 -->
         <svg class="ai-ico" viewBox="0 0 20 20" aria-hidden="true">
-          <defs>
-            <linearGradient id="aiIconGrad" x1="0" y1="1" x2="1" y2="0">
-              <stop class="ai-grad-a" offset="0" />
-              <stop class="ai-grad-m" offset="0.5" />
-              <stop class="ai-grad-b" offset="1" />
-            </linearGradient>
-          </defs>
-          <g fill="none" stroke="url(#aiIconGrad)" stroke-width="2.5"
-             stroke-linecap="round" stroke-linejoin="round">
-            <path d="M1.6 16.4 L5.1 5.2 L8.6 16.4 M3.2 12.5 H7.0" />
-            <path d="M11.8 5.2 V16.4" />
-          </g>
-          <path fill="url(#aiIconGrad)"
-                d="M16.9 1.0 C17.17 2.52 18.38 3.73 19.9 4.0 C18.38 4.27 17.17 5.48 16.9 7.0 C16.63 5.48 15.42 4.27 13.9 4.0 C15.42 3.73 16.63 2.52 16.9 1.0 Z" />
+          <path fill="#fff" d="M8.6 2.4c.55 3.35 1.4 4.2 4.75 4.75-3.35.55-4.2 1.4-4.75 4.75-.55-3.35-1.4-4.2-4.75-4.75 3.35-.55 4.2-1.4 4.75-4.75z" />
+          <path fill="#fff" d="M14.7 11c.32 1.95.92 2.55 2.87 2.87-1.95.32-2.55.92-2.87 2.87-.32-1.95-.92-2.55-2.87-2.87 1.95-.32 2.55-.92 2.87-2.87z" />
         </svg>
-        <span class="ib-label">AI</span>
+        <i class="sq-tag" aria-hidden="true">AI</i>
       </button>
 
       <!-- 自动更新。默认 hidden —— 有新版时才出现，位置在扩展与 AI 之间。
@@ -420,17 +416,16 @@
            而工具栏每一格都要争宽度（地址栏才是那个真正需要宽度的）。
            图标是箭头绕圈（下载/更新的通用符号），不用「设置」齿轮 ——
            齿轮在这个界面里已经被「菜单」占了。 -->
-      <button class="icon-btn has-badge has-label" id="btn-update" title="检查更新" hidden>
+      <button class="icon-btn has-badge tb-sq tb-sq-update" id="btn-update" title="检查更新" hidden>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M10 3a7 7 0 1 1-6.2 3.7M10 3V1m0 2H8" />
         </svg>
-        <span class="ib-label">更新</span>
         <i class="badge" id="update-count" hidden>1</i>
       </button>
 
-      <button class="icon-btn has-label" id="btn-menu" title="菜单">
+      <span class="tb-sep" aria-hidden="true"></span>
+      <button class="icon-btn tb-sq tb-sq-menu" id="btn-menu" title="菜单">
         <svg viewBox="0 0 20 20"><path d="M3.5 6h13M3.5 10h13M3.5 14h13" /></svg>
-        <span class="ib-label">菜单</span>
       </button>
     </div>
   </div>

@@ -157,8 +157,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         `position=${cs('#engine-menu', 'position')} right=${cs('#engine-menu', 'right')}`);
   check('面板 z-index 高于抽屉(40)/遮罩(30)', Number(cs('#engine-menu', 'zIndex')) > 40,
         'z-index=' + cs('#engine-menu', 'zIndex'));
-  // 高度用的是字面量，能证明桌面规则生效、且没被移动端规则(26px)串到
-  check('桌面端徽标高度 24px（非移动端 26px）', cs('#omni-engine', 'height') === '24px',
+  // 高度用的是字面量，能证明桌面规则生效、且没被移动端规则(26px)串到。
+  // Nova 2026 把内核胶囊从 24 加到 28（与地址栏内的星标方块同高，两者并排才对齐）。
+  check('桌面端徽标高度 28px（非移动端 26px）', cs('#omni-engine', 'height') === '28px',
         'height=' + cs('#omni-engine', 'height'));
   check('下拉项是横向 flex 行', cs('#engine-menu-list .em-item', 'display') === 'flex',
         'display=' + cs('#engine-menu-list .em-item', 'display'));

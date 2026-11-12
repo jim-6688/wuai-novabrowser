@@ -38,28 +38,36 @@
    跟浏览器其它部分不在一个色系里。所以改色时一共要记得三处：
    shell.css、res/values(+values-night)、以及这里。 */
 :root {
-    --bg: #F4F6FB;
+    --bg: #F7F7F3;
     --surface: #FFFFFF;
-    --surface-2: #EEF1F8;
-    --border: #E4E8F2;
-    --text: #101322;
-    --text-3: #6A7288;
-    --text-4: #9BA3B7;
+    --surface-2: #F0F0EA;
+    --border: #D2D2C8;
+    --text: #1A1A1E;
+    --text-2: #4A4A50;
+    --text-3: #6B6B72;
+    --text-4: #9A9AA0;
     --brand: #2D6BF5;
     --accent: #00C8A8;
     --nova-grad: linear-gradient(135deg, #00C8A8, #2D6BF5);
     --danger: #FF4D4F;
+    /* AI 提问条专用：淡青底 + 青描边。只在 AI 那一条上用，
+       不并入 --surface 系列 —— 它是「一类动作」的颜色，不是一层底色。 */
+    --ai-tint: #E9F7F3;
+    --ai-line: #BFE9DF;
     --shadow-sm: 0 1px 2px rgba(16, 19, 34, .06);
     --shadow-lg: 0 18px 44px rgba(16, 19, 34, .18);
 }
 html[data-theme="dark"] {
-    --bg: #0A0D16;
-    --surface: #131826;
-    --surface-2: #1A2032;
-    --border: #232A40;
-    --text: #F2F5FC;
-    --text-3: #939CB4;
-    --text-4: #6C7590;
+    --bg: #121216;
+    --ai-tint: rgba(43, 217, 190, .10);
+    --ai-line: rgba(43, 217, 190, .28);
+    --surface: #1E1E22;
+    --surface-2: #26262B;
+    --border: #3E3E46;
+    --text: #F5F5F6;
+    --text-2: #C7C7CE;
+    --text-3: #9A9AA2;
+    --text-4: #6E6E76;
     --brand: #5B8BFF;
     --accent: #2BD9BE;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
@@ -197,42 +205,47 @@ body {
 /* display:grid 会盖掉 [hidden] 的 display:none，补一条显式规则 */
 .s-scan[hidden] { display: none; }
 
-/* ------------------------------------------------------- AI 提问（仅手机宿主） */
-/* 整页共用一份源，但这一块只有安卓宿主有对应命令通道（nova://shortcut/ai）。
-   渐变薄边框用「外层 1.5px padding + 内层实色」做，而不是 border-image：
-   border-image 与 border-radius 不能共存，硬凑会出直角。 */
+/* ------------------------------------------------------- AI 提问 */
+/* Nova 2026 版：一整条淡青底的通栏（不是渐变描边），左边一枚品牌蓝小方块，
+   右边一个青绿圆形箭头。整页只有这一条是「青」，它与搜索框的蓝、磁贴的多色
+   拉开层次，也把「这是对话、不是搜索」这件事在颜色上说清楚。
+
+   两端现在都能用：桌面宿主补了 ai 这条命令（见 shell.js 的 OP_AI 分支），
+   不再是「手机专属」。旧注释里那句「只有安卓有通道」已不成立。 */
 .ai-box {
     display: block;
     margin: 0 0 22px;
-    padding: 1.5px;
-    border: 0;
-    border-radius: 16px;
-    background: var(--nova-grad);
-    box-shadow: 0 6px 18px rgba(45, 107, 245, .12);
+    padding: 0;
+    border: 1px solid var(--ai-line);
+    border-radius: 14px;
+    background: var(--ai-tint);
+    box-shadow: none;
+    transition: border-color .12s ease;
 }
+.ai-box:focus-within { border-color: #57C9B4; }
 
 .ai-box[hidden] { display: none; }
 
 .ai-inner {
     display: flex;
     align-items: center;
-    gap: 8px;
-    height: 41px;
-    padding: 0 5px 0 10px;
-    border-radius: 14.5px;
-    background: var(--surface);
+    gap: 10px;
+    height: 46px;
+    padding: 0 8px 0 8px;
+    border-radius: 13px;
+    background: transparent;
 }
 
 .ai-mark {
-    flex: 0 0 22px;
-    width: 22px;
-    height: 22px;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
     display: grid;
     place-items: center;
-    border-radius: 7px;
-    background: var(--nova-grad);
+    border-radius: 9px;
+    background: var(--brand);
     color: #fff;
-    font-size: 13px;
+    font-size: 15px;
     line-height: 1;
 }
 
@@ -250,17 +263,27 @@ body {
 
 .ai-inner input::placeholder { color: var(--text-4); }
 
+/* 右侧那颗：青绿圆形 + 白箭头。做成纯图标（字用 aria-label 给读屏），
+   因为这一条的主信息是左边的文案，按钮再写字会把行挤满。 */
 .ai-go {
     flex: 0 0 auto;
-    height: 31px;
-    padding: 0 14px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
     border: 0;
-    border-radius: 16px;
-    background: var(--nova-grad);
+    border-radius: 50%;
+    background: var(--accent);
     color: #fff;
-    font-size: 13px;
+    font-size: 0;                  /* 文字节点留着给读屏，视觉上不显示 */
     font-family: inherit;
     cursor: pointer;
+    display: grid;
+    place-items: center;
+}
+.ai-go::before {
+    content: "→";
+    font-size: 15px;
+    line-height: 1;
 }
 
 .ai-go:active { opacity: .85; }
@@ -362,6 +385,17 @@ body {
        这一条限的是盒子本身不被内容顶开，两者缺一不可。 */
     min-width: 0;
 }
+/* 内置入口的纯色磁贴（Nova 2026）：白图标压在语义色底上。
+   图标统一 26px、2px 圆头描边 —— 56px 的方块里 26px 是「占一半」，
+   与工具栏 48/24 的比例一致；粗细固定成 2，不然小图标会细得像发丝。 */
+.qk .thumb i.badge svg {
+    width: 26px; height: 26px;
+    fill: none;
+    stroke: #fff;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
 /* 「＋添加」那一格：不加渐变底色，靠描边和灰字跟真磁贴区分 */
 .qk.add .thumb i {
     background: var(--surface-2);
@@ -438,11 +472,13 @@ body.editing .qk:active .thumb i { transform: none; }
 .store-link {
     display: none;
     margin: 16px auto 0;
-    padding: 9px 18px;
+    padding: 7px 16px 7px 12px;
     width: fit-content;
-    border: 1px dashed var(--border);
+    border: 1px solid var(--border);
     border-radius: 999px;
-    color: var(--text-3);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    color: var(--text-2);
     font-size: 12.5px;
     text-decoration: none;
     cursor: pointer;
@@ -450,6 +486,22 @@ body.editing .qk:active .thumb i { transform: none; }
     -webkit-tap-highlight-color: transparent;
     transition: transform .12s ease, color .12s ease, border-color .12s ease;
 }
+/* 四周四点的小图标：它是「一家商店、里面是一堆扩展」的形状语言。
+   用四个小方块而不是 SVG —— 这一页的 CSP 只放开 data: 图片，内联 SVG 虽然
+   也能用，但四行 CSS 更省，也不必再写一遍 path。 */
+.store-link i {
+    display: inline-grid;
+    grid-template-columns: 5px 5px;
+    grid-template-rows: 5px 5px;
+    gap: 2px;
+    margin-right: 7px;
+    vertical-align: -1px;
+}
+.store-link i b { display: block; border-radius: 1.6px; }
+.store-link i b:nth-child(1) { background: #F2762E; }
+.store-link i b:nth-child(2) { background: #12B981; }
+.store-link i b:nth-child(3) { background: #2D6BF5; }
+.store-link i b:nth-child(4) { background: #E7B00B; }
 .store-link.on { display: inline-block; }
 .store-link:active { transform: scale(.97); color: var(--brand); border-color: var(--brand); }
 
@@ -581,24 +633,24 @@ body.editing .qk:active .thumb i { transform: none; }
                 <path d="M3 12h18" />
             </svg>
         </button>
-        <button type="submit" class="s-go">转到</button>
+        <button type="submit" class="s-go">搜索</button>
     </form>
 
     <!-- AI 提问框：真正长在新标签页界面里，不是浮在角上的一枚按钮。
-         同样只给安卓宿主（桌面端共用这份源，但没有 ai 这条命令通道）。
+         两端都用（桌面宿主在 2026-11 补上了 ai 这条命令，见 shell.js 的 OP_AI 分支）。
          提交回传 nova://shortcut/ai?q=…，宿主带着问题打开 AI 对话面板。 -->
     <form class="ai-box" id="ai" autocomplete="off" hidden>
         <div class="ai-inner">
             <span class="ai-mark" aria-hidden="true">✦</span>
             <input id="ai-q" type="text" spellcheck="false"
-                   placeholder="向 AI 提问…" aria-label="向 AI 提问" />
+                   placeholder="向 AI 提问，或把当前网页交给它读" aria-label="向 AI 提问" />
             <button type="submit" class="ai-go">提问</button>
         </div>
     </form>
 
     <nav class="quicks" id="quicks" aria-label="快捷方式"></nav>
     <p class="hint" id="hint">长按图标可删除</p>
-    <a class="store-link" id="store-link" role="button" aria-label="插件商店" hidden>⚙ 插件商店</a>
+    <a class="store-link" id="store-link" role="button" aria-label="插件商店" hidden><i aria-hidden="true"><b></b><b></b><b></b><b></b></i>插件商店</a>
 </main>
 
 <div class="scrim" id="scrim"></div>
@@ -702,6 +754,34 @@ var NovaNtp = (function () {
     /** 把域名压短当默认名称：www.zhihu.com → zhihu.com */
     function shortName(url) {
         return hostOf(url).replace(/^www\./, '') || url;
+    }
+
+    /**
+     * 内置入口的「纯色底 + 白图标」识别符号（Nova 2026）。
+     *
+     * <p>为什么内置这几条不跟用户自加的站点走同一条路：它们是**版面**，
+     * 位置固定、含义固定（主页 / 导航 / 播放器…），用图标表达比用首字准确得多 ——
+     * 「主页」和「导航」指向同一家的两个域名，首字都是「主」「导」两团色块，
+     * 远看分不出；换成 ＋ 和 ↑ 就有形状差。
+     *
+     * <p>用户自己加的还是优先用站点图标（favicon）：那一格代表「他自己挑的站」，
+     * 站点自己的标识比我们编的图标更能认。取不到图标才退回渐变底 + 首字。
+     *
+     * <p>颜色取自 Nova 2026 语义色板，与工具栏那排方块同一套词汇：
+     * 蓝＝主入口、青绿＝工具、紫＝媒体、天蓝＝浏览、橙＝搜索、金＝收藏。
+     */
+    var TILE_BADGES = {
+        '主页': ['#2D6BF5', '<path d="M12 5.5v13M5.5 12h13"/>'],
+        '导航': ['#00A88F', '<path d="M12 18.5V6.5M6.5 12L12 6.5 17.5 12"/>'],
+        '播放器': ['#8B5CF6', '<path d="M9 6.6l8.4 5.4L9 17.4z" fill="#fff" stroke="none"/>'],
+        '浏览器': ['#0B93D6', '<circle cx="12" cy="12" r="7"/><path d="M5 12h14M12 5c2 2.2 2 11.8 0 14M12 5c-2 2.2-2 11.8 0 14"/>'],
+        '百度': ['#F2762E', '<path d="M12 3.6l6.5 2.4v5.6c0 3.9-2.7 7.2-6.5 8.6-3.8-1.4-6.5-4.7-6.5-8.6V6z"/>'],
+        'DeepSeek': ['#8B5CF6', '<path d="M9.6 4.2a2 2 0 1 1 4.8 0h3.6v3.6a2 2 0 1 0 0 4.8v3.6h-3.6a2 2 0 1 0-4.8 0H6v-3.6a2 2 0 1 0 0-4.8V4.2z"/>'],
+        '吾爱装机助手': ['#12A97A', '<path d="M14.5 4.2a3.6 3.6 0 0 0-4.6 4.5l-5 5 1.9 1.9 5-5a3.6 3.6 0 0 0 4.5-4.6l-2 2-1.8-1.8z"/>']
+    };
+
+    function badgeOf(label) {
+        return TILE_BADGES[String(label || '').trim()] || null;
     }
 
     /**
@@ -870,6 +950,7 @@ var NovaNtp = (function () {
         gradOf: gradOf,
         initialOf: initialOf,
         iconOf: iconOf,
+        badgeOf: badgeOf,
         shortName: shortName,
         parseData: parseData,
         rank: rank,
@@ -927,12 +1008,18 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
         var thumb = document.createElement('span');
         thumb.className = 'thumb';
         var i = document.createElement('i');
-        // 有站点图标就用图标，没有才回落成「渐变底 + 首字」。
-        // 这不是两种样式，而是同一格的两条路：图标是站点自己画的（最认得出），
-        // 渐变底 + 首字是这一页自己造的识别符号（兜底，深浅色下都成立）。
-        // 所以「取不到图标」不是一个需要单独设计的空状态 —— 它就是默认那一版。
-        var ico = NovaNtp.iconOf(item.url);
-        if (ico) {
+        // 三条路，优先级从高到低：
+        //   1) 内置入口 → 纯色底 + 白图标（版面本身的识别符号，见 TILE_BADGES）
+        //   2) 有站点图标 → 直接贴图标
+        //   3) 都没有 → 渐变底 + 首字（这一页自己造的兜底符号）
+        // 内置那几条**不再**去查 favicon：它们要的是形状差，不是「这个站长什么样」。
+        var badge = item.builtin ? NovaNtp.badgeOf(item.label) : null;
+        var ico = badge ? '' : NovaNtp.iconOf(item.url);
+        if (badge) {
+            i.className = 'badge';
+            i.style.background = badge[0];
+            i.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + badge[1] + '</svg>';
+        } else if (ico) {
             i.className = 'ico';
             var img = document.createElement('img');
             img.src = ico;
@@ -1083,26 +1170,28 @@ if (typeof module !== 'undefined' && module.exports) module.exports = NovaNtp;
         });
     })();
 
-    /* 手机宿主专属的两条入口：搜索框里的扫一扫、以及内嵌的 AI 提问框。
-     *
-     * 这一页桌面端与安卓端共用同一份源，但桌面宿主的命令通道只认
-     * add / remove / extstore / search。这两个元素默认 hidden，只在
-     * UA 带 Android 时放开 —— 放出来却没人接，比不放出来更糟。
-     *
-     * AI 也走 form + submit：手机上虚拟键盘的回车触发的是 submit，
-     * 只听按钮 click 会让「打完字按回车」什么都不发生。 */
+    /* 搜索框里的扫一扫：**仅手机宿主**。桌面没有相机入口，
+     * 放开只会得到一个点了没反应的键。
+     * 命令通道是 nova://shortcut/scan，桌面宿主的 whitelist 里没有它。 */
     (function () {
         if (!NovaNtp.isMobileHost()) return;
-
         var scan = document.getElementById('s-scan');
-        if (scan) {
-            scan.hidden = false;
-            scan.addEventListener('click', function (ev) {
-                ev.preventDefault();
-                location.href = NovaNtp.cmdUrl('scan', {});
-            });
-        }
+        if (!scan) return;
+        scan.hidden = false;
+        scan.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            location.href = NovaNtp.cmdUrl('scan', {});
+        });
+    })();
 
+    /* AI 提问框：**两端都用**（桌面宿主 2026-11 起接了 ai 这条命令）。
+     *
+     * 走 form + submit 而不是只听按钮 click：手机上虚拟键盘的回车触发的是
+     * submit，只听 click 会让「打完字按回车」什么都不发生；桌面同理（回车提交表单）。
+     *
+     * 空关键词不发命令，但也不弹提示 —— 把焦点放回输入框就是最直接的反馈，
+     * 这一屏本来就没有放错误提示的地方。 */
+    (function () {
         var ai = document.getElementById('ai');
         var aq = document.getElementById('ai-q');
         if (!ai || !aq) return;

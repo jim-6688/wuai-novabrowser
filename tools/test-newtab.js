@@ -884,12 +884,29 @@ function manyHosts(n) {
       /<form class="search"[\s\S]*?id="s-scan"[\s\S]*?<\/form>/.test(page));
     check('AI 提问框是页面里的表单，位置在搜索与宫格之间',
       /<form class="ai-box"[\s\S]*?<\/form>\s*<nav class="quicks"/.test(page));
-    check('两个入口默认隐藏、只由安卓宿主放开（桌面宿主没有这两条命令通道）',
+    // 2026-11 起这两个入口的宿主范围不再一样：
+    // 扫一扫仍然只给安卓（桌面没有相机入口，放开就是个死键），
+    // AI 提问框两端都放开（桌面宿主补了 OP_AI 分支，见下面的断言）。
+    check('扫一扫仍只由安卓宿主放开（桌面没有相机入口）',
       /id="s-scan"[^>]*hidden/.test(page)
-      && /<form class="ai-box"[^>]*hidden/.test(page)
-      && /isMobileHost\(\)/.test(page));
+      && /isMobileHost\(\)[\s\S]{0,400}cmdUrl\('scan'/.test(page));
+    check('AI 提问框两端都放开，不再有 isMobileHost 拦在前面',
+      /<form class="ai-box"[^>]*hidden/.test(page)
+      && /ai\.hidden = false;/.test(page)
+      && !/isMobileHost\(\)[\s\S]{0,400}cmdUrl\('ai'/.test(page));
     check('两个入口都回传 nova:// 命令',
       /cmdUrl\('scan'/.test(page) && /cmdUrl\('ai'/.test(page));
+
+    // 页面能发命令 ≠ 宿主会处理。这一条盯的是「桌面端真的接上了」：
+    // 只加白名单、不写分支的话，用户点了提交什么都不会发生，而且不报错。
+    const aiCmd = Ntp.parseCmd('nova://shortcut/ai?q=' + encodeURIComponent('你好'));
+    check('桌面命令解析认得 ai 操作', !!aiCmd && aiCmd.op === 'ai', aiCmd && aiCmd.op);
+    check('桌面带得回关键词', !!aiCmd && aiCmd.get('q') === '你好', aiCmd && aiCmd.get('q'));
+    const pcshell = fs.readFileSync(P('src/renderer/shell.js'), 'utf8');
+    check('桌面宿主真的开了 AI 面板（不是只解析了却没人用）',
+      /cmd\.op === NovaNtpHost\.OP_AI/.test(pcshell)
+      && /state\.aiPending = q/.test(pcshell)
+      && /openAiPanel\(\)/.test(pcshell));
 
     const java = fs.readFileSync(
       P('android-app/app/src/main/java/top/wuai/nova/NewTab.java'), 'utf8');

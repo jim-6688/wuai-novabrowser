@@ -33,6 +33,9 @@ const OP_STORE = 'extstore';
 /** 新标签页中间那个搜索框：把关键词回传给宿主，由宿主按当前搜索引擎打开。
  *  页面本身不能跳转（它是本地文件，没有桥），所以走同一个 scheme。 */
 const OP_SEARCH = 'search';
+/** 新标签页里的 AI 提问条：把问题回传给宿主，由宿主打开 AI 对话面板。
+ *  原先只有安卓宿主认这条命令，2026-11 桌面端补上了同一条分支。 */
+const OP_AI = 'ai';
 
 /**
  * 一次最多送多少条候选过去。页面只显示 7 格，送 30 条是为了让「按访问次数
@@ -439,7 +442,9 @@ function parseCmd(url) {
     query = rest.slice(q + 1);
   }
   op = op.trim();
-  if (op !== OP_ADD && op !== OP_REMOVE && op !== OP_STORE && op !== OP_SEARCH) return null;
+  if (op !== OP_ADD && op !== OP_REMOVE && op !== OP_STORE && op !== OP_SEARCH && op !== OP_AI) {
+    return null;
+  }
 
   const params = Object.create(null);
   if (query) {
@@ -481,7 +486,8 @@ const NovaNtpHost = {
   pageUrl,
   target,
   parseCmd,
-  OP_SEARCH
+  OP_SEARCH,
+  OP_AI
 };
 
 if (typeof window !== 'undefined') window.NovaNtpHost = NovaNtpHost;
