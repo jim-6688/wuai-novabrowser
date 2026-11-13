@@ -952,14 +952,17 @@ function wireContents(contents) {
       return { action: 'deny' };
     }
 
-    /* 第三方登录（QQ / 微信 / 微博 / 支付宝 …）必须开成**真弹窗**。
+    /* 只有「真弹窗」才放行成独立窗口，普通网页链接一律回外壳开标签页。
      *
-     * 这类页面登录成功后靠 `window.opener.postMessage()` 回传结果、或者
-     * `window.close()` 关掉自己。若按旧逻辑开成新标签页，opener 是 null ——
-     * 扫码明明成功了，原页面永远等不到那次回调，用户看到的就是「点了没反应」。
+     * 第三方登录（QQ / 微信 / 微博 / 支付宝 …）成功后靠 `window.opener.postMessage()`
+     * 回传结果、或者 `window.close()` 关掉自己；开成新标签页 opener 就是 null ——
+     * 扫码明明成功了，原页面永远等不到回调，用户看到的是「点了没反应」。
      *
-     * 判定规则见 src/main/auth-popup.js：登录域名一律弹窗；其余带显式宽高的
-     * window.open 也算弹窗；普通 target=_blank 链接照旧开标签页。 */
+     * 但「命中登录域名就弹窗」会把普通网页也弹成窗口（百度搜索结果的
+     * www.baidu.com/link?url=… 曾因此弹出独立窗口）。判定规则见
+     * src/main/auth-popup.js：target=_blank / 前后台标签 → 标签页；
+     * 只有显式窗口属性（宽高 / popup=yes / chrome 参数）或明确授权端点
+     * 才保留 opener 放行成真弹窗。 */
     const popup = authPopup.decide({
       url,
       disposition,

@@ -3843,10 +3843,15 @@ body.bm-dragging { cursor: grabbing; }
 .qk-btn { height: 28px; padding: 0 8px; border-radius: 7px; gap: 6px; }
 .qk-label { font-size: 11.5px; }
 
-/* 窗口键：设计稿里是 72×18 的一排细线图标，不是三个大按钮 */
-.tb-win { gap: 0; }
-.winbtn { width: 26px; height: 22px; border-radius: 5px; }
-.winbtn svg { width: 11px; height: 11px; }
+/* 窗口键：原先压到 26×22 / 11px 图标，在 44px 高的标题栏里明显偏小，
+   和旁边 28px 的快捷开关、48px 的工具栏方块也不在同一档视觉重量上。
+   放大到 42×32 / 14px 图标（设计稿的 40×30 再往上半档），圆角跟着 qk-btn
+   那套 7 到 8px 走。按钮组补 align-items:center —— 不写的话显式高度会让
+   三个按钮贴着 44px 标题栏的顶边，看起来又偏又小。 */
+.tb-win { gap: 2px; align-items: center; }
+.winbtn { width: 42px; height: 32px; border-radius: 8px; }
+.winbtn svg { width: 14px; height: 14px; stroke-width: 1.5; }
+.winbtn:not(.winbtn-close):active { background: var(--border); }
 
 /* ---------- 2. 标签条 ---------- */
 .tabstrip {

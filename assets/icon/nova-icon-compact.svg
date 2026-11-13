@@ -14,4 +14,16 @@
   <rect x="0" y="0" width="64" height="64" rx="15" fill="url(#nova-bg-s)"/>
   <path d="M32 13 Q35.2 28.8 51 32 Q35.2 35.2 32 51 Q28.8 35.2 13 32 Q28.8 28.8 32 13 Z"
         fill="#FFFFFF"/>
+
+  <!-- 16 / 24 / 32 px 也得带这枚角标，几何与主图逐字节一致，方便两版对照。
+       但按 64 画布算 1.8 的笔画缩到 16px 只剩 0.45px，会被底色吃掉，
+       所以这里把笔画加粗到 2.6（16px 下约 0.65px）。小尺寸下不再描徽章的边，
+       那一圈细描边缩完只会糊成灰雾。 -->
+  <g id="ai-badge">
+    <rect x="11" y="40" width="19" height="14" rx="4.5" fill="#FFFFFF"/>
+    <g fill="none" stroke="#2A55E0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16.5 51 L19.1 43.8 L21.7 51 M17.5 48.5 H20.7"/>
+      <path d="M24.5 43.8 V51"/>
+    </g>
+  </g>
 </svg>

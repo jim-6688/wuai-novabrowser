@@ -5,6 +5,10 @@
  *
  * 覆盖 src/main/auth-popup.js 的纯逻辑：哪些 window.open 该开成真弹窗
  * （保留 window.opener，QQ/微信登录靠它回传结果），哪些该开成标签页。
+ *
+ * [J] 是「百度搜索结果点开弹出独立窗口」这个线上 bug 的回归：
+ *     以前白名单里写着整个 baidu.com，命中就无条件弹窗，连
+ *     www.baidu.com/link?url=… 这种普通跳转链接也弹成窗口。
  */
 const path = require('path');
 const A = require(path.join(__dirname, '..', 'src', 'main', 'auth-popup.js'));
@@ -50,7 +54,7 @@ check('popup=yes 被识别', f5.popup === true && f5.sized === false);
 const f6 = A.parseFeatures('left=10,top=10,width=420,height=520,scrollbars=yes');
 check('混杂参数也能读出宽高', f6.width === 420 && f6.height === 520);
 
-console.log('\n[D] decide — 登录域名一律弹窗');
+console.log('\n[D] decide — 明确的授权端点保留弹窗');
 const d1 = A.decide({ url: 'https://ptlogin2.qq.com/login?x=1', disposition: 'new-window', features: '' });
 check('QQ 登录无尺寸也开弹窗', d1.popup === true && d1.reason === 'auth-host');
 const d2 = A.decide({ url: 'https://open.weixin.qq.com/connect/qrconnect', disposition: 'foreground-tab', features: '' });
@@ -97,6 +101,55 @@ const wo2 = A.windowOptions({}, {});
 check('没有 session/parent 时不留空字段', !('parent' in wo2) && !('session' in wo2.webPreferences));
 check('缺尺寸时用默认值', wo2.width === A.DEFAULT_WIDTH && wo2.height === A.DEFAULT_HEIGHT);
 check('windowOptions 不炸空入参', !!A.windowOptions(null, null).webPreferences);
+
+console.log('\n[J] 回归 — 网页链接 vs 窗口属性（百度搜索结果弹窗口）');
+const j = (url, disposition, features, extra) =>
+  A.decide(Object.assign({ url, disposition, features }, extra || {}));
+
+// 百度搜索结果的跳转链接：无论 target=_blank 还是无参数的 window.open，都必须是标签页
+const j1 = j('https://www.baidu.com/link?url=http%3A%2F%2Fexample.com%2Fnews', 'foreground-tab', '');
+check('百度搜索结果（target=_blank）→ 标签页', j1.popup === false && j1.reason === 'tab', j1.reason);
+const j2 = j('https://www.baidu.com/link?url=abc', 'new-window', '');
+check('百度跳转链接（window.open 无窗口属性）→ 标签页', j2.popup === false, j2.reason);
+const j3 = j('https://www.baidu.com/s?wd=nova', 'foreground-tab', '');
+check('百度搜索页链接 → 标签页', j3.popup === false);
+// query 里带着另一个网址的 /login，不能被当成授权端点（pathOf 只看 pathname）
+const j4 = j('https://www.baidu.com/link?url=http://example.com/login', 'foreground-tab', '');
+check('跳转链接 query 里的 /login 不算授权路径', j4.popup === false, j4.reason);
+
+// 其它曾被整域白名单误伤的大站
+check('GitHub 仓库页 → 标签页', j('https://github.com/torvalds/linux', 'foreground-tab', '').popup === false);
+check('淘宝商品页 → 标签页', j('https://item.taobao.com/item.htm?id=1', 'foreground-tab', '').popup === false);
+check('京东商品页（后台标签）→ 标签页', j('https://item.jd.com/123.html', 'background-tab', '').popup === false);
+check('Google 搜索页 → 标签页', j('https://www.google.com/search?q=x', 'foreground-tab', '').popup === false);
+check('登录子域上的普通链接（非授权路径）→ 标签页',
+  j('https://accounts.google.com/SignOutOptions', 'foreground-tab', '').popup === false);
+
+// 真正的登录 / 授权仍要保留 opener
+check('百度 passport 登录 → 弹窗', j('https://passport.baidu.com/v2/?login', 'new-window', '').popup === true);
+check('GitHub OAuth 端点（主域 + 授权路径）→ 弹窗',
+  j('https://github.com/login/oauth/authorize?client_id=x', 'foreground-tab', '').reason === 'auth-host');
+check('Discord OAuth 端点 → 弹窗',
+  j('https://discord.com/oauth2/authorize?client_id=x', 'new-window', '').popup === true);
+check('微信扫码（target=_blank）仍保留 opener',
+  j('https://open.weixin.qq.com/connect/qrconnect?appid=x', 'foreground-tab', '').popup === true);
+
+// 窗口属性：站点确实想开一个窗口时才放行
+check('带宽高的 window.open → 弹窗（站点显式要窗口）',
+  j('https://www.baidu.com/link?url=abc', 'new-window', 'width=800,height=600').reason === 'sized-popup');
+check('toolbar=no / location=no 也算窗口属性',
+  j('https://example.com/x', 'new-window', 'toolbar=no,location=no').popup === true);
+check('popup=yes 仍算窗口属性', j('https://example.com/x', 'new-window', 'popup=yes').popup === true);
+check('站点写了 noopener → 标签页（本来就不需要 opener）',
+  j('https://open.weixin.qq.com/connect/qrconnect', 'new-window', 'width=520,height=640,noopener').popup === false);
+
+// isAuthTarget 的两层判断
+check('isAuthTarget：百度主域普通链接不算', !A.isAuthTarget('https://www.baidu.com/link?url=abc'));
+check('isAuthTarget：百度登录子域算', A.isAuthTarget('https://passport.baidu.com/v2/?login'));
+check('isAuthTarget：GitHub 授权路径算', A.isAuthTarget('https://github.com/login/oauth/authorize'));
+check('isAuthTarget：GitHub 仓库页不算', !A.isAuthTarget('https://github.com/torvalds/linux'));
+check('AUTH_HOSTS 不含裸主域 baidu.com', !A.AUTH_HOSTS.includes('baidu.com'));
+check('OAUTH_HOSTS 非空', Array.isArray(A.OAUTH_HOSTS) && A.OAUTH_HOSTS.length > 10);
 
 console.log(`\n通过 ${pass} 项，失败 ${fail} 项`);
 process.exit(fail ? 1 : 0);

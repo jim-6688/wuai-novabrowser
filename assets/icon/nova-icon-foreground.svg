@@ -25,4 +25,16 @@
     <path d="M32 15 Q34.4 29.6 49 32 Q34.4 34.4 32 49 Q29.6 34.4 15 32 Q29.6 29.6 32 15 Z"
           fill="url(#nova-star-a)"/>
   </g>
+
+  <!-- AI 标记单独画在缩放组之外：自适应图标的可见安全区是中心 54,54、
+       半径 33 的圆，照主图那样贴到左下边缘会被圆形蒙版整块裁掉。
+       所以这里往内收，中心落在 (40,70)，徽章四角距画布中心最远约 31.8，
+       小于 33，圆形与圆角方蒙版都能完整显示。 -->
+  <g id="ai-badge">
+    <rect x="31" y="64" width="18" height="12" rx="3.5" fill="#FFFFFF"/>
+    <g fill="none" stroke="#2A55E0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M35.9 73 L38.5 66.7 L41.1 73 M36.9 70.8 H40.1"/>
+      <path d="M44.1 66.7 V73"/>
+    </g>
+  </g>
 </svg>
