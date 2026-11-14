@@ -308,6 +308,57 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     parseFloat(probeBar2.style.width) > 79 && parseFloat(probeBar2.style.width) < 81,
     probeBar2.style.width);
 
+  console.log('\n[J] 下载完成：记录不能被主进程列表覆盖，且要给出可操作提示');
+
+  /* 复现真实主进程：download:list 只认 dlManager 里的引擎任务。
+     预览 mock 原本返回 state.downloads 本身（同一个数组引用），会把
+     「整体覆盖导致完成记录丢失」这个 bug 完全掩盖掉，这里必须换掉。 */
+  window.eval(`
+    bridge.downloads.list = async () =>
+      state.downloads.filter((t) => t.source !== 'chromium' && t.source !== 'fallback');
+  `);
+
+  const donePath = 'C:\\Users\\you\\Downloads\\setup.exe';
+  window.nova.__emit('download:update', {
+    id: 'native_done', filename: 'setup.exe', url: 'https://example.test/setup.exe',
+    total: 1000, received: 1000, progress: 1, source: 'chromium',
+    state: 'done', savePath: donePath
+  });
+  await sleep(450);
+
+  check('完成帧给出「下载完成」提示',
+    /下载完成/.test($('#toast') ? $('#toast').textContent : ''),
+    $('#toast') ? $('#toast').textContent : '没有 toast');
+  check('完成的记录留在 state.downloads 里（没被整体覆盖抹掉）',
+    window.eval("(state.downloads.find(t => t.id === 'native_done') || {}).state") === 'done',
+    stateDl());
+
+  // 进下载页会重新拉一次主进程列表 —— 这正是旧实现丢记录的那一步
+  await openDl();
+  await sleep(120);
+  const doneRow = $$('#settings-body .dl-task').find((r) => r.dataset.task === 'native_done');
+  check('下载页里能看到这条已完成的文件', !!doneRow,
+    $$('#settings-body .dl-task').map((r) => r.dataset.task).join(','));
+  const openBtn = doneRow && doneRow.querySelector('[data-dl="open"]');
+  check('完成项给出可点的打开/安装按钮', !!openBtn);
+  check('安装包把主按钮写成「安装」',
+    !!openBtn && /安装/.test(openBtn.textContent), openBtn ? openBtn.textContent : '没有按钮');
+  check('按钮带的是真实文件路径，不是空串（否则会退化成打开下载目录）',
+    !!openBtn && openBtn.dataset.path === donePath, openBtn ? openBtn.dataset.path : '');
+
+  const popDone = $$('#dl-pop-list .dl-task').find((r) => r.dataset.task === 'native_done');
+  check('地址栏小窗也留着完成项，不用钻进设置页找', !!popDone);
+  const noPathHtml = window.eval("dlActions({ id:'x', state:'done', filename:'x.zip' })");
+  check('没有 savePath 时不画「打开」按钮（避免点了只开目录）',
+    !/data-dl="open"/.test(noPathHtml), noPathHtml.slice(0, 90));
+
+  // 渲染层合并只保住当前会话；刷新页面后 state.downloads 来自主进程的
+  // download:list，所以主进程也必须认识内建任务，否则完成记录照样丢。
+  const mainSrc = fs.readFileSync(path.join(root, 'src/main/main.js'), 'utf8');
+  check('主进程 download:list 会把内建任务并进列表（刷新后也不丢）',
+    /handle\('download:list',\s*\(\)\s*=>\s*allDownloadSnapshots\(\)\)/.test(mainSrc)
+    && /nativeDownloads\.set\(payload\.id,\s*payload\)/.test(mainSrc));
+
   console.log('\n[I] 运行时错误');
 
   check('走完下载页全流程仍无异常', errors.length === 0, errors.join(' | ') || '无');

@@ -2822,8 +2822,9 @@ function syncBookmarkBar() {
 }
 
 /* --- 侧边收藏夹：竖向列表 ---
- * 条目沿用横向栏那套 [data-bm] 委托点击（见 document 上的监听），
- * 所以这里只负责画，不重复绑事件；拖拽排序走 setupBmDrag（axis='y'）。
+ * 条目共用 document 上的 [data-bm] 点击委托（横栏 #bookmark-bar 与侧栏 #bm-side
+ * 是兄弟节点，挂在横栏上收不到侧栏的冒泡），所以这里只负责画，
+ * 不重复绑事件；拖拽排序走 setupBmDrag（axis='y'）。
  */
 function renderBookmarkSide(list) {
   const box = $('#bm-side-list');
@@ -4945,6 +4946,11 @@ function dlSegments(t) {
   }).join('');
 }
 
+/** 可执行文件 / 安装包：完成后主按钮直接说「安装」，不用猜点「打开」会不会装。 */
+function isInstallerFile(name) {
+  return /\.(exe|msi|apk|dmg|appimage|deb|rpm)$/i.test(String(name || ''));
+}
+
 /** 按任务状态给出可用的操作按钮 */
 function dlActions(t) {
   const btn = (act, label, extra = '') =>
@@ -4966,9 +4972,14 @@ function dlActions(t) {
     case 'canceled':
       return btn('retry', '重新下载') + btn('remove', '移除');
     case 'done':
-    case 'completed':
-      return `<button class="btn btn-sm btn-primary" data-dl="open" data-path="${esc(t.savePath || '')}">打开</button>`
-        + pathBtn('show', '在文件夹中显示') + btn('remove', '移除');
+    case 'completed': {
+      // 没有 savePath 就别渲染「打开」：open('') 会退化成只打开下载目录，
+      // 用户看到的就是「点了没反应」。安装包的打开动作本来就是运行安装程序。
+      const openBtn = t.savePath
+        ? `<button class="btn btn-sm btn-primary" data-dl="open" data-path="${esc(t.savePath)}">${isInstallerFile(t.filename) ? '安装' : '打开'}</button>`
+        : '';
+      return openBtn + pathBtn('show', '在文件夹中显示') + btn('remove', '移除');
+    }
     default:
       return btn('remove', '移除');
   }
@@ -5058,20 +5069,53 @@ function renderDownloadPopover() {
   const list = pop && $('#dl-pop-list');
   if (!list) return;
   const items = activeDownloads();
-  // 没有进行中的任务时，把最近一条已完成的也留着，免得「下完去哪看」没着落
-  const show = items.length
-    ? items
-    : (state.downloads || []).filter((t) => ['done', 'completed'].includes(t.state)).slice(0, 1);
+  // 下完的那一刻 activeDownloads() 归零：只画进行中项的话任务会凭空消失，
+  // 「打开 / 安装」按钮也就没处点。进行中优先，再补最近完成的几条。
+  const finished = (state.downloads || [])
+    .filter((t) => ['done', 'completed'].includes(t.state))
+    .slice(0, 3);
+  const show = items.concat(finished).slice(0, 6);
   list.innerHTML = show.length
     ? show.map(dlTaskRow).join('')
-    : '<div class="dl-pop-empty">没有进行中的下载</div>';
+    : '<div class="dl-pop-empty">暂无下载任务</div>';
   wireActions(list);
 }
 
+/**
+ * 合并主进程列表与渲染层缓存。
+ *
+ * 以前这里是 `state.downloads = await bridge.downloads.list()` 整体覆盖：
+ * 只要主进程不认识某条任务（Chromium 内建下载 / 引擎失败回退），或者完成帧
+ * 刚到而主进程快照还没翻到终态，刚下完的记录就会被抹掉 —— 用户看到的就是
+ * 「下载完成的文件不在下载列表」。现在以主进程为准，但保留渲染层独有的
+ * 内建任务，以及本地已经进入终态、远端还是进行中的记录。
+ */
+function mergeDownloadSnapshots(local, fresh) {
+  const TERMINAL = ['done', 'completed', 'error', 'canceled'];
+  const byId = new Map();
+  for (const t of fresh) byId.set(t.id, { ...t });
+  for (const t of local) {
+    const cur = byId.get(t.id);
+    if (!cur) {
+      // 只留渲染层独有的内建任务，别把主进程已删除的引擎任务「复活」
+      if (t.source === 'chromium' || t.source === 'fallback') byId.set(t.id, { ...t });
+      continue;
+    }
+    // 完成帧可能比主进程快照先到，别让旧快照把 done 打回 downloading
+    if (TERMINAL.includes(t.state) && !TERMINAL.includes(cur.state)) {
+      byId.set(t.id, { ...cur, ...t });
+    }
+  }
+  // 顺序沿用主进程列表（它已按创建时间倒序）；Map 的插入顺序天然把
+  // 渲染层独有的内建任务排在后面，不在这里重排，免得和主进程口径打架。
+  return [...byId.values()];
+}
+
 async function buildDownloads() {
-  // 拉一份最新的：进度事件可能在别处丢过，进分区时以主进程为准
+  // 拉一份最新的：进度事件可能在别处丢过，进分区时以主进程为准（按 id 合并）
   try {
-    state.downloads = await bridge.downloads.list();
+    const fresh = await bridge.downloads.list();
+    state.downloads = mergeDownloadSnapshots(state.downloads || [], Array.isArray(fresh) ? fresh : []);
     state.downloadStats = await bridge.downloads.stats();
     state.downloadsDir = await bridge.downloads.dir();
   } catch { /* 预览模式或主进程未就绪，用已有缓存 */ }
@@ -10005,19 +10049,24 @@ function wireUi() {
     openOmniShare();
   });
 
-  // 收藏夹栏：左键在当前标签页打开，右键改标题 / 网址（或移出）。
+  // 收藏夹：左键在当前标签页打开，右键改标题 / 网址（或移出）。
+  // 横向栏 #bookmark-bar 与竖排侧栏 #bm-side 是**兄弟节点**（侧栏挂在 #viewport 里），
+  // 把点击委托只挂在 #bookmark-bar 上，侧栏条目的冒泡根本到不了它 —— 这正是
+  // 「收藏夹放左侧时点了没反应」的原因。改成与下面右键对称的 document 委托。
   // 栏里不放删除按钮 —— 一格只有 24px 高、标题本来就是截断的，再塞个 ×
   // 进去会把标题挤成两个字，而这条栏的全部价值就是「一眼看得见标题」。
-  const bmBar = $('#bookmark-bar');
-  bmBar.addEventListener('click', (ev) => {
-    const el = ev.target.closest('[data-bm]');
+  document.addEventListener('click', (ev) => {
+    const target = ev.target;
+    if (!target || typeof target.closest !== 'function') return;
+    const el = target.closest('[data-bm]');
     if (!el) return;
-    const t = activeTab();
-    if (t) navigate(t.id, el.dataset.bm);
+    if (!target.closest('#bookmark-bar') && !target.closest('#bm-side')) return;
+    const tab = activeTab();
+    if (tab) navigate(tab.id, el.dataset.bm);
   });
   // 右键 = 打开编辑框（2026-10-31 改）。原先右键「即移出」：一次右键就删、
   // 没有撤销，而且「改网址」根本没有入口。现在编辑框里同时给「移出收藏」，
-  // 删除多一步，但不会误删。收藏夹栏与侧边收藏共用这一条委托。
+  // 删除多一步，但不会误删。收藏夹栏与侧边收藏共用 document 上的这一条委托。
   document.addEventListener('contextmenu', (ev) => {
     const el = ev.target.closest && ev.target.closest('[data-bm]');
     if (!el) return;
@@ -10625,15 +10674,27 @@ function wireBridgeEvents() {
     // 优先按 id 认（同一个文件重复下载时要能区分开），退而求其次才按 文件名+URL
     const i = state.downloads.findIndex((x) => (d.id && x.id === d.id)
       || (x.filename === d.filename && x.url === d.url));
+    const prev = i >= 0 ? state.downloads[i] : null;
     if (i >= 0) state.downloads[i] = Object.assign({}, state.downloads[i], d);
     else state.downloads.unshift(d);
+    const justFinished = (d.state === 'done' || d.state === 'completed')
+      && (!prev || !['done', 'completed'].includes(prev.state));
     // 进度事件很密，走节流刷新；输入框的草稿与焦点会被保留
     refreshDownloads();
-    // 地址栏旁的下载小窗：角标 + 列表同步；有新的进行中任务且用户没收起时自动弹出
+    // 地址栏旁的下载小窗：角标 + 列表同步
     renderDownloadPill();
-    refreshDownloadPopover();
     const pop = $('#dl-popover');
-    if (pop && pop.hidden && state.dlAutoOpen && activeDownloads().length) pop.hidden = false;
+    if (justFinished) {
+      // 完成时给明确提示 + 可操作入口，而不是让任务静悄悄地消失。
+      // 用户手动收起过小窗时（dlAutoOpen=false）只提示，不强行弹窗。
+      toast(`下载完成：${d.filename || hostOf(d.url) || '文件'}`, 6000);
+      if (pop && pop.hidden && state.dlAutoOpen) pop.hidden = false;
+      refreshDownloadPopover(true);
+    } else {
+      refreshDownloadPopover();
+      // 有新的进行中任务且用户没收起时自动弹出
+      if (pop && pop.hidden && state.dlAutoOpen && activeDownloads().length) pop.hidden = false;
+    }
   });
   bridge.on('download:taken-over', (p) => {
     toast(`已接管到多线程引擎：${p.filename || hostOf(p.url) || '下载任务'}`);

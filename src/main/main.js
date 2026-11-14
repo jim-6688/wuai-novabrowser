@@ -93,6 +93,10 @@ let extWorkDir = '';   // 解包缓存目录（bootstrap 里赋值）
 let extStoreDir = null;
 let dlManager = null;
 let dlPersistTimer = null;
+/** Chromium 内建下载器（以及 Nova 引擎失败后回退）的任务快照。
+ *  这些任务不能进 dlManager —— enqueue 会真的再下一次；但必须出现在
+ *  download:list 里，否则渲染层一拉主进程列表就把刚完成的记录覆盖没了。 */
+const nativeDownloads = new Map();
 let sniffer = null;
 /** 待推送的嗅探结果：webContentsId → 记录数组。一个页面加载会瞬时命中几十条，
  *  攒一小段再一次性推给界面，避免打爆 IPC。 */
@@ -820,6 +824,29 @@ function mirrorDownloadUrl(url) {
   return to || url;
 }
 
+/** 主进程视角的完整下载列表：引擎任务 + Chromium 内建任务，按创建时间倒序。
+ *  内建任务本来只在渲染层的 download:update 帧里存在，主进程不认识它；
+ *  渲染层每次进下载页都会拉一次 download:list 做「以主进程为准」的整体覆盖，
+ *  于是刚完成的记录会被抹掉 —— 这就是「下完的文件不在列表里」的根因。 */
+function allDownloadSnapshots() {
+  const list = dlManager ? dlManager.list() : [];
+  for (const p of nativeDownloads.values()) list.push({ ...p });
+  return list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
+/** 统计口径同样把内建任务算进去，否则「已完成 N」和列表对不上。 */
+function allDownloadStats() {
+  const s = dlManager ? dlManager.stats()
+    : { active: 0, done: 0, error: 0, queued: 0, speed: 0, total: 0 };
+  for (const p of nativeDownloads.values()) {
+    if (['progress', 'progressing', 'downloading', 'probing', 'queued'].includes(p.state)) s.active += 1;
+    else if (p.state === 'done' || p.state === 'completed') s.done += 1;
+    else if (p.state === 'error' || p.state === 'canceled') s.error += 1;
+    s.total += 1;
+  }
+  return s;
+}
+
 function wireDownloads(ses, engineId) {
   ses.on('will-download', (e, item) => {
     const url = item.getURL();
@@ -851,15 +878,20 @@ function wireDownloads(ses, engineId) {
 
     // 原路径：Chromium 内建单连接下载器
     const payload = {
-      id: 'native_' + Date.now().toString(36),
+      id: 'native_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
       filename,
       url,
       total: item.getTotalBytes(),
       received: 0,
       progress: 0,
       source: 'chromium',
-      state: 'progress'
+      state: 'progress',
+      createdAt: Date.now()
     };
+    // 与引擎任务并列进 download:list。Map 里存的是同一个对象引用，
+    // 后面每帧改的就是它，不必反复 set；上限 100 条，避免长期挂着越攒越多。
+    nativeDownloads.set(payload.id, payload);
+    if (nativeDownloads.size > 100) nativeDownloads.delete(nativeDownloads.keys().next().value);
 
     /* 进度条读的是 progress（0..1 的比值），**不是** received / total。
      *
@@ -1175,8 +1207,8 @@ function registerIpc() {
     engines: registry.list(),
     extensions: extManager.list(),
     adblock: adblock.statsSnapshot(),
-    downloads: dlManager.list(),
-    downloadStats: dlManager.stats(),
+    downloads: allDownloadSnapshots(),
+    downloadStats: allDownloadStats(),
     downloadsDir: dlManager.dir,
     /** 嗅探清单为空 —— 它是「随浏览产生」的，重启后自然从零开始 */
     sniffStats: sniffer ? sniffer.stats() : null,
@@ -2037,8 +2069,8 @@ function registerIpc() {
   });
 
   /* --- 下载 --- */
-  handle('download:list', () => dlManager.list());
-  handle('download:stats', () => dlManager.stats());
+  handle('download:list', () => allDownloadSnapshots());
+  handle('download:stats', () => allDownloadStats());
   handle('download:new', ({ url, filename, engineId } = {}) => {
     const raw = String(url || '').trim();
     if (!/^https?:\/\//i.test(raw)) return { error: '只支持 http / https 地址' };
@@ -2054,12 +2086,19 @@ function registerIpc() {
   handle('download:pause', (id) => dlManager.pause(id));
   handle('download:resume', (id) => dlManager.resume(id));
   handle('download:cancel', (id) => dlManager.cancel(id));
-  handle('download:remove', (id) => dlManager.remove(id));
+  handle('download:remove', (id) => {
+    // 内建任务不在 dlManager 里，移除要由这张表自己兜住
+    if (nativeDownloads.delete(id)) return true;
+    return dlManager.remove(id);
+  });
   handle('download:retry', (id) => dlManager.retry(id));
   handle('download:clear-finished', async () => {
     await dlManager.removeAll({ includeDone: true });
+    for (const [id, p] of nativeDownloads) {
+      if (['done', 'completed', 'error', 'canceled'].includes(p.state)) nativeDownloads.delete(id);
+    }
     schedulePersistDownloads();
-    return dlManager.list();
+    return allDownloadSnapshots();
   });
   handle('download:open', (p) => shell.openPath(p || dlManager.dir));
   handle('download:show', (p) => shell.showItemInFolder(p));

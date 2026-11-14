@@ -350,6 +350,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('左：贴在视口左边', $('#viewport').classList.contains('bm-bar-side-left'));
   check('左：竖向列表有条目', $$('#bm-side-list [data-bm]').length > 0);
 
+  /* 回归：竖栏条目过去点了没反应。点击委托只挂在 #bookmark-bar 上，
+     而 #bm-side 是 #viewport 里的兄弟节点，冒泡根本到不了它
+     （右键走 document 委托，所以当年只有左键坏）。 */
+  window.eval("navigate(state.activeId, 'https://start.test/')");
+  const sideFirst = $('#bm-side-list .bm-side-item[data-bm]');
+  if (sideFirst) {
+    const wantSide = sideFirst.dataset.bm;
+    sideFirst.click();
+    await sleep(60);
+    check('左：点竖栏条目会在当前标签页打开该网址',
+      window.eval('activeTab().url') === wantSide,
+      window.eval('activeTab().url'));
+  } else {
+    check('左：点竖栏条目会在当前标签页打开该网址', false, '没找到竖栏条目');
+  }
+  window.eval("navigate(state.activeId, 'https://start.test/')");
+  const sideInner = $('#bm-side-list .bm-side-item .bm-side-title');
+  if (sideInner) {
+    const wantInner = sideInner.closest('[data-bm]').dataset.bm;
+    sideInner.click();
+    await sleep(60);
+    check('左：点条目里的标题子元素也能打开（closest 穿透）',
+      window.eval('activeTab().url') === wantInner,
+      window.eval('activeTab().url'));
+  } else {
+    check('左：点条目里的标题子元素也能打开（closest 穿透）', false, '没找到标题子元素');
+  }
+
   byPos('bottom').click();
   await sleep(120);
   check('下：横向栏显示', !bar.hidden);
