@@ -291,14 +291,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 
   console.log('\n[O] 设置页 · 导航与分区切换');
-  check('左导航 14 个分区（PC 档位不列「移动端」）', navItems().length === 14, `实际 ${navItems().length}`);
+  check('左导航 16 个分区（PC 档位不列「移动端」；含 Cookie 管理与内置翻译）', navItems().length === 16, `实际 ${navItems().length}`);
   check('导航分成 3 组', $$('#settings-nav .sv-nav-group').length === 3);
   check('PC 档位下导航里没有「移动端」分区',
         !navItems().some((b) => b.dataset.sec === 'mobile'),
         navItems().map((b) => b.dataset.sec).join(','));
+  check('Cookie 管理与内置翻译两个新分区已接线',
+        ['cookies', 'translate'].every((s) => navItems().some((b) => b.dataset.sec === s)),
+        navItems().map((b) => b.dataset.sec).join(','));
   check('分区顺序与 id 正确',
         navItems().map((b) => b.dataset.sec).join(',') ===
-        'general,appearance,engines,adblock,sniffer,extensions,bookmarks,history,downloads,passwords,permissions,github,privacy,about',
+        'general,appearance,engines,adblock,sniffer,extensions,bookmarks,history,downloads,passwords,permissions,github,privacy,cookies,translate,about',
         navItems().map((b) => b.dataset.sec).join(','));
   check('拦截源角标显示 3/3', /3\/3/.test($('#settings-nav').textContent));
 
