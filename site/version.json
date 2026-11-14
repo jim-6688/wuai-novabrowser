@@ -24,15 +24,18 @@
     }
   ],
   "pc": {
-    "version": "3.1.0",
+    "version": "3.1.1",
     "changelog": [
-      "搜索引擎预设新增「元宝」（腾讯 AI 搜索，so.qq.com），并已设为地址栏默认搜索引擎",
-      "实装 Nova 2026 视觉规范：暖纸色外壳、浮起标签卡片、彩色工具栏方块与重做的新标签页"
+      "新增内置翻译：无需 API Key，可选 Google / Bing / DeepL 引擎与目标语言，支持整页翻译与选中文字翻译",
+      "新增跨设备迁移：设置 → 隐私里导出/导入书签、历史与设置的 JSON 包（本地闭环，不含 Cookie 与密码明文）",
+      "新增阅读模式：自动提取正文生成阅读浮层，可调字号、切换衬线字体",
+      "新增 Cookie 管理：设置内按站点查看、删除与清空 Cookie",
+      "修复百度搜索结果误弹独立窗口；放大窗口控制按钮；应用图标新增 AI 角标"
     ],
     "label": "PC 版（Windows x64 · EXE 安装程序）",
-    "url": "https://download.52ta.top/nova-pc-3.1.0-win-x64-setup.exe",
-    "size": 107114134,
-    "sha256": "c378b91726ad1ea6250b2c130c67c5c947e5d9f00d62d59fbeed542c474d307d",
-    "updatedAt": "2026-11-12"
+    "url": "https://download.52ta.top/nova-pc-3.1.1-win-x64-setup.exe",
+    "size": 107795972,
+    "sha256": "88589c60d5a50a11dfbb6aa3c90188b53680dbdacda63d06b50ed4241b4d57d2",
+    "updatedAt": "2026-11-14"
   }
 }

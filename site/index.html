@@ -79,7 +79,7 @@
                 <figure class="shot shot-hero">
                     <img src="assets/img/shots/01-shell-desktop.png" width="1080" height="675"
                          alt="吾爱Nova 电脑版界面：顶栏、标签条、地址栏与收藏夹栏" decoding="async">
-                    <figcaption>电脑版 3.1.0 实际界面</figcaption>
+                    <figcaption>电脑版 3.1.1 实际界面</figcaption>
                 </figure>
             </div>
         </div>
@@ -171,6 +171,20 @@
                 <h2>最近更新</h2>
                 <p>每次发布写明改动与原因，修复的缺陷也照实列出。</p>
             </div>
+
+            <article class="rel">
+                <div class="rel-head">
+                    <strong>电脑版 3.1.1</strong>
+                    <span>2026-11-14</span>
+                </div>
+                <ul>
+                    <li><b>新增内置翻译</b>：设置里选好引擎（Google / Bing / DeepL）与目标语言，工具菜单或右键选中文字即可翻译；走网页翻译页重定向，不需要申请 API Key，也不把内容发给自建服务。</li>
+                    <li><b>新增跨设备迁移</b>：设置 → 隐私页可把书签、历史与设置导出成一个 JSON 包，在另一台设备导入即自动去重合并。真正的云端实时同步需要账号与同步后端，本仓库暂无，因此如实只做本地闭环；导出包不含 Cookie 与密码明文。</li>
+                    <li><b>新增阅读模式</b>：按正文密度与链接密度给页面分块打分，挑出正文后盖一层阅读浮层，可加减字号、切换衬线字体，再点一次退出。</li>
+                    <li><b>新增 Cookie 管理</b>：设置内按站点查看、删除与清空 Cookie，双端都补上了这块此前缺失的能力。</li>
+                    <li><b>修复：百度搜索结果弹成独立窗口</b>。弹窗判定收敛到登录专用子域，大站主域必须叠加授权路径，<code>target=_blank</code> 与前后台标签一律开标签页；窗口控制按钮从 26×22 放大到 42×32，应用图标补上 AI 角标。</li>
+                </ul>
+            </article>
 
             <article class="rel">
                 <div class="rel-head">
@@ -592,7 +606,7 @@
                 <div class="cmp-col">
                     <div class="cmp-hd">
                         <span class="cmp-os">Windows</span>
-                        <strong>电脑版 · v3.1.0</strong>
+                        <strong>电脑版 · v3.1.1</strong>
                         <span class="cmp-size">约 102 MB</span>
                     </div>
                     <ul class="cmp-list">
@@ -808,18 +822,18 @@
                 <h3 class="dl-os">Windows 电脑版</h3>
                 <div class="dl-box">
                     <div class="dl-version">
-                        <strong id="dlPcVer">v3.1.0</strong>
+                        <strong id="dlPcVer">v3.1.1</strong>
                         <span>Windows x64</span>
                         <span class="dl-count" id="dlCountPc" hidden></span>
                     </div>
                     <p class="dl-note">桌面版内置 <b>Chromium 156</b>（Electron 45）内核，以 <b>EXE 安装程序</b>发布（约 102 MB）：标准安装向导，可选安装目录，含开始菜单与卸载项。
                        部分浏览器会对「直接下载 .exe」弹出「不常下载的文件」风险提示，选择「保留」即可。
-                       安装程序未做代码签名，首次运行时 Windows 可能提示「未知发布者」——这是自签包的固有现象，不是文件损坏。</p>
+                       安装程序未使用受信任的商业代码签名证书，首次运行时 Windows 可能提示「未知发布者」——这不是文件损坏。</p>
                     <div class="dl-list">
-                        <a class="btn btn-primary btn-lg" href="https://download.52ta.top/nova-pc-3.1.0-win-x64-setup.exe" data-dl="pc" download>下载 · EXE 安装程序（102 MB）</a>
+                        <a class="btn btn-primary btn-lg" href="https://download.52ta.top/nova-pc-3.1.1-win-x64-setup.exe" data-dl="pc" download>下载 · EXE 安装程序（102 MB）</a>
                     </div>
                     <ul class="dl-facts">
-                        <li><span>版本</span><span>3.1.0</span></li>
+                        <li><span>版本</span><span>3.1.1</span></li>
                         <li><span>内核</span><span>Chromium 156</span></li>
                         <li><span>平台</span><span>Windows x64</span></li>
                         <li><span>大小</span><span>约 102 MB</span></li>
