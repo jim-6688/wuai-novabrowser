@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>吾爱Nova浏览器 · 轻量、省流、可扩展的开源浏览器</title>
-    <meta name="description" content="吾爱Nova 是开源浏览器：手机版不内置内核（安装包约 800 KB，渲染交由系统 WebView）；桌面版内置 Chromium 156（Electron 45）真内核。提供多线程下载、广告拦截、用户脚本、无图模式与自动拼页，能力与边界均如实标注。">
+    <meta name="description" content="吾爱Nova 是开源浏览器：手机版不内置内核（安装包约 800 KB，渲染交由系统 WebView）；桌面版内置 Chromium 156（Electron 45）真内核。提供多线程下载、广告拦截、用户脚本、无图模式与自动拼页、阅读模式与 Cookie 管理；桌面版另有内置翻译与本地迁移包，手机版另有截图二维码、稍后读与视频画中画。能力与边界均如实标注。">
     <!--
       网站图标。原来只声明了 logo.png（192×192），而 favicon 的标准位置是根目录下的
       /favicon.ico —— 没有它时浏览器要去 HTML 里翻 rel="icon"，爬虫与某些抓取器
@@ -59,7 +59,9 @@
                     <b>手机版不内置内核</b>，渲染交由系统 WebView（Chromium）完成，安装包约 800 KB；
                     <b>桌面版内置 Chromium 156</b>（Electron 45）真内核，另有原生宿主 / 兼容层运行时可切换。
                     多线程下载、广告拦截、用户脚本、
-                    无图模式与自动拼页两端均已具备；做不到的部分，在下方逐条写明。
+                    无图模式与自动拼页两端均已具备；本轮又补齐<b>阅读模式</b>与<b>Cookie 管理</b>，
+                    桌面端另加内置翻译与本地迁移包，手机端另加截图二维码、稍后读与视频画中画。
+                    做不到的部分，在下方逐条写明。
                 </p>
                 <div class="hero-actions">
                     <a class="btn btn-primary btn-lg" href="#download">下载</a>
@@ -126,6 +128,14 @@
                     <p>三档控图，验证码与关键缩略图<b>智能放行</b>不误伤；列表页自动拼接下一页，兼顾省流与连续阅读。</p>
                 </div>
                 <div class="card">
+                    <h3><span class="tag">双端</span>阅读模式</h3>
+                    <p>按正文密度与链接密度给页面分块打分，挑出正文后盖一层阅读浮层；可加减字号、切换衬线字体，再点一次退出。与无图三档、自动拼页并存，不互斥。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag">双端</span>Cookie 管理</h3>
+                    <p>设置内按站点枚举、查看、删除与清空 Cookie，两端同一批补齐；清哪些、留哪些都能逐条看清，不必去翻系统设置。</p>
+                </div>
+                <div class="card">
                     <h3><span class="tag">双端</span>多标签 · 本地历史</h3>
                     <p>标签总览、切换后还原滚动位置；浏览记录仅存本机，无痕模式下<b>不写入任何记录</b>。</p>
                 </div>
@@ -154,6 +164,16 @@
                     <h3><span class="tag">PC</span>双档内核可切换</h3>
                     <p>内置 <b>Chromium 156</b>（Electron 45）真内核，地址栏右端还可切到 IE(Trident) 运行时，兼容层如实标注。
                        新标签页自带常用入口与插件商店入口，扩展与收藏夹开箱可用。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag">PC</span>内置翻译 · 三引擎可选</h3>
+                    <p>设置里选好引擎（<b>Google / Bing / DeepL</b>）与目标语言，工具菜单或右键选中文字即可翻译。走网页翻译页重定向，
+                       <b>不需要申请 API Key</b>，也不把内容发往自建服务；与划词菜单里的有道快捷入口各走各的路。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag">PC</span>跨设备迁移（本地包）</h3>
+                    <p>设置 → 隐私页可把<b>书签、历史与设置</b>导出成一个 JSON 包，另一台设备导入即自动去重合并。
+                       <b>这不是云端实时同步</b>：没有账号与同步后端，导出包也不含 Cookie 与密码明文。</p>
                 </div>
             </div>
             <p class="grid-note">标 <span class="tag">双端</span> 的能力两端均已具备；标 <span class="tag">PC</span> 的为电脑版独有。手机版独有的能力见下方<a href="#mobile-only">「只有手机版有」</a>一节。</p>
@@ -294,7 +314,7 @@
         <div class="wrap">
             <div class="sec-head">
                 <h2>只有手机版有的能力</h2>
-                <p class="sec-lede">下列功能依赖触屏交互与系统能力，在电脑版上没有对应物。</p>
+                <p class="sec-lede">下列能力目前只在手机版实现，多依赖触屏交互与系统能力，在电脑版上没有对应物。</p>
             </div>
             <div class="grid">
                 <div class="card">
@@ -312,6 +332,19 @@
                 <div class="card">
                     <h3><span class="tag">Android</span>AI 助手</h3>
                     <p>顶栏右端常驻入口，内嵌对话窗口，支持下拉切换服务商（DeepSeek / Kimi / 通义千问 / 豆包）与输入框直问。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag">Android</span>截图分享与二维码</h3>
+                    <p>网页截图可直接生成二维码，地址栏浮层补齐四格快捷操作；分享走自写的 ShareProvider，不引第三方文件提供者组件。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag">Android</span>稍后读</h3>
+                    <p>长按链接或工具菜单都能把网页存进稍后读列表，之后从面板接着看；数据只在本机，不依赖账号或在线服务。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag">Android</span>视频画中画与 WebRTC 防护</h3>
+                    <p>视频进入全屏时接管为系统画中画，切出应用仍可继续看。WebRTC 防护是 <b>JS 软屏蔽</b>，
+                       挡住 IP 泄露类接口并可在设置里开关——它不是系统级网络防护，边界见下方「先说清楚」。</p>
                 </div>
             </div>
         </div>
@@ -614,7 +647,7 @@
         <div class="wrap">
             <div class="sec-head">
                 <h2>两端对照</h2>
-                <p>两端共享同一套核心能力（拦截、下载、脚本、无图），但在扩展生态与交互形态上各有侧重。以下按端列出实际差异，便于判断哪一端更符合你的使用方式。</p>
+                <p>两端共享同一套核心能力（拦截、下载、脚本、无图、阅读模式与 Cookie 管理），但在扩展生态与交互形态上各有侧重。以下按端列出实际差异，便于判断哪一端更符合你的使用方式。</p>
             </div>
             <div class="cmp">
                 <div class="cmp-col">
@@ -630,6 +663,8 @@
                         <li><b>下载</b><span>地址栏旁浮窗，整体进度条 + 分片细节</span></li>
                         <li><b>收藏</b><span>可停靠到视口右侧竖排；支持从 Chrome / Edge 直接导入</span></li>
                         <li><b>内核版本</b><span>Chromium 156（Electron 45），跟随应用自动更新</span></li>
+                        <li><b>翻译</b><span>内置 Google / Bing / DeepL，免 API Key</span></li>
+                        <li><b>迁移</b><span>书签 / 历史 / 设置导出为本地 JSON 包</span></li>
                         <li class="no"><b>触屏手势</b><span>不适用（桌面端无此形态）</span></li>
                     </ul>
                 </div>
@@ -643,7 +678,9 @@
                         <li><b>渲染</b><span>交由系统 WebView（Chromium），零个 .so</span></li>
                         <li><b>上划</b><span>底栏上划唤出搜索框，任意页面可触发</span></li>
                         <li><b>收藏</b><span>星形一键收藏，面板可导入导出</span></li>
-                        <li><b>工具</b><span>底栏工具箱集中八项入口</span></li>
+                        <li><b>工具</b><span>底栏工具箱集中常用入口</span></li>
+                        <li><b>截图</b><span>网页截图可直接生成二维码分享</span></li>
+                        <li><b>稍后读 / 画中画</b><span>长按链接存入；视频全屏接管为系统画中画</span></li>
                         <li><b>内核更新</b><span>跟随系统，无法独立升级</span></li>
                         <li class="no"><b>浏览器扩展</b><span>不提供；用户脚本与篡改猴独立管理</span></li>
                     </ul>
@@ -787,6 +824,17 @@
                     <h3><span class="tag b">取舍</span>下载并行视服务器而定</h3>
                     <p>多线程下载依赖服务器支持 Range 分片。探测到不支持时<b>自动退回单线程</b>并正常完成下载，
                        不会伪装并行——实际生效的线程数可在下载详情中查看。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag t">如实</span>「跨设备迁移」不是云同步</h3>
+                    <p>桌面版的迁移是<b>本地导出 / 导入 JSON 包</b>：书签、历史与设置在另一台设备导入后自动去重合并。
+                       没有账号体系，也没有同步后端，因此做不到多设备实时同步；导出包不含 Cookie 与密码明文，
+                       别把它当成密码管理器用。</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tag t">如实</span>WebRTC 防护的边界</h3>
+                    <p>手机版的防护是向页面注入 <b>JS 软屏蔽</b>，遮住会暴露本地 IP 的 WebRTC 接口，可在设置里开关。
+                       它不改变系统网络栈，也不等于 VPN 或系统级 IP 保护；用原生接口绕过的页面不在覆盖范围内。</p>
                 </div>
             </div>
         </div>
