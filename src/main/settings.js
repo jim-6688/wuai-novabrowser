@@ -231,6 +231,22 @@ const DEFAULTS = {
     assetMirror: 'https://gh-proxy.com/'
   },
   /**
+   * 内置翻译（网页重定向，无 API Key）。
+   *
+   * 把当前网页或选中的文字交给在线翻译服务，不需要任何后端，也不上报密钥。
+   *   engine —— google | bing | deepl，默认 Google（唯一支持整页 ?u= 翻译的）
+   *   target —— 目标语言代码，见 renderer 的 TARGET_LANGS；默认中文（简体）
+   *
+   * 默认 Google：它的整页翻译（`translate?u=`）是唯一不用把地址拷来拷去就能
+   * 直接翻整站的入口；Bing / DeepL 在网页端没有公开稳定的「按网址整页翻译」
+   * 深链，所以那两家主要服务于「翻译选中文字」，整页翻译会落到它们的翻译主页
+   * （已选好目标语言），由用户把网址粘进「网页」标签页。这件事在设置页说明了。
+   */
+  translate: {
+    engine: 'google',
+    target: 'zh-CN'
+  },
+  /**
    * 收藏夹栏摆放位置：top | bottom | left | right。
    *
    *   top    —— 贴顶栏下方，横向一行（默认）

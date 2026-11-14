@@ -855,7 +855,11 @@ function mountTab(tab) {
   wv.addEventListener('context-menu', (ev) => {
     let wcId = 0;
     try { wcId = wv.getWebContentsId(); } catch { /* 还没就绪 */ }
-    try { bridge.webview.contextMenu({ params: ev.params, wcId }); } catch { /* 桥没起来 */ }
+    // 选中了文字就顺手把「翻译选中文字」的直达链接算好带过去，主进程直接用它开新标签。
+    let trUrl = '';
+    const sel = (ev.params && ev.params.selectionText || '').trim();
+    if (sel) { try { trUrl = translateTextUrl(sel); } catch { /* 算不出来就算了 */ } }
+    try { bridge.webview.contextMenu({ params: ev.params, wcId, trUrl }); } catch { /* 桥没起来 */ }
   });
   // 渲染进程崩了：DOM 事件能立刻收到（但不带原因），主进程还会补一条带 reason 的。
   // 不处理的话界面只会留一块灰色（guest 未绘制的占位面），用户完全不知道发生了什么。
@@ -2861,6 +2865,31 @@ async function doBookmarksExport() {
   toast(`已导出 ${r.count} 条书签`, 3200);
 }
 
+/** 导出整包数据（书签 + 历史 + 设置）到一份 JSON，带到别的设备。 */
+async function doDataExport() {
+  const r = await bridge.data.exportAll();
+  if (!r || r.canceled) return;
+  if (r.error) { toast('导出失败：' + r.error, 4200); return; }
+  if (r.reason) { toast(r.reason, 3200); return; }
+  toast(`已导出 书签 ${r.bookmarks} 条 · 历史 ${r.history} 条`, 3600);
+}
+
+/** 从整包 JSON（或书签 HTML）导入，合并书签，并按需合并历史与设置。 */
+async function doDataImport() {
+  const r = await bridge.data.importAll();
+  if (!r || r.canceled) return;
+  if (r.error) { toast('导入失败：' + r.error, 4200); return; }
+  state.bookmarks = r.bookmarks || state.bookmarks;
+  state.settings = await bridge.settings.patch({});
+  refreshCurrent();
+  const bits = [`书签 新增 ${r.added} · 重复 ${r.dup}`];
+  if (r.historyAdded) bits.push(`历史 +${r.historyAdded}`);
+  if (r.settingsMerged) bits.push('设置已合并');
+  let msg = bits.join(' · ');
+  if (r.warnings && r.warnings.length) msg += '；' + r.warnings.join('；');
+  toast(msg, 4600);
+}
+
 /* ------------------------------------------------------------------ *
  * 顶栏快捷开关（品牌名右侧）
  * ------------------------------------------------------------------ */
@@ -2939,6 +2968,12 @@ const TOOLS_ITEMS = [
   { id: 'ai', label: 'AI 助手', sub: 'API 对话 · 免网页环境异常',
     icon: '<path d="M10 3l1.3 3.2L14.5 7.5 11.3 8.8 10 12 8.7 8.8 5.5 7.5 8.7 6.2z"/><path d="M15 12l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
     run: () => openAiPanel() },
+  { id: 'translate', label: '翻译页面', sub: '整页 / 选中文字交给在线翻译',
+    icon: '<path d="M3 5h7M6.5 3v2M5 9.5h4M3 14h7M6.5 12v2"/><path d="M12 5h5M14 3v2M16.5 8.5l3.8 6M14 15h6.5M16.7 11h1.6"/>',
+    run: () => translateActivePage() },
+  { id: 'readmode', label: '阅读模式', sub: '提取正文，清爽阅读',
+    icon: '<path d="M3 5.5C3 4.7 3.7 4 4.5 4H9v12H4.5C3.7 16 3 15.3 3 14.5z"/><path d="M17 5.5C17 4.7 16.3 4 15.5 4H11v12h4.5c.8 0 1.5-.7 1.5-1.5z"/>',
+    run: () => toggleReaderMode() },
   { id: 'sniff', label: '媒体嗅探', sub: '页面音视频资源',
     icon: '<rect x="2.5" y="5" width="9" height="8" rx="1.4"/><path d="M5.5 8.5l2.4 1.5-2.4 1.5z"/><path d="M14 8a3.2 3.2 0 0 1 0 5"/><path d="M16.6 5.8a6.4 6.4 0 0 1 0 9.4"/>',
     run: () => openPanel('sniffer') }
@@ -6114,6 +6149,8 @@ const SETTINGS_NAV = [
     { id: 'permissions', label: '站点权限', icon: 'globe' },
     { id: 'github', label: 'GitHub 加速', icon: 'bolt', count: () => (githubCfg().enabled ? '开' : '') },
     { id: 'privacy', label: '隐私与数据', icon: 'lock' },
+    { id: 'cookies', label: 'Cookie', icon: 'cookie' },
+    { id: 'translate', label: '内置翻译', icon: 'translate' },
     { id: 'about', label: '关于吾爱Nova', icon: 'info' }
   ] }
 ];
@@ -6133,7 +6170,9 @@ const NAV_ICONS = {
   key: '<circle cx="7" cy="13" r="3"/><path d="M9.1 11.1L16 4.2M13.9 4.2h2.4v2.4"/>',
   info: '<circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/>',
   globe: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.4 2 2.4 12 0 14M10 3c-2.4 2-2.4 12 0 14"/>',
-  bolt: '<path d="M11.5 2.5L5 11.2h4.1L8.5 17.5 15 8.8h-4.1z"/>'
+  bolt: '<path d="M11.5 2.5L5 11.2h4.1L8.5 17.5 15 8.8h-4.1z"/>',
+  cookie: '<path d="M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14z"/><circle cx="7" cy="8" r=".9"/><circle cx="12.6" cy="7.4" r=".8"/><circle cx="13" cy="12" r=".9"/><circle cx="8" cy="13" r=".8"/>',
+  translate: '<path d="M3 5h7M6.5 3v2M5 9.5h4M3 14h7M6.5 12v2"/><path d="M12 5h5M14 3v2M16.5 8.5l3.8 6M14 15h6.5M16.7 11h1.6"/>'
 };
 
 /** 分区 id → 构建函数。构建函数可以返回字符串，也可以返回 Promise<string>。 */
@@ -6149,9 +6188,11 @@ const SECTION_BUILDERS = {
   history: buildHistory,
   downloads: buildDownloads,
   privacy: buildPrivacy,
+  cookies: buildCookies,
   passwords: buildPasswords,
   permissions: buildPermissions,
   github: buildGithub,
+  translate: buildTranslate,
   about: buildAbout
 };
 
@@ -6245,6 +6286,8 @@ function afterSectionRender(id) {
   // 官网插件目录属于「进这一页才知道」的信息：惰性拉一次。
   // loadExtCatalog 自带 loading / loaded 双闸，重绘不会反复请求。
   if (id === 'extensions') loadExtCatalog();
+  // Cookie 列表是异步拉取的，进这一页再读，避免每次切分区都白拉。
+  if (id === 'cookies') loadCookies();
 }
 
 /**
@@ -6538,12 +6581,270 @@ function buildPrivacy() {
       </div>
     </div>
 
+    <div class="panel-label">跨设备迁移</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">导出全部数据</span>
+          <span class="lr-sub">书签 + 历史 + 设置，打包成一份 JSON 带走</span>
+        </span>
+        <button class="btn" data-act="data-export">导出</button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">导入全部数据</span>
+          <span class="lr-sub">从另一台设备导出的文件合并回来</span>
+        </span>
+        <button class="btn" data-act="data-import">导入</button>
+      </div>
+    </div>
+
     <div class="sv-note">
       本版没有做的东西，这里如实写明：站点级 Cookie 策略开关（<code>relaxThirdParty</code> 字段已在配置里，
       但没有接到 Electron 的 session 策略上，所以不给一个点了没反应的按钮）、代理设置、证书管理。
       第三方 Cookie 目前完全由 Chromium 默认策略决定。
+      <br><br>
+      <b>关于云端同步：</b>真正的跨设备实时同步需要一套账号与同步服务（服务器、冲突解决、加密），
+      本仓库目前没有这套后端，所以这里只提供「手工导出 / 导入」的本地闭环。
+      另外，出于安全考虑，导出包里<b>不含 Cookie 与会话令牌、也不含已保存密码的明文</b>，
+      这两类请各自用系统或站点的能力迁移。
     </div>
   `;
+}
+
+/* ------------------------------------------------------------------ *
+ * Cookie 管理（PC）：列表 / 复制 / 新增 / 编辑 / 删除 / 按域名清除 / 全量清除
+ * ------------------------------------------------------------------ */
+
+/** 列表里用「域名|路径|名称」当唯一键，动作时按这个键从 cookieIndex 取回完整对象。 */
+function cookieExpLabel(c) {
+  return c.expirationDate ? new Date(c.expirationDate * 1000).toLocaleString() : '会话结束';
+}
+
+function buildCookies() {
+  return `
+    <h2 class="sv-h2">Cookie 管理</h2>
+    <div class="sv-lead">查看、复制、新增 / 编辑、删除本机保存的 Cookie。正常浏览走 chromium 内核（即下方列出的来源），多内核分区的 Cookie 在「清空全部」时一并清理。</div>
+
+    <div class="panel-label">操作</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">新增 Cookie</span><span class="lr-sub">手动写入一条 Cookie（可作用于指定域名 / 路径）</span></span>
+        <button class="btn" data-act="cookie-add">新增</button>
+      </div>
+      <div class="list-row">
+        <span class="lr-main"><span class="lr-title">清空全部 Cookie</span><span class="lr-sub">覆盖所有内核分区，不可撤销</span></span>
+        <button class="btn btn-danger" data-act="cookie-clear-all">清空</button>
+      </div>
+    </div>
+
+    <div class="panel-label">Cookie 列表</div>
+    <div class="sv-card">
+      <div class="cookie-search"><input id="cookie-search" class="input" placeholder="搜索域名 / 名称 / 值…" /></div>
+      <div id="cookie-list" class="cookie-list"><div class="sv-empty">载入中…</div></div>
+    </div>
+  `;
+}
+
+async function loadCookies() {
+  const box = $('#cookie-list');
+  if (box) box.innerHTML = '<div class="sv-empty">载入中…</div>';
+  try {
+    state.cookieList = await bridge.cookies.list();
+  } catch (e) {
+    state.cookieList = [];
+    toast('读取 Cookie 失败：' + (e && e.message ? e.message : e));
+  }
+  const search = $('#cookie-search');
+  renderCookieList(search ? search.value : '');
+}
+
+function renderCookieList(filter) {
+  const box = $('#cookie-list');
+  if (!box) return;
+  const list = state.cookieList || [];
+  const idx = new Map();
+  const byDomain = {};
+  const f = (filter || '').trim().toLowerCase();
+  for (const c of list) {
+    const key = `${c.domain}|${c.path || '/'}|${c.name}`;
+    idx.set(key, c);
+    if (f && !`${c.domain} ${c.name} ${c.value}`.toLowerCase().includes(f)) continue;
+    const d = c.domain || '(无域名)';
+    (byDomain[d] = byDomain[d] || []).push({ c, key });
+  }
+  state.cookieIndex = idx;
+  if (!Object.keys(byDomain).length) {
+    box.innerHTML = `<div class="sv-empty">${list.length ? '没有匹配的 Cookie' : '暂无 Cookie'}</div>`;
+    return;
+  }
+  const domains = Object.keys(byDomain).sort();
+  box.innerHTML = domains.map((d) => `
+    <div class="cookie-domain">
+      <div class="cookie-domain-head">
+        <span class="cd-name">${esc(d)}</span>
+        <span class="cd-count">${byDomain[d].length}</span>
+        <button class="btn btn-mini" data-act="cookie-clear-domain" data-domain="${esc(d)}">清此域名</button>
+      </div>
+      ${byDomain[d].map(({ c, key }) => cookieRowHtml(c, key)).join('')}
+    </div>`).join('');
+  // 动态渲染出来的行，直接在这一批 DOM 上挂监听（innerHTML 替换后旧监听随之回收）。
+  box.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => onCookieListAct(b)));
+}
+
+function cookieRowHtml(c, key) {
+  const badges = [];
+  if (c.secure) badges.push('Secure');
+  if (c.httpOnly) badges.push('HttpOnly');
+  if (c.sameSite && c.sameSite !== 'unspecified') badges.push('SameSite=' + c.sameSite);
+  if (c.session) badges.push('会话');
+  return `
+    <div class="cookie-row">
+      <div class="cookie-main">
+        <div class="cookie-name">${esc(c.name)}</div>
+        <div class="cookie-value">${esc(c.value)}</div>
+      </div>
+      <div class="cookie-meta">
+        <span class="cookie-badge">${esc(c.path || '/')}</span>
+        ${badges.map((b) => `<span class="cookie-badge">${esc(b)}</span>`).join('')}
+        <span class="cookie-badge cookie-badge-exp">${esc(cookieExpLabel(c))}</span>
+      </div>
+      <div class="cookie-acts">
+        <button class="btn btn-mini" data-act="cookie-copy" data-key="${esc(key)}">复制</button>
+        <button class="btn btn-mini" data-act="cookie-edit" data-key="${esc(key)}">编辑</button>
+        <button class="btn btn-mini btn-danger" data-act="cookie-del" data-key="${esc(key)}">删除</button>
+      </div>
+    </div>`;
+}
+
+/** 列表里动态行的动作：复制 / 编辑 / 删除 / 清空某域名。 */
+function onCookieListAct(btn) {
+  const act = btn.dataset.act;
+  const key = btn.dataset.key;
+  const c = key ? state.cookieIndex.get(key) : null;
+  if (act === 'cookie-copy') {
+    bridge.system.copy(c.value).then(() => toast('已复制 Cookie 值'));
+    return;
+  }
+  if (act === 'cookie-edit') { openCookieEditor(c); return; }
+  if (act === 'cookie-del') {
+    openConfirm('删除 Cookie', `确定删除「${c.name}」@ ${c.domain} ？`).then((yes) => {
+      if (!yes) return;
+      bridge.cookies.remove(c.url, c.name).then(() => { toast('已删除'); loadCookies(); })
+        .catch((e) => toast('删除失败：' + (e && e.message ? e.message : e)));
+    });
+    return;
+  }
+  if (act === 'cookie-clear-domain') {
+    const d = btn.dataset.domain;
+    openConfirm('清空域名 Cookie', `删除 ${d} 下的全部 Cookie？`).then((yes) => {
+      if (!yes) return;
+      bridge.cookies.clearDomain(d).then((r) => { toast(`已清除 ${r.removed} 条`); loadCookies(); })
+        .catch((e) => toast('清除失败：' + (e && e.message ? e.message : e)));
+    });
+    return;
+  }
+}
+
+/** 简单确认框，返回 Promise<boolean>。 */
+function openConfirm(title, msg) {
+  return new Promise((resolve) => {
+    const mask = document.createElement('div');
+    mask.className = 'sv-modal-mask';
+    mask.innerHTML = `
+      <div class="sv-modal sv-modal-sm">
+        <div class="sv-modal-head">${esc(title)}</div>
+        <div class="sv-modal-body"><div class="sv-modal-msg">${esc(msg)}</div></div>
+        <div class="sv-modal-foot">
+          <button class="btn" data-r="no">取消</button>
+          <button class="btn btn-danger" data-r="yes">确定</button>
+        </div>
+      </div>`;
+    document.body.appendChild(mask);
+    const close = (v) => { mask.remove(); resolve(v); };
+    mask.addEventListener('click', (e) => {
+      if (e.target === mask) return close(false);
+      const r = e.target.closest('[data-r]');
+      if (r) close(r.dataset.r === 'yes');
+    });
+  });
+}
+
+/** 把过期时间戳（秒）转成 datetime-local 输入框要的本地串。 */
+function expToLocalInput(sec) {
+  const d = new Date(sec * 1000);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** 新增 / 编辑 Cookie 的弹窗。 */
+function openCookieEditor(c) {
+  const editing = !!c;
+  const mask = document.createElement('div');
+  mask.className = 'sv-modal-mask';
+  mask.innerHTML = `
+    <div class="sv-modal">
+      <div class="sv-modal-head">${editing ? '编辑 Cookie' : '新增 Cookie'}</div>
+      <div class="sv-modal-body">
+        <label class="sv-field"><span>名称</span><input id="ck-name" class="input" ${editing ? 'readonly' : ''} value="${esc(c ? c.name : '')}" /></label>
+        <label class="sv-field"><span>值</span><textarea id="ck-value" class="input" rows="3">${esc(c ? c.value : '')}</textarea></label>
+        <label class="sv-field"><span>域名</span><input id="ck-domain" class="input" value="${esc(c ? c.domain : '')}" placeholder=".example.com 或 www.example.com" /></label>
+        <label class="sv-field"><span>路径</span><input id="ck-path" class="input" value="${esc(c ? c.path : '/')}" /></label>
+        <div class="sv-field-row">
+          <label class="ck-check"><input type="checkbox" id="ck-secure" ${c && c.secure ? 'checked' : ''} /> Secure</label>
+          <label class="ck-check"><input type="checkbox" id="ck-http" ${c && c.httpOnly ? 'checked' : ''} /> HttpOnly</label>
+        </div>
+        <label class="sv-field"><span>SameSite</span>
+          <select id="ck-samesite" class="input">
+            <option value="unspecified" ${!c || c.sameSite === 'unspecified' ? 'selected' : ''}>不指定</option>
+            <option value="lax" ${c && c.sameSite === 'lax' ? 'selected' : ''}>Lax</option>
+            <option value="strict" ${c && c.sameSite === 'strict' ? 'selected' : ''}>Strict</option>
+            <option value="no_restriction" ${c && c.sameSite === 'no_restriction' ? 'selected' : ''}>None（无限制）</option>
+          </select>
+        </label>
+        <label class="sv-field"><span>过期时间</span><input id="ck-exp" type="datetime-local" class="input" value="${esc(c && c.expirationDate ? expToLocalInput(c.expirationDate) : '')}" /></label>
+        <div class="sv-modal-hint">${editing ? '编辑会覆盖该域名下同名 Cookie。' : '留空过期时间表示会话 Cookie（关闭浏览器即失效）；新增时域名必填。'}</div>
+      </div>
+      <div class="sv-modal-foot">
+        <button class="btn" data-r="cancel">取消</button>
+        <button class="btn btn-primary" data-r="save">保存</button>
+      </div>
+    </div>`;
+  document.body.appendChild(mask);
+  const close = () => mask.remove();
+  mask.addEventListener('click', async (e) => {
+    if (e.target === mask) { close(); return; }
+    const r = e.target.closest('[data-r]');
+    if (!r) return;
+    if (r.dataset.r === 'cancel') { close(); return; }
+    const name = mask.querySelector('#ck-name').value.trim();
+    const value = mask.querySelector('#ck-value').value;
+    const domain = mask.querySelector('#ck-domain').value.trim();
+    const path = mask.querySelector('#ck-path').value.trim() || '/';
+    const secure = mask.querySelector('#ck-secure').checked;
+    const httpOnly = mask.querySelector('#ck-http').checked;
+    const sameSite = mask.querySelector('#ck-samesite').value;
+    const expRaw = mask.querySelector('#ck-exp').value;
+    if (!name) { toast('名称不能为空'); return; }
+    if (!domain && !c) { toast('域名不能为空'); return; }
+    let expirationDate;
+    if (expRaw) { const t = new Date(expRaw).getTime(); if (!Number.isNaN(t)) expirationDate = Math.floor(t / 1000); }
+    const detail = { name, value, domain: domain || (c && c.domain), path, secure, httpOnly, sameSite, expirationDate };
+    if (c) detail.url = c.url;
+    try {
+      await bridge.cookies.set(detail);
+      toast(editing ? '已更新' : '已保存');
+      close();
+      loadCookies();
+    } catch (e2) { toast('保存失败：' + (e2 && e2.message ? e2.message : e2)); }
+  });
+  setTimeout(() => {
+    if (mask.isConnected) {
+      const i = mask.querySelector('#ck-name');
+      if (i && !editing) i.focus();
+      else if (i) mask.querySelector('#ck-value').focus();
+    }
+  }, 30);
 }
 
 /* ------------------------------------------------------------------ *
@@ -6680,6 +6981,262 @@ function buildGithub() {
       会是镜像域名，关掉加速后这些记录需要手动改回官方地址。
     </div>
   `;
+}
+
+/* ------------------------------------------------------------------ *
+ * 内置翻译（网页重定向，无 API Key）
+ * ------------------------------------------------------------------ */
+
+/** 可选翻译引擎。label 用于界面展示。 */
+const TRANSLATE_ENGINES = {
+  google: { label: 'Google 翻译' },
+  bing: { label: 'Bing 翻译' },
+  deepl: { label: 'DeepL 翻译' }
+};
+
+/**
+ * 目标语言清单。code 给 Google / Bing 用；deepl 给 DeepL 用（大写双语代码）。
+ * 选中文时 DeepL 也是 ZH，和其它语言区分不明显，所以繁体也归到 ZH 没问题。
+ */
+const TARGET_LANGS = [
+  { code: 'zh-CN', deepl: 'ZH', label: '中文（简体）' },
+  { code: 'zh-TW', deepl: 'ZH', label: '中文（繁体）' },
+  { code: 'en', deepl: 'EN', label: '英语' },
+  { code: 'ja', deepl: 'JA', label: '日语' },
+  { code: 'ko', deepl: 'KO', label: '韩语' },
+  { code: 'fr', deepl: 'FR', label: '法语' },
+  { code: 'de', deepl: 'DE', label: '德语' },
+  { code: 'es', deepl: 'ES', label: '西班牙语' },
+  { code: 'ru', deepl: 'RU', label: '俄语' },
+  { code: 'pt', deepl: 'PT', label: '葡萄牙语' },
+  { code: 'it', deepl: 'IT', label: '意大利语' },
+  { code: 'ar', deepl: 'AR', label: '阿拉伯语' },
+  { code: 'th', deepl: 'TH', label: '泰语' },
+  { code: 'vi', deepl: 'VI', label: '越南语' }
+];
+
+/** 当前生效的翻译偏好；缺省项兜底，老配置没有 translate 这个键也不崩。 */
+function translateCfg() {
+  const t = (state.settings && state.settings.translate) || {};
+  return {
+    engine: TRANSLATE_ENGINES[t.engine] ? t.engine : 'google',
+    target: TARGET_LANGS.some((l) => l.code === t.target) ? t.target : 'zh-CN'
+  };
+}
+
+/** 按引擎把目标语言代码换成对应形态（DeepL 要大写）。 */
+function translateTargetFor(engine, targetCode) {
+  const lang = TARGET_LANGS.find((l) => l.code === targetCode) || TARGET_LANGS[0];
+  return engine === 'deepl' ? lang.deepl : lang.code;
+}
+
+/** 翻译整页：Google 走 ?u= 真·整页；其余落到已选好语言的翻译主页。 */
+function translatePageUrl(pageUrl) {
+  const { engine, target } = translateCfg();
+  const tl = translateTargetFor(engine, target);
+  const enc = encodeURIComponent(pageUrl);
+  if (engine === 'google') return `https://translate.google.com/translate?sl=auto&tl=${tl}&u=${enc}`;
+  if (engine === 'bing') return `https://www.bing.com/translator?to=${tl}`;
+  return `https://www.deepl.com/translator?target_lang=${tl}`;
+}
+
+/** 翻译选中的文字：三家都支持按文字参数直达。 */
+function translateTextUrl(text) {
+  const { engine, target } = translateCfg();
+  const tl = translateTargetFor(engine, target);
+  const enc = encodeURIComponent(text);
+  if (engine === 'google') return `https://translate.google.com/?sl=auto&tl=${tl}#view=home&op=translate&text=${enc}`;
+  if (engine === 'bing') return `https://www.bing.com/translator?to=${tl}&text=${enc}`;
+  return `https://www.deepl.com/translator#auto/${tl}/${enc}`;
+}
+
+/** 读取当前网页里被高亮选中的文字（跨内核；拿不到就返回空串）。 */
+async function activeSelectionText() {
+  const t = activeTab();
+  if (!t || !t.webview || t.webview.__bridge) return '';
+  try {
+    const s = await t.webview.executeJavaScript('(window.getSelection?window.getSelection().toString():"")');
+    return (s || '').trim();
+  } catch { return ''; }
+}
+
+/** 翻译当前网页：整页交给所选引擎（Google 走 ?u=，其余落到已选语言的翻译主页）。 */
+async function translateActivePage() {
+  const t = activeTab();
+  if (!t) { toast('还没有打开的标签页'); return; }
+  if (!/^https?:\/\//i.test(t.url)) { toast('当前页面不是网页，无法翻译'); return; }
+  createTab(translatePageUrl(t.url), state.settings.defaultEngine);
+  toast('已在新标签页打开翻译');
+}
+
+/** 翻译当前网页里选中的文字；没选就提示先选一段。 */
+async function translateActiveSelection() {
+  const text = await activeSelectionText();
+  if (!text) { toast('请先在网页里选中一段文字'); return; }
+  createTab(translateTextUrl(text), state.settings.defaultEngine);
+  toast('已打开翻译');
+}
+
+function buildTranslate() {
+  const t = translateCfg();
+  return `
+    <h2 class="sv-h2">内置翻译</h2>
+    <div class="sv-lead">无需 API Key，把当前网页或选中的文字交给在线翻译服务。默认 Google，可在下面切换引擎与目标语言。</div>
+
+    <div class="panel-label">翻译引擎</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">翻译服务</span>
+          <span class="lr-sub">Google 支持整页翻译；Bing / DeepL 以文字翻译为主</span>
+        </span>
+        <select class="perm-cat-sel" id="tr-engine" title="翻译引擎">
+          ${Object.entries(TRANSLATE_ENGINES).map(([k, v]) => `<option value="${k}" ${t.engine === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="panel-label">目标语言</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">翻译成哪种语言</span>
+          <span class="lr-sub">翻译结果统一翻到这种语言</span>
+        </span>
+        <select class="perm-cat-sel" id="tr-target" title="目标语言">
+          ${TARGET_LANGS.map((l) => `<option value="${l.code}" ${t.target === l.code ? 'selected' : ''}>${esc(l.label)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="panel-label">试试</div>
+    <div class="sv-card" style="padding:var(--sp-3)">
+      <div class="btn-row" style="padding:0">
+        <button class="btn btn-primary" data-act="tr-page">翻译当前页面</button>
+        <button class="btn" data-act="tr-selection">翻译选中文字</button>
+      </div>
+      <div class="muted" style="padding-top:var(--sp-2)">「翻译选中文字」会读取当前网页里你高亮的那段；没选中就先选一段再点。</div>
+    </div>
+
+    <div class="sv-note">
+      <b>关于整页翻译：</b>只有 Google 提供稳定的「按网址整页翻译」深链，点「翻译当前页面」
+      会直接把整个站翻过来。Bing / DeepL 在网页端没有公开的整页深链，用那两家时「翻译当前页面」
+      会打开它们已选好目标语言的翻译主页，把网址粘进「网页」标签页即可。
+    </div>
+  `;
+}
+
+/* ------------------------------------------------------------------ *
+ * 阅读模式（正文提取 + 清爽阅读浮层，无依赖、无后端）
+ * ------------------------------------------------------------------ */
+
+/**
+ * 注入到网页主世界的一段脚本（字符串）。它自己负责：打分挑出正文块、
+ * 克隆清洗、再在当前页面盖一层独立的阅读浮层（固定定位、不依赖页面样式）。
+ * 浮层里带字号 ±、衬线切换、退出。再次执行时若已开启则直接退出（切换）。
+ *
+ * 没有引第三方阅读库：自己写一份轻量打分（正文密度 − 链接密度），对绝大多数
+ * 图文页够用；拿不到正文时如实返回 ok:false，界面提示「暂时无法提取」。
+ * 用模板字符串包住整段，脚本内部只使用单/双引号、不含反引号与 ${，避免转义坑。
+ */
+const READER_JS = `
+(function(){
+  try {
+    if (window.__novaReaderOn) { window.__novaReaderOff(); return JSON.stringify({ok:false, action:'off'}); }
+    function scoreNode(n){
+      if(!n) return 0;
+      var t = n.innerText || '';
+      var words = t.trim().split(/\\s+/).length;
+      var as = n.getElementsByTagName('a');
+      var linkLen = 0;
+      for (var i=0;i<as.length;i++) linkLen += (as[i].innerText||'').length;
+      var density = t.length ? linkLen/t.length : 0;
+      return words - as.length*2 - density*12;
+    }
+    var cands = [];
+    var arts = document.getElementsByTagName('article');
+    for (var i=0;i<arts.length;i++) cands.push(arts[i]);
+    var divs = document.getElementsByTagName('div');
+    for (var j=0;j<divs.length;j++){ if (divs[j].getElementsByTagName('p').length>=3) cands.push(divs[j]); }
+    var best=null, bs=-1e9;
+    for (var k=0;k<cands.length;k++){ var s=scoreNode(cands[k]); if(s>bs){bs=s;best=cands[k];} }
+    if(!best) return JSON.stringify({ok:false, reason:'no-content'});
+    var h1 = document.querySelector('h1');
+    var title = (document.title||(h1?h1.innerText:'')||'').trim();
+    var node = best.cloneNode(true);
+    var bad = node.querySelectorAll('script,style,iframe,noscript,ins,button,form,nav,header,footer,aside');
+    for (var b=0;b<bad.length;b++){ if(bad[b].parentNode) bad[b].parentNode.removeChild(bad[b]); }
+    var root = document.createElement('div');
+    root.id = 'nova-reader-root';
+    root.innerHTML = '<style id="nova-reader-style">'
+      + '#nova-reader-root{position:fixed;inset:0;z-index:2147483647;background:#f7f5f0;color:#222;overflow:auto;font-family:-apple-system,Segoe UI,Roboto,sans-serif;}'
+      + '#nova-reader-root *{box-sizing:border-box;}'
+      + '.nr-bar{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(247,245,240,0.96);border-bottom:1px solid #e3ded3;}'
+      + '.nr-name{font-weight:600;opacity:0.65;font-size:14px;}'
+      + '.nr-actions button{margin-left:8px;border:1px solid #d8d2c4;background:#fff;color:#333;border-radius:6px;padding:4px 11px;cursor:pointer;font-size:13px;}'
+      + '.nr-actions button:hover{background:#efece4;}'
+      + '.nr-wrap{max-width:720px;margin:0 auto;padding:22px 20px 80px;}'
+      + '.nr-content{font-size:18px;line-height:1.85;}'
+      + '.nr-content h1{font-size:27px;line-height:1.3;margin:0 0 14px;}'
+      + '.nr-content img{max-width:100%;height:auto;display:block;margin:18px auto;border-radius:6px;}'
+      + '.nr-content p{margin:0 0 16px;}'
+      + '.nr-content a{color:#1a6fc4;}'
+      + '.nr-content pre{background:#efece4;padding:12px;border-radius:6px;overflow:auto;}'
+      + '.nr-content code{font-family:Consolas,monospace;font-size:0.92em;}'
+      + '#nova-reader-root.nr-serif .nr-content{font-family:Georgia,"Times New Roman",serif;line-height:1.95;}'
+      + '</style>'
+      + '<div class="nr-bar"><span class="nr-name">阅读模式</span><div class="nr-actions">'
+      + '<button data-nr="dec" title="缩小字号">A−</button>'
+      + '<button data-nr="inc" title="放大字号">A＋</button>'
+      + '<button data-nr="serif" title="衬线 / 无衬线">衬线</button>'
+      + '<button data-nr="close" title="退出阅读模式">退出</button>'
+      + '</div></div>'
+      + '<div class="nr-wrap"><div class="nr-content" id="nova-reader-content">'
+      + (title?('<h1>'+title.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</h1>'):'')
+      + node.innerHTML
+      + '</div></div>';
+    document.body.appendChild(root);
+    var content = document.getElementById('nova-reader-content');
+    var sz = 18;
+    root.addEventListener('click', function(e){
+      var el = e.target;
+      var b = (el && el.closest) ? el.closest('[data-nr]') : null;
+      if(!b) return;
+      var act = b.getAttribute('data-nr');
+      if(act==='close'){ window.__novaReaderOff(); }
+      else if(act==='inc'){ sz += 2; content.style.fontSize = sz+'px'; }
+      else if(act==='dec'){ sz = Math.max(14, sz-2); content.style.fontSize = sz+'px'; }
+      else if(act==='serif'){ root.classList.toggle('nr-serif'); }
+    });
+    window.__novaReaderOn = true;
+    window.__novaReaderOff = function(){
+      var r = document.getElementById('nova-reader-root');
+      if(r && r.parentNode) r.parentNode.removeChild(r);
+      window.__novaReaderOn = false;
+    };
+    window.scrollTo(0,0);
+    return JSON.stringify({ok:true, title:title, length:(best.innerText||'').length});
+  } catch(err){ return JSON.stringify({ok:false, reason:String((err&&err.message)||err)}); }
+})()
+`;
+
+/** 在当前网页开启 / 退出阅读模式（再次调用即退出）。 */
+async function toggleReaderMode() {
+  const t = activeTab();
+  if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持阅读模式'); return; }
+  if (!/^https?:\/\//i.test(t.url)) { toast('当前页面不是网页，无法进入阅读模式'); return; }
+  let res = null;
+  try {
+    res = JSON.parse(await t.webview.executeJavaScript(READER_JS));
+  } catch (e) {
+    res = { ok: false, reason: String((e && e.message) || e) };
+  }
+  if (!res || !res.ok) {
+    if (res && res.action === 'off') { toast('已退出阅读模式'); return; }
+    toast('这个页面暂时无法提取正文' + (res && res.reason ? ('：' + res.reason) : ''), 3200);
+    return;
+  }
+  toast('已进入阅读模式（顶部工具条可缩放字号 / 切换衬线 / 退出）', 3600);
 }
 
 /* ------------------------------------------------------------------ *
@@ -6868,6 +7425,26 @@ function wireActions(root) {
       toast(v === 'auto'
         ? '网页语言：跟随系统'
         : `网页语言：${localeLabel(v)}（重启后 navigator.language 同步）`);
+    });
+  }
+
+  // 内置翻译：引擎 / 目标语言两个下拉。选完直接落盘，下拉本身已反映新值，
+  // 不必重绘（重绘会把焦点与展开的列表弄丢）。
+  const trEngine = root.querySelector('#tr-engine');
+  if (trEngine) {
+    trEngine.addEventListener('change', async () => {
+      const v = trEngine.value;
+      state.settings = await bridge.settings.patch({ translate: { engine: v } });
+      toast('翻译引擎：' + ((TRANSLATE_ENGINES[v] && TRANSLATE_ENGINES[v].label) || v));
+    });
+  }
+  const trTarget = root.querySelector('#tr-target');
+  if (trTarget) {
+    trTarget.addEventListener('change', async () => {
+      const v = trTarget.value;
+      state.settings = await bridge.settings.patch({ translate: { target: v } });
+      const lab = (TARGET_LANGS.find((l) => l.code === v) || {}).label || v;
+      toast('目标语言：' + lab);
     });
   }
 
@@ -7373,6 +7950,10 @@ function wireActions(root) {
           : 'https://raw.githubusercontent.com/tensorflow/tensorflow/master/README.md';
         createTab(url, state.settings.defaultEngine);
         toast('已打开测试链接，看地址栏是否跳到镜像域名');
+      } else if (act === 'tr-page') {
+        await translateActivePage();
+      } else if (act === 'tr-selection') {
+        await translateActiveSelection();
       } else if (act === 'cred-add') {
         const g = (id) => { const el = root.querySelector('#' + id); return el ? el.value : ''; };
         const r = await bridge.credentials.add({
@@ -7442,6 +8023,13 @@ function wireActions(root) {
         const r = await bridge.system.clearSiteData();
         toast(r && r.note ? r.note
           : (r && r.cleared ? `已清空 ${r.cleared} 个分区的站点数据` : '已清空站点数据'));
+      } else if (act === 'cookie-add') { openCookieEditor(null); }
+      else if (act === 'cookie-clear-all') {
+        openConfirm('清空全部 Cookie', '将删除所有内核分区下的 Cookie，且不可撤销。确定继续？').then((yes) => {
+          if (!yes) return;
+          bridge.cookies.clear().then((r) => { toast(`已清除 ${r.removed} 条`); loadCookies(); })
+            .catch((e) => toast('清除失败：' + (e && e.message ? e.message : e)));
+        });
       } else if (act === 'restore-defaults') {
         const d = state.defaults || {};
         const patch = {};
@@ -7456,6 +8044,10 @@ function wireActions(root) {
         applyLayout();
         refreshCurrent();
         toast('已恢复默认设置');
+      } else if (act === 'data-export') {
+        await doDataExport();
+      } else if (act === 'data-import') {
+        await doDataImport();
       } else if (act === 'perm-del') {
         const host = b.dataset.host;
         const list = (state.settings.permissions || []).filter((x) => x.host !== host);
@@ -7486,6 +8078,12 @@ function wireActions(root) {
       }
     });
   });
+
+  /* --- Cookie 搜索框：每次进入该分区绑一次（分区重绘会重建 #settings-body 内的 DOM） --- */
+  const cookieSearch = root.querySelector('#cookie-search');
+  if (cookieSearch) {
+    cookieSearch.addEventListener('input', () => renderCookieList(cookieSearch.value));
+  }
 
   /* --- 站点内核规则：增 / 删 --- */
   root.querySelectorAll('[data-rule-del]').forEach((b) => {
@@ -7661,7 +8259,8 @@ const CMD_ICON = {
   chip: '<rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/>',
   clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/>',
   tab: '<rect x="2.5" y="5" width="10" height="10" rx="1.4"/><path d="M12.5 8h5M12.5 11h5"/>',
-  globe: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.5 2.4 2.5 11.6 0 14M10 3c-2.5 2.4-2.5 11.6 0 14"/>'
+  globe: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.5 2.4 2.5 11.6 0 14M10 3c-2.5 2.4-2.5 11.6 0 14"/>',
+  translate: '<path d="M3 5h7M6.5 3v2M5 9.5h4M3 14h7M6.5 12v2"/><path d="M12 5h5M14 3v2M16.5 8.5l3.8 6M14 15h6.5M16.7 11h1.6"/>'
 };
 
 /** 全部设置分区的扁平列表，命令面板里「打开设置」用它动态生成。 */
@@ -8118,7 +8717,10 @@ function cmdBaseActions() {
     { id: 'zoom-reset', label: '重置缩放', hint: 'Ctrl+0', icon: 'reset', run: () => setTabZoom(activeTab(), 1) },
     { id: 'close-tab', label: '关闭当前标签页', hint: 'Ctrl+W', icon: 'x', run: () => { if (state.activeId) closeTab(state.activeId); } },
     { id: 'clear-site-data', label: '清空站点数据', icon: 'lock', run: async () => { const r = await bridge.system.clearSiteData(); toast(r && r.note ? r.note : (r && r.cleared ? `已清空 ${r.cleared} 个分区` : '已清空站点数据')); } },
-    { id: 'no-image', label: noImageLevel() === 'off' ? '无图模式：开启' : '无图模式：关闭', icon: 'eye', run: async () => { await applyNoImage(noImageLevel() === 'off' ? 'image' : 'off'); } }
+    { id: 'no-image', label: noImageLevel() === 'off' ? '无图模式：开启' : '无图模式：关闭', icon: 'eye', run: async () => { await applyNoImage(noImageLevel() === 'off' ? 'image' : 'off'); } },
+    { id: 'translate-page', label: '翻译当前页面', icon: 'translate', run: () => translateActivePage() },
+    { id: 'translate-selection', label: '翻译选中文字', icon: 'translate', run: () => translateActiveSelection() },
+    { id: 'read-mode', label: '阅读模式（正文提取）', icon: 'book', run: () => toggleReaderMode() }
   ];
   // 设置分区
   for (const s of ALL_PANELS) actions.push({ id: 'panel-' + s.id, label: '打开' + s.label, icon: (NAV_ICONS[s.icon] || CMD_ICON.gear), run: () => openPanel(s.id) });

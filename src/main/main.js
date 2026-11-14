@@ -41,6 +41,7 @@ const { wireRequestGate: installRequestGate } = require('./request-gate');
 const { FaviconCache, hostsFromNtpData } = require('./favicon-cache');
 const updater = require('./updater');
 const bookmarksIo = require('./bookmarks-io');
+const dataIo = require('./data-io');
 const browsersDetect = require('./browsers-detect');
 const browserExtensions = require('./browser-extensions');
 const desktopShortcut = require('./desktop-shortcut');
@@ -1938,6 +1939,103 @@ function registerIpc() {
     };
   });
 
+  /* --- 跨设备数据迁移（本地闭环）：导出 / 导入整包 --- */
+  handle('data:export-all', async () => {
+    const bookmarks = settings.get('bookmarks', []);
+    const history = settings.get('history', []);
+    if (!bookmarks.length && !history.length) {
+      return { canceled: true, reason: '还没有可带走的资料（书签与历史都是空的）' };
+    }
+    const stamp = new Date().toISOString().slice(0, 10);
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: '导出全部数据',
+      defaultPath: `nova-data-${stamp}.json`,
+      filters: [{ name: '数据备份', extensions: ['json'] }]
+    });
+    if (res.canceled || !res.filePath) return { canceled: true };
+    const bundle = dataIo.buildBundle({
+      bookmarks,
+      history,
+      settings: settings.all(),
+      appVersion: app.getVersion(),
+      app: '吾爱Nova浏览器'
+    });
+    try {
+      await fs.promises.writeFile(res.filePath, JSON.stringify(bundle, null, 2), 'utf8');
+    } catch (e) {
+      return { error: '写入失败：' + (e && e.message ? e.message : String(e)) };
+    }
+    return { path: res.filePath, bookmarks: bundle.counts.bookmarks, history: bundle.counts.history };
+  });
+
+  handle('data:import-all', async () => {
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: '导入全部数据',
+      filters: [{ name: '数据备份', extensions: ['json', 'html', 'htm'] }],
+      properties: ['openFile']
+    });
+    if (res.canceled || !res.filePaths.length) return { canceled: true };
+    let text;
+    try {
+      text = await fs.promises.readFile(res.filePaths[0], 'utf8');
+    } catch (e) {
+      return { error: '读取失败：' + (e && e.message ? e.message : String(e)) };
+    }
+
+    // 书签：任何文件都先交给 bookmarks-io（它认 JSON 与 Netscape HTML）。
+    const bm = bookmarksIo.parseImport(text);
+    // 历史与设置：只在这是 nova-data 包时才填（其它文件不含这两块）。
+    const bundle = dataIo.parseBundle(text);
+
+    const curBm = settings.get('bookmarks', []);
+    const mBm = bookmarksIo.merge(curBm, bm.items);
+    settings.patch({ bookmarks: mBm.merged });
+
+    let addedHist = 0;
+    const histResult = dataIo.mergeHistory(settings.get('history', []), bundle.history);
+    if (bundle.isBundle) {
+      settings.patch({ history: histResult.merged });
+      addedHist = histResult.added;
+    }
+
+    const warnings = (bundle.warnings || []).slice();
+    if (bm.reason) warnings.push(bm.reason);
+    if (!bundle.isBundle) warnings.push('只导入了书签（这个文件不是 nova-data 整包，不含历史与设置）');
+
+    // 设置：nova-data 包里有的话合并进当前配置（跳过运行态键）。
+    let settingsMerged = false;
+    if (bundle.isBundle && Object.keys(bundle.settings).length) {
+      const next = dataIo.mergeSettings(settings.all(), bundle.settings);
+      // 用全量覆盖式写回：patch 是浅层，这里要整体替换非跳过键
+      const safe = {};
+      for (const [k, v] of Object.entries(next)) {
+        if (dataIo.SETTINGS_SKIP_ON_IMPORT.includes(k)) continue;
+        safe[k] = v;
+      }
+      settings.patch(safe);
+      settingsMerged = true;
+    }
+
+    send('settings:changed', settings.all());
+    if (faviconCache && typeof faviconCache.refreshIfStale === 'function') {
+      const hosts = [];
+      for (const b of mBm.merged) {
+        try { hosts.push(new URL(b.url).hostname); } catch { /* 不是网址，跳过 */ }
+      }
+      if (hosts.length) faviconCache.refreshIfStale(hosts);
+    }
+    return {
+      added: mBm.added,
+      dup: mBm.dup,
+      skipped: bm.skipped,
+      historyAdded: addedHist,
+      settingsMerged,
+      total: mBm.merged.length,
+      warnings,
+      bookmarks: mBm.merged
+    };
+  });
+
   /* --- 下载 --- */
   handle('download:list', () => dlManager.list());
   handle('download:stats', () => dlManager.stats());
@@ -2041,6 +2139,81 @@ function registerIpc() {
       }
     }
     return { cleared, total: targets.length, failed };
+  });
+
+  /* ------------------------------------------------------------------ *
+   * Cookie 管理（PC）：列表 / 新增·保存 / 编辑 / 删除 / 按域名清除 / 全量清除
+   * 正常浏览走 chromium 内核，映射的就是 defaultSession，所以管理器直接操作它；
+   * 全量清除额外覆盖其它内核分区，避免「清了跟没清一样」。
+   * ------------------------------------------------------------------ */
+  const cookieHost = (domain) => ((domain || '').startsWith('.') ? domain.slice(1) : (domain || 'localhost'));
+  const cookieUrl = (c) => `https://${cookieHost(c.domain)}${c.path || '/'}`;
+
+  handle('cookies:list', async (filter) => {
+    const f = (filter && typeof filter === 'object') ? filter : {};
+    const cookies = await session.defaultSession.cookies.get(f);
+    return cookies.map((c) => ({
+      name: c.name, value: c.value, domain: c.domain, path: c.path,
+      secure: c.secure, httpOnly: c.httpOnly, hostOnly: c.hostOnly,
+      session: c.session, sameSite: c.sameSite,
+      expirationDate: (typeof c.expirationDate === 'number' ? c.expirationDate : null)
+    }));
+  });
+
+  handle('cookies:set', async (detail) => {
+    if (!detail || !detail.name || detail.value === undefined) {
+      throw new Error('cookies:set 需要 name 与 value');
+    }
+    let url = detail.url;
+    if (!url) url = `https://${cookieHost(detail.domain)}${detail.path || '/'}`;
+    const sameSite = detail.sameSite || 'unspecified';
+    await session.defaultSession.cookies.set({
+      url,
+      name: detail.name,
+      value: detail.value,
+      domain: detail.domain || undefined,
+      path: detail.path || '/',
+      secure: !!detail.secure,
+      httpOnly: !!detail.httpOnly,
+      sameSite: (sameSite === 'unspecified' || sameSite === 'no_restriction'
+        || sameSite === 'lax' || sameSite === 'strict') ? sameSite : 'unspecified',
+      expirationDate: (typeof detail.expirationDate === 'number' && detail.expirationDate > 0)
+        ? detail.expirationDate : undefined
+    });
+    return { ok: true };
+  });
+
+  handle('cookies:remove', async ({ url, name }) => {
+    if (!url || !name) throw new Error('cookies:remove 需要 url 与 name');
+    await session.defaultSession.cookies.remove(url, name);
+    return { ok: true };
+  });
+
+  handle('cookies:clear-domain', async (domain) => {
+    if (!domain) return { removed: 0 };
+    const cookies = await session.defaultSession.cookies.get({ domain });
+    let removed = 0;
+    for (const c of cookies) {
+      try { await session.defaultSession.cookies.remove(cookieUrl(c), c.name); removed += 1; }
+      catch { /* 个别删不掉，跳过 */ }
+    }
+    return { removed };
+  });
+
+  handle('cookies:clear', async () => {
+    const partitions = new Set(registry.engines.map((e) => e.partition));
+    const sessions = [session.defaultSession, ...[...partitions].map((p) => session.fromPartition(p))];
+    let removed = 0;
+    for (const ses of sessions) {
+      try {
+        const cookies = await ses.cookies.get({});
+        for (const c of cookies) {
+          try { await ses.cookies.remove(`https://${cookieHost(c.domain)}${c.path || '/'}`, c.name); removed += 1; }
+          catch { /* 个别删不掉，跳过 */ }
+        }
+      } catch { /* 分区没建好，跳过 */ }
+    }
+    return { removed };
   });
 
   handle('shell:open-external', (url) => shell.openExternal(url));
@@ -2537,6 +2710,11 @@ function registerIpc() {
     if (p.selectionText && p.selectionText.trim()) {
       tpl.push({ label: '复制', click: () => { try { wc && wc.copy(); } catch { /* ignore */ } } });
       tpl.push({ label: '搜索「' + short(p.selectionText) + '」', click: () => back('webview:search', p.selectionText.trim()) });
+      // 选中文字时多给一个「翻译」：直达链接由渲染进程按用户引擎 / 目标语言算好带来，
+      // 主进程不碰翻译设置，只负责开个新标签。
+      if (payload && payload.trUrl) {
+        tpl.push({ label: '翻译「' + short(p.selectionText) + '」', click: () => back('webview:open-url', payload.trUrl) });
+      }
       tpl.push({ type: 'separator' });
     }
     if (p.isEditable) {

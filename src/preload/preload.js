@@ -183,6 +183,28 @@ contextBridge.exposeInMainWorld('nova', {
     clear: () => ipcRenderer.invoke('history:clear')
   },
 
+  /* --- Cookie 管理（PC）：列表 / 新增·保存 / 编辑 / 删除 / 按域名清除 / 全量清除 --- */
+  cookies: {
+    /** 列出 Cookie。filter 可传 { domain } 按域名过滤，不传则列出全部。 */
+    list: (filter) => ipcRenderer.invoke('cookies:list', filter),
+    /** 新增或覆盖一条 Cookie。detail = { name, value, url?, domain?, path?, secure?, httpOnly?, sameSite?, expirationDate? } */
+    set: (detail) => ipcRenderer.invoke('cookies:set', detail),
+    /** 删除一条：需传该 Cookie 的 url 与 name（管理器里由列出来的原始对象带上） */
+    remove: (url, name) => ipcRenderer.invoke('cookies:remove', { url, name }),
+    /** 清空某个域名下的全部 Cookie */
+    clearDomain: (domain) => ipcRenderer.invoke('cookies:clear-domain', domain),
+    /** 清空全部内核分区的 Cookie */
+    clear: () => ipcRenderer.invoke('cookies:clear')
+  },
+
+  /* --- 跨设备数据迁移（本地闭环）：导出 / 导入整包 --- */
+  data: {
+    /** 导出书签 + 历史 + 设置成一份 JSON（文件对话框在主进程） */
+    exportAll: () => ipcRenderer.invoke('data:export-all'),
+    /** 从一份 JSON / 书签 HTML 导入，合并书签，并在是 nova-data 包时合并历史与设置 */
+    importAll: () => ipcRenderer.invoke('data:import-all')
+  },
+
   /* --- 内置新标签页的快捷方式 --- */
   ntp: {
     addShortcut: (label, url) => ipcRenderer.invoke('ntp:shortcut:add', { label, url }),

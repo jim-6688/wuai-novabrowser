@@ -11,6 +11,9 @@
  *   ③ 收键盘用窗口 token（页内 input 弹的键盘也得收），
  *      且焦点不能交给 WebView（登录页 autofocus 会把键盘弹回来）；
  *   ④ Manifest 压住 Activity 进前台时的自动弹键盘。
+ *   ⑤ 程序化回填（页面加载把标题/网址写进地址栏）不得触发输入联想弹层 ——
+ *      b6b0507 取消「打开即自动聚焦」后，syncUrlBar 不再被 hasFocus 早退拦掉，
+ *      若 TextWatcher 仍把这次 setText 当用户输入，每次开/刷新网页都会自己弹网址列表。
  */
 const fs = require('fs');
 const path = require('path');
@@ -91,7 +94,27 @@ check('用户点图标聚焦地址栏并弹键盘的入口还在',
   && /urlBar\.requestFocus\(\)/.test(java)
   && /showSoftInput\(urlBar, InputMethodManager\.SHOW_IMPLICIT\)/.test(java));
 check('地址栏聚焦仍会切回真实网址并弹「复制/分享」',
-  /if \(hasFocus\)[\s\S]{0,600}?showUrlActions\(\)/.test(java));
+  (() => {
+    const blk = (java.match(/urlBar\.setOnFocusChangeListener\(\(v, hasFocus\) -> \{[\s\S]*?\n        \}\);/) || [])[0] || '';
+    return /if \(hasFocus\)/.test(blk) && /showUrlActions\(\)/.test(blk);
+  })());
+
+/* --- ⑤ 程序化回填不得触发输入联想（b6b0507 后的回归，本次修复） --- */
+check('新增 syncingOmnibox 重入保护位',
+  /private boolean syncingOmnibox;/.test(java));
+check('TextWatcher 在程序化回填时跳过输入联想（保护位 return 在 scheduleSuggest 之前）',
+  (() => {
+    const g = java.indexOf('if (syncingOmnibox) return;');
+    const s = java.indexOf('scheduleSuggest(s == null');
+    return g > 0 && s > 0 && g < s;
+  })());
+check('syncUrlBar 用保护位包住回填，且在 finally 里复位',
+  /syncingOmnibox = true;/.test(java)
+  && /finally\s*\{\s*syncingOmnibox = false;/.test(java));
+check('聚焦切真实网址同样走保护位：不弹联想、只弹复制/分享',
+  /syncingOmnibox = true;\s*try\s*\{\s*urlBar\.setText\(real\)/.test(java)
+  && /showUrlActions\(\);/.test(
+    (java.match(/if \(hasFocus\)\s*\{[\s\S]{0,700}?showUrlActions\(\);/) || [])[0] || ''));
 
 console.log(`\n结果：${pass} 通过 / ${fail} 未通过\n`);
 process.exit(fail ? 1 : 0);

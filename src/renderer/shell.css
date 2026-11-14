@@ -4057,3 +4057,66 @@ body.bm-dragging { cursor: grabbing; }
 #qk-bmbar.is-on { background: transparent; }
 /* 文字也保持正常色：设计稿里这四个入口的文字是同一档深灰，
    只有前面的色点区分身份。把开态那一项染成金色，四颗字里就有一颗不齐。 */
+
+/* ------------------------------------------------------------------ *
+ * Cookie 管理（PC）
+ * ------------------------------------------------------------------ */
+.cookie-search { padding: 10px 12px; border-bottom: 1px solid var(--divider); }
+.cookie-list { max-height: 52vh; overflow-y: auto; }
+.cookie-domain { border-bottom: 1px solid var(--divider); }
+.cookie-domain:last-child { border-bottom: none; }
+.cookie-domain-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; background: var(--surface-2);
+  font-weight: 600; font-size: 12.5px;
+}
+.cookie-domain-head .cd-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cookie-domain-head .cd-count {
+  font-size: 11px; color: #fff; background: #9aa3ad;
+  border-radius: 999px; padding: 1px 7px; min-width: 18px; text-align: center;
+}
+.cookie-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-top: 1px solid var(--divider);
+}
+.cookie-row:hover { background: var(--surface-2); }
+.cookie-main { flex: 1; min-width: 0; }
+.cookie-name { font-size: 13px; font-weight: 600; word-break: break-all; }
+.cookie-value {
+  font-size: 11.5px; color: var(--text-3, #8a9099); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  word-break: break-all;
+}
+.cookie-meta { display: flex; flex-wrap: wrap; gap: 4px; max-width: 38%; justify-content: flex-end; }
+.cookie-badge {
+  font-size: 10.5px; color: var(--text-3, #8a9099);
+  background: var(--surface-2); border-radius: 4px; padding: 1px 6px; white-space: nowrap;
+}
+.cookie-badge-exp { color: #b07a1f; background: #fbf1de; }
+.cookie-acts { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* 通用弹窗（新增 / 编辑 Cookie、确认框） */
+.sv-modal-mask {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0, 0, 0, .42);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.sv-modal {
+  width: 420px; max-width: 100%; max-height: 90vh; overflow-y: auto;
+  background: var(--surface, #fff); border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .28);
+  display: flex; flex-direction: column;
+}
+.sv-modal-sm { width: 340px; }
+.sv-modal-head { padding: 16px 18px 0; font-size: 15px; font-weight: 700; }
+.sv-modal-body { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+.sv-modal-msg { font-size: 13px; color: var(--text-2, #5b6168); line-height: 1.6; }
+.sv-modal-hint { font-size: 11.5px; color: var(--text-3, #8a9099); line-height: 1.6; }
+.sv-field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--text-2, #5b6168); }
+.sv-field-row { display: flex; gap: 18px; }
+.ck-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2, #5b6168); }
+.sv-field .input { width: 100%; }
+.sv-modal-foot {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 12px 18px 16px;
+}

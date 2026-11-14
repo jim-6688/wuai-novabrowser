@@ -96,8 +96,10 @@ const dynamicIds = new Set([
   'bm-browsers',       // buildBookmarks() 的「从已安装的浏览器导入」那一块；
                        // 内容还是异步的（detectBrowsers() 回填），所以连它内部的
                        // 那几行也是 JS 生成的
-  'bm-manage-list'     // buildBookmarks() 的书签列表容器（可拖动排序）；
+  'bm-manage-list',    // buildBookmarks() 的书签列表容器（可拖动排序）；
                        // 拖完由 renderBookmarkManageList() 就地替换，所以也不在 HTML 里
+  'cookie-list',       // buildCookies() 的「Cookie 列表」容器，由 loadCookies() 异步回填
+  'cookie-search'      // buildCookies() 的搜索框，同上，运行时由 buildCookies() 注入
 ]);
 console.log(`  HTML id ${htmlIds.size} 个 / JS 引用 ${usedIds.size} 个`);
 const missingIds = [...usedIds].filter((id) => !htmlIds.has(id) && !dynamicIds.has(id));
