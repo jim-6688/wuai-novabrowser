@@ -20,7 +20,7 @@
     <link rel="icon" href="assets/img/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
     <link rel="apple-touch-icon" href="assets/img/favicon-32.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=2.1.0">
+    <link rel="stylesheet" href="assets/css/style.css?v=3.0.0">
     <!-- 安装包直链在独立域名（多吉云 CDN）。preconnect 提前做 DNS + TLS 握手，
          用户点「下载」时首包更快；dns-prefetch 兜底更老的浏览器。 -->
     <link rel="preconnect" href="https://download.52ta.top" crossorigin>
@@ -66,8 +66,8 @@
                     <a class="btn btn-ghost btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser" target="_blank" rel="noopener">查看源码</a>
                 </div>
                 <div class="hero-meta">
-                    <span id="verLatest">最新版本 2.1.0（47）</span>
-                    <span id="verDate">更新于 2026-11-11</span>
+                    <span id="verLatest">最新版本 3.0.0（48）</span>
+                    <span id="verDate">更新于 2026-11-14</span>
                     <span><i></i>Windows 10 及以上 · Android 7.0 及以上</span>
                     <span><i></i>手机版不内置内核 · 零个 .so</span>
                 </div>
@@ -196,6 +196,20 @@
                     <li><b>目录只有一个源</b>：官网、Gitee、GitHub 三处自动回退，任一处挂掉仍能拉到列表；官网「插件商店」板块和浏览器内商店读的是同一份清单，不会各说各话。</li>
                     <li><b>安装链路复用既有能力</b>：已安装判重、下载失败、地址不合法都有明确反馈；清单字段做了白名单与兜底，目录写错也不会把浏览器带跑偏。</li>
                     <li><b>能力边界照实写明</b>：官网目前只托管目录，扩展包本体仍取自 Chrome 应用店国内镜像。清单已预留自托管字段，以后把包放进官网或对象存储，改一个字段即可切换。</li>
+                </ul>
+            </article>
+
+            <article class="rel">
+                <div class="rel-head">
+                    <strong>手机版 3.0.0</strong>
+                    <span>2026-11-14</span>
+                </div>
+                <ul>
+                    <li><b>新增真正的阅读模式</b>：按正文密度与链接密度给页面分块打分，挑出正文后注入阅读浮层。入口在「工具 → 阅读增强」弹层顶部，与原有的无图三档、自动拼页并存，不互斥。</li>
+                    <li><b>新增截图分享与二维码</b>：网页截图可直接生成二维码；地址栏浮层补齐四格快捷操作，分享走自写的 ShareProvider，不引 androidx FileProvider。</li>
+                    <li><b>新增 WebRTC 防护、网页视频画中画与稍后读</b>：防护是 JS 软屏蔽（挡住 IP 泄露类接口，可在设置里开关）；画中画在视频全屏时接管；稍后读在长按链接与工具菜单都能存入。</li>
+                    <li><b>新增 Cookie 管理</b>：设置内按站点枚举、查看、删除与清空，与 PC 端同一批补齐的能力。</li>
+                    <li><b>应用图标新增 AI 角标</b>，双端图标资产重新生成；本轮同时补齐阅读模式、截图分享、稍后读等回归脚本。</li>
                 </ul>
             </article>
 
@@ -622,7 +636,7 @@
                 <div class="cmp-col">
                     <div class="cmp-hd">
                         <span class="cmp-os">Android</span>
-                        <strong>手机版 · v2.1.0</strong>
+                        <strong>手机版 · v3.0.0</strong>
                         <span class="cmp-size">约 800 KB</span>
                     </div>
                     <ul class="cmp-list">
@@ -798,19 +812,19 @@
                 <h3 class="dl-os">Android 手机版</h3>
                 <div class="dl-box">
                     <div class="dl-version">
-                        <strong id="dlVer">v2.1.0</strong>
-                        <span id="dlStamp">更新于 2026-11-12</span>
+                        <strong id="dlVer">v3.0.0</strong>
+                        <span id="dlStamp">更新于 2026-11-14</span>
                         <span class="dl-count" id="dlCountAndroid" hidden></span>
                     </div>
                     <p class="dl-note" id="dlNote">安装包大小约 800 KB。安装前请在系统设置中允许来自此来源的应用。</p>
                     <div class="dl-list" id="dlBtns">
-                        <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v2.1.0-android/nova-2.1.0.apk" data-dl="android" download>Gitee Releases · v2.1.0</a>
-                        <a class="btn btn-ghost btn-lg" href="download/nova-2.1.0.apk" data-dl="android" download>官网直链 · v2.1.0</a>
+                        <a class="btn btn-primary btn-lg" href="https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v3.0.0-android/nova-3.0.0.apk" data-dl="android" download>Gitee Releases · v3.0.0</a>
+                        <a class="btn btn-ghost btn-lg" href="download/nova-3.0.0.apk" data-dl="android" download>官网直链 · v3.0.0</a>
                     </div>
                     <ul class="dl-facts" id="dlFacts">
-                        <li><span>版本</span><span>2.1.0</span></li>
-                        <li><span>版本码</span><span>46</span></li>
-                        <li><span>更新日期</span><span>2026-11-11</span></li>
+                        <li><span>版本</span><span>3.0.0</span></li>
+                        <li><span>版本码</span><span>48</span></li>
+                        <li><span>更新日期</span><span>2026-11-14</span></li>
                     </ul>
                 </div>
             </div>
@@ -855,6 +869,6 @@
     </div>
 </footer>
 
-<script src="assets/js/app.js?v=2.1.0"></script>
+<script src="assets/js/app.js?v=3.0.0"></script>
 </body>
 </html>

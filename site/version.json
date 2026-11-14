@@ -1,26 +1,29 @@
 {
-  "version": "2.1.0",
-  "versionCode": 47,
+  "version": "3.0.0",
+  "versionCode": 48,
   "channel": "release",
-  "updatedAt": "2026-11-12",
+  "updatedAt": "2026-11-14",
   "mandatory": false,
   "minVersionCode": 1,
   "changelog": [
-    "搜索引擎预设新增「元宝」（腾讯 AI 搜索，so.qq.com），并已设为地址栏默认搜索引擎",
-    "实装 Nova 2026 视觉规范：暖纸色外壳、浮起标签卡片、彩色工具栏方块与重做的新标签页"
+    "新增真正的阅读模式：按正文密度打分提取正文，在阅读增强面板顶部一键进入，与无图三档/自动拼页并存",
+    "新增截图分享与二维码：网页截图可生成二维码，地址栏浮层补齐四格快捷操作",
+    "新增 WebRTC 防护、网页视频画中画与稍后读：防护为 JS 软屏蔽，稍后读可从长按链接或工具菜单存入",
+    "新增 Cookie 管理：设置内按站点枚举、查看、删除与清空 Cookie",
+    "应用图标新增 AI 角标，双端图标资产重新生成"
   ],
   "downloads": [
     {
       "label": "Gitee Releases",
-      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v2.1.0-android/nova-2.1.0.apk",
-      "size": 750802,
-      "sha256": "246377cfafc908e78eca010a2b58e33126677a08b5715ad98f4365d992af4351"
+      "url": "https://gitee.com/jinghe-net/i-adore-the-nova-browser/releases/download/v3.0.0-android/nova-3.0.0.apk",
+      "size": 778699,
+      "sha256": "e574e453a271ebf00b567de49b58c4c890482b34d6b582da3fbf643e5a87990b"
     },
     {
       "label": "官网直链",
-      "url": "download/nova-2.1.0.apk",
-      "size": 750802,
-      "sha256": "246377cfafc908e78eca010a2b58e33126677a08b5715ad98f4365d992af4351"
+      "url": "download/nova-3.0.0.apk",
+      "size": 778699,
+      "sha256": "e574e453a271ebf00b567de49b58c4c890482b34d6b582da3fbf643e5a87990b"
     }
   ],
   "pc": {
