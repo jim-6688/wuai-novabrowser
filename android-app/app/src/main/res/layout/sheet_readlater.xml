@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  稍后读管理。与 sheet_bookmarks 同一套骨架（卡片 + 空态 + 清空），
+  只是没有「导入」（稍后读是本机临时的阅读队列，不该从别的浏览器搬过来）。
+
+  列表按加入时间倒序：最近加的在最上面，符合「刚看到、等下就看」的心智。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="18dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="8dp"
+        android:text="点一下即前往 · 右侧 × 移出列表"
+        android:textColor="@color/text_4"
+        android:textSize="11.5sp" />
+
+    <TextView
+        android:id="@+id/rlEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="@string/readlater_empty"
+        android:textColor="@color/text_4"
+        android:textSize="12.5sp"
+        android:lineSpacingExtra="4dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="30dp"
+        android:paddingBottom="30dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="120dp"
+        android:maxHeight="420dp">
+
+        <LinearLayout
+            android:id="@+id/rlList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:background="@drawable/bg_menu_group"
+            android:divider="@drawable/divider_row"
+            android:showDividers="middle" />
+    </ScrollView>
+
+    <TextView
+        android:id="@+id/rlClear"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="14dp"
+        android:gravity="center"
+        android:background="@drawable/row"
+        android:text="@string/rl_clear"
+        android:textColor="@color/text_2"
+        android:textSize="14sp" />
+</LinearLayout>

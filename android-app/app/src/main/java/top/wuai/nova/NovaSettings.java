@@ -138,6 +138,44 @@ public final class NovaSettings {
     /** 关闭页面时是否清 Cookie 与缓存 */
     public boolean clearOnExit = false;
 
+    /**
+     * Cookie 管理记住的域名集合（换行分隔）。
+     *
+     * <p>Android 的 {@code CookieManager} 没有「列出全部 Cookie」的 API，
+     * 只能按域名取。于是枚举哪些域名就成了自己的事：当前标签、历史、收藏
+     * 覆盖绝大多数情况，但这里额外存一份「发现过 / 手动加过」的域名，
+     * 这样即使用户清了历史，那些站点的 Cookie 仍能在管理面板里再次出现。
+     */
+    public String cookieDomains = "";
+
+    // ---- 新增：隐私增强（WebRTC）
+    /**
+     * WebRTC 防护：把网页里的 {@code RTCPeerConnection} 覆盖成「一创建就抛错」，
+     * 站点无法建立点对点连接，也就没法借 STUN 探测出本机真实 IP。
+     *
+     * <p>默认关：视频 / 语音通话类网页依赖 WebRTC，开了它们会直接失效。
+     * 这是「隐私优先于便利」的取舍，所以交给用户自己开，不替他默认打开。
+     *
+     * <p>Android 的 WebView 没有 Chrome 那种 {@code webrtc.ip_handling_policy}
+     * 之类的官方开关，纯靠 JS 注入拦，见 {@code MainActivity#JS_WEBRTC_KILL}。
+     */
+    public boolean webRtcProtect = false;
+
+    // ---- 新增：网页视频画中画
+    /**
+     * 网页视频画中画：正在看全屏视频时按 Home 离开，自动把视频收进角落小窗继续播。
+     *
+     * <p>默认开：这是「主流浏览器都有」的体验，且离开应用时视频不中断很自然。
+     * 关掉则退化为普通全屏（离开应用就暂停 / 退出全屏）。
+     *
+     * <p>注意：WebView 没有「网页视频原生 PiP」的干净 API，这里的做法是接管
+     * HTML5 全屏视频（{@code onShowCustomView}），在 {@code onUserLeaveHint}
+     * 时让整个 Activity 进 PiP —— 因为视频是 Activity 里 WebView 的一部分，
+     * Activity 进画中画后它仍在跑，于是视频就「浮」在角落继续播。这是平台下
+     * 能做的、最稳的网页视频 PiP 方案。
+     */
+    public boolean pipEnabled = true;
+
     // ---- 新增：高级
     /** 自定义 UA。空字符串表示用系统默认。 */
     public String customUA = "";
@@ -257,6 +295,9 @@ public final class NovaSettings {
         m.put("pageZoom", String.valueOf(pageZoom));
         m.put("loadImages", String.valueOf(loadImages));
         m.put("forceHttps", String.valueOf(forceHttps));
+        m.put("cookieDomains", cookieDomains);
+        m.put("webRtcProtect", String.valueOf(webRtcProtect));
+        m.put("pipEnabled", String.valueOf(pipEnabled));
         return m;
     }
 
@@ -309,6 +350,11 @@ public final class NovaSettings {
         s.pageZoom = clamp(intOf(m.get("pageZoom"), s.pageZoom), 0, 200);
         s.loadImages = bool(m.get("loadImages"), s.loadImages);
         s.forceHttps = bool(m.get("forceHttps"), s.forceHttps);
+        if (m.get("cookieDomains") != null) s.cookieDomains = m.get("cookieDomains");
+        // 这两个默认都是 false / true：从字段初值取 fallback，保证升级上来的老用户
+        // 不会因为配置文件里没有这个键而被 bool() 强行改成另一套默认。
+        s.webRtcProtect = bool(m.get("webRtcProtect"), s.webRtcProtect);
+        s.pipEnabled = bool(m.get("pipEnabled"), s.pipEnabled);
         return s;
     }
 

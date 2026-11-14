@@ -36,12 +36,14 @@ public final class NovaStore {
     private final SharedPreferences prefs;
     private final BookmarkStore bookmarkStore;
     private final HistoryStore historyStore;
+    private final ReadLaterStore readLaterStore;
 
     public NovaStore(Context ctx) {
         this.ctx = ctx.getApplicationContext();
         this.prefs = this.ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         this.bookmarkStore = new BookmarkStore(this.ctx.getFilesDir());
         this.historyStore = new HistoryStore(this.ctx.getFilesDir());
+        this.readLaterStore = new ReadLaterStore(this.ctx.getFilesDir());
     }
 
     // ---------------------------------------------------------------- 设置
@@ -659,6 +661,7 @@ public final class NovaStore {
         if (f.exists()) f.delete();
         bookmarkStore.clear();
         historyStore.clear();
+        readLaterStore.clear();
         java.io.File sd = scriptsDir();
         java.io.File[] kids = sd.listFiles();
         if (kids != null) {
@@ -708,6 +711,36 @@ public final class NovaStore {
     /** 清空全部书签。 */
     public void clearBookmarks() {
         bookmarkStore.clear();
+    }
+
+    // ------------------------------------------------------------ 稍后读
+
+    /** 稍后读列表，按加入时间倒序（最新在最前）。 */
+    public List<ReadLaterStore.Item> readLaters() {
+        return readLaterStore.list();
+    }
+
+    /** 当前 url 是否已在稍后读里。 */
+    public boolean isReadLater(String url) {
+        return readLaterStore.contains(url);
+    }
+
+    /**
+     * 加入稍后读。已存在（同 url）则不动，避免重复。
+     * 返回是否是「新加的」—— 调用方靠这个决定弹什么提示。
+     */
+    public boolean addReadLater(String url, String title) {
+        return readLaterStore.add(url, title);
+    }
+
+    /** 从稍后读移除一条（按 url）。 */
+    public void removeReadLater(String url) {
+        readLaterStore.remove(url);
+    }
+
+    /** 清空全部稍后读。 */
+    public void clearReadLaters() {
+        readLaterStore.clear();
     }
 
     // ------------------------------------------------------------ 浏览历史

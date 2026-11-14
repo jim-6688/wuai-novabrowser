@@ -2,6 +2,7 @@ package top.wuai.nova;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.PictureInPictureParams;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -14,10 +15,13 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.Paint;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -56,14 +60,18 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TimeZone;
 
 import org.json.JSONObject;
 
@@ -169,6 +177,11 @@ public final class MainActivity extends Activity {
     /** 脚本读失败的原因，要在界面上显示，不能只记日志。 */
     private String autoPageError = "";
 
+    /** 阅读模式（正文提取）脚本全文。同样缓存住，避免每次切换都读一次 assets。 */
+    private String readerScript = "";
+    /** 脚本读失败的原因，要在界面上显示，不能只记日志。 */
+    private String readerError = "";
+
     private final Handler main = new Handler(Looper.getMainLooper());
     /** 状态轮询。只在拼页开着时挂，停了就没必要再问页面要状态。 */
     private Runnable poll;
@@ -178,6 +191,16 @@ public final class MainActivity extends Activity {
 
     /** WebView 的 client 只绑一次 —— 它是同一个实例，重复绑定会让回调跑多遍。 */
     private boolean webClientBound;
+
+    /**
+     * HTML5 全屏视频（{@code onShowCustomView}）接管时，被托管的那个视图。
+     * 空表示当前没有全屏视频。画中画触发时靠它判断「有没有可浮的 video」。
+     */
+    private View customView;
+    /** 全屏视图的回调，退出全屏时通知系统。 */
+    private WebChromeClient.CustomViewCallback customViewCallback;
+    /** 是否正处于画中画状态。 */
+    private boolean inPictureInPicture;
 
     /**
      * 启动遮罩。冷启动时盖在主界面上，等首屏页面画出第一帧再淡出。
@@ -228,6 +251,18 @@ public final class MainActivity extends Activity {
     private EditText urlBar;
     /** 纠正全角句号「。」时的重入保护位（替换会触发自身回调，挡一下）。 */
     private boolean fixingFullWidthPeriod;
+    /**
+     * 程序化回填地址栏时的重入保护位。
+     *
+     * <p>syncUrlBar（页面加载把标题/网址写进地址栏）、以及聚焦时把显示中的网站名
+     * 切回真实网址，都是「代码在写」，不是用户在打字。这一刻的 {@code setText}
+     * 会一路触发 {@link android.text.TextWatcher#afterTextChanged}，若不挡住，
+     * 就会被当成「用户开始输网址」去跑输入联想 —— 于是每次打开 / 刷新网页，
+     * 地址栏下面都会自己弹出一截网址列表。b6b0507 取消「打开即自动聚焦地址栏」
+     * 之后，syncUrlBar 不再被 {@code if (urlBar.hasFocus()) return;} 拦掉，
+     * 这处回归才暴露出来。
+     */
+    private boolean syncingOmnibox;
     private ProgressBar progress;
     private TextView statusStrip;
     private TextView noImageChip;
@@ -399,6 +434,12 @@ public final class MainActivity extends Activity {
             autoPageScript = store.readAssetText(AutoPage.ASSET);
         } catch (Exception e) {
             autoPageError = AutoPage.ASSET + " 读取失败，自动拼页不可用";
+        }
+
+        try {
+            readerScript = store.readAssetText(Reader.ASSET);
+        } catch (Exception e) {
+            readerError = Reader.ASSET + " 读取失败，阅读模式不可用";
         }
 
         mountMain();
@@ -1113,6 +1154,9 @@ public final class MainActivity extends Activity {
                 // 只更新地址栏，不动 tab.url —— 后者是「这个标签本来要去哪」，
                 // 被页面内的跳转改写，会让会话恢复直接跳进广告落地页。
                 syncUrlBar(url);
+                // WebRTC 防护：在页面脚本普遍运行前把 RTCPeerConnection 废掉。
+                // 不开（默认）就不注入，零性能开销、也不影响网页通话类功能。
+                if (settings.webRtcProtect) injectWebRtcKill();
             }
 
             @Override
@@ -1270,6 +1314,46 @@ public final class MainActivity extends Activity {
                 // 标题到手后，若地址栏当前正显示网址（未聚焦），刷新成中文网站名。
                 if (urlBar != null && !urlBar.hasFocus()) {
                     syncUrlBar(currentUrl());
+                }
+            }
+
+            /**
+             * 接管 HTML5 全屏视频（网页里点全屏播放触发）。
+             *
+             * <p>不接管的话，很多站点的全屏视频在 WebView 里根本不显示（系统默认
+             * 行为在不同 ROM 上不一致，有的会直接黑屏）。这里把系统给的视图盖到
+             * 窗口最上层，视频就能正常全屏了。
+             *
+             * <p>这一步也是画中画的前提：{@link #onUserLeaveHint()} 靠 {@link #customView}
+             * 非空判断「当前正看全屏视频」，才决定要不要进画中画。
+             */
+            @Override
+            public void onShowCustomView(View view, WebChromeClient.CustomViewCallback cb) {
+                if (customView != null) {
+                    // 上一段全屏还没退出（极端情况），先让系统把它收掉再接管新的。
+                    cb.onCustomViewHidden();
+                    return;
+                }
+                customView = view;
+                customViewCallback = cb;
+                FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+                decor.addView(view, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            }
+
+            /**
+             * 退出全屏。把视图从窗口顶层移除并通知系统。
+             * 用户点视频自带的全屏退出按钮、或画中画里点「返回」都会走到这里。
+             */
+            @Override
+            public void onHideCustomView() {
+                if (customView == null) return;
+                FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+                decor.removeView(customView);
+                customView = null;
+                if (customViewCallback != null) {
+                    customViewCallback.onCustomViewHidden();
+                    customViewCallback = null;
                 }
             }
         });
@@ -1886,8 +1970,15 @@ public final class MainActivity extends Activity {
                 Tab t = current();
                 String real = (t != null) ? t.url : null;
                 if (real != null && !urlBar.getText().toString().equals(real)) {
-                    urlBar.setText(real);
-                    urlBar.setSelection(real.length());
+                    // 切回真实网址是「代码在写」，挡掉输入联想；
+                    // 复制/分享浮层照常在聚焦时弹出（那是用户要开始输网址的信号）。
+                    syncingOmnibox = true;
+                    try {
+                        urlBar.setText(real);
+                        urlBar.setSelection(real.length());
+                    } finally {
+                        syncingOmnibox = false;
+                    }
                 }
                 showUrlActions();
             } else {
@@ -1912,6 +2003,10 @@ public final class MainActivity extends Activity {
                 // 这里实时纠正，免得用户敲完回车才发现网址被打坏。
                 fixFullWidthPeriod(s);
                 if (urlActions != null && urlActions.isShowing()) dismissUrlActions();
+                // 程序化回填（syncUrlBar / 聚焦切真实网址）不是用户在打字，
+                // 这一刻直接 return，别去跑输入联想 —— 否则每次页面加载把标题
+                // 写进地址栏都会弹出网址列表。真正的「输入即联想」只在用户敲字时走。
+                if (syncingOmnibox) return;
                 // 输入即联想（防抖 220ms）。候选只服务「正在输入」这一刻，
                 // 回车、失焦、跳转都会收掉，见 scheduleSuggest / hideSuggest。
                 scheduleSuggest(s == null ? "" : s.toString());
@@ -2122,6 +2217,15 @@ public final class MainActivity extends Activity {
             dismissUrlActions();
             shareCurrentUrl();
         });
+        // 截图：抓当前页 → 存 PNG → 直接进系统分享（不绕进弹层）。
+        box.findViewById(R.id.urlActShot).setOnClickListener(v -> captureAndShareScreenshot());
+        // 二维码：当前页网址编成二维码，进弹层可保存 / 分享。
+        box.findViewById(R.id.urlActQr).setOnClickListener(v -> showQrSheet());
+        // 稍后读：把当前页存进「稍后读」队列，浮层先收掉再存。
+        box.findViewById(R.id.urlActRead).setOnClickListener(v -> {
+            dismissUrlActions();
+            addReadLater();
+        });
 
         PopupWindow pop = new PopupWindow(box,
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
@@ -2176,6 +2280,191 @@ public final class MainActivity extends Activity {
         String title = (web != null && web.getTitle() != null) ? web.getTitle() : "";
         if (!title.isEmpty()) send.putExtra(Intent.EXTRA_SUBJECT, title);
         startActivity(Intent.createChooser(send, getString(R.string.url_share_title)));
+    }
+
+    // ---- 截图与二维码分享（功能 #17）----
+
+    /**
+     * 截图 / 二维码图片的落盘目录：app 私有外部 Pictures/novabrowser。
+     *
+     * <p>写 {@code getExternalFilesDir(Environment.DIRECTORY_PICTURES)} 不受分区存储限制，
+     * 且不需要任何存储权限 —— 本工程现有权限清单里没有 READ/WRITE_EXTERNAL_STORAGE
+     * （除了一条仅 24-28 生效的 WRITE）。图片只在「本应用内生成、本应用分享出去」这条链路里，
+     * 私有目录足够，不必碰公共相册。目录与 {@link ShareProvider#picturesDir} 保持一致，
+     * 否则 content:// 解析会找不到文件。
+     */
+    private File shareImageDir() {
+        File base = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File dir = new File(base != null ? base : getFilesDir(), "novabrowser");
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    /**
+     * 把当前 WebView 这一帧画到一张尺寸受限的 Bitmap 上。
+     *
+     * <p>复用 {@code captureSnapshot} 的 {@code draw + Canvas} 思路 —— 它最直白，
+     * 画不出东西就是空白，天然安全，不像某些「截 WebView」现成方法在页面没画完时抛。
+     * 限制最大宽度是为了别生成一张几 MB 的全屏图：分享走 content://，图太大只是浪费。
+     *
+     * @param maxW 输出最大宽度（像素）；高度按比例缩放。
+     * @return 白底的 ARGB_8888 图；页面还没画出来 / 不在网页页时返回 null。
+     */
+    private Bitmap captureScreenshot(int maxW) {
+        if (web == null) return null;
+        int vw = web.getWidth();
+        int vh = web.getHeight();
+        if (vw == 0 || vh == 0) return null;
+        int w = Math.min(maxW, vw);
+        int h = Math.max(1, vh * w / vw);
+        Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
+        // 白底：WebView 透明处会露出白，避免 PNG 在深色查看器里发灰。
+        canvas.drawColor(Color.WHITE);
+        canvas.scale((float) w / vw, (float) h / vh);
+        try {
+            web.draw(canvas);
+        } catch (Exception ignored) {
+            // 页面还没画出内容时 draw 可能抛。截不到图只是分享少一张，
+            // 不该因此打断用户。
+            return null;
+        }
+        return bmp;
+    }
+
+    /**
+     * 在截图底部盖一条深色页脚，写上来源网址，让 PNG 自带出处、不丢上下文。
+     *
+     * <p>网址太长时按像素宽度截断并补省略号，避免画出框外。用默认字体
+     * （Paint 默认 typeface 自带 CJK 回退），不指定自定义字体，省去字体资源、也不怕中文缺字。
+     *
+     * @return 带页脚的新图；原图为空时返回 null。
+     */
+    private Bitmap stamp(Bitmap src, String text) {
+        if (src == null) return null;
+        int w = src.getWidth();
+        int h = src.getHeight();
+        // 页脚高度随宽度走，保证不同分辨率下比例一致。
+        int fh = Math.max(36, w / 22);
+        Bitmap out = Bitmap.createBitmap(w, h + fh, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(out);
+        c.drawBitmap(src, 0, 0, null);
+        Paint bar = new Paint();
+        bar.setColor(0xFF202020);
+        c.drawRect(0, h, w, h + fh, bar);
+        Paint tp = new Paint();
+        tp.setColor(0xFFEDEDED);
+        tp.setTextSize(fh * 0.42f);
+        tp.setAntiAlias(true);
+        String label = (text == null) ? "" : text;
+        int maxTextW = w - dp(24);
+        if (tp.measureText(label) > maxTextW) {
+            while (label.length() > 1 && tp.measureText(label + "…") > maxTextW) {
+                label = label.substring(0, label.length() - 1);
+            }
+            label = label + "…";
+        }
+        Paint.FontMetrics fm = tp.getFontMetrics();
+        float baseline = h + (fh - (fm.ascent + fm.descent)) / 2f;
+        c.drawText(label, dp(12), baseline, tp);
+        return out;
+    }
+
+    /** 把 Bitmap 压成 PNG 落盘，返回文件；失败返回 null。文件名带时间戳，避免覆盖。 */
+    private File saveBitmap(Bitmap bmp, String prefix) {
+        if (bmp == null) return null;
+        String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT).format(new Date());
+        File f = new File(shareImageDir(), prefix + "_" + ts + ".png");
+        try (FileOutputStream out = new FileOutputStream(f)) {
+            bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
+            out.flush();
+            return f;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 通过系统分享把一张图片发出去。
+     *
+     * <p>走 {@link ShareProvider} 的 content:// 地址 + {@code FLAG_GRANT_READ_URI_PERMISSION}，
+     * 绕开 Android 7+ 的 FileUriExposedException。收件应用只在被授权那一刻能读到这张图。
+     */
+    private void shareImage(File png, String chooserTitle) {
+        if (png == null || !png.isFile()) {
+            toast("图片生成失败");
+            return;
+        }
+        Uri uri = ShareProvider.uriFor(png);
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("image/png");
+        send.putExtra(Intent.EXTRA_STREAM, uri);
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(Intent.createChooser(send, chooserTitle));
+    }
+
+    /**
+     * 地址栏浮层「截图」：抓当前页 → 盖网址页脚 → 存 PNG → 直接进系统分享。
+     *
+     * <p>不是网页页（内置新标签页 / about:blank / data:）没有可截的内容，给一句提示而不是静默。
+     */
+    private void captureAndShareScreenshot() {
+        dismissUrlActions();
+        if (!mainViewMounted) return;
+        if (web == null) {
+            toast("当前没有可截图的页面");
+            return;
+        }
+        String url = currentUrl();
+        if (url == null || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+            toast("当前页面不是网页，无法截图");
+            return;
+        }
+        Bitmap shot = captureScreenshot(1080);
+        if (shot == null) {
+            toast("截图失败");
+            return;
+        }
+        // 盖页脚前先保留原图引用；stamp 返回新图后回收原图，别漏 native 内存。
+        Bitmap stamped = stamp(shot, url);
+        if (stamped != shot) shot.recycle();
+        File png = saveBitmap(stamped, "nova_screenshot");
+        shareImage(png, "分享截图");
+    }
+
+    /**
+     * 地址栏浮层「二维码」：把当前页网址编成二维码，弹层里可保存 / 分享。
+     *
+     * <p>不是网页页没有网址可编，给一句提示而不是弹空层。
+     */
+    private void showQrSheet() {
+        dismissUrlActions();
+        String url = shareableUrl();
+        if (url == null) {
+            toast(getString(R.string.url_no_site));
+            return;
+        }
+        View sheet = openSheet(getString(R.string.sheet_qr), R.layout.sheet_qr);
+        ImageView qrImg = sheet.findViewById(R.id.qrImg);
+        TextView qrUrl = sheet.findViewById(R.id.qrUrl);
+        qrUrl.setText(url);
+        // 生成尺寸取 512px：弹层里再缩到 240dp 显示，放大生成、缩小显示能保证模块锐利。
+        Bitmap qr = QrGen.make(url, 512);
+        if (qr == null) {
+            toast("二维码生成失败");
+            mountMain();
+            return;
+        }
+        qrImg.setImageBitmap(qr);
+        qrImg.setTag(qr); // 留住引用，避免被 GC 回收后 ImageView 显示空白
+        sheet.findViewById(R.id.qrSave).setOnClickListener(v -> {
+            File png = saveBitmap(qr, "nova_qr");
+            toast(png != null ? getString(R.string.qr_saved) : "保存失败");
+        });
+        sheet.findViewById(R.id.qrShare).setOnClickListener(v -> {
+            File png = saveBitmap(qr, "nova_qr");
+            shareImage(png, getString(R.string.url_share_title));
+        });
     }
 
     /**
@@ -2339,29 +2628,37 @@ public final class MainActivity extends Activity {
         // 那时主界面还没 inflate（见 bootBrowser）。
         if (urlBar == null) return;
         if (urlBar.hasFocus()) return;
-        if (NewTab.isNewTab(url)) {
-            // 内置新标签页的真身是一条 file:///android_asset/newtab.html?theme=…&data=…
-            // 的地址，又长又吓人（像是踩进了本机哪个文件），显示成「新标签页」。
-            //
-            // 走 hint 而不是 text：写成 text 的话，用户点亮地址栏直接敲回车，
-            // 敲出去的就是「新标签页」四个字，会被当成搜索词送给搜索引擎。
-            // 空 text + hint 则与初始状态一致，用户看到的就是一个待输入的框。
-            urlBar.setText("");
-            urlBar.setHint(R.string.omnibox_new_tab);
-            return;
+        // 这一段全是「代码在回填地址栏」，不是用户在打字。用保护位挡掉
+        // TextWatcher 里的输入联想，否则每次打开 / 刷新网页把标题写进地址栏，
+        // 都会弹出一截网址列表（b6b0507 取消自动聚焦后暴露的回归，见 syncingOmnibox）。
+        syncingOmnibox = true;
+        try {
+            if (NewTab.isNewTab(url)) {
+                // 内置新标签页的真身是一条 file:///android_asset/newtab.html?theme=…&data=…
+                // 的地址，又长又吓人（像是踩进了本机哪个文件），显示成「新标签页」。
+                //
+                // 走 hint 而不是 text：写成 text 的话，用户点亮地址栏直接敲回车，
+                // 敲出去的就是「新标签页」四个字，会被当成搜索词送给搜索引擎。
+                // 空 text + hint 则与初始状态一致，用户看到的就是一个待输入的框。
+                urlBar.setText("");
+                urlBar.setHint(R.string.omnibox_new_tab);
+                return;
+            }
+            // 非聚焦、已加载的普通网页：地址栏显示中文网站名（标题）而非裸网址，
+            // 聚焦/点击地址栏时再切回真实网址（见 setupOmnibox 的 focus 监听）。
+            String title = null;
+            Tab t = current();
+            if (t != null && !TextUtils.isEmpty(t.title)) title = t.title;
+            if (title != null) {
+                urlBar.setText(title);
+            } else {
+                urlBar.setText(url == null ? "" : url);
+            }
+            urlBar.setHint(R.string.omnibox_hint);
+            urlBar.setSelection(urlBar.getText().length());
+        } finally {
+            syncingOmnibox = false;
         }
-        // 非聚焦、已加载的普通网页：地址栏显示中文网站名（标题）而非裸网址，
-        // 聚焦/点击地址栏时再切回真实网址（见 setupOmnibox 的 focus 监听）。
-        String title = null;
-        Tab t = current();
-        if (t != null && !TextUtils.isEmpty(t.title)) title = t.title;
-        if (title != null) {
-            urlBar.setText(title);
-        } else {
-            urlBar.setText(url == null ? "" : url);
-        }
-        urlBar.setHint(R.string.omnibox_hint);
-        urlBar.setSelection(urlBar.getText().length());
     }
 
     // ------------------------------------------------------------ 标签
@@ -3467,6 +3764,34 @@ public final class MainActivity extends Activity {
 
     // ------------------------------------------------------- 阅读增强弹层
 
+    /**
+     * 进入 / 退出阅读模式。
+     *
+     * <p>脚本是「自切换」的：页面里已有阅读层就撤掉并返回 off，否则提取正文铺层并返回 on。
+     * 这里只做三件事：非网页页不让进、把脚本塞进当前页、把回传状态译成一句话。
+     * 按钮文案随状态翻转（进入→退出），但用户在阅读层里点「退出」时这里收不到回调，
+     * 所以下次打开弹层仍是默认「进入」——这不要紧，脚本侧的状态才是真相，按钮只是个触发器。
+     */
+    private void enterReader(TextView rdEnter) {
+        if (web == null) return;
+        String url = currentUrl();
+        if (url == null || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+            toast("当前页面不是网页，无法进入阅读模式");
+            return;
+        }
+        web.evaluateJavascript(readerScript, raw -> {
+            Reader.Status st = Reader.parseStatus(raw);
+            if (!st.ok) {
+                toast(st.summary());
+                return;
+            }
+            toast(st.summary());
+            if (rdEnter != null) {
+                rdEnter.setText(st.isOn() ? "退出阅读模式" : "进入阅读模式");
+            }
+        });
+    }
+
     private void showReadSheet() {
         View sheet = openSheet(getString(R.string.sheet_read), R.layout.sheet_read);
 
@@ -3492,6 +3817,17 @@ public final class MainActivity extends Activity {
             seg.addView(b);
         }
         updateNoImageHint(sheet);
+
+        // 真正的阅读模式：进入 / 退出靠同一段脚本自切换（window.__novaReaderOn 记状态），
+        // 这里只负责把脚本塞进页面、再把回传的状态串翻译成一句话提示。
+        final TextView rdEnter = sheet.findViewById(R.id.rdEnter);
+        final TextView rdHint = sheet.findViewById(R.id.rdHint);
+        if (!readerError.isEmpty()) {
+            rdEnter.setEnabled(false);
+            rdHint.setText(readerError);
+        } else {
+            rdEnter.setOnClickListener(v -> enterReader(rdEnter));
+        }
 
         // 拼页上限三档。按下去即开启拼页并重载 —— 配置必须在页面脚本注入前生效，
         // 所以走一次 reload 而不是等下一次导航。
@@ -3581,6 +3917,13 @@ public final class MainActivity extends Activity {
                     : "最近 " + store.history().size() + " 条"), () -> {
             mountMain();
             showHistorySheet();
+        }, true);
+        // 稍后读：存起来空闲时再看。副标题显示已存条数，空则提示「空」。
+        menuRow(sheet, R.id.menuReadLater, R.drawable.ic_readlater, getString(R.string.sheet_readlater),
+            store.readLaters().isEmpty() ? "空"
+                : getString(R.string.readlater_count, store.readLaters().size()), () -> {
+            mountMain();
+            showReadLaterSheet();
         }, true);
 
         // ---- 工具：对网页的加工能力（下载 / 阅读 / 篡改猴 / 广告拦截），
@@ -3979,6 +4322,73 @@ public final class MainActivity extends Activity {
     }
 
     /**
+     * 把当前页加入「稍后读」。
+     *
+     * <p>和收藏共享同一套网址守卫（{@link #hasSiteUrl}）：新标签页 / 空白页这类
+     * 没有网址的页，点了不该有反应 —— 弹一句提示比静默更符合直觉。
+     */
+    private void addReadLater() {
+        if (!mainViewMounted) mountMain();
+        String url = currentUrl();
+        if (!hasSiteUrl(url)) {
+            toast(getString(R.string.readlater_no_site));
+            return;
+        }
+        String title = (web != null && web.getTitle() != null) ? web.getTitle() : url;
+        if (store.addReadLater(url, title)) {
+            toast(getString(R.string.readlater_added));
+        } else {
+            toast(getString(R.string.readlater_dup));
+        }
+    }
+
+    /**
+     * 「稍后读」列表面板。点整行去那个网址，右侧 × 移出。
+     * 与 {@link #showBookmarksSheet()} 同一套骨架（卡片 + 空态 + 清空）。
+     */
+    private void showReadLaterSheet() {
+        View sheet = openSheet(getString(R.string.sheet_readlater), R.layout.sheet_readlater);
+
+        LinearLayout list = sheet.findViewById(R.id.rlList);
+        List<ReadLaterStore.Item> items = store.readLaters();
+        sheet.findViewById(R.id.rlEmpty)
+            .setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+
+        for (ReadLaterStore.Item it : items) list.addView(readLaterRow(list, it));
+
+        sheet.findViewById(R.id.rlClear).setOnClickListener(v -> {
+            final int n = store.readLaters().size();
+            if (n == 0) return;
+            new NovaAlert(this, getString(R.string.sheet_readlater),
+                "会清空全部 " + n + " 条稍后读，无法撤销。")
+                .positive("清空", () -> {
+                    store.clearReadLaters();
+                    showReadLaterSheet();
+                })
+                .negative("取消", null)
+                .show();
+        });
+    }
+
+    private View readLaterRow(LinearLayout parent, final ReadLaterStore.Item it) {
+        View row = LayoutInflater.from(this).inflate(R.layout.item_readlater, parent, false);
+        ((TextView) row.findViewById(R.id.rlTitle)).setText(it.title);
+        ((TextView) row.findViewById(R.id.rlUrl)).setText(it.url);
+
+        // 点整行去那个网址；右侧 × 单独删，互不干扰。
+        row.setOnClickListener(v -> {
+            mountMain();
+            go(it.url);
+        });
+        row.findViewById(R.id.rlRemove).setOnClickListener(v -> {
+            store.removeReadLater(it.url);
+            // 重新弹一次：列表是自己重画的，不重画的话删掉的那条还在原地。
+            showReadLaterSheet();
+        });
+        return row;
+    }
+
+    /**
      * 编辑一条收藏：改标题、改网址、移出。
      *
      * <p>网址允许只写 {@code zhihu.com}（{@link UrlInput} 补 https://），
@@ -4116,6 +4526,334 @@ public final class MainActivity extends Activity {
         c.set(Calendar.SECOND, 0);
         c.set(Calendar.MILLISECOND, 0);
         return c.getTimeInMillis();
+    }
+
+    // ---------------------------------------------------------- Cookie 管理
+
+    /**
+     * 一条 Cookie 的轻量表示。
+     *
+     * <p>Android 的 {@link CookieManager#getCookie} 只吐回 {@code name=value; name=value}，
+     * 拿不到 secure / httpOnly / 过期时间这些属性 —— 那是 CookieManager 的固有限制，
+     * 不是我们没存。所以这里只记「哪个域、叫什么、值是什么」，够做查看 / 改值 / 删除；
+     * 需要精确控制过期与路径时，在「编辑」里另外填。
+     */
+    private static final class CookieItem {
+        final String domain;
+        final String name;
+        final String value;
+        final String url;
+        CookieItem(String domain, String name, String value, String url) {
+            this.domain = domain;
+            this.name = name;
+            this.value = value;
+            this.url = url;
+        }
+    }
+
+    /**
+     * Cookie 管理面板。
+     *
+     * <p>枚举是后台做的：{@code getCookie} 可能触发 Cookie 存储的磁盘读取，
+     * 放在 UI 线程会卡一下。先把空态亮出来，线程回来再填列表。
+     *
+     * <p>枚举哪些域名本身是个设计点：CookieManager 没有「列出全部」的接口，
+     * 只能按域名取（见 {@link #collectCookieHosts}）。
+     */
+    private void showCookieSheet() {
+        View sheet = openSheet(getString(R.string.sheet_cookie), R.layout.sheet_cookie);
+
+        LinearLayout list = sheet.findViewById(R.id.cookieList);
+        TextView empty = sheet.findViewById(R.id.cookieEmpty);
+        empty.setVisibility(View.VISIBLE);
+        list.removeAllViews();
+
+        // 后台枚举域名再取 Cookie，避免在主线程读 Cookie 存储造成卡顿。
+        final Set<String> hosts = collectCookieHosts();
+
+        sheet.findViewById(R.id.cookieAdd).setOnClickListener(v -> showCookieEdit(null));
+
+        sheet.findViewById(R.id.cookieClearAll).setOnClickListener(v -> {
+            final int n = list.getChildCount();
+            if (n == 0) {
+                toast("没有可清空的 Cookie");
+                return;
+            }
+            new NovaAlert(this, getString(R.string.cookie_clear_all),
+                "会删除全部网站的 Cookie，需要重新登录，无法撤销。")
+                .positive("清空", () -> {
+                    CookieManager.getInstance().removeAllCookies(null);
+                    CookieManager.getInstance().flush();
+                    // 全清之后追踪的域名也没有意义了。
+                    settings.cookieDomains = "";
+                    store.save(settings);
+                    showCookieSheet();
+                    toast(getString(R.string.cookie_cleared));
+                })
+                .negative("取消", null)
+                .show();
+        });
+
+        new Thread(() -> {
+            List<CookieItem> items = new ArrayList<>();
+            for (String h : hosts) {
+                String url = "https://" + h;
+                String raw = CookieManager.getInstance().getCookie(url);
+                if (raw == null || raw.isEmpty()) continue;
+                for (String pair : raw.split(";")) {
+                    String p = pair.trim();
+                    int eq = p.indexOf('=');
+                    // 没有等号的碎片（少数站点会塞这种）直接跳过，不能当 Cookie。
+                    if (eq <= 0) continue;
+                    items.add(new CookieItem(h, p.substring(0, eq).trim(),
+                        p.substring(eq + 1).trim(), url));
+                }
+            }
+            // 真正有 Cookie 的域名记进设置：历史清空后还能再管理它们。
+            Set<String> seen = new LinkedHashSet<>();
+            for (CookieItem c : items) seen.add(c.domain);
+            if (!seen.equals(new LinkedHashSet<>(splitDomains(settings.cookieDomains)))) {
+                settings.cookieDomains = joinDomains(seen);
+                store.save(settings);
+            }
+            final List<CookieItem> finalItems = items;
+            runOnUiThread(() -> {
+                if (finalItems.isEmpty()) {
+                    empty.setVisibility(View.VISIBLE);
+                    list.removeAllViews();
+                } else {
+                    empty.setVisibility(View.GONE);
+                    list.removeAllViews();
+                    for (CookieItem c : finalItems) list.addView(cookieRow(list, c));
+                }
+            });
+        }).start();
+    }
+
+    private View cookieRow(LinearLayout parent, final CookieItem c) {
+        View row = LayoutInflater.from(this).inflate(R.layout.item_cookie, parent, false);
+        ((TextView) row.findViewById(R.id.ckName)).setText(c.name);
+        ((TextView) row.findViewById(R.id.ckValue)).setText(c.value);
+        ((TextView) row.findViewById(R.id.ckDomain)).setText(c.domain);
+
+        // 整行进编辑；右侧 × 单独删这一条。
+        row.setOnClickListener(v -> showCookieEdit(c));
+        row.findViewById(R.id.ckRemove).setOnClickListener(v -> removeCookie(c));
+        return row;
+    }
+
+    /**
+     * 新增 / 编辑 Cookie。
+     *
+     * <p>{@code existing} 为 null 是新增；否则是编辑，名称栏只读
+     * （名称 + 域名用来定位要改的那条，改名走「删旧的 + 存新的」）。
+     */
+    private void showCookieEdit(final CookieItem existing) {
+        final View sheet = openSheet(
+            existing == null ? getString(R.string.cookie_add) : "编辑 Cookie",
+            R.layout.sheet_cookie_edit);
+
+        final EditText name = sheet.findViewById(R.id.ckEditName);
+        final EditText value = sheet.findViewById(R.id.ckEditValue);
+        final EditText domain = sheet.findViewById(R.id.ckEditDomain);
+        final EditText path = sheet.findViewById(R.id.ckEditPath);
+        final EditText exp = sheet.findViewById(R.id.ckEditExp);
+        final TextView tip = sheet.findViewById(R.id.ckEditTip);
+
+        if (existing != null) {
+            name.setText(existing.name);
+            name.setEnabled(false);   // 名称只读：它是定位键，不该在编辑时改
+            value.setText(existing.value);
+            domain.setText(existing.domain);
+            path.setText("/");
+        } else {
+            String cur = hostOf(currentUrl());
+            domain.setText(cur == null ? "" : cur);
+            path.setText("/");
+        }
+        tip.setVisibility(View.GONE);
+
+        // 新增模式下没有「要删的东西」，把删除键收掉，避免一个点了没反应的按钮。
+        sheet.findViewById(R.id.ckEditRemove).setVisibility(
+            existing == null ? View.GONE : View.VISIBLE);
+
+        sheet.findViewById(R.id.ckEditRemove).setOnClickListener(v -> {
+            if (existing != null) {
+                removeCookie(existing);
+            } else {
+                showCookieSheet();
+            }
+        });
+
+        sheet.findViewById(R.id.ckEditSave).setOnClickListener(v -> {
+            final String n = name.getText().toString().trim();
+            final String dv = domain.getText().toString().trim();
+            if (n.isEmpty() || dv.isEmpty()) {
+                tip.setText("名称和域名都不能为空");
+                tip.setVisibility(View.VISIBLE);
+                return;
+            }
+            final String url = toCookieUrl(dv);
+            if (url.isEmpty()) {
+                tip.setText("域名看起来不对：写 example.com 或 https://… 都行");
+                tip.setVisibility(View.VISIBLE);
+                return;
+            }
+            final String val = value.getText().toString();
+            String p = path.getText().toString().trim();
+            final String e = exp.getText().toString().trim();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append(n).append('=').append(val);
+            if (!p.isEmpty()) sb.append("; Path=").append(p.startsWith("/") ? p : "/" + p);
+            if (!e.isEmpty()) {
+                long days = parseLongSafe(e, -1);
+                if (days <= 0) {
+                    tip.setText("有效期请填一个大于 0 的天数，或留空表示会话期");
+                    tip.setVisibility(View.VISIBLE);
+                    return;
+                }
+                sb.append("; Expires=").append(expiryGmt(days));
+            }
+            final String cookie = sb.toString();
+            final String host = hostOf(url);
+            final boolean rename = existing != null
+                && (!existing.domain.equals(host) || !existing.name.equals(n));
+
+            new Thread(() -> {
+                // 编辑时改了域名或名称：先按旧的定位键删掉，再存新的。
+                if (rename) {
+                    String oldUrl = toCookieUrl(existing.domain);
+                    if (!oldUrl.isEmpty()) {
+                        CookieManager.getInstance().setCookie(oldUrl,
+                            existing.name + "=; Path=/; Expires=Wed, 09 Jun 2021 00:00:00 GMT");
+                    }
+                }
+                CookieManager.getInstance().setCookie(url, cookie);
+                CookieManager.getInstance().flush();
+                // 把域名加进追踪集合，方便以后再次管理。
+                Set<String> ds = new LinkedHashSet<>(splitDomains(settings.cookieDomains));
+                if (host != null) ds.add(host);
+                settings.cookieDomains = joinDomains(ds);
+                store.save(settings);
+                final boolean wasEdit = existing != null;
+                runOnUiThread(() -> {
+                    showCookieSheet();
+                    toast(getString(wasEdit ? R.string.cookie_updated : R.string.cookie_added));
+                });
+            }).start();
+        });
+    }
+
+    /** 删一条 Cookie：用过期时间设成过去来让 CookieManager 丢弃它。 */
+    private void removeCookie(final CookieItem c) {
+        final String url = toCookieUrl(c.domain);
+        if (url.isEmpty()) return;
+        new Thread(() -> {
+            CookieManager.getInstance().setCookie(url,
+                c.name + "=; Path=/; Expires=Wed, 09 Jun 2021 00:00:00 GMT");
+            CookieManager.getInstance().flush();
+            runOnUiThread(() -> {
+                showCookieSheet();
+                toast(getString(R.string.cookie_removed));
+            });
+        }).start();
+    }
+
+    /**
+     * 收集要枚举的域名：当前页 + 所有标签 + 历史 + 收藏 + 已追踪域名。
+     *
+     * <p>前四类覆盖绝大多数「我访问过的站点」；最后一类（{@code cookieDomains}）
+     * 让清过历史之后仍能再次管理那些站点的 Cookie——否则一个会话 Cookie
+     * 会因为历史被清而再也找不回来。
+     */
+    private Set<String> collectCookieHosts() {
+        Set<String> hs = new LinkedHashSet<>();
+        String cur = hostOf(currentUrl());
+        if (cur != null) hs.add(cur);
+        for (Tab t : tabs) {
+            String h = hostOf(t.url);
+            if (h != null) hs.add(h);
+        }
+        for (HistoryStore.Entry e : store.history()) {
+            String h = hostOf(e.url);
+            if (h != null) hs.add(h);
+        }
+        for (BookmarkStore.Bookmark b : store.bookmarks()) {
+            String h = hostOf(b.url);
+            if (h != null) hs.add(h);
+        }
+        for (String d : splitDomains(settings.cookieDomains)) {
+            hs.add(d.toLowerCase(Locale.ROOT));
+        }
+        hs.remove("localhost");
+        return hs;
+    }
+
+    /** 从 URL 或裸域名里取出规范化主机名（去端口、去路径、转小写）。 */
+    private static String hostOf(String url) {
+        if (url == null || url.isEmpty()) return null;
+        String u = url.trim();
+        String host;
+        if (u.contains("://")) {
+            host = Uri.parse(u).getHost();
+            if (host == null) host = u;
+        } else {
+            host = u;   // 当裸域名处理
+        }
+        host = host.replaceAll("^[.]+", "").trim();
+        int slash = host.indexOf('/');
+        if (slash >= 0) host = host.substring(0, slash);
+        int colon = host.indexOf(':');
+        if (colon >= 0) host = host.substring(0, colon);
+        if (host.isEmpty()) return null;
+        return host.toLowerCase(Locale.ROOT);
+    }
+
+    /** 把任意输入变成可喂给 CookieManager 的 https URL；不像网址则返回空串。 */
+    private static String toCookieUrl(String raw) {
+        if (raw == null) return "";
+        String r = raw.trim();
+        if (r.isEmpty()) return "";
+        if (r.contains("://")) return r;
+        String h = hostOf(r);
+        return h == null ? "" : "https://" + h;
+    }
+
+    /** N 天后的 GMT 过期串，格式符合 Cookie 规范（Wed, 09 Jun 2027 00:00:00 GMT）。 */
+    private static String expiryGmt(long days) {
+        SimpleDateFormat f = new SimpleDateFormat(
+            "EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
+        f.setTimeZone(TimeZone.getTimeZone("GMT"));
+        return f.format(new java.util.Date(
+            System.currentTimeMillis() + days * 86400000L));
+    }
+
+    private static long parseLongSafe(String s, long fallback) {
+        try {
+            return Long.parseLong(s.trim());
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private static List<String> splitDomains(String s) {
+        List<String> out = new ArrayList<>();
+        if (s == null) return out;
+        for (String part : s.split("[\\s,;]+")) {
+            String t = part.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
+
+    private static String joinDomains(Set<String> ds) {
+        StringBuilder sb = new StringBuilder();
+        for (String d : ds) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(d);
+        }
+        return sb.toString();
     }
 
     // ---------------------------------------------------------- 插件面板
@@ -5667,6 +6405,37 @@ public final class MainActivity extends Activity {
                 })
                 .show());
 
+        // Cookie 管理：进一个独立面板做查看 / 新增 / 编辑 / 删除 / 清空。
+        // 不放开关、不放右侧取值——它本身就是一组动作，不是某个二态设置。
+        setRow(sheet, R.id.setCookies, "Cookie 管理",
+            "查看、新增、编辑与删除各网站的 Cookie", null, true, () -> {
+                mountMain();
+                showCookieSheet();
+            });
+
+        // WebRTC 防护：把网页里的 RTCPeerConnection 覆盖成「一创建就抛错」，
+        // 站点无法建点对点连接，也就没法借 STUN 探测出本机真实 IP（WebRTC 泄漏）。
+        // 默认关：开了会让网页视频 / 语音通话类功能直接失效，属于「隐私优先于便利」的取舍。
+        setToggleRow(sheet, R.id.setWebRtc, "WebRTC 防护",
+            "禁用网页 WebRTC，防止真实 IP 通过视频/语音通话泄漏；会令网页通话类功能失效",
+            settings.webRtcProtect, false, () -> {
+                settings.webRtcProtect = !settings.webRtcProtect;
+                store.save(settings);
+                repaintToggle(sheet, R.id.setWebRtc, settings.webRtcProtect);
+                // 立即对当前页生效：下一帧 onPageStarted 会重新注入，无需手动 reload。
+                injectWebRtcKill();
+            });
+
+        // 网页视频画中画：看全屏视频时按 Home 键，自动把视频收进角落小窗继续播。
+        // 默认开；关掉则离开应用就退全屏 / 暂停，不进画中画。
+        setToggleRow(sheet, R.id.setPip, "网页视频画中画",
+            "看全屏视频时按 Home 键自动收进角落小窗继续播放；离开应用即退全屏",
+            settings.pipEnabled, false, () -> {
+                settings.pipEnabled = !settings.pipEnabled;
+                store.save(settings);
+                repaintToggle(sheet, R.id.setPip, settings.pipEnabled);
+            });
+
         // ---- 应用更新
         setToggleRow(sheet, R.id.setUpdateAuto, "自动下载更新",
             "开着：发现新版直接后台下载，下完只提示「重启更新」；关着：每次先问一句再下",
@@ -6252,6 +7021,33 @@ public final class MainActivity extends Activity {
         web.evaluateJavascript(JS_UNLOCK_ZOOM, null);
     }
 
+    /**
+     * WebRTC 防护：把网页里的 {@code RTCPeerConnection} 系列覆盖成「一创建就抛错」，
+     * 站点无法建立点对点连接，自然也就借不到 STUN 探测出的本机真实 IP。
+     *
+     * <p>Android 的 WebView 没有 Chrome 那种 {@code webrtc.ip_handling_policy} 官方开关，
+     * 纯靠 JS 注入拦。注入时机在 {@link #onPageStarted}：页面脚本普遍在 load 后才跑，
+     * 我们的脚本先入队、先执行，能在大多数站点建连前把构造器废掉。
+     *
+     * <p>软屏蔽的限制（如实说明，免得用户以为「开了就绝对不漏」）：
+     * ① 注入前那一瞬若有脚本已 new 过连接则拦不住；② 个别站点用别的名字建连会漏；
+     * ③ 真要硬隔离得走系统级 VPN / 代理，这不是浏览器能独自保证的。
+     * 整段包在 try 里，注入失败不影响页面正常加载。
+     */
+    private void injectWebRtcKill() {
+        if (web == null) return;
+        web.evaluateJavascript(JS_WEBRTC_KILL, null);
+    }
+
+    /** 见 {@link #injectWebRtcKill()}。把几种 RTCPeerConnection 别名的构造器都废掉。 */
+    private static final String JS_WEBRTC_KILL = "(function(){try{"
+            + "var block=function(){throw new Error('WebRTC 已禁用（隐私防护）');};"
+            + "if(window.RTCPeerConnection)window.RTCPeerConnection=block;"
+            + "if(window.webkitRTCPeerConnection)window.webkitRTCPeerConnection=block;"
+            + "if(window.mozRTCPeerConnection)window.mozRTCPeerConnection=block;"
+            + "if(window.msRTCPeerConnection)window.msRTCPeerConnection=block;"
+            + "}catch(e){}})();";
+
     /** 见 {@link #injectZoomSupport(String)}。整段包在 try 里，注入失败不能影响页面。 */
     private static final String JS_UNLOCK_ZOOM = "(function(){try{"
         + "var ms=document.querySelectorAll('meta'),m=null;"
@@ -6755,6 +7551,38 @@ public final class MainActivity extends Activity {
         // 视图树，留着不会自动消失 —— 用户去别的应用转一圈回来，
         // 会看到它还原样悬在地址栏下面（而地址栏可能已经不是那一页了）。
         dismissUrlActions();
+    }
+
+    /**
+     * 用户离开应用（通常按 Home）。若正看着全屏视频，自动进画中画让视频继续播。
+     *
+     * <p>这是网页视频画中画能成立的唯一可靠触发点：WebView 没有「网页视频原生 PiP」
+     * 的 API，借不到视频元素本身。但全屏视频是 Activity 里 WebView 的一部分，
+     * 让整个 Activity 进画中画、视频仍在跑，就「浮」在角落继续播了。
+     *
+     * <p>只对「有全屏视频」的情形触发（{@link #customView} 非空）；普通页面离开
+     * 绝不进画中画，否则会把整页缩成小窗，反而吓人。
+     */
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (settings.pipEnabled && customView != null
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                enterPictureInPictureMode(new PictureInPictureParams.Builder().build());
+            } catch (Exception ignored) {
+                // 设备/系统不支持、或在多窗口等不允许的时刻：静默放弃，
+                // 不影响正常离开应用。
+            }
+        }
+    }
+
+    /** 跟踪画中画状态，便于其它逻辑判断（如退出时的清理）。 */
+    @Override
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode,
+                                              android.content.res.Configuration newConfig) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        inPictureInPicture = isInPictureInPictureMode;
     }
 
     @Override

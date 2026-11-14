@@ -101,6 +101,19 @@
          不说「操作失败」—— 什么都没坏，只是这一页没有网址。 -->
     <string name="url_no_site">这一页没有网址</string>
 
+    <!-- 地址栏浮层新增的两个动作：截图、二维码。宽度不变，只多一行（2×2 四格）。 -->
+    <string name="url_act_shot">截图</string>
+    <string name="url_act_qr">二维码</string>
+
+    <!-- 二维码弹层：把当前页网址编成二维码，另一台设备扫一下就能打开。 -->
+    <string name="sheet_qr">二维码</string>
+    <string name="qr_hint">扫码即可在另一台设备打开此网址</string>
+    <string name="qr_save">保存图片</string>
+    <string name="qr_share">分享</string>
+    <!-- 图片落在 app 私有 Pictures/novabrowser，不是系统相册；
+         不说「保存到相册」以免误导，只说「已保存」。 -->
+    <string name="qr_saved">二维码已保存</string>
+
     <!-- 新标签页的三种取值，对应设置里「新标签页」那一行。
          「内置」＝随包自带的这一页（品牌区 + 快捷方式九宫格），
          它与桌面端共用 src/renderer/newtab.html 一份源。 -->
@@ -120,10 +133,44 @@
     <string name="bookmark_added">已收藏</string>
     <string name="bookmark_removed">已取消收藏</string>
 
+    <!-- 稍后读：把当前网页存起来，空闲时再读。 -->
+    <string name="sheet_readlater">稍后读</string>
+    <string name="readlater_empty">还没有「稍后读」的网页。打开网页后点地址栏的「稍后读」即可加入。</string>
+    <string name="readlater_added">已加入稍后读</string>
+    <string name="readlater_dup">已经在稍后读里了</string>
+    <string name="readlater_removed">已移出稍后读</string>
+    <string name="readlater_cleared">已清空稍后读</string>
+    <string name="rl_clear">清空稍后读</string>
+    <string name="readlater_count">已存 %1$d 条</string>
+    <!-- 地址栏浮层第三行的动作 -->
+    <string name="url_act_readlater">稍后读</string>
+    <!-- 没网址的页（新标签页 / 空白页）点「稍后读」时说的话 -->
+    <string name="readlater_no_site">这一页没有可保存的网址</string>
+
 
     <string name="sheet_history">历史</string>
     <string name="history_empty">还没有浏览记录。只记录 http/https 网页，无痕模式下不记。</string>
     <string name="history_visits">%1$d 次</string>
+
+    <!-- Cookie 管理 -->
+    <string name="sheet_cookie">Cookie 管理</string>
+    <string name="cookie_empty">还没有可管理的 Cookie。浏览网页产生 Cookie 后会出现在这里，也可以手动新增。</string>
+    <string name="cookie_add">新增 Cookie</string>
+    <string name="cookie_clear_all">清空全部 Cookie</string>
+    <string name="cookie_remove">删除</string>
+    <string name="cookie_name">名称</string>
+    <string name="cookie_value">值</string>
+    <string name="cookie_domain">域名</string>
+    <string name="cookie_path">路径</string>
+    <string name="cookie_exp">有效期（天，留空=会话期）</string>
+    <string name="cookie_name_hint">cookie 名称</string>
+    <string name="cookie_value_hint">cookie 值</string>
+    <string name="cookie_domain_hint">example.com 或 https://…</string>
+    <string name="cookie_path_hint">/（根路径）</string>
+    <string name="cookie_added">Cookie 已添加</string>
+    <string name="cookie_updated">Cookie 已更新</string>
+    <string name="cookie_cleared">已清空全部 Cookie</string>
+    <string name="cookie_removed">已删除该 Cookie</string>
 
     <string name="zoom_small">小</string>
     <string name="zoom_default">默认</string>

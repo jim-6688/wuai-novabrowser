@@ -251,6 +251,17 @@
                 <View android:layout_width="match_parent" android:layout_height="1dp"
                     android:background="@drawable/divider_row" />
                 <include layout="@layout/item_menu" android:id="@+id/setClear" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <include layout="@layout/item_menu" android:id="@+id/setCookies" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <!-- WebRTC 防护：关掉后网页无法建点对点连接，但网页通话类功能会失效。 -->
+                <include layout="@layout/item_menu" android:id="@+id/setWebRtc" />
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@drawable/divider_row" />
+                <!-- 网页视频画中画：看全屏视频时按 Home 自动收进角落小窗继续播。 -->
+                <include layout="@layout/item_menu" android:id="@+id/setPip" />
             </LinearLayout>
 
             <!-- ============ 应用更新 ============ -->

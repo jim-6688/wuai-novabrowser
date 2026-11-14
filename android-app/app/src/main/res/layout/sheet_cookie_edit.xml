@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「新增 / 编辑 Cookie」弹层：名称、值、域名、路径、有效期。
+
+  名称在「编辑」时只读：它和域名一起定位要改的那条 Cookie，
+  改名等于删旧的、加新的，放在保存逻辑里处理，不在输入框上开放。
+
+  域名那一栏允许只写 zhihu.com（代码里补 https://），但不会把不像
+  网址的内容偷偷转成搜索链接——Cookie 是精确匹配域名的，写错就放不进去。
+
+  有效期填「天数」：留空 = 会话期 Cookie（关浏览器即失效），填数字 = N 天后过期。
+  不另做日期选择器——天数对绝大多数场景够用，也最好校验（数字错了当场提示）。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="18dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_3"
+        android:textSize="11.5sp"
+        android:text="域名可以只写 example.com；有效期留空表示会话期 Cookie。" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_2"
+        android:textSize="12sp"
+        android:text="@string/cookie_name" />
+
+    <EditText
+        android:id="@+id/ckEditName"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/omnibox"
+        android:hint="@string/cookie_name_hint"
+        android:importantForAutofill="no"
+        android:inputType="text"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="@color/text"
+        android:textSize="14sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_2"
+        android:textSize="12sp"
+        android:text="@string/cookie_value" />
+
+    <EditText
+        android:id="@+id/ckEditValue"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/omnibox"
+        android:hint="@string/cookie_value_hint"
+        android:importantForAutofill="no"
+        android:inputType="text"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="@color/text"
+        android:textSize="14sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_2"
+        android:textSize="12sp"
+        android:text="@string/cookie_domain" />
+
+    <EditText
+        android:id="@+id/ckEditDomain"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/omnibox"
+        android:hint="@string/cookie_domain_hint"
+        android:importantForAutofill="no"
+        android:inputType="textUri"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="@color/text"
+        android:textSize="14sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_2"
+        android:textSize="12sp"
+        android:text="@string/cookie_path" />
+
+    <EditText
+        android:id="@+id/ckEditPath"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/omnibox"
+        android:hint="@string/cookie_path_hint"
+        android:importantForAutofill="no"
+        android:inputType="text"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="@color/text"
+        android:textSize="14sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/text_2"
+        android:textSize="12sp"
+        android:text="@string/cookie_exp" />
+
+    <EditText
+        android:id="@+id/ckEditExp"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/omnibox"
+        android:hint="30（天），留空=会话期"
+        android:importantForAutofill="no"
+        android:inputType="number"
+        android:maxLines="1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="@color/text"
+        android:textSize="14sp" />
+
+    <!-- 出错提示（域名不像域名 / 有效期不是正数）。平时 gone，不占高度。 -->
+    <TextView
+        android:id="@+id/ckEditTip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="20dp"
+        android:textColor="@color/danger"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/ckEditRemove"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:background="@drawable/bg_btn_outline"
+            android:text="@string/cookie_remove"
+            android:textColor="@color/danger"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/ckEditSave"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="2"
+            android:layout_marginStart="10dp"
+            android:gravity="center"
+            android:background="@drawable/bg_btn_solid"
+            android:text="@string/action_confirm"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>

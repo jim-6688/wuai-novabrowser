@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cookie 管理面板。骨架沿用历史面板（一列条目 + 空态 + 清空），
+  多一个「新增 Cookie」动作：Cookie 不是自动长出来的，得让人能主动加。
+
+  条目按域名聚合的逻辑放在代码里（同域名的 Cookie 归到一组），
+  这里只负责一个白卡列表容器；每行长什么样见 item_cookie.xml。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="18dp">
+
+    <include layout="@layout/sheet_head" />
+
+    <TextView
+        android:id="@+id/cookieEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="@string/cookie_empty"
+        android:textColor="@color/text_4"
+        android:textSize="12.5sp"
+        android:lineSpacingExtra="4dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="30dp"
+        android:paddingBottom="30dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="120dp"
+        android:maxHeight="420dp">
+
+        <!-- 同历史面板：一组白卡 + 行间一条灰线（showDividers="middle"）。 -->
+        <LinearLayout
+            android:id="@+id/cookieList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:background="@drawable/bg_menu_group"
+            android:divider="@drawable/divider_row"
+            android:showDividers="middle" />
+    </ScrollView>
+
+    <TextView
+        android:id="@+id/cookieAdd"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="14dp"
+        android:gravity="center"
+        android:background="@drawable/row"
+        android:text="@string/cookie_add"
+        android:textColor="@color/text"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/cookieClearAll"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:background="@drawable/row"
+        android:text="@string/cookie_clear_all"
+        android:textColor="@color/danger"
+        android:textSize="14sp" />
+</LinearLayout>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  二维码。三个定位角（左上 / 右上 / 左下）外加右下一组小方块模拟数据区，
+  这是二维码最易辨认的特征 —— 比画满整张点阵更轻，也更能让人一眼认出「这是二维码」。
+
+  用于地址栏点开后的「二维码」按钮。风格照抄 ic_copy / ic_share：
+  18dp、viewport 20、strokeWidth 1.5、stroke 用 accent（与「分享该网站」同色系）。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp" android:height="18dp"
+    android:viewportWidth="20" android:viewportHeight="20">
+    <!-- 左上定位角：外框 + 内点 -->
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M3,3 h5 v5 h-5 z" />
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M4.5,4.5 h2 v2 h-2 z" />
+    <!-- 右上定位角 -->
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M12,3 h5 v5 h-5 z" />
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M13.5,4.5 h2 v2 h-2 z" />
+    <!-- 左下定位角 -->
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M3,12 h5 v5 h-5 z" />
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M4.5,13.5 h2 v2 h-2 z" />
+    <!-- 右下数据区：2×2 小方块，模拟二维码的信息点 -->
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M12,12 h1.4 v1.4 h-1.4 z" />
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M15.6,12 h1.4 v1.4 h-1.4 z" />
+    <path android:strokeColor="@color/accent" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M12,15.6 h1.4 v1.4 h-1.4 z" />
+</vector>

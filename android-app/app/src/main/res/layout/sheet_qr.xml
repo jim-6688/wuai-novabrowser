@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  二维码弹层。把当前页网址编成二维码，另一台设备扫一下就能打开。
+
+  为什么是弹层而不是塞进工具网格：工具网格（sheet_tools.xml）已经 4×2 铺满，
+  它的顶部长注释里讲过「凑满 / 拉宽 / 缺一口」的排版考量，往里塞会破坏那套平衡。
+  入口放在地址栏浮层（pop_url_actions.xml）的「二维码」格，顺手、不孤儿旧功能。
+
+  ImageView 用纯白底：二维码是「黑点 + 透明」，透明处会露出底下的白，
+  黑点永远落在白底上 —— 暗色主题里也照样清晰可扫。
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxHeight="560dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="20dp">
+
+        <include layout="@layout/sheet_head" />
+
+        <ImageView
+            android:id="@+id/qrImg"
+            android:layout_width="240dp"
+            android:layout_height="240dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="16dp"
+            android:background="@android:color/white"
+            android:padding="14dp"
+            android:scaleType="fitXY"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/qrUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text"
+            android:textSize="12.5sp"
+            android:lineSpacingExtra="3dp"
+            android:ellipsize="middle"
+            android:maxLines="2"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="12dp"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/qrHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/qr_hint"
+            android:textColor="@color/text_3"
+            android:textSize="11.5sp"
+            android:lineSpacingExtra="3dp"
+            android:gravity="center"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="14dp">
+
+            <TextView
+                android:id="@+id/qrSave"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:gravity="center"
+                android:background="@drawable/row"
+                android:text="@string/qr_save"
+                android:textColor="@color/text"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/qrShare"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:gravity="center"
+                android:background="@drawable/row"
+                android:text="@string/qr_share"
+                android:textColor="@color/text"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

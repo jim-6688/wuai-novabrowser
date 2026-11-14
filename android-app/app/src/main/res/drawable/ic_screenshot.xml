@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  截图。一个取景框 + 中央快门圆：取景框是「要截哪块」，快门圆是「按下即截」。
+  这个组合在移动端是截图/相机的通识记号，比画一台相机更轻。
+
+  用于地址栏点开后的「截图」按钮。风格照抄 ic_copy / ic_share：
+  18dp、viewport 20、strokeWidth 1.5、stroke 用 brand。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp" android:height="18dp"
+    android:viewportWidth="20" android:viewportHeight="20">
+    <!-- 取景框：圆角矩形 -->
+    <path android:strokeColor="@color/brand" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M4,3.2 a0.8,0.8 0 0 0 -0.8,0.8 v12 a0.8,0.8 0 0 0 0.8,0.8 h12 a0.8,0.8 0 0 0 0.8,-0.8 v-12 a0.8,0.8 0 0 0 -0.8,-0.8 z" />
+    <!-- 快门圆：圆心 (10,10)，半径 2 -->
+    <path android:strokeColor="@color/brand" android:strokeWidth="1.5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M8,10 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 z" />
+</vector>

@@ -67,6 +67,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density|fontScale"
             android:windowSoftInputMode="adjustResize|stateHidden">
 
@@ -104,6 +105,23 @@
         <provider
             android:name=".ApkProvider"
             android:authorities="top.wuai.nova.apk"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <!--
+          把自己截好的图 / 生成的二维码 PNG 交给系统分享目标的那条通道。
+
+          与 ApkProvider 同一套标准写法：exported="false" + grantUriPermissions="true"。
+          平时谁也读不到里面的东西，只有在分享那一刻由我们临时把读权限授予收件应用。
+          Android 7.0 起不允许把 file:// 地址交给别的应用（会直接抛
+          FileUriExposedException），所以截图 / 二维码分享必须走这一层。
+
+          权限校验在 ShareProvider 里：只放行 Pictures/novabrowser 下的 .png，
+          文件名含 / 或 .. 一律拒绝。
+        -->
+        <provider
+            android:name=".ShareProvider"
+            android:authorities="top.wuai.nova.share"
             android:exported="false"
             android:grantUriPermissions="true" />
 

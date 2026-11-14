@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp" android:height="20dp"
+    android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="@color/text_3">
+    <!-- 稍后读：一个时钟，表达「留着以后看」。与 ic_bookmark 同级视觉（20dp / 线宽 1.6）。 -->
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M10,3.5 A6.5,6.5 0 1,0 10,16.5 A6.5,6.5 0 1,0 10,3.5 Z" />
+    <path android:strokeColor="#000" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M10,7 L10,10 L13,12" />
+</vector>
