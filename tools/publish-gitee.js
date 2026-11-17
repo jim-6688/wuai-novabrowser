@@ -91,12 +91,16 @@ function pcVersion() {
   return pkg.version || '0.1.0';
 }
 
-function changelog(tag) {
+function changelog(tag, isPc) {
   const v = JSON.parse(fs.readFileSync(path.join(ROOT, 'site/version.json'), 'utf8'));
-  // PC 版（v1.0.x）的更新日志在 pc.changelog 里，和安卓那份是两套。
+  // PC 的更新日志在 pc.changelog 里，和安卓那份是两套。
   // 早先一律取顶层，结果 PC Release 的正文写着安卓的更新内容 —— 看的人
   // 会以为这一版也发了安卓包。
-  const list = /^v1\.0\./.test(tag || '') ? ((v.pc && v.pc.changelog) || []) : (v.changelog || []);
+  //
+  // 判定方式：主流程显式给了 --pc 附件就是 PC 发布。以前用 /^v1\.0\./
+  // 猜 tag，那是 PC 还停在 1.0.x 时的写法；PC 升到 3.x 后条件失效，会把
+  // 安卓 3.0.0 的日志发到 PC 3.2.0 的 Release 上。tag 名不可靠，附件参数可靠。
+  const list = isPc ? ((v.pc && v.pc.changelog) || []) : (v.changelog || []);
   return list.map((s) => '- ' + s).join('\n');
 }
 
@@ -143,10 +147,12 @@ async function main() {
 
   const ver = appVersion();
   const tag = args.tag || ('v' + ver);
+  // 是否 PC 发布，以显式给的 --pc 附件为准（tag 名不可靠，见 changelog 注释）。
+  const isPc = !!args.pc;
   // 只发 PC 那一版时，报出来的版本要用 PC 自己的号 ——
-  // 否则 Release 标题写着 1.6.4 而附件是 1.0.4，看的人会以为安卓也发了。
-  const shownVer = /^v1\.0\./.test(tag) ? 'PC ' + tag.slice(1) : ver;
-  const body = changelog(tag) + '\n\n（由 tools/publish-gitee.js 自动发布）';
+  // 否则 Release 标题写着安卓的号而附件是 PC 的，看的人会以为安卓也发了。
+  const shownVer = isPc ? 'PC ' + pcVersion() : ver;
+  const body = changelog(tag, isPc) + '\n\n（由 tools/publish-gitee.js 自动发布）';
 
   console.log('== 吾爱Nova浏览器 · 自动发布 Gitee Release ==');
   console.log('版本: ' + shownVer + '  tag: ' + tag);
