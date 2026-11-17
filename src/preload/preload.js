@@ -70,10 +70,13 @@ const EVENT_CHANNELS = [
      反复重发整个状态，白白把更新日志刷满。 */
   'update:state',
   'update:progress',
-  /* 原生右键菜单里「搜索选中文字 / 在新标签页打开链接」两条动作要回到外壳做
-     （搜索开新标签、链接开新标签）。菜单在主进程弹，动作由这里转发回去。 */
+  /* 原生右键菜单的动作要回到外壳做（搜索 / 开链接 / 导出 PDF 都是新开或弹保存框）。
+     菜单在主进程弹，动作由这里转发回去。 */
   'webview:search',
   'webview:open-url',
+  'webview:save-pdf',
+  /* 标签条原生右键菜单的点击回传（关闭其他 / 固定 / 右侧新建…） */
+  'tab:context-action',
   /* 内核桥接：原生宿主（trident host）发来的事件（frame/title/url/cursor/…）。
      渲染进程据此把帧画到标签页、同步地址与标题。 */
   'host:event',
@@ -180,7 +183,8 @@ contextBridge.exposeInMainWorld('nova', {
   },
   history: {
     list: (limit) => ipcRenderer.invoke('history:list', limit),
-    clear: () => ipcRenderer.invoke('history:clear')
+    clear: () => ipcRenderer.invoke('history:clear'),
+    remove: (url) => ipcRenderer.invoke('history:remove', url)
   },
 
   /* --- Cookie 管理（PC）：列表 / 新增·保存 / 编辑 / 删除 / 按域名清除 / 全量清除 --- */
@@ -272,12 +276,20 @@ contextBridge.exposeInMainWorld('nova', {
     printers: (wcId) => ipcRenderer.invoke('page:printers', wcId),
     /** 把页面主世界的 window.print 接到外壳（主进程注入，见 src/main/print-hook.js） */
     installPrintHook: (wcId) => ipcRenderer.invoke('page:print-hook', wcId),
+    /** 给页面装「突破禁用右键」钩子（主进程注入，见 src/main/context-menu-hook.js） */
+    installContextHook: (wcId) => ipcRenderer.invoke('page:context-hook', wcId),
     /** 打印：opts.silent=false 弹系统打印窗口，true 直接出纸 */
     print: (wcId, opts) => ipcRenderer.invoke('page:print', wcId, opts),
     /** 打印预览：按同一套设置生成 PDF，返回 file:// 地址给 <webview> 显示 */
     printPreview: (wcId, opts) => ipcRenderer.invoke('page:print-preview', wcId, opts),
     /** 网页截图：mode = 'full'（整页）| 'view'（可见区域） */
-    capture: (wcId, mode) => ipcRenderer.invoke('page:capture', wcId, mode)
+    capture: (wcId, mode) => ipcRenderer.invoke('page:capture', wcId, mode),
+    /** 开 / 关当前网页的开发者工具（F12 / Ctrl+Shift+I） */
+    devTools: (wcId) => ipcRenderer.invoke('page:devtools', wcId),
+    /** 查看网页源码：返回本地只读文本文件的 file:// 地址 */
+    viewSource: (wcId) => ipcRenderer.invoke('page:view-source', wcId),
+    /** 另存网页为 HTML（主进程弹保存框，完整版内联资源） */
+    savePage: (wcId) => ipcRenderer.invoke('page:save-page', wcId)
   },
   system: {
     /** 拖进来的文件 → 本地绝对路径。见文件头 pathForFile 的说明。
@@ -329,7 +341,9 @@ contextBridge.exposeInMainWorld('nova', {
   // 右键菜单交给主进程用系统原生 Menu 弹（原生菜单能盖在 <webview> 之上，
   // DOM 菜单会被 webview 盖住）。payload = { params, wcId }。
   webview: {
-    contextMenu: (payload) => ipcRenderer.send('webview:context-menu', payload)
+    contextMenu: (payload) => ipcRenderer.send('webview:context-menu', payload),
+    /** 标签条右键：把菜单项交给主进程弹原生菜单（DOM 菜单压不住 webview） */
+    tabContextMenu: (payload) => ipcRenderer.send('tab:context-menu', payload)
   },
 
   /* --- AI 助手（API 集成）--- */
@@ -351,6 +365,9 @@ contextBridge.exposeInMainWorld('nova', {
   window: {
     minimize: () => ipcRenderer.send('window:control', 'minimize'),
     maximize: () => ipcRenderer.send('window:control', 'maximize'),
+    fullScreen: () => ipcRenderer.send('window:control', 'fullscreen'),
+    /** 开一个无痕窗口（内存 session，关窗即焚） */
+    newIncognito: () => ipcRenderer.invoke('window:new-incognito'),
     close: () => ipcRenderer.send('window:control', 'close')
   },
 

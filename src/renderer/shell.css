@@ -18,6 +18,12 @@
   --accent-soft: rgba(0, 200, 168, 0.14);
   --nova-grad: linear-gradient(135deg, var(--accent), var(--brand));
 
+  /* 图标统一缩放。所有外壳图标都是内联 <svg>，在下面的全局 svg{} 里
+     用 zoom 吃这个系数：一处改、全体等比缩，各图标之间的相对大小不变。
+     具体控件给的 width/height 不用动 —— zoom 与它们是彼此独立的属性。
+     1 = 原始尺寸；调大调小只改这一个数。 */
+  --icon-scale: 0.86;
+
   /* 焦点环。键盘走查与地址栏聚焦共用。用品牌色而不是系统蓝 ——
      系统蓝在这套配色里是第四种蓝，会显得整个界面没收拾干净。 */
   --ring: 0 0 0 3px var(--brand-soft);
@@ -184,6 +190,32 @@
   --shadow-3: 0 28px 70px rgba(0, 0, 0, 0.60);
 }
 
+/* 无痕窗口：整窗切成紫罗兰系，和常规窗口一眼分得开（主流浏览器的通行做法）。
+   只覆盖品牌强调色与标题栏底色，其余令牌沿用当前明/暗主题。 */
+html[data-incognito="1"] {
+  --brand: #A855F7;
+  --brand-2: #C084FC;
+  --brand-strong: #7E22CE;
+  --brand-soft: rgba(168, 85, 247, 0.16);
+  --chrome-title: #EDE7F6;
+  --chrome-tabs: #F3EEFA;
+}
+html[data-incognito="1"][data-theme="dark"] {
+  --brand: #C084FC;
+  --brand-2: #D8B4FE;
+  --brand-strong: #A855F7;
+  --brand-soft: rgba(192, 132, 252, 0.22);
+  --chrome-title: #1E1630;
+  --chrome-tabs: #241B38;
+}
+/* 标题栏品牌格在无痕窗里多一枚「无痕」小标（借 ::after，不动 DOM 结构） */
+html[data-incognito="1"] #brand-tag {
+  border-color: var(--brand);
+  color: var(--brand-strong);
+  font-weight: 700;
+}
+html[data-incognito="1"][data-theme="dark"] #brand-tag { color: var(--brand-2); }
+
 /* ---------- 2. 基础 ---------- */
 * { box-sizing: border-box; }
 
@@ -212,6 +244,7 @@ button {
 svg {
   width: 18px;
   height: 18px;
+  zoom: var(--icon-scale);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
@@ -565,6 +598,24 @@ svg {
   animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* 固定标签：缩成只剩图标的一小格，不可拖、不显示标题/关闭按钮 */
+.tab.is-pinned {
+  min-width: 0;
+  width: 38px;
+  padding: 0 var(--sp-2);
+  justify-content: center;
+  gap: 0;
+}
+.tab.is-pinned .tab-favicon { flex: 0 0 14px; }
+/* 拖拽中：源标签半透明；悬停目标：左侧一条品牌色插入指示线 */
+.tab.is-dragging { opacity: 0.4; }
+.tab.is-drop-target::before {
+  content: "";
+  position: absolute; left: -2px; top: 4px; bottom: 4px; width: 2px;
+  background: var(--brand);
+  border-radius: 2px;
+}
 
 .tab-new, .tab-list-btn {
   width: 28px; height: 28px;
@@ -1444,6 +1495,57 @@ body.bm-dragging { cursor: grabbing; }
   border: 1px solid var(--border-strong);
 }
 .en-close:hover { color: var(--text); background: var(--surface-2); }
+
+/* 非中文页面翻译提醒条：占布局的一条窄栏，与 .findbar 同层。
+   用品牌色的极淡底，和「内核模式警告」的橙底区分开 —— 这是提示不是报错。 */
+.translate-offer:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-3);
+  font-size: 12px;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  border-bottom: 1px solid var(--divider);
+}
+.to-icon {
+  flex: 0 0 auto;
+  width: 20px; height: 20px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--nova-grad);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.to-text { flex: 1; min-width: 0; }
+.to-btn {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+  background: var(--surface);
+  cursor: pointer;
+}
+.to-btn:hover { color: var(--text); background: var(--surface-3); }
+.to-btn-primary {
+  border-color: transparent;
+  background: var(--nova-grad);
+  color: #fff;
+}
+.to-btn-primary:hover { color: #fff; filter: brightness(1.06); }
+.to-x {
+  flex: 0 0 auto;
+  width: 20px; height: 20px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  font-size: 14px;
+  cursor: pointer;
+}
+.to-x:hover { color: var(--text); background: var(--surface-3); }
 
 /* ---------- 7. 视口 ---------- */
 .viewport {
@@ -2428,6 +2530,14 @@ body.bm-dragging { cursor: grabbing; }
 /* 密码页：点「显示」后展开的明文（等宽、可选中复制） */
 .cred-pw { margin-top: 3px; font-family: var(--font-mono); font-size: 12px; color: var(--text); word-break: break-all; user-select: text; }
 .hist-time { font-size: 10.5px; color: var(--text-4); flex: 0 0 auto; }
+.hist-del {
+  flex: 0 0 auto; width: 22px; height: 22px; margin-left: var(--sp-1);
+  display: grid; place-items: center; border-radius: var(--r-xs);
+  color: var(--text-4); opacity: 0; transition: opacity var(--dur) var(--ease);
+}
+.hist-row:hover .hist-del, .hist-del:focus-visible { opacity: 1; }
+.hist-del svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.hist-del:hover { background: var(--surface-3); color: var(--danger, #e5484d); }
 
 /* ------------------------------------------------------------------ *
  * 下载（多线程引擎）

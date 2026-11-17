@@ -458,6 +458,16 @@
     <button class="en-close" id="engine-notice-close">知道了</button>
   </div>
 
+  <!-- 非中文页面翻译提醒：和查找条一样占布局，不浮在视口上 ——
+       <webview> 是独立原生视图，同层 DOM 的 z-index 盖不住它。 -->
+  <div class="translate-offer" id="translate-offer" hidden>
+    <span class="to-icon" aria-hidden="true">译</span>
+    <span class="to-text" id="to-text">检测到这是外语页面，要翻译成中文吗？</span>
+    <button class="to-btn to-btn-primary" id="to-accept">翻译</button>
+    <button class="to-btn" id="to-never" title="以后不再提醒这种语言">不再提醒</button>
+    <button class="to-x" id="to-dismiss" title="关闭本次提醒">×</button>
+  </div>
+
   <!-- 页内查找：占布局的一条窄栏，不浮在视口上 ——
        <webview> 是独立原生视图，同层 DOM 的 z-index 盖不住它。 -->
   <div class="findbar" id="findbar" hidden>

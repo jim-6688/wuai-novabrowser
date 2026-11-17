@@ -85,5 +85,23 @@ check('ask 下站点规则 block 生效', P.decideLocalNetwork(lnaRules, new Map
 check('ask 下父域规则对子域生效', P.decideLocalNetwork(lnaRules, new Map(), 'api.open.weixin.qq.com', 'ask') === 'allow');
 check('ask 下会话内拒绝被记住', P.decideLocalNetwork([], new Map([['foo.com localNetwork', false]]), 'foo.com', 'ask') === 'block');
 
+console.log('\n[H2] 快捷登录回环域名内置放行（localAuth.enabled）');
+const wxLoop = 'localhost.weixin.qq.com';
+const qqLoop = 'localhost.ptlogin2.qq.com';
+check('ask 下微信回环域名直接放行', P.decideLocalNetwork([], new Map(), wxLoop, 'ask', true) === 'allow');
+check('ask 下 QQ 回环域名直接放行', P.decideLocalNetwork([], new Map(), qqLoop, 'ask', true) === 'allow');
+check('站点规则 block 也不拦回环域名（内置放行优先）',
+  P.decideLocalNetwork([{ host: wxLoop, rules: { localNetwork: 'block' } }], new Map(), wxLoop, 'ask', true) === 'allow');
+check('全局 block 压过内置放行（用户显式禁止优先）',
+  P.decideLocalNetwork([], new Map(), wxLoop, 'block', true) === 'block');
+check('开关关闭时回环域名回到按站点规则',
+  P.decideLocalNetwork([], new Map(), wxLoop, 'ask', false) === 'ask');
+check('开关关闭时站点 block 生效',
+  P.decideLocalNetwork([{ host: wxLoop, rules: { localNetwork: 'block' } }], new Map(), wxLoop, 'ask', false) === 'block');
+check('公网授权域名不享受内置放行（open.weixin.qq.com）',
+  P.decideLocalNetwork([], new Map(), 'open.weixin.qq.com', 'ask', true) === 'ask');
+check('不传开关参数时默认放行（向后兼容）',
+  P.decideLocalNetwork([], new Map(), wxLoop, 'ask') === 'allow');
+
 console.log(`\n结果：${pass}/${pass + fail} 通过\n`);
 process.exit(fail ? 1 : 0);

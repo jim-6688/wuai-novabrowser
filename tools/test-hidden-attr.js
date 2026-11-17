@@ -148,9 +148,10 @@ app.whenReady().then(async () => {
         opened.sheetAfterRead === 'none', opened.sheetAfterRead);
   check('#settings-view 打开后 display=flex', opened.settings === 'flex', opened.settings);
   check('设置页确实渲染出 3 张拦截源卡片', opened.srcCards === 3, '实际 ' + opened.srcCards);
-  // 14 而不是 15：「移动端」那一分区只在窄屏档位下才列出来，宽屏下它管的
+  // 16 而不是 17：「移动端」那一分区只在窄屏档位下才列出来，宽屏下它管的
   // 两项（无图模式、自动拼页）根本不生效。见 shell.js 的 settingsNavGroups()。
-  check('左导航渲染出 14 个分区', opened.navItems === 14, '实际 ' + opened.navItems);
+  // 这个数字随 SETTINGS_NAV 增减维护：当前 PC 档 = 17 项配置 - 移动端 1 项 = 16。
+  check('左导航渲染出 16 个分区', opened.navItems === 16, '实际 ' + opened.navItems);
 
   console.log('\n[C] 关闭后必须回到不可见');
   const closed = await js(`(() => {

@@ -36,6 +36,8 @@
  * installPermissionHandlers 里的说明。
  */
 
+const { isLocalAuthHost } = require('./local-auth-hosts');
+
 const hostOf = (u) => {
   if (!u) return '';
   try { return new URL(u).hostname; } catch { return ''; }
@@ -109,10 +111,16 @@ function decidePopup(permissions, sessionChoices, host) {
  * mode 来自设置的 localNetworkAccess：'ask'（默认，按站点规则走）/ 'allow'
  * （所有站点都允许，不再询问）/ 'block'（所有站点都禁止）。抽成纯函数是为了
  * 单测能覆盖；运行时接线只负责把设置里的档位读进来传给我们。
+ *
+ * localAuthEnabled 控制「快捷登录回环域名」的内置放行：微信 / QQ 快捷登录
+ * 访问的 localhost.*.qq.com 只在登录那一瞬出现，用户无法预设规则、也看不懂
+ * 权限条，所以默认对这些已知第一方回环域名直接放行（见 local-auth-hosts.js）。
+ * 但显式 `block` 档位压过一切 —— 用户若明确「始终禁止本地网络」，不违背。
  */
-function decideLocalNetwork(permissions, sessionChoices, host, mode) {
-  if (mode === 'allow') return 'allow';
+function decideLocalNetwork(permissions, sessionChoices, host, mode, localAuthEnabled) {
   if (mode === 'block') return 'block';
+  if (localAuthEnabled !== false && isLocalAuthHost(host)) return 'allow';
+  if (mode === 'allow') return 'allow';
   return decide(permissions, sessionChoices, host, 'localNetwork');
 }
 
@@ -135,14 +143,16 @@ const CATEGORY_LABEL = {
 let getMainWindowRef = () => null;
 let getPermissionsRef = () => [];
 let getLocalNetworkModeRef = () => 'ask';
+let getLocalAuthEnabledRef = () => true;
 const sessionChoices = new Map(); // host + ' ' + category -> boolean（会话内记住的询问选择）
 const pending = new Map(); // requestId -> { resolve, timer }
 let reqSeq = 0;
 
-function configure({ getMainWindow, getPermissions, getLocalNetworkMode }) {
+function configure({ getMainWindow, getPermissions, getLocalNetworkMode, getLocalAuthEnabled }) {
   getMainWindowRef = getMainWindow || getMainWindowRef;
   getPermissionsRef = getPermissions || getPermissionsRef;
   getLocalNetworkModeRef = getLocalNetworkMode || getLocalNetworkModeRef;
+  getLocalAuthEnabledRef = getLocalAuthEnabled || getLocalAuthEnabledRef;
 }
 
 /** 渲染层回话权限询问的结果，解除挂起的回调并记住选择。 */
@@ -195,7 +205,7 @@ function installPermissionHandlers(session) {
       return;
     }
     if (cat === 'localNetwork') {
-      finish(decideLocalNetwork(getPermissionsRef(), sessionChoices, host, getLocalNetworkModeRef()),
+      finish(decideLocalNetwork(getPermissionsRef(), sessionChoices, host, getLocalNetworkModeRef(), getLocalAuthEnabledRef()),
         'localNetwork', host, wc, callback);
       return;
     }
@@ -215,7 +225,7 @@ function installPermissionHandlers(session) {
     // 这不是无条件放开：用户在权限条里点「禁止」会写进 sessionChoices，下一次
     // decide 就变成 block；设置里也能把全局档位调成「始终禁止」或按站点加规则。
     if (cat === 'localNetwork') {
-      return decideLocalNetwork(getPermissionsRef(), sessionChoices, host, getLocalNetworkModeRef()) !== 'block';
+      return decideLocalNetwork(getPermissionsRef(), sessionChoices, host, getLocalNetworkModeRef(), getLocalAuthEnabledRef()) !== 'block';
     }
 
     let action;

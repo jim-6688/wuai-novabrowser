@@ -14,8 +14,8 @@
  * 成一条 sendToHost 消息，由外壳弹出自己的打印设置窗口（纸张/边距/方向），
  * 再走 `webContents.print()` 交给系统打印窗口。
  *
- * <p>这里只发消息：缩放 / 打印 / 当前表单的两个字段值，各一条 IPC。不注入
- * DOM、不碰页面其它内容、不碰密码库、不发网络请求，保持攻击面最小。
+ * <p>这里只发消息：缩放 / 打印 / 当前表单的两个字段值 / 网页内点击，各一条 IPC。
+ * 不注入 DOM、不碰页面其它内容、不碰密码库、不发网络请求，保持攻击面最小。
  */
 
 const { ipcRenderer } = require('electron');
@@ -341,9 +341,53 @@ window.addEventListener('keydown', (event) => {
     askPrint();
     return;
   }
+  // F12 / Ctrl+Shift+I：开发者工具。焦点在网页里时外壳的 window keydown 收不到，
+  // 必须在这里截住转给宿主（和 Ctrl+P 一个道理）。
+  if (event.key === 'F12' || (event.ctrlKey && !event.metaKey && !event.altKey
+      && event.shiftKey && (event.key === 'i' || event.key === 'I'))) {
+    event.preventDefault();
+    event.stopPropagation();
+    try { ipcRenderer.sendToHost('nova-devtools'); } catch { /* 宿主已销毁 */ }
+    return;
+  }
+  // Ctrl+U：查看源码。
+  if (event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+      && (event.key === 'u' || event.key === 'U')) {
+    event.preventDefault();
+    event.stopPropagation();
+    try { ipcRenderer.sendToHost('nova-view-source'); } catch { /* 宿主已销毁 */ }
+    return;
+  }
   if (!event.ctrlKey || event.metaKey || event.altKey) return;
   const key = event.key;
   if (key === '=' || key === '+') { event.preventDefault(); send('in'); }
   else if (key === '-' || key === '_') { event.preventDefault(); send('out'); }
   else if (key === '0') { event.preventDefault(); send('reset'); }
+}, true);
+
+/* 「突破禁用右键」：页面主世界的钩子（src/main/context-menu-hook.js）在网页
+   拦掉 contextmenu 后 dispatch 这个 DOM 事件，这里转成 sendToHost，由外壳补弹
+   系统原生菜单。两个世界共享同一份 DOM，事件能跨世界（与 nova:print 同理）。 */
+window.addEventListener('nova:context-menu', (event) => {
+  const d = (event && event.detail) || {};
+  const params = {
+    x: d.x || 0, y: d.y || 0,
+    linkURL: String(d.linkURL || ''), srcURL: String(d.srcURL || ''),
+    selectionText: String(d.selectionText || ''),
+    isEditable: !!d.isEditable, mediaType: d.mediaType || 'none',
+    forced: d.forced === 1
+  };
+  try { ipcRenderer.sendToHost('nova-context-menu', params); } catch { /* 宿主已销毁 */ }
+});
+
+/* 网页内点击 → 告诉外壳收起地址栏下拉 / 分享面板 / 右键菜单。
+ *
+ * 网页是 <webview> 原生层，里面的点击不会冒泡到外壳 document，所以外壳那个
+ * mousedown 捕获监听拦不住它。webview 的 focus 事件只在「焦点刚落进网页」时
+ * 触发一次；焦点本来就在网页里（例如点过地址栏面板里的「复制」又被
+ * mousedown preventDefault 留住了焦点）时不再触发，只能靠这条 IPC 兜底。
+ * 捕获阶段 + 只看左键：右键交给网页自己的菜单，不打扰。 */
+document.addEventListener('mousedown', (event) => {
+  if (event.button !== 0) return;
+  try { ipcRenderer.sendToHost('nova-page-click'); } catch { /* 宿主已销毁 */ }
 }, true);

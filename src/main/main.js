@@ -19,6 +19,7 @@ const { app, BrowserWindow, ipcMain, session, dialog, shell, nativeTheme, clipbo
 const QRCode = require('qrcode'); // 本地生成二维码（分享用），不把网址丢第三方二维码接口
 const creds = require('./credentials'); // 从 Edge 导入已存密码（本地解密）
 const { installPrintHook } = require('./print-hook'); // 网页里 window.print() 的接管（主世界注入）
+const { installContextHook } = require('./context-menu-hook'); // 突破网页禁用右键（主世界注入）
 const { countPdfPages } = require('./pdf-pages'); // 预览里「共 N 页」靠数 PDF 页对象
 const protocolLinks = require('./protocol-links'); // ed2k / magnet 交给本地客户端
 
@@ -74,6 +75,10 @@ const PKG = require('../../package.json');
 const NEWTAB_FILE_URL = pathToFileURL(path.join(__dirname, '..', 'renderer', 'newtab.html')).href;
 
 let mainWindow = null;
+/** 无痕窗口集合（可能开多个）。每个窗口配一份内存 session，关窗即从集合移除。 */
+const incognitoWindows = new Set();
+/** 递增序号，给每份无痕内存分区一个唯一名字（关闭即焚，下一窗不复用）。 */
+let incognitoSeq = 0;
 /** 挂起的 HTTP 认证：reqId → Electron 给的 callback。渲染层弹框填完 → auth:resolve 回传 */
 const pendingAuth = new Map();
 let authSeq = 0;
@@ -205,6 +210,10 @@ async function bootstrap() {
   permissions.configure({
     getPermissions: () => settings.get('permissions', []),
     getLocalNetworkMode: () => settings.get('localNetworkAccess', 'ask'),
+    getLocalAuthEnabled: () => {
+      const c = settings.get('localAuth', {});
+      return !c || c.enabled !== false;
+    },
     getMainWindow: () => mainWindow
   });
 
@@ -255,22 +264,12 @@ async function bootstrap() {
   // 6) 每个内核一份独立 session
   for (const engine of registry.engines) {
     const ses = session.fromPartition(engine.partition);
-    sessionEngineMap.set(ses, engine.id);
+    installSession(ses, engine.id);
     engineSessions.set(engine.id, ses);
-    engine.applyHeaders(ses);
-    wireRequestGate(ses);
-    wireDownloads(ses, engine.id);
-    wireSniffer(ses);
-    permissions.installPermissionHandlers(ses);
   }
   // 默认 session 也接一份，避免无分区页面漏网
-  sessionEngineMap.set(session.defaultSession, 'chromium');
+  installSession(session.defaultSession, 'chromium');
   engineSessions.set('chromium', session.defaultSession);
-  registry.get('chromium').applyHeaders(session.defaultSession);
-  wireRequestGate(session.defaultSession);
-  wireDownloads(session.defaultSession, 'chromium');
-  wireSniffer(session.defaultSession);
-  permissions.installPermissionHandlers(session.defaultSession);
 
   // 6.5) 内核桥接：原生宿主（trident host）跑起来后，把它的事件转发给渲染进程。
   // 只有 resolve 到 bridge 的内核才有运行中的宿主进程；compat 内核不在此列。
@@ -465,6 +464,85 @@ function createWindow() {
 
 function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
+  // 无痕窗口复用同一套外壳，也需要收到推送（tab 标题 / 音频 / 下载等）。这些事件
+  // 都带 contents id，各窗口渲染层按自己的 tab.wcId 过滤，发错了会自动忽略、不串味。
+  for (const win of incognitoWindows) {
+    if (!win.isDestroyed()) win.webContents.send(channel, payload);
+  }
+}
+
+/**
+ * 给一份 session 装上全套拦截与内核标识。普通内核 session 与无痕内存 session
+ * 走同一条路 —— 无痕只是「不落盘」，广告拦截 / 权限 / 嗅探 / UA 改写一应俱全，
+ * 不能因为隐私模式就把这些能力也一并关掉。
+ */
+function installSession(ses, engineId) {
+  sessionEngineMap.set(ses, engineId);
+  const engine = registry.get(engineId);
+  if (engine && typeof engine.applyHeaders === 'function') engine.applyHeaders(ses);
+  wireRequestGate(ses);
+  wireDownloads(ses, engineId);
+  wireSniffer(ses);
+  permissions.installPermissionHandlers(ses);
+}
+
+/** 这份 session 是不是无痕内存分区（名字以 incognito- 开头、不带 persist:）。 */
+function isIncognitoSession(ses) {
+  try { return /^incognito-/.test(ses.partition); } catch { return false; }
+}
+
+/* ------------------------------------------------------------------ *
+ * 无痕窗口 · 内存 session（关闭即焚，不写 Cookie / 缓存 / 历史 / 图标缓存）
+ * ------------------------------------------------------------------ */
+
+/**
+ * 开一个无痕窗口。
+ *
+ * <p>隔离靠三点：
+ * <ol>
+ *   <li>webview 用一份**内存分区**（名字不带 {@code persist:} 前缀），Electron 不为其
+ *       建磁盘目录，Cookie / localStorage / 缓存全在内存，关窗即丢；</li>
+ *   <li>这份 session 同样走 {@link installSession}，所以广告拦截、权限、嗅探、UA
+ *       改写都在 —— 无痕不等于功能缩水；</li>
+ *   <li>导航不写历史、图标不进磁盘缓存（见 wireContents 里对 incognito 的判断），
+ *       外层 shell 也不恢复上次会话。</li>
+ * </ol>
+ *
+ * <p>无痕窗口复用同一个 shell.html：靠 URL 上的 {@code ?incognito=<partition>} 告诉
+ * 渲染层「所有标签页都用这份分区」，shell.js 的 mountTab 会据此覆盖内核默认分区。
+ */
+function createIncognitoWindow() {
+  const partition = 'incognito-' + (++incognitoSeq);
+  const ses = session.fromPartition(partition); // 无 persist: 前缀 → 内存分区
+  installSession(ses, 'chromium');
+  engineSessions.set('incognito:' + partition, ses);
+
+  const win = new BrowserWindow({
+    width: 1180, height: 800, minWidth: 380, minHeight: 520,
+    frame: false, titleBarStyle: 'hidden',
+    icon: path.join(ROOT, 'assets', 'icon', 'nova.ico'),
+    backgroundColor: settings.get('theme') === 'dark' ? '#141020' : '#F6F4FB',
+    show: false,
+    webPreferences: {
+      preload: path.join(ROOT, 'src', 'preload', 'preload.js'),
+      contextIsolation: true, nodeIntegration: false,
+      webviewTag: true, spellcheck: false
+    }
+  });
+  incognitoWindows.add(win);
+
+  const url = pathToFileURL(path.join(ROOT, 'src', 'renderer', 'shell.html')).href
+    + '?incognito=' + encodeURIComponent(partition);
+  win.loadURL(url);
+  win.once('ready-to-show', () => win.show());
+  win.on('closed', () => {
+    incognitoWindows.delete(win);
+    // 关窗即焚：清空这份内存分区的所有存储数据，并从各索引里摘掉。
+    engineSessions.delete('incognito:' + partition);
+    sessionEngineMap.delete(ses);
+    try { ses.clearStorageData(); } catch { /* 已随窗口一起销毁 */ }
+  });
+  return { ok: true, partition };
 }
 
 /* ------------------------------------------------------------------ *
@@ -1093,7 +1171,7 @@ function wireContents(contents) {
     // 否则地址栏自动匹配里每一行都只有一串 URL，没有网站名。
     let cur = '';
     try { cur = contents.getURL(); } catch { /* 页面已经没了 */ }
-    if (cur && title) settings.retitleHistory(cur, title);
+    if (cur && title && !isIncognitoSession(contents.session)) settings.retitleHistory(cur, title);
   });
 
   // 标签页关掉后把它的媒体记录一并释放，长时间开开关关不会越攒越多
@@ -1111,7 +1189,8 @@ function wireContents(contents) {
     // 顺手把「站点自己声明的图标」抓进缓存：新标签页磁贴与收藏夹栏格用。
     // 只收 http(s) 的页面与图标地址 —— file:、扩展页的图标不进缓存。
     // 盲探 PATHS 探不到自定义图标路径，这一步是它的高命中率补位。
-    if (faviconCache && favicons && favicons[0]) {
+    // 无痕窗口不落盘：图标缓存是磁盘文件，进去就等于留下访问痕迹。
+    if (faviconCache && favicons && favicons[0] && !isIncognitoSession(contents.session)) {
       let pageUrl = '';
       try { pageUrl = contents.getURL(); } catch { /* noop */ }
       if (/^https?:/i.test(pageUrl) && /^https?:/i.test(favicons[0])) {
@@ -1129,12 +1208,15 @@ function wireContents(contents) {
     // 这一刻标题还没解析出来，getTitle() 常常返回地址本身。存空串，等
     // page-title-updated 那条把它补上 —— 存地址会让地址栏匹配里「网站名称」
     // 永远显示成一串 URL。
-    const t = contents.getTitle();
-    settings.pushHistory({
-      title: t && t !== url ? t : '',
-      url,
-      engine: engineId
-    });
+    // 无痕窗口不写历史 —— 这是隐私模式的底线，关窗后不留任何访问记录。
+    if (!isIncognitoSession(contents.session)) {
+      const t = contents.getTitle();
+      settings.pushHistory({
+        title: t && t !== url ? t : '',
+        url,
+        engine: engineId
+      });
+    }
     send('tab:navigated', { id: contents.id, url, httpStatus, engine: engineId });
   });
 
@@ -1810,6 +1892,7 @@ function registerIpc() {
 
   handle('history:list', (limit = 200) => settings.get('history', []).slice(0, limit));
   handle('history:clear', () => { settings.clearHistory(); return []; });
+  handle('history:remove', (url) => ({ ok: true, removed: settings.removeHistory(url) }));
   handle('bookmarks:list', () => settings.get('bookmarks', []));
   handle('bookmarks:add', (bm) => { settings.addBookmark(bm); return settings.get('bookmarks'); });
   handle('bookmarks:remove', (url) => { settings.removeBookmark(url); return settings.get('bookmarks'); });
@@ -2444,6 +2527,14 @@ function registerIpc() {
     return { ok: n > 0, frames: n };
   });
 
+  /** 给这个页面的所有框架装上「突破禁用右键」的钩子（页面主世界，见 context-menu-hook.js）。 */
+  handle('page:context-hook', (wcId) => {
+    const wc = resolveWc(wcId);
+    if (!wc) return { ok: false, error: '页面已关闭' };
+    const n = installContextHook(wc);
+    return { ok: n > 0, frames: n };
+  });
+
   /** 系统打印机列表。deviceName 要用 name（系统名），displayName 只给界面看。 */
   handle('page:printers', async (wcId) => {
     const wc = resolveWc(wcId);
@@ -2577,6 +2668,65 @@ function registerIpc() {
       return { ok: true, url: pathToFileURL(file).href, bytes: data.length, pages: countPdfPages(data) };
     } catch (e) {
       return { ok: false, error: '预览生成失败：' + String((e && e.message) || e) };
+    }
+  });
+
+  // 另存网页为 HTML。Electron 的 savePage 支持 'HTMLComplete'（单文件完整版，资源内联）
+  // 与 'HTMLOnly'（只存 HTML）；这里用完整版，离线打开也能看到样式。保存框在主进程弹。
+  handle('page:save-page', async (wcId) => {
+    const wc = resolveWc(wcId);
+    if (!wc) return { ok: false, error: '页面已关闭' };
+    let name = '网页';
+    try { name = wc.getTitle() || name; } catch { /* noop */ }
+    name = String(name).replace(/[\\/:*?"<>|]+/g, '_').trim().slice(0, 80) || '网页';
+    const picked = await dialog.showSaveDialog(mainWindow, {
+      title: '另存网页',
+      defaultPath: path.join(app.getPath('downloads'), name + '.html'),
+      filters: [{ name: '网页（完整）', extensions: ['html'] }, { name: '网页（仅 HTML）', extensions: ['htm'] }]
+    });
+    if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
+    try {
+      // 用户选了 .htm 就当仅 HTML，否则一律完整版
+      const kind = /\.htm$/i.test(picked.filePath) ? 'HTMLOnly' : 'HTMLComplete';
+      await wc.savePage(picked.filePath, kind);
+      return { ok: true, path: picked.filePath };
+    } catch (e) {
+      return { ok: false, error: '保存失败：' + String((e && e.message) || e) };
+    }
+  });
+
+  // 开发者工具：对指定网页的 webContents 开 / 关 DevTools。F12 由网页 preload 转来
+  // （焦点在 webview 里时外壳收不到按键），Ctrl+Shift+I 则走外壳同一入口。
+  handle('page:devtools', (wcId) => {
+    const wc = resolveWc(wcId);
+    if (!wc) return { ok: false, error: '页面已关闭' };
+    try {
+      if (wc.isDevToolsOpened()) wc.closeDevTools();
+      else wc.openDevTools({ mode: 'detach' });
+      return { ok: true, opened: wc.isDevToolsOpened() };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  });
+
+  // 查看网页源码：抓主文档 HTML，写成一份「纯文本展示」的本地文件再开新标签。
+  // 不能直接开 view-source:（Electron webview 不支持该 scheme），也不塞 data: URI
+  // （源码里可能有超长内容/脚本，data: 会被 CSP 和长度限制卡住）。写成 .txt 由
+  // Chromium 内置文本查看器显示，只读、不执行 —— 正是「查看源码」想要的。
+  handle('page:view-source', async (wcId) => {
+    const wc = resolveWc(wcId);
+    if (!wc) return { ok: false, error: '页面已关闭' };
+    try {
+      const html = await wc.executeJavaScript('document.documentElement.outerHTML', true);
+      const dir = path.join(app.getPath('temp'), 'nova-view-source');
+      fs.mkdirSync(dir, { recursive: true });
+      let name = 'source';
+      try { name = String(wc.getURL() || 'source').replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 60) || 'source'; } catch { /* noop */ }
+      const file = path.join(dir, name + '-' + Date.now() + '.txt');
+      fs.writeFileSync(file, String(html == null ? '' : html), 'utf8');
+      return { ok: true, url: pathToFileURL(file).href };
+    } catch (e) {
+      return { ok: false, error: '读取源码失败：' + String((e && e.message) || e) };
     }
   });
 
@@ -2746,8 +2896,32 @@ function registerIpc() {
       tpl.push({ label: '复制链接地址', click: () => clipboard.writeText(p.linkURL) });
       tpl.push({ type: 'separator' });
     }
+    // 图片：只在有 srcURL 且不是链接本身时给（选中文字右键到图片上也别混进来）。
+    // 保存走 webContents 的 downloadURL（带 referrer，防盗链站点也能存下来）。
+    if (p.srcURL) {
+      tpl.push({ label: '在新标签页打开图片', click: () => back('webview:open-url', p.srcURL) });
+      tpl.push({ label: '复制图片地址', click: () => clipboard.writeText(p.srcURL) });
+      tpl.push({
+        label: '图片另存为…',
+        click: () => {
+          try { wc && wc.downloadURL(p.srcURL); } catch { /* ignore */ }
+        }
+      });
+      tpl.push({ type: 'separator' });
+    }
     if (p.selectionText && p.selectionText.trim()) {
-      tpl.push({ label: '复制', click: () => { try { wc && wc.copy(); } catch { /* ignore */ } } });
+      // 突破补弹的页面常连 copy 事件也禁了（webContents.copy 走页面 selection，会被一起拦），
+      // 这种直接把钩子读到的选中文字写进剪贴板，保证「复制」真的能用。
+      tpl.push({
+        label: '复制',
+        click: () => {
+          if (payload && payload.params && payload.params.forced) {
+            clipboard.writeText(p.selectionText);
+          } else {
+            try { wc && wc.copy(); } catch { /* ignore */ }
+          }
+        }
+      });
       tpl.push({ label: '搜索「' + short(p.selectionText) + '」', click: () => back('webview:search', p.selectionText.trim()) });
       // 选中文字时多给一个「翻译」：直达链接由渲染进程按用户引擎 / 目标语言算好带来，
       // 主进程不碰翻译设置，只负责开个新标签。
@@ -2766,15 +2940,49 @@ function registerIpc() {
     tpl.push({ label: '前进', enabled: !!(wc && wc.canGoForward()), click: () => { try { wc && wc.goForward(); } catch { /* ignore */ } } });
     tpl.push({ label: '刷新', click: () => { try { wc && wc.reload(); } catch { /* ignore */ } } });
 
+    // 页面级动作：整页翻译 / 导出 PDF。都交给渲染层执行（翻译要新开标签、PDF 要弹保存框），
+    // 主进程只发一条 channel；wcId 带上，保证保存的是右键的那个页面而不是当时的活动标签。
+    tpl.push({ type: 'separator' });
+    if (payload && payload.pageTrUrl) {
+      tpl.push({ label: '翻译当前页面', click: () => back('webview:open-url', payload.pageTrUrl) });
+    }
+    tpl.push({
+      label: '导出为 PDF…',
+      click: () => back('webview:save-pdf', { wcId: payload && payload.wcId })
+    });
+
     try { Menu.buildFromTemplate(tpl).popup({ window: win }); } catch { /* 弹不出就算了 */ }
   });
 
-  ipcMain.on('window:control', (_e, action) => {
-    if (!mainWindow) return;
-    if (action === 'minimize') mainWindow.minimize();
-    else if (action === 'maximize') mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
-    else if (action === 'close') mainWindow.close();
+  /* --- 标签条右键菜单（系统原生 Menu）---
+   * 菜单项由渲染层按「右键的是第几个标签 / 有没有右侧标签」算好带来 —— 主进程
+   * 不持有标签状态（那是渲染层的事），只负责把它弹出来、把点击原样回传。 */
+  ipcMain.on('tab:context-menu', (e, payload) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (!win || !payload || !Array.isArray(payload.items)) return;
+    const tpl = payload.items.map((it) => {
+      if (it.type === 'separator') return { type: 'separator' };
+      return {
+        label: String(it.label || ''),
+        click: () => { try { e.sender.send('tab:context-action', { tabId: payload.tabId, act: it.act }); } catch { /* 窗口没了 */ } }
+      };
+    });
+    try { Menu.buildFromTemplate(tpl).popup({ window: win, x: payload.x, y: payload.y }); } catch { /* 弹不出就算了 */ }
   });
+
+  ipcMain.on('window:control', (e, action) => {
+    // 按 sender 定位窗口，不能写死 mainWindow —— 无痕窗口复用同一个 shell.html，
+    // 它那套自绘的最小化/最大化/关闭按钮也会走这条通道；写死的话点无痕窗的「×」
+    // 会把主窗口关掉，而无痕窗自己纹丝不动。
+    const win = BrowserWindow.fromWebContents(e.sender) || mainWindow;
+    if (!win || win.isDestroyed()) return;
+    if (action === 'minimize') win.minimize();
+    else if (action === 'maximize') win.isMaximized() ? win.unmaximize() : win.maximize();
+    else if (action === 'fullscreen') win.setFullScreen(!win.isFullScreen());
+    else if (action === 'close') win.close();
+  });
+
+  handle('window:new-incognito', () => createIncognitoWindow());
 
   ipcMain.on('debug:log', (_e, msg) => console.log('[renderer]', msg));
 }

@@ -805,12 +805,28 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
     /case 'local-network':\s*case 'local-network-access':\s*case 'loopback-network': return 'localNetwork'/
       .test(fs.readFileSync(P('src/main/permissions.js'), 'utf8'))],
   ['LNA 同步 check 只有显式禁止才拒绝（undefined 在 Electron 里等于拒绝）',
-    /return decideLocalNetwork\(getPermissionsRef\(\), sessionChoices, host, getLocalNetworkModeRef\(\)\) !== 'block'/
+    /return decideLocalNetwork\(getPermissionsRef\(\), sessionChoices, host, getLocalNetworkModeRef\(\), getLocalAuthEnabledRef\(\)\) !== 'block'/
       .test(fs.readFileSync(P('src/main/permissions.js'), 'utf8'))],
   ['LNA 全局档位从设置读到主进程、设置页有三态开关',
     /getLocalNetworkMode: \(\) => settings.get\('localNetworkAccess', 'ask'\)/.test(mainMod)
       && /id="perm-lna-mode"/.test(js) && /localNetworkAccess = val/.test(js)
       && /key: 'localNetwork'/.test(js)],
+
+  /* 微信/QQ 快捷登录：回环域名（localhost.*.qq.com）内置放行 LNA，开箱即用。
+     只精确匹配 localhost.*，不碰公网 qq.com；全局「始终禁止」压过放行；有总开关。 */
+  ['快捷登录回环域名白名单只收 localhost.* 且精确匹配',
+    /const LOCAL_AUTH_HOSTS = \[[\s\S]*?localhost\.weixin\.qq\.com[\s\S]*?localhost\.ptlogin2\.qq\.com[\s\S]*?\]/
+      .test(fs.readFileSync(P('src/main/local-auth-hosts.js'), 'utf8'))
+    && /LOCAL_AUTH_HOSTS\.indexOf\(h\) >= 0/.test(fs.readFileSync(P('src/main/local-auth-hosts.js'), 'utf8'))],
+  ['LNA 判定在 block 之后、站点规则之前插入回环域名放行',
+    /if \(mode === 'block'\) return 'block';\s*if \(localAuthEnabled !== false && isLocalAuthHost\(host\)\) return 'allow';/
+      .test(fs.readFileSync(P('src/main/permissions.js'), 'utf8'))],
+  ['快捷登录放行总开关从设置读到主进程',
+    /getLocalAuthEnabled: \(\) =>/.test(mainMod)
+      && /const c = settings\.get\('localAuth', \{\}\);/.test(mainMod)
+      && /localAuth: \{[\s\S]{0,80}?enabled: true/.test(fs.readFileSync(P('src/main/settings.js'), 'utf8'))],
+  ['设置页有快捷登录放行开关并落盘',
+    /data-act="local-auth-toggle"/.test(js) && /localAuth: \{ enabled: on \}/.test(js)],
   ['已存过的密码不再重复问（记住我自动提交表单的常态）',
     /function findSavedCredential/.test(js) && /r\.password === payload\.password/.test(js)],
   ['保存密码时 origin 由主进程反查，渲染层传不进去',
@@ -942,6 +958,14 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
       const d = fs.readFileSync(P('android-app/app/src/main/res/drawable/ic_ai.xml'), 'utf8');
       return (d.match(/android:pathData=/g) || []).length === 3;
     })()],
+
+  /* --- 图标统一缩放 ---
+     所有外壳图标都是内联 <svg>，全局 svg{} 用 zoom 吃 --icon-scale：
+     一处控制、全体等比缩、相对大小不变。具体控件的 width/height 不动，
+     因为 zoom 与它们是独立属性；改系数只需动 :root 里那一个数。 */
+  ['全部 UI 图标经 --icon-scale 等比缩小（一处控制所有内联 svg）',
+    /--icon-scale: 0\.86;/.test(css)
+      && /svg \{[\s\S]{0,160}zoom: var\(--icon-scale\)/.test(css)],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

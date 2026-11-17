@@ -197,6 +197,14 @@ const DEFAULTS = {
     deviceName: ''
   },
   /**
+   * 网页右键。breakLimit —— 网页用 preventDefault 禁掉右键菜单时是否突破：
+   * 注入捕获阶段的钩子，在网页拦掉之前拿到右键上下文，补弹浏览器原生菜单。
+   * 默认开启（禁用右键是网页的单方面限制，不该剥夺用户复制 / 另存的能力）。
+   */
+  contextMenu: {
+    breakLimit: true
+  },
+  /**
    * 站点权限：按域名的权限覆盖。数组便于整体替换，结构与 siteEngines 同口径。
    *   [{ host: 'example.com',
    *      rules: { geolocation:'block', notifications:'ask', camera:'allow', … } }]
@@ -214,6 +222,16 @@ const DEFAULTS = {
    * 同步权限 check 一旦落到 Chromium 默认就是拒绝，用户在本浏览器里无从开启。
    */
   localNetworkAccess: 'ask',
+  /**
+   * 微信 / QQ 快捷登录的内置放行（域名清单见 src/main/local-auth-hosts.js）。
+   *   enabled —— 对这些已知第一方回环域名（localhost.*.qq.com 等）直接放行 LNA，
+   *              开箱即用，不受「按站点询问」影响；全局档位设为「始终禁止」时仍禁止。
+   * 默认开启：这些域名只在登录那一瞬出现、解析到 127.0.0.1、由用户自己装的客户端
+   * 监听，放行只是让网页能连上本机客户端完成授权握手，不读取客户端任何数据。
+   */
+  localAuth: {
+    enabled: true
+  },
   /**
    * GitHub 访问加速（镜像改写，规则见 src/main/github-mirror.js）。
    *
@@ -234,17 +252,23 @@ const DEFAULTS = {
    * 内置翻译（网页重定向，无 API Key）。
    *
    * 把当前网页或选中的文字交给在线翻译服务，不需要任何后端，也不上报密钥。
-   *   engine —— google | bing | deepl，默认 Google（唯一支持整页 ?u= 翻译的）
+   *   engine —— baidu | google | tencent | bing | deepl，默认百度
    *   target —— 目标语言代码，见 renderer 的 TARGET_LANGS；默认中文（简体）
+   *   offer  —— 打开非目标语言的网页时，是否主动弹一条「要翻译吗」提醒
+   *   neverOfferLangs —— 用户点过「不再提醒这种语言」的主语言标签（如 'en'），
+   *                      这些语言以后不再主动提醒；手动翻译不受影响。
    *
-   * 默认 Google：它的整页翻译（`translate?u=`）是唯一不用把地址拷来拷去就能
-   * 直接翻整站的入口；Bing / DeepL 在网页端没有公开稳定的「按网址整页翻译」
-   * 深链，所以那两家主要服务于「翻译选中文字」，整页翻译会落到它们的翻译主页
-   * （已选好目标语言），由用户把网址粘进「网页」标签页。这件事在设置页说明了。
+   * 默认百度：大陆网络直连可用，且有公开的「按网址整页翻译」深链
+   * （`fanyi.baidu.com/transpage?query=`）。Google 的 `translate?u=` 同样能整页，
+   * 但大陆网络打不开（2022 年起停止大陆服务），留给有国际网络的用户手动切。
+   * 腾讯翻译君只做文字翻译、没有整页深链；Bing / DeepL  likewise 以文字为主，
+   * 整页会落到它们已选好语言的翻译主页，由用户把网址粘进去。
    */
   translate: {
-    engine: 'google',
-    target: 'zh-CN'
+    engine: 'baidu',
+    target: 'zh-CN',
+    offer: true,
+    neverOfferLangs: []
   },
   /**
    * 收藏夹栏摆放位置：top | bottom | left | right。
@@ -583,6 +607,17 @@ function clearHistory() {
   scheduleFlush();
 }
 
+/** 删除历史里指定地址的那一条（按 url 精确匹配，连续重复访问已合并为一条）。 */
+function removeHistory(url) {
+  const u = String(url || '');
+  if (!u) return 0;
+  const before = cache.history.length;
+  cache.history = cache.history.filter((h) => !h || h.url !== u);
+  const removed = before - cache.history.length;
+  if (removed) scheduleFlush();
+  return removed;
+}
+
 function addBookmark(bm) {
   if (!cache.bookmarks.some((b) => b.url === bm.url)) cache.bookmarks.unshift(bm);
   scheduleFlush();
@@ -627,6 +662,7 @@ module.exports = {
   retitleHistory,
   historyRecordable,
   clearHistory,
+  removeHistory,
   addBookmark,
   removeBookmark,
   updateBookmark,

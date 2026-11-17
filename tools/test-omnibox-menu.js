@@ -213,6 +213,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(10);
   check('Esc 收起', menu.hidden === true);
 
+  console.log('\n[J2] 网页内点击（preload IPC）应收起地址栏下拉');
+  // 网页是原生层，外壳 document 的 mousedown 收不到里面的点击；preload 转发一条
+  // nova-page-click 给宿主，宿主必须收起下拉。jsdom 里的 webview 是预览桩的假元素，
+  // 绑不上真实 focus handler（那条由 [N] 的静态断言覆盖），这里直接调 IPC 处理器。
+  input.blur();
+  input.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+  await sleep(10);
+  check('左键点地址栏已弹下拉', $('#omni-panel').hidden === false);
+  check('宿主暴露 IPC 处理器', typeof window.handleWebviewIpc === 'function');
+  if (typeof window.handleWebviewIpc === 'function') {
+    window.handleWebviewIpc({}, { channel: 'nova-page-click' });
+    await sleep(10);
+    check('收到 nova-page-click 后下拉收起', $('#omni-panel').hidden === true);
+  }
+
   console.log('\n[K] 左键仍然是「点网址弹分享面板」');
   // 右键不能顺手把分享面板带出来 —— mousedown 只看左键
   input.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 2 }));
@@ -227,6 +242,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('主进程用 clipboard.readText 读', /clipboard\.readText\(\)/.test(mainSrc));
   check('preload 暴露 system.paste', /paste:\s*\(\)\s*=>\s*ipcRenderer\.invoke\('shell:paste'\)/.test(preSrc));
   check('预览桩也有 paste（预览里能走通复制→粘贴）', /paste:\s*async\s*\(\)/.test(mockSrc));
+
+  console.log('\n[N] 点网页区域收起下拉的跨层接线');
+  // 焦点本来就在网页里时 webview 的 focus 不会再触发，靠 preload 的 IPC 兜底。
+  const shellSrc = fs.readFileSync(path.join(root, 'src/renderer/shell.js'), 'utf8');
+  const wvPreSrc = fs.readFileSync(path.join(root, 'src/preload/webview-preload.js'), 'utf8');
+  check('webview focus 处理器收起地址栏下拉',
+    /wv\.addEventListener\('focus'[\s\S]{0,300}?closeOmniPanel\(\)/.test(shellSrc));
+  check('宿主接 nova-page-click 并收起下拉',
+    /ev\.channel === 'nova-page-click'[\s\S]{0,200}?closeOmniPanel\(\)/.test(shellSrc));
+  check('preload 把网页内点击转成 nova-page-click',
+    /document\.addEventListener\('mousedown'[\s\S]{0,300}?sendToHost\('nova-page-click'\)/.test(wvPreSrc));
 
   console.log('\n[M] 无未捕获异常');
   check('运行期没有异常', errors.length === 0, errors.join(' | '));

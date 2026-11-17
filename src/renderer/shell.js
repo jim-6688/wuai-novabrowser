@@ -88,6 +88,9 @@ const state = {
   seq: 0,
   layout: 'desktop',
   panel: null,
+  /** 无痕窗口的内存分区名（从 URL ?incognito= 读）。非空表示这个窗口是无痕的：
+   *  所有标签页的 webview 都用这份分区，不恢复会话、不写历史（主进程侧判断）。 */
+  incognitoPartition: '',
   /** 设置页当前分区 */
   settingsSection: 'general',
   /** 设置页里走过的分区，栈顶就是当前页 —— 给左上角那个返回箭头用 */
@@ -417,8 +420,10 @@ function syncEngineUi() {
     // 理由：这枚胶囊在标题栏里只有 22px 高，放「Chromium 156」这种
     // 带版本号的写法会把整组快捷入口往右顶；而版本号是「查的时候才要」的信息，
     // 挂在 tooltip 上够用。预览模式仍由 boot 里单独改写。
-    btag.textContent = `${e.label} · 已激活`;
-    btag.title = ver ? `${e.modeLabel} · ${ver}` : e.modeLabel;
+    btag.textContent = state.incognitoPartition ? `无痕模式 · ${e.label}` : `${e.label} · 已激活`;
+    btag.title = state.incognitoPartition
+      ? '无痕窗口：不保存历史 / Cookie / 缓存，关闭即清除'
+      : (ver ? `${e.modeLabel} · ${ver}` : e.modeLabel);
     // 预览模式在 boot 里给这格写过内联的橙色（color / borderColor）。这里的赋值
     // 会把文字盖掉、却留下那圈橙边，看着像内核出问题 —— 一起清掉。
     btag.style.color = '';
@@ -484,7 +489,8 @@ function createTab(url, engineId, { activate = true } = {}) {
     canGoBack: false,
     canGoForward: false,
     webview: null,
-    crashed: false
+    crashed: false,
+    pinned: false
   };
 
   state.tabs.push(tab);
@@ -656,18 +662,61 @@ function activateBridgeView(tab) {
  * 网页 preload 送来的消息（`ipcRenderer.sendToHost`）。
  *
  * 这些是网页自己发起的动作，外壳只是接手：网页里调 window.print() 在 Electron
- * 下是空操作、Ctrl+滚轮要缩放整页、登录表单提交后要问一句存不存密码 ——
- * 三件事都只能由外壳做（见 src/preload/webview-preload.js）。
+ * 下是空操作、Ctrl+滚轮要缩放整页、登录表单提交后要问一句存不存密码、网页内点击
+ * 要收起地址栏下拉 —— 这些都只能由外壳做（见 src/preload/webview-preload.js）。
  */
+/** 最近一次原生 context-menu 的时间戳，用来和突破补弹去重（同一次右键只弹一次）。 */
+let lastContextMenuAt = 0;
+
 function handleWebviewIpc(tab, ev) {
   if (!tab || !ev) return;
+  // 网页内点击：外壳文档的 mousedown 捕获不到 webview 里的点击。webview 的 focus
+  // 只覆盖「焦点刚落进网页」那一下，焦点本来就在网页里时不会再触发，靠这条兜底。
+  if (ev.channel === 'nova-page-click') {
+    closeOmniPanel(); closeOmniShare(); closeOmniMenu();
+    return;
+  }
+  // 突破禁用右键：页面主世界钩子发现右键被 preventDefault 后转来的上下文。
+  // 开关关掉就不弹；刚弹过原生菜单（同一次右键）也不重复弹。
+  if (ev.channel === 'nova-context-menu') {
+    if (!contextBreakLimit()) return;
+    const now = Date.now();
+    if (now - lastContextMenuAt < 250) return;
+    lastContextMenuAt = now;
+    sendContextMenu(tab, ev.args && ev.args[0], tab.wcId || 0);
+    return;
+  }
   if (ev.channel === 'nova-print') { openPrintDialog(tab); return; }
+  // F12 / Ctrl+Shift+I 开发者工具、Ctrl+U 查看源码：焦点在网页里时按键只到得了 preload。
+  if (ev.channel === 'nova-devtools') { cmdDevTools(); return; }
+  if (ev.channel === 'nova-view-source') { cmdViewSource(); return; }
   if (ev.channel === 'nova-login') { onLoginSubmitted(tab, ev.args && ev.args[0]); return; }
   if (ev.channel === 'nova-cred-ask') { autofillLogin(tab, ev.args && ev.args[0]); return; }
   if (ev.channel !== 'nova-zoom') return;
   const dir = ev.args && ev.args[0];
   if (dir === 'reset') setTabZoom(tab, 1);
   else stepZoom(tab, dir === 'in' ? 1 : -1);
+}
+
+/**
+ * 把右键上下文交给主进程弹系统原生菜单。
+ *
+ * 两条来源共用这里：webview 自己的 context-menu 事件，以及「突破禁用右键」时
+ * preload 转来的菜单请求。翻译链接在这里按用户当前引擎 / 目标语言算好 ——
+ * 主进程不碰翻译设置，只负责拿链接开新标签。
+ */
+function sendContextMenu(tab, params, wcId) {
+  const p = params || {};
+  let trUrl = '';
+  let pageTrUrl = '';
+  const sel = String(p.selectionText || '').trim();
+  if (sel) { try { trUrl = translateTextUrl(sel); } catch { /* 算不出来就算了 */ } }
+  const url = tab && tab.url;
+  if (url && /^https?:\/\//i.test(url)) {
+    try { pageTrUrl = translatePageUrl(url); } catch { /* 算不出来就算了 */ }
+  }
+  try { bridge.webview.contextMenu({ params: p, wcId, trUrl, pageTrUrl }); }
+  catch { /* 桥没起来 */ }
 }
 
 /**
@@ -772,15 +821,19 @@ function mountTab(tab) {
 
   const wv = document.createElement('webview');
   wv.setAttribute('src', tab.url);
-  wv.setAttribute('partition', e.partition);
+  // 无痕窗口：所有 webview 共用本窗口的内存分区，覆盖内核的 persist: 分区 —— 否则
+  // cookie / localStorage 会落进对应内核的磁盘目录，隐私模式就形同虚设。
+  wv.setAttribute('partition', state.incognitoPartition || e.partition);
   wv.setAttribute('useragent', e.userAgent);
   wv.setAttribute('allowpopups', '');
   wv.setAttribute('webpreferences', 'contextIsolation=yes, nodeIntegration=no, sandbox=yes');
   wv.setAttribute('preload', WEBVIEW_PRELOAD_URL);
   wv.dataset.tabId = String(tab.id);
   wv.hidden = true;
-  // 点进网页时焦点落到 webview：Share 面板要跟着收起（网页内的点击不会冒泡到外壳文档）
-  wv.addEventListener('focus', () => { closeOmniShare(); closeSniffPopover(); });
+  // 点进网页时焦点落到 webview：地址栏下拉 / Share 面板 / 嗅探弹层都要收起
+  // （网页内的点击不会冒泡到外壳文档，只能靠这里的 focus；焦点已经在 webview
+  //   上时不会再触发 focus，那种情况由 preload 的 nova-page-click 兜底）。
+  wv.addEventListener('focus', () => { closeOmniPanel(); closeOmniShare(); closeSniffPopover(); });
   // 页面里的缩放 / 打印 / 登录操作（preload 转来的）：Ctrl+滚轮、Ctrl+±0、
   // Ctrl+P、window.print()、提交登录表单。抽成具名函数是为了让测试能直接调
   // —— jsdom 里没有真 webview，只能验这段逻辑，验不了 DOM 事件那一步。
@@ -810,9 +863,15 @@ function mountTab(tab) {
   wv.addEventListener('did-finish-load', () => {
     tab.everLoaded = true;
     if (activeTab() && activeTab().id === tab.id) healIfBlank(tab);
+    // 非中文页面主动提醒：异步读 lang，结果挂到 tab 上，切到它才显示
+    maybeOfferTranslation(tab);
   });
   wv.addEventListener('did-navigate', (ev) => {
     tab.url = ev.url;
+    // 换网址：上一页的提醒作废（提醒的是「刚才那一页」），检测记录也清掉
+    tab.translateOffer = null;
+    tab.translateOfferCheckedUrl = null;
+    if (activeTab() && activeTab().id === tab.id) syncTranslateOffer();
     // 换了站点：套用该域名记住的缩放（不落盘，只是应用）
     if (tab.webview === wv) setTabZoom(tab, zoomForHost(ev.url), { persist: false, silent: true });
     syncOmnibox();
@@ -851,15 +910,13 @@ function mountTab(tab) {
   wv.addEventListener('new-window', (ev) => {
     createTab(ev.url, tab.engineId, { activate: !ev.disposition || ev.disposition === 'foreground-tab' });
   });
-  // 右键 → 交给主进程弹系统原生菜单（DOM 菜单会被 webview 盖住，原生不会）
+  // 右键 → 交给主进程弹系统原生菜单（DOM 菜单会被 webview 盖住，原生不会）。
+  // 「突破禁用右键」那条链路补弹时也走 sendContextMenu，菜单项长得一模一样。
   wv.addEventListener('context-menu', (ev) => {
     let wcId = 0;
     try { wcId = wv.getWebContentsId(); } catch { /* 还没就绪 */ }
-    // 选中了文字就顺手把「翻译选中文字」的直达链接算好带过去，主进程直接用它开新标签。
-    let trUrl = '';
-    const sel = (ev.params && ev.params.selectionText || '').trim();
-    if (sel) { try { trUrl = translateTextUrl(sel); } catch { /* 算不出来就算了 */ } }
-    try { bridge.webview.contextMenu({ params: ev.params, wcId, trUrl }); } catch { /* 桥没起来 */ }
+    lastContextMenuAt = Date.now();
+    sendContextMenu(tab, ev.params, wcId);
   });
   // 渲染进程崩了：DOM 事件能立刻收到（但不带原因），主进程还会补一条带 reason 的。
   // 不处理的话界面只会留一块灰色（guest 未绘制的占位面），用户完全不知道发生了什么。
@@ -889,6 +946,8 @@ function mountTab(tab) {
     // 只能由主进程注入（见 src/main/print-hook.js）—— 不做这一步，页面自己的
     // 「打印」按钮会直接弹系统打印对话框，绕过纸张/边距设置。
     installPrintHook(tab);
+    // 突破网页禁用右键：主世界钩子先于网页拿到 contextmenu（见 context-menu-hook.js）
+    installContextHook(tab);
     // 自动拼页要等页面 DOM 就位才能找正文容器和下一页，所以挂在这一步
     injectAutoPage(tab);
     // 选中文字后弹「搜索/复制」迷你条（注入到页面里，避免被 webview 盖住）
@@ -1145,6 +1204,8 @@ function activateTab(id) {
   syncBookmarkBar();
   // 切到的这一页如果是加载失败状态，错误页要跟着显示/收起
   renderPageError();
+  // 翻译提醒按标签归属：切回来要能看见切走前挂起的那条
+  syncTranslateOffer();
   persistSession();
 }
 
@@ -1398,7 +1459,7 @@ let sessionTimer = null;
 function persistSession() {
   clearTimeout(sessionTimer);
   sessionTimer = setTimeout(() => {
-    const tabs = state.tabs.map((t) => ({ url: t.url, engineId: t.engineId }));
+    const tabs = state.tabs.map((t) => ({ url: t.url, engineId: t.engineId, pinned: !!t.pinned }));
     const activeIndex = Math.max(0, state.tabs.findIndex((t) => t.id === state.activeId));
     state.settings.session = { tabs, activeIndex };
     try {
@@ -1457,18 +1518,19 @@ function renderTabstrip() {
     // 改成渲染后给 img 挂事件监听兜底，见下面的 forEach。
     const fav = t.favicon ? `<img src="${esc(t.favicon)}" alt="" />` : letter;
     return `
-      <div class="tab ${t.id === state.activeId ? 'is-active' : ''}" data-tab="${t.id}"
+      <div class="tab ${t.id === state.activeId ? 'is-active' : ''} ${t.pinned ? 'is-pinned' : ''}" data-tab="${t.id}"
+           ${t.pinned ? '' : 'draggable="true"'}
            style="--tab-accent:${e.accent}" title="${esc(t.title)}&#10;${esc(t.url)}">
         ${t.loading ? '<span class="tab-spinner"></span>' : `<span class="tab-favicon" data-fb="${esc(letter)}">${fav}</span>`}
-        <span class="tab-title">${esc(t.title)}</span>
+        ${t.pinned ? '' : '<span class="tab-title">' + esc(t.title) + '</span>'}
         ${(t.audible || t.muted) ? `<button class="tab-audio ${t.muted ? 'is-muted' : ''}" data-mute="${t.id}" title="${t.muted ? '取消静音' : '静音此标签页'}">` +
           `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8h3l4-3v10l-4-3H4z"/>` +
           (t.muted ? '<path d="M13.5 8l4 4M17.5 8l-4 4"/>' : '<path d="M14 7.5a4 4 0 0 1 0 5"/>') +
           `</svg></button>` : ''}
-        <span class="tab-engine">${esc(e.short)}</span>
-        <button class="tab-close" data-close="${t.id}" title="关闭标签页">
+        ${t.pinned ? '' : `<span class="tab-engine">${esc(e.short)}</span>`}
+        ${t.pinned ? '' : `<button class="tab-close" data-close="${t.id}" title="关闭标签页">
           <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" /></svg>
-        </button>
+        </button>`}
       </div>`;
   }).join('');
 
@@ -1483,10 +1545,49 @@ function renderTabstrip() {
   });
 
   box.querySelectorAll('.tab').forEach((el) => {
+    const id = Number(el.dataset.tab);
     el.addEventListener('mousedown', (ev) => {
-      if (ev.button === 1) { closeTab(Number(el.dataset.tab)); return; }
+      if (ev.button === 1) { closeTab(id); return; }
       if (ev.target.closest('[data-close]')) return;
-      activateTab(Number(el.dataset.tab));
+      activateTab(id);
+    });
+    // 双击标签：固定 / 取消固定（固定后缩成只剩图标，和主流浏览器一致）
+    el.addEventListener('dblclick', (ev) => {
+      if (ev.target.closest('[data-close]') || ev.target.closest('[data-mute]')) return;
+      toggleTabPin(id);
+    });
+    // 右键标签：关闭其他 / 关闭右侧 / 固定等（原生菜单，DOM 菜单压不住 webview）
+    el.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openTabContextMenu(id, ev);
+    });
+    // 拖拽重排序：用 dataTransfer 传 tab id，drop 时把源标签挪到目标位置。
+    // 固定标签不参与拖拽（draggable 属性已在模板里按 pinned 关掉）。
+    el.addEventListener('dragstart', (ev) => {
+      state.dragTabId = id;
+      try { ev.dataTransfer.setData('text/plain', String(id)); ev.dataTransfer.effectAllowed = 'move'; } catch { /* 预览桩没有真 dataTransfer */ }
+      el.classList.add('is-dragging');
+    });
+    el.addEventListener('dragend', () => {
+      state.dragTabId = null;
+      el.classList.remove('is-dragging');
+      box.querySelectorAll('.tab').forEach((x) => x.classList.remove('is-drop-target'));
+    });
+    el.addEventListener('dragover', (ev) => {
+      if (state.dragTabId == null || state.dragTabId === id) return;
+      ev.preventDefault();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+      el.classList.add('is-drop-target');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('is-drop-target'));
+    el.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      el.classList.remove('is-drop-target');
+      const src = state.dragTabId;
+      state.dragTabId = null;
+      if (src == null || src === id) return;
+      reorderTab(src, id);
     });
   });
   box.querySelectorAll('[data-close]').forEach((b) => {
@@ -1498,6 +1599,91 @@ function renderTabstrip() {
 
   $('#mb-tab-count').textContent = String(state.tabs.length);
   $('#tg-count').textContent = String(state.tabs.length);
+}
+
+/** 固定 / 取消固定标签页。固定页缩成图标、不可拖、不可关（取消固定后才能关）。 */
+function toggleTabPin(id) {
+  const t = state.tabs.find((x) => x.id === id);
+  if (!t) return;
+  t.pinned = !t.pinned;
+  // 固定页沉到最左（相邻固定区），取消固定留在原位
+  if (t.pinned) {
+    const lastPinned = state.tabs.reduce((acc, x, i) => (x.pinned && x.id !== id ? i : acc), -1);
+    if (lastPinned >= 0) {
+      state.tabs.splice(state.tabs.indexOf(t), 1);
+      state.tabs.splice(lastPinned + 1, 0, t);
+    }
+  }
+  renderTabstrip();
+  toast(t.pinned ? '已固定标签页（双击可取消）' : '已取消固定');
+  persistSession();
+}
+
+/** 把 src 标签挪到 target 标签的位置；固定区不允许被普通标签挤乱。 */
+function reorderTab(srcId, targetId) {
+  const from = state.tabs.findIndex((t) => t.id === srcId);
+  const to = state.tabs.findIndex((t) => t.id === targetId);
+  if (from < 0 || to < 0 || from === to) return;
+  const src = state.tabs[from];
+  const dst = state.tabs[to];
+  // 固定页只能和固定页换位，普通页不能插进固定区
+  if (src.pinned !== dst.pinned) return;
+  state.tabs.splice(from, 1);
+  state.tabs.splice(to, 0, src);
+  renderTabstrip();
+  persistSession();
+}
+
+/** 标签页右键菜单（原生菜单：DOM 菜单会被 webview 盖住）。 */
+function openTabContextMenu(id, ev) {
+  const list = state.tabs;
+  const idx = list.findIndex((t) => t.id === id);
+  if (idx < 0) return;
+  const t = list[idx];
+  const items = [];
+  if (t.pinned) {
+    items.push({ label: '取消固定', act: 'pin' });
+  } else {
+    items.push({ label: '固定标签页', act: 'pin' });
+  }
+  items.push({ label: '在右侧新建标签页', act: 'new-right' });
+  items.push({ type: 'separator' });
+  if (idx < list.length - 1) items.push({ label: '关闭右侧标签页', act: 'close-right' });
+  if (list.length > 1) items.push({ label: '关闭其他标签页', act: 'close-others' });
+  items.push({ label: '关闭标签页', act: 'close' });
+
+  const payload = { tabId: id, x: ev.clientX, y: ev.clientY, items };
+  try { bridge.webview.tabContextMenu(payload); } catch { /* 预览桩没有桥 */ }
+}
+
+/** 执行标签右键菜单动作（主进程把点击回传过来）。 */
+function runTabContextAction(tabId, act) {
+  const idx = state.tabs.findIndex((t) => t.id === tabId);
+  if (idx < 0) return;
+  if (act === 'pin') { toggleTabPin(tabId); return; }
+  if (act === 'close') { closeTab(tabId); return; }
+  if (act === 'new-right') {
+    const nt = createTab(newTabUrl(), state.settings.defaultEngine, { activate: false });
+    const at = state.tabs.indexOf(nt);
+    // createTab 追加在末尾，挪到右键标签右侧
+    state.tabs.splice(at, 1);
+    state.tabs.splice(idx + 1, 0, nt);
+    activateTab(nt.id);
+    return;
+  }
+  if (act === 'close-right') {
+    state.tabs.slice(idx + 1).forEach((x) => destroyTab(x));
+    state.tabs.splice(idx + 1);
+    if (state.activeId !== tabId) activateTab(tabId);
+    else { renderTabstrip(); renderTabGrid(); }
+    persistSession();
+    return;
+  }
+  if (act === 'close-others') {
+    state.tabs.filter((x) => x.id !== tabId && !x.pinned).forEach((x) => destroyTab(x));
+    state.tabs = state.tabs.filter((x) => x.id === tabId || x.pinned);
+    activateTab(tabId);
+  }
 }
 
 function renderTabGrid() {
@@ -2951,6 +3137,9 @@ function wireQuickBar() {
  * 每一项直接调既有的入口（openCmdPalette / openPanel / openOmniShare / openAiPanel），
  * 不重写一遍逻辑。顺序把最新加入的（命令面板 / 站点权限）排最前。 */
 const TOOLS_ITEMS = [
+  { id: 'incognito', label: '无痕窗口', sub: 'Ctrl+Shift+N · 不留历史 / Cookie',
+    icon: '<path d="M2.5 10S5.5 5 10 5s7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5z"/><circle cx="10" cy="10" r="2.6"/>',
+    run: () => cmdNewIncognito() },
   { id: 'cmd', label: '命令面板', sub: 'Ctrl+K · 命令 / 网址 / 搜索',
     icon: '<circle cx="9" cy="9" r="6"/><path d="M14 14l3.5 3.5" stroke-linecap="round"/>',
     run: () => openCmdPalette() },
@@ -4455,6 +4644,9 @@ async function buildHistory() {
           <div class="hist-url">${esc(prettyUrl(h.url))}</div>
         </div>
         <div class="hist-time">${esc(timeAgo(h.ts))}</div>
+        <button class="hist-del" data-hist-del="${esc(h.url)}" title="删除这条记录">
+          <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
       </div>`).join('')}</div>` : '<div class="sv-empty">暂无历史记录。</div>'}
   `;
 }
@@ -5368,6 +5560,17 @@ function buildGeneral() {
       <code>%s</code> 会被替换成搜索词。当前示例：${esc(searchUrl('nova'))}
     </div>
 
+    <div class="panel-label">网页右键</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">突破网页的右键限制</span>
+          <span class="lr-sub">有些网页禁用右键菜单，开启后仍能复制文字、另存图片、导出 PDF；右键菜单里的常用项一律可用</span>
+        </span>
+        <button class="switch ${contextBreakLimit() ? 'is-on' : ''}" data-act="ctx-break"></button>
+      </div>
+    </div>
+
     <div class="panel-label">启动</div>
     <div class="sv-card">
       <div class="list-row">
@@ -5926,6 +6129,7 @@ const PERM_CATS = [
 function buildPermissions() {
   const rules = (state.settings && state.settings.permissions) || [];
   const lnaMode = (state.settings && state.settings.localNetworkAccess) || 'ask';
+  const localAuthOn = !state.settings.localAuth || state.settings.localAuth.enabled !== false;
   return `
     <h2 class="sv-h2">站点权限</h2>
     <div class="sv-lead">
@@ -5946,6 +6150,13 @@ function buildPermissions() {
           <option value="allow" ${lnaMode === 'allow' ? 'selected' : ''}>始终允许</option>
           <option value="block" ${lnaMode === 'block' ? 'selected' : ''}>始终禁止</option>
         </select>
+      </div>
+      <div class="list-row" style="border-top:1px solid var(--divider)">
+        <span class="lr-main">
+          <span class="lr-title">允许快捷登录（推荐开启）</span>
+          <span class="lr-sub">内置放行微信 / QQ 客户端的本地回环域名（localhost.weixin.qq.com、localhost.ptlogin2.qq.com 等），无需逐站点授权；设为「始终禁止」时不生效</span>
+        </span>
+        <button class="switch ${localAuthOn ? 'is-on' : ''}" data-act="local-auth-toggle" title="放行本机快捷登录客户端"></button>
       </div>
     </div>
 
@@ -7031,9 +7242,11 @@ function buildGithub() {
  * 内置翻译（网页重定向，无 API Key）
  * ------------------------------------------------------------------ */
 
-/** 可选翻译引擎。label 用于界面展示。 */
+/** 可选翻译引擎。label 用于界面展示；百度排第一（默认，国内直连可用）。 */
 const TRANSLATE_ENGINES = {
+  baidu: { label: '百度翻译' },
   google: { label: 'Google 翻译' },
+  tencent: { label: '腾讯翻译君' },
   bing: { label: 'Bing 翻译' },
   deepl: { label: 'DeepL 翻译' }
 };
@@ -7043,52 +7256,84 @@ const TRANSLATE_ENGINES = {
  * 选中文时 DeepL 也是 ZH，和其它语言区分不明显，所以繁体也归到 ZH 没问题。
  */
 const TARGET_LANGS = [
-  { code: 'zh-CN', deepl: 'ZH', label: '中文（简体）' },
-  { code: 'zh-TW', deepl: 'ZH', label: '中文（繁体）' },
-  { code: 'en', deepl: 'EN', label: '英语' },
-  { code: 'ja', deepl: 'JA', label: '日语' },
-  { code: 'ko', deepl: 'KO', label: '韩语' },
-  { code: 'fr', deepl: 'FR', label: '法语' },
-  { code: 'de', deepl: 'DE', label: '德语' },
-  { code: 'es', deepl: 'ES', label: '西班牙语' },
-  { code: 'ru', deepl: 'RU', label: '俄语' },
-  { code: 'pt', deepl: 'PT', label: '葡萄牙语' },
-  { code: 'it', deepl: 'IT', label: '意大利语' },
-  { code: 'ar', deepl: 'AR', label: '阿拉伯语' },
-  { code: 'th', deepl: 'TH', label: '泰语' },
-  { code: 'vi', deepl: 'VI', label: '越南语' }
+  { code: 'zh-CN', deepl: 'ZH', baidu: 'zh', label: '中文（简体）' },
+  { code: 'zh-TW', deepl: 'ZH', baidu: 'cht', label: '中文（繁体）' },
+  { code: 'en', deepl: 'EN', baidu: 'en', label: '英语' },
+  { code: 'ja', deepl: 'JA', baidu: 'jp', label: '日语' },
+  { code: 'ko', deepl: 'KO', baidu: 'kr', label: '韩语' },
+  { code: 'fr', deepl: 'FR', baidu: 'fra', label: '法语' },
+  { code: 'de', deepl: 'DE', baidu: 'de', label: '德语' },
+  { code: 'es', deepl: 'ES', baidu: 'spa', label: '西班牙语' },
+  { code: 'ru', deepl: 'RU', baidu: 'ru', label: '俄语' },
+  { code: 'pt', deepl: 'PT', baidu: 'pt', label: '葡萄牙语' },
+  { code: 'it', deepl: 'IT', baidu: 'it', label: '意大利语' },
+  { code: 'ar', deepl: 'AR', baidu: 'ara', label: '阿拉伯语' },
+  { code: 'th', deepl: 'TH', baidu: 'th', label: '泰语' },
+  { code: 'vi', deepl: 'VI', baidu: 'vie', label: '越南语' }
 ];
+
+/**
+ * 常见网页语言主标签 → 中文名，只用于提醒文案（「检测到这是英语页面」）。
+ * 网页的 lang 可能带地区后缀（en-US），检测时统一取主标签，这里也只按主标签查。
+ */
+const PAGE_LANG_NAMES = {
+  en: '英语', ja: '日语', ko: '韩语', fr: '法语', de: '德语', es: '西班牙语',
+  ru: '俄语', pt: '葡萄牙语', it: '意大利语', ar: '阿拉伯语', th: '泰语',
+  vi: '越南语', nl: '荷兰语', pl: '波兰语', tr: '土耳其语', hi: '印地语',
+  id: '印尼语', ms: '马来语', uk: '乌克兰语', cs: '捷克语', sv: '瑞典语',
+  da: '丹麦语', fi: '芬兰语', no: '挪威语', he: '希伯来语', el: '希腊语',
+  hu: '匈牙利语', ro: '罗马尼亚语', fa: '波斯语', bn: '孟加拉语', ta: '泰米尔语'
+};
+function langName(code) {
+  const c = String(code || '').toLowerCase();
+  return PAGE_LANG_NAMES[c] || (c ? c.toUpperCase() : '这种');
+}
+function langPrimary(code) {
+  return String(code || '').toLowerCase().split(/[-_]/)[0];
+}
+function isChineseLang(code) { return langPrimary(code) === 'zh'; }
 
 /** 当前生效的翻译偏好；缺省项兜底，老配置没有 translate 这个键也不崩。 */
 function translateCfg() {
   const t = (state.settings && state.settings.translate) || {};
   return {
-    engine: TRANSLATE_ENGINES[t.engine] ? t.engine : 'google',
-    target: TARGET_LANGS.some((l) => l.code === t.target) ? t.target : 'zh-CN'
+    engine: TRANSLATE_ENGINES[t.engine] ? t.engine : 'baidu',
+    target: TARGET_LANGS.some((l) => l.code === t.target) ? t.target : 'zh-CN',
+    offer: t.offer !== false, // 主动提醒默认开；只有明确写成 false 才关
+    neverOfferLangs: Array.isArray(t.neverOfferLangs) ? t.neverOfferLangs : []
   };
 }
 
-/** 按引擎把目标语言代码换成对应形态（DeepL 要大写）。 */
+/**
+ * 按引擎把目标语言代码换成对应形态：DeepL 要大写双语码，百度用自家代码
+ * （zh / cht / jp …），其余沿用 TARGET_LANGS 的 code。
+ */
 function translateTargetFor(engine, targetCode) {
   const lang = TARGET_LANGS.find((l) => l.code === targetCode) || TARGET_LANGS[0];
-  return engine === 'deepl' ? lang.deepl : lang.code;
+  if (engine === 'deepl') return lang.deepl;
+  if (engine === 'baidu') return lang.baidu;
+  return lang.code;
 }
 
-/** 翻译整页：Google 走 ?u= 真·整页；其余落到已选好语言的翻译主页。 */
+/** 翻译整页：百度走 transpage、Google 走 ?u= 真·整页；其余落到翻译主页。 */
 function translatePageUrl(pageUrl) {
   const { engine, target } = translateCfg();
   const tl = translateTargetFor(engine, target);
   const enc = encodeURIComponent(pageUrl);
+  // 百度：国内直连可用，少数几个「带网址直达整页」的公开深链之一
+  if (engine === 'baidu') return `https://fanyi.baidu.com/transpage?source=url&from=auto&to=${tl}&query=${enc}&render=1`;
   if (engine === 'google') return `https://translate.google.com/translate?sl=auto&tl=${tl}&u=${enc}`;
   if (engine === 'bing') return `https://www.bing.com/translator?to=${tl}`;
   return `https://www.deepl.com/translator?target_lang=${tl}`;
 }
 
-/** 翻译选中的文字：三家都支持按文字参数直达。 */
+/** 翻译选中的文字：各家都支持按文字参数直达。 */
 function translateTextUrl(text) {
   const { engine, target } = translateCfg();
   const tl = translateTargetFor(engine, target);
   const enc = encodeURIComponent(text);
+  if (engine === 'baidu') return `https://fanyi.baidu.com/#auto/${tl}/${enc}`;
+  if (engine === 'tencent') return `https://fanyi.qq.com/?text=${enc}`;
   if (engine === 'google') return `https://translate.google.com/?sl=auto&tl=${tl}#view=home&op=translate&text=${enc}`;
   if (engine === 'bing') return `https://www.bing.com/translator?to=${tl}&text=${enc}`;
   return `https://www.deepl.com/translator#auto/${tl}/${enc}`;
@@ -7104,11 +7349,17 @@ async function activeSelectionText() {
   } catch { return ''; }
 }
 
-/** 翻译当前网页：整页交给所选引擎（Google 走 ?u=，其余落到已选语言的翻译主页）。 */
+/** 翻译当前网页：整页交给所选引擎（百度 transpage / Google ?u= 直达；其余落到翻译主页）。 */
 async function translateActivePage() {
   const t = activeTab();
   if (!t) { toast('还没有打开的标签页'); return; }
   if (!/^https?:\/\//i.test(t.url)) { toast('当前页面不是网页，无法翻译'); return; }
+  // 腾讯翻译君没有整页翻译入口（网页端只做文本 / 文档），硬开主页也粘不了网址；
+  // 明确说清楚，让用户改用「翻译选中文字」或在设置里换百度 / Google。
+  if (translateCfg().engine === 'tencent') {
+    toast('腾讯翻译君不支持整页翻译，请用「翻译选中文字」或换百度 / Google');
+    return;
+  }
   createTab(translatePageUrl(t.url), state.settings.defaultEngine);
   toast('已在新标签页打开翻译');
 }
@@ -7121,18 +7372,114 @@ async function translateActiveSelection() {
   toast('已打开翻译');
 }
 
+/* ---- 非中文页面主动提醒 ---- */
+
+/**
+ * 注入页面主世界读语言标签。优先级：<html lang> → meta content-language →
+ * navigator.language；统一取主标签（en-US → en），读不到就空串（＝不提醒，
+ * 宁可漏报也不误报）。字符串里不含反引号与 ${，与主世界其它注入脚本同一约定。
+ */
+const PAGE_LANG_DETECT_JS = `
+(function(){
+  try {
+    var de = document.documentElement || {};
+    var lang = de.lang || de.getAttribute('lang') || '';
+    if (!lang) {
+      var ms = document.getElementsByTagName('meta');
+      for (var i = 0; i < ms.length; i++) {
+        if ((ms[i].getAttribute('http-equiv') || '').toLowerCase() === 'content-language') {
+          lang = ms[i].getAttribute('content') || '';
+          break;
+        }
+      }
+    }
+    if (!lang) lang = navigator.language || navigator.userLanguage || '';
+    lang = String(lang || '').trim().split(',')[0].replace(/_/g, '-').split('-')[0].toLowerCase();
+    return lang;
+  } catch (e) { return ''; }
+})()
+`;
+
+/**
+ * 页面加载完后看一眼语言，够条件就给这个标签挂一条提醒。
+ * 结果存在 tab 上而不是直接弹全局条：后台标签加载完也记着，切过去才显示。
+ * 每个 URL 只检测一次，避免 did-finish-load 重入反复弹。
+ */
+async function maybeOfferTranslation(tab) {
+  if (!tab || !tab.webview || tab.webview.__bridge) return; // 非 Chromium 视图拿不到 lang
+  const cfg = translateCfg();
+  if (!cfg.offer) return;
+  const url = tab.url || '';
+  if (!/^https?:\/\//i.test(url)) return; // 内部页 / 文件页不提醒
+  if (tab.translateOfferCheckedUrl === url) return;
+  let lang = '';
+  try { lang = await tab.webview.executeJavaScript(PAGE_LANG_DETECT_JS); } catch { return; }
+  lang = String(lang || '').toLowerCase();
+  tab.translateOfferCheckedUrl = url;
+  if (state.tabs.indexOf(tab) < 0) return; // 检测期间标签被关了
+  if (!lang || isChineseLang(lang)) return; // 读不到 / 本来就是中文
+  if (lang === langPrimary(cfg.target)) return; // 已经是目标语言（目标改成英文时页面是英文就不提醒）
+  if (cfg.neverOfferLangs.some((l) => langPrimary(l) === lang)) return; // 用户点过「不再提醒这种语言」
+  tab.translateOffer = { lang, name: langName(lang), target: cfg.target };
+  syncTranslateOffer();
+}
+
+/** 按当前标签页的挂起提醒，显示或收起那条占布局的提示栏。 */
+function syncTranslateOffer() {
+  const bar = $('#translate-offer');
+  if (!bar) return;
+  const t = activeTab();
+  const offer = t && t.translateOffer;
+  if (!offer) { bar.hidden = true; return; }
+  const target = TARGET_LANGS.find((l) => l.code === offer.target) || TARGET_LANGS[0];
+  const text = $('#to-text');
+  if (text) text.textContent = `检测到这是${offer.name}页面，要翻译成${target.label}吗？`;
+  bar.hidden = false;
+}
+
+/** 关掉提醒（本次不再问；刷新或换网址仍可再提醒）。 */
+function dismissTranslateOffer() {
+  const t = activeTab();
+  if (!t) return;
+  t.translateOffer = null;
+  syncTranslateOffer();
+}
+
+/** 接受提醒：翻译当前页，同时收起提示栏。 */
+function acceptTranslateOffer() {
+  const t = activeTab();
+  if (!t || !t.translateOffer) return;
+  t.translateOffer = null;
+  syncTranslateOffer();
+  translateActivePage();
+}
+
+/** 永久忽略当前页面的语言：写入 neverOfferLangs，之后这种语言不再主动提醒。 */
+async function neverOfferTranslateLang() {
+  const t = activeTab();
+  if (!t || !t.translateOffer) return;
+  const name = t.translateOffer.name;
+  const primary = langPrimary(t.translateOffer.lang);
+  const list = translateCfg().neverOfferLangs.slice();
+  if (list.indexOf(primary) < 0) list.push(primary);
+  state.settings = await bridge.settings.patch({ translate: { neverOfferLangs: list } });
+  t.translateOffer = null;
+  syncTranslateOffer();
+  toast('已不再提醒' + name + '页面');
+}
+
 function buildTranslate() {
   const t = translateCfg();
   return `
     <h2 class="sv-h2">内置翻译</h2>
-    <div class="sv-lead">无需 API Key，把当前网页或选中的文字交给在线翻译服务。默认 Google，可在下面切换引擎与目标语言。</div>
+    <div class="sv-lead">无需 API Key，把当前网页或选中的文字交给在线翻译服务。默认百度（国内直连可用），可在下面切换引擎与目标语言。</div>
 
     <div class="panel-label">翻译引擎</div>
     <div class="sv-card">
       <div class="list-row">
         <span class="lr-main">
           <span class="lr-title">翻译服务</span>
-          <span class="lr-sub">Google 支持整页翻译；Bing / DeepL 以文字翻译为主</span>
+          <span class="lr-sub">百度、Google 支持按网址整页翻译；腾讯仅文字；Bing / DeepL 以文字为主</span>
         </span>
         <select class="perm-cat-sel" id="tr-engine" title="翻译引擎">
           ${Object.entries(TRANSLATE_ENGINES).map(([k, v]) => `<option value="${k}" ${t.engine === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}
@@ -7153,6 +7500,26 @@ function buildTranslate() {
       </div>
     </div>
 
+    <div class="panel-label">主动提醒</div>
+    <div class="sv-card">
+      <div class="list-row">
+        <span class="lr-main">
+          <span class="lr-title">非中文页面提醒翻译</span>
+          <span class="lr-sub">打开外文网页时在地址栏下方问一句是否翻译；中文页面不会打扰</span>
+        </span>
+        <button class="switch ${t.offer ? 'is-on' : ''}" id="tr-offer" type="button" title="非中文页面主动提醒"></button>
+      </div>
+      <div class="list-row" style="border-top:1px solid var(--divider)">
+        <span class="lr-main">
+          <span class="lr-title">不再提醒的语言</span>
+          <span class="lr-sub">${t.neverOfferLangs.length
+            ? esc(t.neverOfferLangs.map((c) => langName(c)).join('、'))
+            : '提醒条上点「不再提醒这种语言」后，这里会列出来'}</span>
+        </span>
+        ${t.neverOfferLangs.length ? '<button class="btn btn-sm" data-act="tr-never-clear">恢复全部提醒</button>' : ''}
+      </div>
+    </div>
+
     <div class="panel-label">试试</div>
     <div class="sv-card" style="padding:var(--sp-3)">
       <div class="btn-row" style="padding:0">
@@ -7163,9 +7530,10 @@ function buildTranslate() {
     </div>
 
     <div class="sv-note">
-      <b>关于整页翻译：</b>只有 Google 提供稳定的「按网址整页翻译」深链，点「翻译当前页面」
-      会直接把整个站翻过来。Bing / DeepL 在网页端没有公开的整页深链，用那两家时「翻译当前页面」
-      会打开它们已选好目标语言的翻译主页，把网址粘进「网页」标签页即可。
+      <b>关于整页翻译：</b>百度、Google 都提供「按网址整页翻译」深链，点「翻译当前页面」会直接把整个站翻过来
+      —— 百度（<code>fanyi.baidu.com/transpage</code>）国内直连可用，Google 在大陆网络打不开，需国际网络。
+      Bing / DeepL 没有公开的整页深链，会打开已选好语言的翻译主页让用户粘网址；腾讯翻译君只做文字翻译，
+      整页请改用百度 / Google，或用「翻译选中文字」。
     </div>
   `;
 }
@@ -7491,6 +7859,20 @@ function wireActions(root) {
       toast('目标语言：' + lab);
     });
   }
+  // 主动提醒开关：off 时立刻把当前挂起的提醒也收掉，不必等到下次导航
+  const trOffer = root.querySelector('#tr-offer');
+  if (trOffer) {
+    trOffer.addEventListener('click', async () => {
+      const next = !trOffer.classList.contains('is-on');
+      trOffer.classList.toggle('is-on', next);
+      state.settings = await bridge.settings.patch({ translate: { offer: next } });
+      if (!next) {
+        for (const t of state.tabs) t.translateOffer = null;
+        syncTranslateOffer();
+      }
+      toast(next ? '已开启非中文页面翻译提醒' : '已关闭翻译提醒');
+    });
+  }
 
   // 通用布尔配置开关（restoreSession 等）
   root.querySelectorAll('[data-cfg]').forEach((sw) => {
@@ -7629,12 +8011,21 @@ function wireActions(root) {
     });
   });
 
-  // 历史行 → 当前标签页打开
+  // 历史行 → 当前标签页打开（删除按钮单独处理，不触发跳转）
   root.querySelectorAll('.hist-row').forEach((r) => {
-    r.addEventListener('click', () => {
+    r.addEventListener('click', (ev) => {
+      if (ev.target.closest('[data-hist-del]')) return;
       const tab = activeTab();
       if (tab) navigate(tab.id, r.dataset.url);
       closeSettings();
+    });
+  });
+  root.querySelectorAll('[data-hist-del]').forEach((b) => {
+    b.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      await bridge.history.remove(b.dataset.histDel);
+      refreshCurrent();
+      toast('已删除这条历史');
     });
   });
 
@@ -7830,7 +8221,20 @@ function wireActions(root) {
   root.querySelectorAll('[data-act]').forEach((b) => {
     b.addEventListener('click', async () => {
       const act = b.dataset.act;
-      if (act === 'new-tab') { createTab(newTabUrl(), state.settings.defaultEngine); closeDrawer(); }
+      if (act === 'ctx-break') {
+        const on = !contextBreakLimit();
+        state.settings = await bridge.settings.patch({ contextMenu: { breakLimit: on } });
+        b.classList.toggle('is-on', on);
+        toast(on ? '已开启突破网页右键限制' : '已关闭，网页右键按站点自己的规则');
+      }
+      else if (act === 'local-auth-toggle') {
+        const cur = !state.settings.localAuth || state.settings.localAuth.enabled !== false;
+        const on = !cur;
+        state.settings = await bridge.settings.patch({ localAuth: { enabled: on } });
+        b.classList.toggle('is-on', on);
+        toast(on ? '已允许微信 / QQ 快捷登录' : '已关闭快捷登录放行，本地网络按站点规则');
+      }
+      else if (act === 'new-tab') { createTab(newTabUrl(), state.settings.defaultEngine); closeDrawer(); }
       else if (act === 'capture-page') {
         const t = activeTab();
         if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持网页截图'); return; }
@@ -7998,6 +8402,10 @@ function wireActions(root) {
         await translateActivePage();
       } else if (act === 'tr-selection') {
         await translateActiveSelection();
+      } else if (act === 'tr-never-clear') {
+        state.settings = await bridge.settings.patch({ translate: { neverOfferLangs: [] } });
+        refreshCurrent();
+        toast('已恢复所有语言的翻译提醒');
       } else if (act === 'cred-add') {
         const g = (id) => { const el = root.querySelector('#' + id); return el ? el.value : ''; };
         const r = await bridge.credentials.add({
@@ -8302,6 +8710,8 @@ const CMD_ICON = {
   lock: '<path d="M5.5 8.5V6.8a4.5 4.5 0 0 1 9 0v1.7"/><rect x="4" y="8.5" width="12" height="7.5" rx="1.8"/>',
   chip: '<rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M8.5 2.5v3M11.5 2.5v3M8.5 14.5v3M11.5 14.5v3M2.5 8.5h3M2.5 11.5h3M14.5 8.5h3M14.5 11.5h3"/>',
   clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l3 1.8"/>',
+  expand: '<path d="M7.5 3.5h-4v4M12.5 3.5h4v4M7.5 16.5h-4v-4M12.5 16.5h4v-4"/>',
+  code: '<path d="M7 6.5L3.5 10 7 13.5M13 6.5l3.5 3.5-3.5 3.5"/>',
   tab: '<rect x="2.5" y="5" width="10" height="10" rx="1.4"/><path d="M12.5 8h5M12.5 11h5"/>',
   globe: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.5 2.4 2.5 11.6 0 14M10 3c-2.5 2.4-2.5 11.6 0 14"/>',
   translate: '<path d="M3 5h7M6.5 3v2M5 9.5h4M3 14h7M6.5 12v2"/><path d="M12 5h5M14 3v2M16.5 8.5l3.8 6M14 15h6.5M16.7 11h1.6"/>'
@@ -8340,6 +8750,72 @@ async function cmdCapturePage() {
   else if (r && r.error) toast(r.error);
 }
 
+/** 可见区域截图（与整页截图的唯一差别是 mode）。 */
+async function cmdCaptureView() {
+  const t = activeTab();
+  if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持网页截图'); return; }
+  let id = t.wcId;
+  if (id == null && typeof t.webview.getWebContentsId === 'function') {
+    try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+  }
+  const r = await bridge.page.capture(id, 'view');
+  if (r && r.ok) toast('截图已保存');
+  else if (r && r.error) toast(r.error);
+}
+
+/** 打开 / 关闭当前网页的开发者工具。 */
+async function cmdDevTools() {
+  const t = activeTab();
+  if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持开发者工具'); return; }
+  let id = t.wcId;
+  if (id == null && typeof t.webview.getWebContentsId === 'function') {
+    try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+  }
+  const r = await bridge.page.devTools(id);
+  if (r && r.ok) toast(r.opened ? '已打开开发者工具' : '已关闭开发者工具');
+  else if (r && r.error) toast(r.error);
+}
+
+/** 查看当前网页源码：新开一个只读文本标签。 */
+async function cmdViewSource() {
+  const t = activeTab();
+  if (!t || !t.webview || t.webview.__bridge) { toast('当前页面不支持查看源码'); return; }
+  let id = t.wcId;
+  if (id == null && typeof t.webview.getWebContentsId === 'function') {
+    try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+  }
+  const r = await bridge.page.viewSource(id);
+  if (r && r.ok) createTab(r.url, state.settings.defaultEngine);
+  else if (r && r.error) toast(r.error);
+}
+
+/** 另存网页为完整 HTML（离线可看）。 */
+async function cmdSavePage() {
+  const t = activeTab();
+  if (!t || !t.webview || t.webview.__bridge) { toast('当前页面不支持另存'); return; }
+  let id = t.wcId;
+  if (id == null && typeof t.webview.getWebContentsId === 'function') {
+    try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+  }
+  const r = await bridge.page.savePage(id);
+  if (r && r.ok) toast('网页已保存');
+  else if (r && r.error) toast(r.error);
+}
+
+/** 切换窗口全屏（F11）。走 window:control 的 fullscreen 动作，和最小化同一条通道。 */
+function cmdFullScreen() {
+  try { bridge.window.fullScreen(); } catch { /* 预览桩没有桥 */ }
+}
+
+/** 开一个无痕窗口（内存 session，关窗即焚）。 */
+async function cmdNewIncognito() {
+  try {
+    const r = await bridge.window.newIncognito();
+    if (r && r.ok) toast('已打开无痕窗口（关闭后不留痕迹）');
+    else if (r && r.error) toast(r.error);
+  } catch { /* 预览桩没有桥 */ }
+}
+
 /* ------------------------------------------------------------------ *
  * 打印
  * ------------------------------------------------------------------ *
@@ -8365,6 +8841,27 @@ function installPrintHook(tab) {
   if (!bridge.page || typeof bridge.page.installPrintHook !== 'function') return;
   try {
     const r = bridge.page.installPrintHook(tab.wcId);
+    if (r && typeof r.catch === 'function') r.catch(() => { /* 页面已关闭 */ });
+  } catch { /* 同上 */ }
+}
+
+/** 突破开关是否打开（contextMenu.breakLimit，缺省视为开）。 */
+function contextBreakLimit() {
+  const c = (state.settings && state.settings.contextMenu) || {};
+  return c.breakLimit !== false;
+}
+
+/**
+ * 给页面装「突破禁用右键」钩子（钩子本身由主进程注入，见 context-menu-hook.js）。
+ * 关掉突破时不装：省一次注入，也让页面自己的右键菜单保持原样。
+ */
+function installContextHook(tab) {
+  if (!contextBreakLimit()) return;
+  if (!tab || (tab.webview && tab.webview.__bridge)) return;
+  if (tab.wcId == null) return;
+  if (!bridge.page || typeof bridge.page.installContextHook !== 'function') return;
+  try {
+    const r = bridge.page.installContextHook(tab.wcId);
     if (r && typeof r.catch === 'function') r.catch(() => { /* 页面已关闭 */ });
   } catch { /* 同上 */ }
 }
@@ -8721,13 +9218,28 @@ async function runPrintPdf() {
   else if (r && r.error) toast(r.error);
 }
 
-async function cmdSavePdfPage() {
-  const t = activeTab();
-  if (!t || !t.webview || t.webview.__bridge) { toast('当前内核不支持另存为 PDF'); return; }
-  let id = t.wcId;
-  if (id == null && typeof t.webview.getWebContentsId === 'function') {
-    try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+/**
+ * 把某个标签页另存为 PDF。默认当前页；右键菜单传来 wcId 时存右键的那个页面
+ * （右键期间活动标签理论上就是它，但显式带上 wcId 更稳，也便于后台页触发）。
+ */
+async function cmdSavePdfPage(tabOrWcId) {
+  let t;
+  let id;
+  if (typeof tabOrWcId === 'object' && tabOrWcId) {
+    t = tabOrWcId;
+  } else if (tabOrWcId != null) {
+    id = tabOrWcId;
+  } else {
+    t = activeTab();
   }
+  if (t) {
+    if (!t.webview || t.webview.__bridge) { toast('当前内核不支持另存为 PDF'); return; }
+    if (id == null) id = t.wcId;
+    if (id == null && typeof t.webview.getWebContentsId === 'function') {
+      try { id = t.webview.getWebContentsId(); } catch { /* 还没就绪 */ }
+    }
+  }
+  if (id == null) { toast('当前内核不支持另存为 PDF'); return; }
   const r = await bridge.page.savePdf(id);
   if (r && r.ok) toast('已保存 PDF');
   else if (r && r.error) toast(r.error);
@@ -8750,8 +9262,14 @@ function cmdBaseActions() {
     { id: 'toggle-bookmark', label: bookmarkToggleLabel(), icon: 'star', run: () => toggleBookmarkCurrent() },
     { id: 'find', label: '页内查找', hint: 'Ctrl+F', icon: 'search', run: () => openFindBar() },
     { id: 'capture', label: '整页截图', icon: 'camera', run: () => cmdCapturePage() },
+    { id: 'capture-view', label: '可见区域截图', icon: 'camera', run: () => cmdCaptureView() },
     { id: 'print', label: '打印当前页', hint: 'Ctrl+P', icon: 'pdf', run: () => openPrintDialog(activeTab()) },
     { id: 'pdf', label: '另存为 PDF', icon: 'pdf', run: () => cmdSavePdfPage() },
+    { id: 'save-page', label: '另存网页为 HTML', hint: 'Ctrl+S', icon: 'down', run: () => cmdSavePage() },
+    { id: 'devtools', label: '开发者工具', hint: 'F12', icon: 'gear', run: () => cmdDevTools() },
+    { id: 'view-source', label: '查看网页源码', hint: 'Ctrl+U', icon: 'code', run: () => cmdViewSource() },
+    { id: 'fullscreen', label: '切换全屏', hint: 'F11', icon: 'expand', run: () => cmdFullScreen() },
+    { id: 'incognito', label: '新建无痕窗口', hint: 'Ctrl+Shift+N', icon: 'eye', run: () => cmdNewIncognito() },
     { id: 'read', label: '阅读增强（无图 / 拼页）', icon: 'book', run: () => openReadSheet() },
     { id: 'mute', label: '静音 / 取消静音当前标签页', icon: 'mute', run: () => { const t = activeTab(); if (t) toggleTabMute(t.id); } },
     { id: 'copy-url', label: '复制当前网址', icon: 'link', run: async () => { const t = activeTab(); if (t) { await bridge.system.copy(t.url); toast('已复制当前网址'); } } },
@@ -9856,18 +10374,20 @@ function wireUi() {
   $('#nav-reload').addEventListener('click', () => {
     const t = activeTab();
     if (!t || !t.webview) return;
-    // reload 同样要求 dom-ready（见 navGo 的注释）。没就绪时退回「重设 src」，
-    // 那条路不需要就绪 —— 于是用户点刷新永远有反应，而不是抛一个
-    // 「The WebView must be attached to the DOM…」上来。
+    // 加载中 → 停止（按钮 title 在 syncNavButtons 里已是「停止」）；否则刷新。
+    // 以前这里无论加载与否都 reload，按钮写着「停止」点了却是重新加载 —— 修正。
+    // stop() 和 reload() 一样要求 dom-ready，没就绪时按加载状态分别兜底：
+    // 停止就啥也不做（还没真正开始加载），刷新则退回重设 src（不需要就绪）。
     try {
-      if (typeof t.webview.reload === 'function'
-          && typeof t.webview.getWebContentsId === 'function'
-          && t.webview.getWebContentsId() > 0) {
-        t.webview.reload();
-        return;
+      if (typeof t.webview.getWebContentsId === 'function' && t.webview.getWebContentsId() > 0) {
+        if (t.loading) {
+          if (typeof t.webview.stop === 'function') t.webview.stop();
+          return;
+        }
+        if (typeof t.webview.reload === 'function') { t.webview.reload(); return; }
       }
-    } catch { /* 落到下面那条 */ }
-    t.webview.setAttribute('src', t.url);
+    } catch { /* 落到下面的兜底 */ }
+    if (!t.loading) t.webview.setAttribute('src', t.url);
   });
   $('#nav-home').addEventListener('click', () => { const t = activeTab(); if (t) navigate(t.id, state.settings.homepage); });
 
@@ -10512,6 +11032,11 @@ function wireUi() {
   });
   $('#engine-notice-close').addEventListener('click', () => { $('#engine-notice').hidden = true; });
 
+  // 非中文页面翻译提醒：三个按钮与通知条按钮同一处接线
+  $('#to-accept').addEventListener('click', acceptTranslateOffer);
+  $('#to-never').addEventListener('click', () => { neverOfferTranslateLang(); });
+  $('#to-dismiss').addEventListener('click', dismissTranslateOffer);
+
   // 加载失败提示页：重试 / 回到首页
   $('#pe-retry') && $('#pe-retry').addEventListener('click', () => {
     const t = activeTab();
@@ -10600,7 +11125,12 @@ function wireUi() {
     else if (mod && ev.key === '-') { ev.preventDefault(); stepZoom(activeTab(), -1); }
     else if (mod && ev.key === '0') { ev.preventDefault(); setTabZoom(activeTab(), 1); }
     else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); toggleAdblockPopover(); }
+    else if (mod && ev.shiftKey && ev.key.toLowerCase() === 'n') { ev.preventDefault(); cmdNewIncognito(); }
     else if (mod && ev.key.toLowerCase() === 'k') { ev.preventDefault(); openCmdPalette(); }
+    else if (ev.key === 'F12' || (mod && ev.shiftKey && ev.key.toLowerCase() === 'i')) { ev.preventDefault(); cmdDevTools(); }
+    else if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'u') { ev.preventDefault(); cmdViewSource(); }
+    else if (ev.key === 'F11') { ev.preventDefault(); cmdFullScreen(); }
+    else if (mod && !ev.shiftKey && ev.key.toLowerCase() === 's') { ev.preventDefault(); cmdSavePage(); }
     else if (ev.key === 'F5') { ev.preventDefault(); $('#nav-reload').click(); }
     else if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); $('#nav-back').click(); }
     else if (ev.altKey && !ev.ctrlKey && ev.key.toLowerCase() === 'q') { ev.preventDefault(); openTabGrid(); }
@@ -10787,6 +11317,14 @@ function wireBridgeEvents() {
   bridge.on('webview:open-url', (url) => {
     if (url) createTab(url, activeTab() ? activeTab().engineId : state.settings.defaultEngine);
   });
+  // 右键菜单「导出为 PDF」：按 wcId 存右键的那个页面。
+  bridge.on('webview:save-pdf', (p) => {
+    cmdSavePdfPage(p && p.wcId != null ? p.wcId : undefined);
+  });
+  // 标签条原生右键菜单的动作回传
+  bridge.on('tab:context-action', (p) => {
+    if (p && p.tabId != null) runTabContextAction(p.tabId, p.act);
+  });
   bridge.on('shell:viewport', applyLayout);
   // 内核桥接：原生宿主推来的事件（frame/title/url/cursor）。compat 内核不会发。
   bridge.on('host:event', onHostEvent);
@@ -10893,6 +11431,11 @@ function reloadNewTab(wcId) {
  * ------------------------------------------------------------------ */
 
 async function init() {
+  // 无痕窗口：URL 上带 ?incognito=<partition> 时，本窗口所有 webview 都用那份
+  // 内存分区（见主进程 createIncognitoWindow）。这段要在 bootstrap 之前读，
+  // 因为后面的会话恢复要据此决定「不恢复」。
+  try { state.incognitoPartition = new URLSearchParams(location.search).get('incognito') || ''; } catch { state.incognitoPartition = ''; }
+
   const boot = await bridge.bootstrap();
 
   state.engines = boot.engines;
@@ -10929,6 +11472,8 @@ async function init() {
   try { state.userDataPath = await bridge.system.userDataPath(); } catch { state.userDataPath = ''; }
 
   document.documentElement.dataset.theme = boot.settings.theme || 'light';
+  // 无痕窗口：整窗打上标记，供 CSS 上色（紫色系）并在标题栏写明「无痕模式」。
+  if (state.incognitoPartition) document.documentElement.dataset.incognito = '1';
   applyLayout();
   // 放在 applyLayout 之后：这条栏要先知道 state.layout 才决定渲不渲。
   // 此处标签页还没建，所以「仅新标签页」档位下一开始是收着的，等下面
@@ -10959,14 +11504,25 @@ async function init() {
 
   // 首个标签页：按「恢复上次会话」决定是还原还是开主页
   const saved = boot.settings.session;
-  const canRestore = boot.settings.restoreSession !== false
+  const canRestore = !state.incognitoPartition
+    && boot.settings.restoreSession !== false
     && saved && Array.isArray(saved.tabs) && saved.tabs.length;
 
   if (canRestore) {
     // 内置新标签页走 restoreUrlFor 现算（原因见那个函数），其余页面照旧按快照恢复
-    saved.tabs.forEach((t) => createTab(restoreUrlFor(t.url), t.engineId, { activate: false }));
-    const idx = Math.min(Math.max(0, Number(saved.activeIndex) || 0), state.tabs.length - 1);
-    activateTab(state.tabs[idx].id);
+    const restored = saved.tabs.map((s) => {
+      const t = createTab(restoreUrlFor(s.url), s.engineId, { activate: false });
+      if (s.pinned) t.pinned = true;
+      return t;
+    });
+    // 先按快照里的 activeIndex 记住该激活哪一个，再排固定页 —— 排序会换位置，
+    // 之后再按下标找就错了（这正是「恢复后高亮标签不对」那类 bug 的来源）。
+    const activeIdx = Math.min(Math.max(0, Number(saved.activeIndex) || 0), restored.length - 1);
+    const activeId = restored[activeIdx].id;
+    // 固定页恢复后沉到最左，和普通页分开（createTab 是按快照顺序追加的）
+    state.tabs.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    renderTabstrip();
+    activateTab(activeId);
   } else {
     createTab(state.settings.homepage, state.settings.defaultEngine);
   }

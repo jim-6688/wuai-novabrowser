@@ -93,6 +93,7 @@ if (typeof window !== 'undefined' && !window.nova) {
     sniffer: { enabled: true, minSizeKB: 0, showSegments: false, autoProbe: true },
     mobile: { noImage: 'off', autoPage: false, autoPageMax: 10 },
     localNetworkAccess: 'ask',
+    localAuth: { enabled: true },
     github: { enabled: false, siteMirror: 'https://bgithub.xyz', assetMirror: 'https://gh-proxy.com/' }
   };
 
@@ -335,6 +336,7 @@ if (typeof window !== 'undefined' && !window.nova) {
       sniffer: { enabled: true, minSizeKB: 0, showSegments: false, autoProbe: true },
       mobile: { noImage: 'image', autoPage: true, autoPageMax: 10 },
       localNetworkAccess: 'ask',
+      localAuth: { enabled: true },
       github: { enabled: false, siteMirror: 'https://bgithub.xyz', assetMirror: 'https://gh-proxy.com/' },
       // 与真实配置的初值对齐（见 src/main/settings.js 的 DEFAULTS）：
       // 预览里的打印设置与保存密码开关要和装好第一次打开时是同一个样子
@@ -752,7 +754,8 @@ const MOCK_UPDATE = {
 
     history: {
       list: async (limit = 200) => state.history.slice(0, limit),
-      clear: async () => { state.history = []; return []; }
+      clear: async () => { state.history = []; return []; },
+      remove: async (url) => { const n = state.history.length; state.history = state.history.filter((h) => h.url !== url); return { ok: true, removed: n - state.history.length }; }
     },
 
     /* 内置新标签页的快捷方式。真的那份在主进程里，落的是设置文件的
@@ -912,6 +915,9 @@ const MOCK_UPDATE = {
     page: {
       /* 预览模式下没有主进程，保存框与写盘都不存在 —— 只回一个成功占位 */
       savePdf: async () => ({ ok: true, path: '(预览模式未写盘)' }),
+      savePage: async () => ({ ok: true, path: '(预览模式未写盘)' }),
+      devTools: async () => ({ ok: true, opened: true }),
+      viewSource: async () => ({ ok: true, url: 'about:blank' }),
       /* 预览里没有真打印机：给一条占位项，让打印设置面板仍能完整画出来 */
       printers: async () => ({
         ok: true,
@@ -920,6 +926,8 @@ const MOCK_UPDATE = {
       print: async () => ({ ok: true }),
       /* 预览模式没有主进程可注入，页面里的 window.print 也就没有可接管的对象 */
       installPrintHook: async () => ({ ok: false, frames: 0 }),
+      /* 同上，预览里没有可注入的页面，突破右键钩子也不装 */
+      installContextHook: async () => ({ ok: false, frames: 0 }),
       /* 预览要真排版：那是主进程 printToPDF 出来的 PDF 文件，浏览器预览里没有。
          指到一张同构的占位纸（print-preview-mock.html），让「左配置 / 右预览」
          这个布局在 UI 预览与截图里是完整的，而不是一块白板。
@@ -993,10 +1001,11 @@ const MOCK_UPDATE = {
 
     /* 网页区右键菜单：预览是普通网页，没有原生菜单，空实现即可。 */
     webview: {
-      contextMenu: () => {}
+      contextMenu: () => {},
+      tabContextMenu: () => {}
     },
 
-    window: { minimize() {}, maximize() {}, close() {} },
+    window: { minimize() {}, maximize() {}, fullScreen() {}, newIncognito: async () => ({ ok: true }), close() {} },
 
     on(channel, fn) {
       if (!listeners.has(channel)) listeners.set(channel, new Set());
