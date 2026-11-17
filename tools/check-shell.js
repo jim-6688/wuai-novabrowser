@@ -966,6 +966,12 @@ const menuBody = js.slice(js.indexOf('function renderMenuPanel'), js.indexOf('fu
   ['全部 UI 图标经 --icon-scale 等比缩小（一处控制所有内联 svg）',
     /--icon-scale: 0\.86;/.test(css)
       && /svg \{[\s\S]{0,160}zoom: var\(--icon-scale\)/.test(css)],
+  /* 工具栏那一行在全局之上再缩一档，且只命中 .toolbar 内的 svg。
+     zoom 是覆盖属性，所以规则里必须用 calc 把两层系数相乘（不是简单重设），
+     这样全局 --icon-scale 一改，工具栏也会跟着联动。 */
+  ['工具栏那一行图标再缩一档（--toolbar-icon-scale，只作用于 .toolbar svg）',
+    /--toolbar-icon-scale: 0\.9;/.test(css)
+      && /\.toolbar svg \{ zoom: calc\(var\(--icon-scale\) \* var\(--toolbar-icon-scale\)\); \}/.test(css)],
 ].forEach(([name, pass]) => pass ? ok(name) : bad(name));
 
 console.log(failed ? `\n结果：${failed} 项未通过\n` : '\n结果：全部通过\n');

@@ -23,6 +23,10 @@
      具体控件给的 width/height 不用动 —— zoom 与它们是彼此独立的属性。
      1 = 原始尺寸；调大调小只改这一个数。 */
   --icon-scale: 0.86;
+  /* 工具栏那一行（导航键 + 地址栏 + 右侧彩色方块）的图标，在全局之上再缩一档。
+     只作用于 .toolbar 内的 svg，其余区域维持全局尺寸。
+     1 = 与全局一致；只调这一个数即可改变工具栏图标大小。 */
+  --toolbar-icon-scale: 0.9;
 
   /* 焦点环。键盘走查与地址栏聚焦共用。用品牌色而不是系统蓝 ——
      系统蓝在这套配色里是第四种蓝，会显得整个界面没收拾干净。 */
@@ -251,6 +255,9 @@ svg {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* 工具栏那一行单独再缩一档：zoom 是覆盖而非叠加，这里把两层系数乘起来，
+   所以全局 --icon-scale 一改，工具栏也会跟着联动。只命中 .toolbar 内的图标。 */
+.toolbar svg { zoom: calc(var(--icon-scale) * var(--toolbar-icon-scale)); }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
