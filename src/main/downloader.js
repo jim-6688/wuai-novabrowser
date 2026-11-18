@@ -29,6 +29,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const http = require('http');
 const https = require('https');
+const zlib = require('zlib');
 
 const MAX_REDIRECTS = 6;
 /** 单个分片断线后的重试次数（重试会从分片内游标继续，不会重头下） */
@@ -72,9 +73,18 @@ function parseContentRange(value) {
  * 写着起止点，那是合规分片，误判成「被无视」会把已下的字节白白丢掉重来。
  */
 function honorsRange(status, headers, start, end) {
-  if (status === 206) return true;
   const cr = headers && headers['content-range'];
   const m = cr ? /bytes\s+(\d+)\s*-(\d+)?/i.exec(String(cr)) : null;
+  if (status === 206) {
+    // 206 也必须核对起点。有些网关（企业文档站、下载代理）不管你要哪一段，
+    // 都回 206 + 从头开始的数据，Content-Range 也谎写成 bytes 0-…/N。
+    // 早先这里无条件 return true，于是每片把自己收到的「从头数据」写进自己的
+    // 偏移，拼出一个大小分毫不差、内容却彻底错乱的文件 —— docx/xlsx 打不开
+    // 就是这么来的：它就是一串 zip 结构，错位一个字节整份都废。
+    // 没有 Content-Range 的 206 无从核对，按合规处理（真分片会带这个头）。
+    if (!m) return true;
+    return Number(m[1]) === start;
+  }
   if (!m) return false;
   const gotStart = Number(m[1]);
   if (gotStart !== start) return false;
@@ -242,6 +252,8 @@ class DownloadTask {
     this.bytesThisRun = 0;
     this.samples = [];
     this.mime = '';
+    /** 服务端违规返回的 Content-Encoding（gzip/deflate/br）；空表示未压缩 */
+    this.encoding = '';
     this.finalUrl = '';
     this.fromSnapshot = !!opts.fromSnapshot;
     /** 供 UI 判断「这个任务是本引擎接管的还是 Chromium 自己下的」 */
@@ -332,6 +344,9 @@ class DownloadTask {
 
   async writeSidecar() {
     if (!this.sidecarPath || !this.savePath) return;
+    // 压缩流无法按 Range 断点续传（偏移是压缩流的，不是解压后的），
+    // 记 sidecar 只会让下次续传接着一个错误的游标写。索性不记，重来就完整重下。
+    if (this.encoding) return;
     const data = {
       v: 1,
       id: this.id,
@@ -400,7 +415,22 @@ class DownloadTask {
     this.finalUrl = finalUrl;
     this.mime = h['content-type'] || '';
 
-    if (status === 206) {
+    // 服务端无视 Accept-Encoding: identity、照样回了压缩内容。
+    // 一旦压缩，Content-Length / Content-Range 描述的都是「压缩流」的字节，
+    // 拿它当文件真实大小去切片、去偏移写，得到的必是一份错乱的垃圾 ——
+    // docx/xlsx 这类本身是 zip 的二进制尤其敏感：PK 头错位一点就打不开。
+    // 正确做法：整条当单连接、按 Content-Encoding 流式解压后再写盘；
+    // 解压后的长度事先未知，所以 total 置 -1（界面显示「未知大小」），
+    // 靠解压流能否正常收尾来判定完整性。
+    const ce = String(h['content-encoding'] || '').trim().toLowerCase();
+    this.encoding = /^\s*gzip\s*$/i.test(ce) ? 'gzip'
+      : /^\s*deflate\s*$/i.test(ce) ? 'deflate'
+      : /^\s*br\s*$/i.test(ce) ? 'br' : '';
+
+    if (this.encoding) {
+      this.ranged = false;
+      this.total = -1; // 压缩流长度不是解压后文件的长度，不可信
+    } else if (status === 206) {
       this.ranged = true;
       this.total = parseContentRange(h['content-range']);
       if (!(this.total > 0)) this.ranged = false; // Content-Range 不合法，不敢按它切
@@ -665,7 +695,11 @@ class DownloadTask {
       if (chunk.abandoned) return;
       try {
         const headers = Object.assign({}, await this.ctx.headersFor(this.url, this.engineId));
-        if (this.ranged && chunk.end !== null) {
+        if (this.encoding) {
+          // 压缩流不做 Range：偏移是压缩流层面的，续传/分片全都会错位。
+          // 整段从头读、从头解压写，因此每次尝试前把游标归零（见下方 catch）。
+          delete headers.Range;
+        } else if (this.ranged && chunk.end !== null) {
           headers.Range = `bytes=${chunk.cursor}-${chunk.end}`;
         } else if (!this.ranged && chunk.cursor > 0) {
           // 服务端不支持 Range，续传只能整段重来再把前面弃掉
@@ -685,20 +719,42 @@ class DownloadTask {
 
         if (this.ranged && chunk.end !== null) {
           if (status === 206) {
+            // 206 也要核 Content-Range 起点：有些网关不管你要哪段都回 206 +
+            // 从头的数据、Content-Range 也谎写成 bytes 0-…。不查的话第一片
+            // （起点恰好是 0）会蒙混过关，其余片把「从头数据」写进各自偏移，
+            // 拼出大小分毫不差、内容却错乱的文件 —— docx/xlsx 打不开就是这么来的。
+            const cr = rh && rh['content-range'];
+            const mm = cr ? /bytes\s+(\d+)/i.exec(String(cr)) : null;
+            const startOk = !mm || Number(mm[1]) === chunk.cursor;
+            if (!startOk) {
+              // 这类网关按「请求的长度」从头给数据，keeper 手上未必是完整文件，
+              // 拿它跳过前缀续传并不可靠。稳妥起见只留一片、切单连接、
+              // 丢掉当前响应，下一轮不带 Range 从头整份重下 —— 覆盖写不留错位。
+              const resume = this.contiguousReceived();
+              this.degradeToSingle(chunk, resume,
+                '服务端忽略了分片请求（206 起点不符），已自动切换为单连接并重下');
+              chunk.cursor = chunk.start; // start 已被 degradeToSingle 置 0
+              this.received = 0;
+              this.ctx.onUpdate(this.snapshot());
+              try { res.destroy(); } catch { /* noop */ }
+              continue; // 用单连接重新请求整份
+            }
             skip = 0;
+            limit = chunk.end - chunk.cursor + 1;
           } else if (!honorsRange(status, rh, chunk.cursor, chunk.end)) {
             // 探测时答应得好好的，真要数据了却整份从头倒 —— 这就是「不支持」的
-            // 第二种判据。八片各吞一份全量既浪费带宽，又会互相覆盖写坏文件，
-            // 所以这里一次性切回单连接：由本片从连续前缀处接着读到尾。
+            // 第二种判据（200 整份）。八片各吞一份全量既浪费带宽又会互相覆盖，
+            // 切回单连接：keeper 手上是完整文件，从连续前缀处接着读到尾即可。
             const resume = this.contiguousReceived();
             this.degradeToSingle(chunk, resume,
               '服务端忽略了分片请求（要 206 却回 200），已自动切换为单连接');
             skip = resume;
+            limit = null;
           } else {
             // 200 但 Content-Range 落在我们要的窗口里：合规分片，不是被无视
             skip = 0;
+            limit = chunk.end - chunk.cursor + 1;
           }
-          limit = chunk.end === null ? null : chunk.end - chunk.cursor + 1;
         } else if (status === 206) {
           // 反向情况：本来判定不支持分片，续传时带了 `bytes=N-` 结果服务端认了。
           // 206 的响应体本来就从 N 开始，所以既不要额外跳过、也绝不能把游标倒回去
@@ -716,6 +772,12 @@ class DownloadTask {
         if (this.aborting || this.pauseRequested || this.cancelRequested) throw err;
         if (attempt >= MAX_RETRY) throw new Error(`${err.message}（已重试 ${MAX_RETRY} 次）`);
         attempt += 1;
+        // 压缩流无法从中途接：解压后的字节已经写进去一段，但下一次请求仍会
+        // 拿完整的压缩流从头解。把游标归到起点，让这一遍完整覆盖，不留下错位尾巴。
+        if (this.encoding) {
+          chunk.cursor = chunk.start;
+          this.received = this.chunks.reduce((a, c) => a + Math.max(0, c.cursor - c.start), 0);
+        }
         await delay(300 * attempt);
       }
     }
@@ -742,8 +804,10 @@ function pumpToFile(task, chunk, res, opts) {
       reject(err);
     };
 
-    res.on('data', (buf) => {
-      res.pause();
+    // 把一块（已解压的）字节写进文件，返回本次写入完成后的链。
+    // 压缩任务走单连接、顺序写，skip/limit 恒为 0/null，cursor 从 0 递增，
+    // 正好是解压后偏移。
+    const write = (b, after) => {
       chain = chain.then(async () => {
         // 降级时这一片会被就地丢弃。这里必须立刻收手：晚一步就是往文件里
         // 写一个马上要被别人覆盖的偏移，白占带宽还可能留下越界字节。
@@ -752,7 +816,6 @@ function pumpToFile(task, chunk, res, opts) {
           ok();
           return;
         }
-        let b = buf;
         if (skip > 0) {
           const n = Math.min(skip, b.length);
           skip -= n;
@@ -774,19 +837,50 @@ function pumpToFile(task, chunk, res, opts) {
         if (limit !== null && limit <= 0) {
           try { res.destroy(); } catch { /* noop */ }
           ok();
-          return;
+          return; // 到顶了，不再 resume
         }
-        res.resume();
+        if (after) after();
       }, fail);
-    });
+      return chain;
+    };
 
-    res.on('end', () => { chain.then(ok, fail); });
-    res.on('error', fail);
-    // 对端提前断开时 'end' 不会来，只能靠 complete 判定
-    res.on('close', () => {
-      if (res.complete) return;
-      chain.then(() => fail(new Error('连接被对端提前中断')), fail);
+    const wireDone = () => { chain.then(ok, fail); };
+    const wireEarlyClose = () => {
+      // 对端提前断开时 'end' 不会来，只能靠 complete 判定
+      res.on('close', () => {
+        if (res.complete) return;
+        chain.then(() => fail(new Error('连接被对端提前中断')), fail);
+      });
+    };
+
+    if (task.encoding) {
+      // 服务端无视 identity 硬塞了压缩流。解压后再写盘 —— 这一步不能省，
+      // 否则 docx/xlsx 这种 zip 二进制拿到的是 gzip 字节，大小校验还自洽通过。
+      const decoder = task.encoding === 'gzip' ? zlib.createGunzip()
+        : task.encoding === 'deflate' ? zlib.createInflate()
+        : zlib.createBrotliDecompress();
+      decoder.on('error', (err) => fail(new Error('解压失败：' + err.message)));
+      decoder.on('data', (b) => { write(b, null); });
+      // 等写入链真正排空再收尾，否则 settle() 会赶在最后几块落盘前关文件
+      decoder.on('end', () => { chain.then(ok, fail); });
+      res.on('data', (buf) => {
+        res.pause();
+        if (!decoder.write(buf)) decoder.once('drain', () => res.resume());
+        else res.resume();
+      });
+      res.on('end', () => { decoder.end(); });
+      res.on('error', fail);
+      wireEarlyClose();
+      return;
+    }
+
+    res.on('data', (buf) => {
+      res.pause();
+      write(buf, () => res.resume());
     });
+    res.on('end', wireDone);
+    res.on('error', fail);
+    wireEarlyClose();
   });
 }
 

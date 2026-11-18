@@ -62,6 +62,10 @@ const stats = {
 
 function makeServer() {
   const truncLeft = { '/trunc.bin': 2 };
+  // 办公文件（docx/xlsx 本质是 zip 二进制）的测试源：700KB 会切成 2 片
+  const office = Buffer.allocUnsafe(700 * 1024);
+  office[0] = 0x50; office[1] = 0x4b; office[2] = 0x03; office[3] = 0x04; // PK 头
+  for (let i = 4; i < office.length; i++) office[i] = (i * 37 + 11) & 255;
 
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://127.0.0.1');
@@ -77,6 +81,37 @@ function makeServer() {
     res.on('close', () => { stats.inflight[p] = Math.max(0, stats.inflight[p] - 1); });
 
     /* ---- 特殊路径 ---- */
+
+    // 服务器无视 Accept-Encoding: identity 硬塞 gzip（按规范带 Content-Encoding）。
+    // 引擎若把 gzip 字节当 docx 写盘，PK 头丢失、大小校验还自洽通过 → 文件打不开。
+    if (p === '/office-gzip.docx') {
+      const gz = require('zlib').gzipSync(office);
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Encoding': 'gzip', 'Content-Length': String(gz.length),
+        'Content-Disposition': 'attachment; filename="report.docx"'
+      });
+      stats.bytesSent += gz.length;
+      return res.end(gz);
+    }
+
+    // 探测回正常 206，真分片却不管要哪段都回 206 + 从 0 开始的数据、
+    // Content-Range 也谎写成 bytes 0-…。典型的不规范下载网关。
+    if (p === '/office-bad206.xlsx') {
+      const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+      if (m && m[1] === '0' && m[2] === '0') {
+        res.writeHead(206, { 'Content-Length': '1', 'Content-Range': `bytes 0-0/${office.length}`, 'Accept-Ranges': 'bytes' });
+        stats.bytesSent += 1;
+        return res.end(office.subarray(0, 1));
+      }
+      const start = m ? Number(m[1] || 0) : 0;
+      const want = m ? Number(m[2] || office.length - 1) - start + 1 : office.length;
+      const part = office.subarray(0, Math.min(want, office.length));
+      res.writeHead(206, { 'Content-Length': String(part.length),
+        'Content-Range': `bytes 0-${part.length - 1}/${office.length}`, 'Accept-Ranges': 'bytes' });
+      stats.bytesSent += part.length;
+      return res.end(part);
+    }
 
     if (p === '/404') { res.writeHead(404); return res.end('nope'); }
 
@@ -706,7 +741,37 @@ async function download(mgr, url, opts = {}) {
     check('取消限速后立即恢复不限速', Date.now() - t0 < 200, (Date.now() - t0) + 'ms');
   }
 
+  /* ---------- [N] 办公文件（zip 二进制）下载完整性 ---------- */
+  console.log('\n[N] 办公文件下载：gzip 与 206 起点谎报');
+  const officeSrc = Buffer.allocUnsafe(700 * 1024);
+  officeSrc[0] = 0x50; officeSrc[1] = 0x4b; officeSrc[2] = 0x03; officeSrc[3] = 0x04;
+  for (let i = 4; i < officeSrc.length; i++) officeSrc[i] = (i * 37 + 11) & 255;
+
+  // 服务器无视 identity 强行 gzip：必须解压后落盘，不能把 gzip 字节当 docx
+  await fsp.mkdir(path.join(tmpRoot, 'office-gzip'), { recursive: true });
+  await fsp.mkdir(path.join(tmpRoot, 'office-bad206'), { recursive: true });
+  const { mgr: mgrGzip } = mkManager(path.join(tmpRoot, 'office-gzip'));
+  const tGzip = await download(mgrGzip, `${base}/office-gzip.docx`, { filename: 'report.docx' });
+  const gotGzip = await fsp.readFile(tGzip.savePath);
+  check('gzip 文档：状态 done', tGzip.state === 'done', tGzip.state + (tGzip.error ? ' / ' + tGzip.error : ''));
+  check('gzip 文档：识别为压缩流并解压（total 未知置 -1）', tGzip.total === -1 && !!tGzip.encoding,
+    'total=' + tGzip.total + ' encoding=' + tGzip.encoding);
+  check('gzip 文档：解压后 PK 头正确', gotGzip[0] === 0x50 && gotGzip[1] === 0x4b);
+  check('gzip 文档：逐字节还原（不是那 3KB 的 gzip 壳）',
+    sha(gotGzip) === sha(officeSrc), sha(gotGzip).slice(0, 16) + '…');
+
+  // 206 起点谎报：honorsRange 必须识破、降级单连接整份重下，不能拼接出错乱内容
+  const { mgr: mgrBad206 } = mkManager(path.join(tmpRoot, 'office-bad206'));
+  const tBad = await download(mgrBad206, `${base}/office-bad206.xlsx`, { filename: 'data.xlsx' });
+  const gotBad = await fsp.readFile(tBad.savePath);
+  check('206 谎报：状态 done', tBad.state === 'done', tBad.state + (tBad.error ? ' / ' + tBad.error : ''));
+  check('206 谎报：识破后降级为单连接', tBad.degraded === true && tBad.ranged === false);
+  check('206 谎报：逐字节正确（各片没把从头数据写进各自偏移）',
+    sha(gotBad) === sha(officeSrc), sha(gotBad).slice(0, 16) + '…');
+  check('206 谎报：落盘大小正好', gotBad.length === officeSrc.length);
+
   /* ---------- 收尾 ---------- */
+  await mgrGzip.shutdown(); await mgrBad206.shutdown();
   await mgrB.shutdown(); await mgrC.shutdown(); await mgrD.shutdown();
   await mgrE.shutdown(); await mgrF.shutdown(); await mgrK.shutdown();
   await mgrL.shutdown(); await mgrJ.shutdown();
